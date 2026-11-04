@@ -59,6 +59,7 @@ static uint32_t sdu_band(uint32_t hot)                  /* the cards' band drawn
         h = h * 33u + screen[i];
     return h;
 }
+static uint32_t sdu_used(void);
 static void sdu_pairs(void)                             /* a list's 2x1 cards: what shows follows the knob, every knob works */
 {
     uint32_t a = sdu_band(0), b = sdu_band(2);
@@ -69,10 +70,13 @@ static void sdu_pairs(void)                             /* a list's 2x1 cards: w
     turn(EN_K3, 1);
     frame();
     check(ui.hot == 2u && !strcmp(sdu_val(2), "SAVE"), "K1/K2 showing, K3 turned: ACTION moved, its pair shows");
-    turn(EN_K2, 1);
+    int32_t kd = 1;
+    turn(EN_K2, kd);
+    if (sdc.item == it)                                 /* (K2 stops at the last item, no wrap: the other way) */
+        kd = -1, turn(EN_K2, kd);
     frame();
-    check(ui.hot == 1u && sdc.item != it, "K3/K4 showing, K2 turned: ITEM moved, its pair shows");
-    turn(EN_K2, -1);
+    check(ui.hot == 1u && (sdc.item != it || sdm_count() <= 1u || sdu_used() <= 1u), "K3/K4 showing, K2 turned: ITEM moved, its pair shows");
+    turn(EN_K2, -kd);
     turn(EN_K3, -1);
     frame();
     check(!strcmp(sdu_val(2), "LOAD") && sdc.item == it, "... and back");
@@ -640,7 +644,9 @@ static void sdu_filter_tree(void)
     sdu_frames(2);
     turn(EN_PRESET, -1);
     sdu_frames(2);
-    check(sdc.view[SDC_PRE] == SDV_FOLDER && sdc.flt && pop_kind == 4u && trk[0].preset == up, "the knob in NAME: the filter, no preset stepped");
+    check(sdc.view[SDC_PRE] == SDV_NAME && sdc.flt && pop_kind == 4u && trk[0].preset == up, "the knob in NAME: the filter changed, the view still NAME, no preset stepped");
+    sdc.view[SDC_PRE] = SDV_FOLDER;                     /* (the banks' tests go on) */
+    sdc.stale = 1;
     sdu_row(PR_CKIT);
     sdu_frames(1);
 }
@@ -670,6 +676,405 @@ static int sdu_snd_same(const sdu_snd_t *a, uint32_t part)
     sdu_snd_t b;
     sdu_snd(&b, part);
     return !memcmp(a, &b, sizeof b);
+}
+/* HOME held on the card's lists, deep in a folder and with a preview on (the user, 2026-11-04: "in project pages, long home should go to
+ * home"): the mixer on the hold; the short HOME still goes up a folder */
+static void sdu_hold_tests(void)
+{
+    uint32_t i, kinds[] = {PR_PROJECT, PR_CPRE, PR_CSMP
+#if FELUCCA_DRUM_KITS
+                           , PR_CKIT
+#endif
+    };
+    sdu_row(PR_CSMP);                                   /* a view the user chose holds while the session runs, leaving the page too */
+    while (sdc.view[SDC_SMP] != SDV_NAME)
+        turn(EN_K4, sdc.view[SDC_SMP] < SDV_NAME ? 1 : -1);
+    sdu_row(PR_CKIT);
+    op_enter(SCR_SYSTEM);
+    sdu_row(PR_CSMP);
+    check(sdc.view[SDC_SMP] == SDV_NAME, "SAMPLES: the view the user chose (NAME) is still there after the page and the screen were left");
+    while (sdc.view[SDC_SMP] != SDV_FOLDER)
+        turn(EN_K4, sdc.view[SDC_SMP] > SDV_FOLDER ? -1 : 1);
+    for (i = 0; i < sizeof kinds / sizeof kinds[0]; i++) {
+        sdu_row(kinds[i]);
+        sdu_frames(2);
+        press(B_HOME);
+        hh_wait(250);
+        check(ui.scr == SCR_PROJECT, "card list: HOME held, not yet at the hold time");
+        hh_wait(200);
+        check(ui.scr == SCR_HOME, "card list: HOME held: the mixer on the hold");
+        release(B_HOME);
+        frames(2);
+        check(ui.scr == SCR_HOME, "... the release: no second HOME");
+    }
+    sdu_card();
+    {   /* a folder with a sample, and one outside, put there by a computer */
+        FIL f;
+        UINT k;
+        f_mkdir("Optimist");
+        f_mkdir("Optimist/Samples");
+        f_mkdir("Optimist/Samples/drums");
+        if (f_open(&f, "Optimist/Samples/drums/kick.wav", FA_CREATE_ALWAYS | FA_WRITE) == FR_OK)
+            f_write(&f, "RIFFkick-data-one", 17, &k), f_close(&f);
+        if (f_open(&f, "Optimist/Samples/snare.wav", FA_CREATE_ALWAYS | FA_WRITE) == FR_OK)
+            f_write(&f, "RIFFsnare-data-two", 18, &k), f_close(&f);
+        sdm_st = SDM_OFF;
+        sdu_frames(4);
+    }
+    sdu_row(PR_CSMP);
+    while (sdc.view[SDC_SMP] != SDV_FOLDER)
+        turn(EN_K4, sdc.view[SDC_SMP] > SDV_FOLDER ? -1 : 1);
+    sdu_frames(2);
+    check(sdm_count() >= 1u && sdc_is_dir(0), "SAMPLES: a folder first");
+    sdu_key(0);
+    check(!sdm_at_top(), "SAMPLES: into the folder");
+    press(B_HOME);
+    hh_wait(500);
+    check(ui.scr == SCR_HOME, "deep in a folder: HOME held goes to the mixer, not up a folder");
+    release(B_HOME);
+    frames(2);
+    sdu_row(PR_CSMP);
+    sdu_key(0);
+    tap(B_HOME);
+    check(ui.scr == SCR_PROJECT && sdm_at_top(), "deep in a folder: a short HOME is still up a folder");
+    press(B_HOME);
+    press(B_SAVE);
+    hh_wait(500);
+    check(ui.scr == SCR_PROJECT, "card list: HOME then SAVE held: a chord, not HOME");
+    release(B_SAVE);
+    release(B_HOME);
+    sdu_frames(2);
+    op_disarm();
+    if (name_on())
+        tap(B_HOME);
+#if FELUCCA_SD_STREAM
+    sdu_pv_wav();
+    sdu_row(PR_CSMP);
+    while (sdc.view[SDC_SMP] != SDV_NAME)
+        turn(EN_K4, sdc.view[SDC_SMP] < SDV_NAME ? 1 : -1);
+    sdu_frames(2);
+    if (!sdc.pv)
+        sdu_black(10);
+    sdc.pv_k = 0xFFu;
+    sdu_key(0);
+    (void)sdu_pv_run(40);
+    check(sst_pv.act, "a sample previewing for the held HOME");
+    press(B_HOME);
+    hh_wait(500);
+    (void)sdu_pv_run(4);
+    check(ui.scr == SCR_HOME && !sst_pv.act, "HOME held with a sample playing: the mixer, silence");
+    release(B_HOME);
+    frames(2);
+#endif
+    sdu_card();
+}
+/* K2 (ITEM) on the card's lists (the user, 2026-11-04): the next filled item, the free ones and an empty bank passed, the next bank on the last
+ * item, a stop at the ends (no wrap); under SAVE the free slots count; inside an engine's filter only that engine's banks */
+static void sdu_put(const char *path)
+{
+    FIL f;
+    UINT k;
+    if (f_open(&f, path, FA_CREATE_ALWAYS | FA_WRITE) == FR_OK)
+        f_write(&f, "x", 1, &k), f_close(&f);
+}
+static void sdu_rm_tree(const char *path)               /* a folder and all in it gone */
+{
+    DIR d;
+    FILINFO fi;
+    char sub[160];
+    if (f_opendir(&d, path) == FR_OK) {
+        while (f_readdir(&d, &fi) == FR_OK && fi.fname[0]) {
+            snprintf(sub, sizeof sub, "%s/%s", path, fi.fname);
+            if (fi.fattrib & AM_DIR)
+                sdu_rm_tree(sub);
+            else
+                f_unlink(sub);
+        }
+        f_closedir(&d);
+    }
+    f_unlink(path);
+}
+static char sdu_item_e[2][96];                          /* the engine folders the K2 tests made */
+static void sdu_item_clean(void)                        /* the boot's card again: nothing the K2 tests made is left */
+{
+    sdu_rm_tree("Optimist/Projects/A");
+    sdu_rm_tree("Optimist/Projects/C");
+    sdu_rm_tree(sdu_item_e[0]);
+    sdu_rm_tree(sdu_item_e[1]);
+    sdu_item_e[0][0] = sdu_item_e[1][0] = 0;
+    sdc.flt = 0;                                        /* (the filter, the engine shown, the item: the list as the boot has it) */
+    sdc.fmask = 0;
+    sdc.eng = 0xFFu;
+    sdc.item = 0;
+    sdc.stale = 1;
+    sdu_row(PR_PROJECT);
+    sdm_st = SDM_OFF;
+    sdu_frames(4);
+}
+static void sdu_item_tests(void)
+{
+    uint32_t e0 = trk[0].eng_req, e1 = (e0 + 1u) % NENGINES, i;
+    char dir[96], path[128];
+    f_mkdir("Optimist");
+    f_mkdir("Optimist/Projects");
+    f_mkdir("Optimist/Projects/A");
+    f_mkdir("Optimist/Projects/C");
+    f_mkdir("Optimist/Projects/A/01 - one");
+    f_mkdir("Optimist/Projects/A/05 - five");
+    f_mkdir("Optimist/Projects/C/03 - three");
+    sdm_st = SDM_OFF;
+    sdu_frames(4);
+    sdu_row(PR_PROJECT);
+    sdu_frames(2);
+    (void)sdm_bank_go(0);
+    sdm_wait();
+    sdc.item = 0;
+    check(sdm_bank_shown() == 0 && sdc_used(0) && !sdc_used(1) && sdc_used(4), "K2: bank A with slots 1 and 5 filled");
+    turn(EN_K2, 1);
+    check(sdm_bank_shown() == 0 && sdc.item == 4u, "K2 forward: the free slots passed, slot 5");
+    turn(EN_K2, 1);
+    check(sdm_bank_shown() == 2 && sdc.item == 2u, "K2 forward from the page's last filled item: the next page with something (bank B, empty, passed): C, slot 3");
+    turn(EN_K2, 1);
+    check(sdm_bank_shown() == 2 && sdc.item == 2u, "K2 forward on the last page: it stops on the last item");
+    turn(EN_K2, -1);
+    check(sdm_bank_shown() == 0 && sdc.item == 4u, "K2 back from the first filled item of C: A's last filled, slot 5");
+    turn(EN_K2, -1);
+    turn(EN_K2, -1);
+    check(sdm_bank_shown() == 0 && sdc.item == 0u, "K2 back to the first item");
+    turn(EN_K2, -1);
+    check(sdm_bank_shown() == 0 && sdc.item == 0u, "K2 back on the first page: it stops on the first item");
+    sdu_op(SDO_SAVE);
+    sdc.item = 4;
+    turn(EN_K2, 1);
+    check(sdm_bank_shown() == 0 && sdc.item == 5u && !sdc_used(5), "K2 under SAVE: the next slot, free or not");
+    sdc.item = 15;
+    turn(EN_K2, 1);
+    check(sdm_bank_shown() == 1 && sdc.item == 0u, "K2 under SAVE from the last slot: the next bank's first, though it is empty");
+    turn(EN_K2, -1);
+    check(sdm_bank_shown() == 0 && sdc.item == 15u, "... and back to A's last");
+    /* ---- the default name of a save: <bank>-<item> from the slot asked (the user, 2026-11-04) */
+    sec_name_set(0, "");
+    sdu_key(1);
+    check(name_on() && nm.kind == NK_CARD && !strcmp(nm.s, "A-02") && !strcmp(nm.ph, "A-02"), "SAVE on A's free slot 2: NAME offers A-02, not PROJECT");
+    name_close();
+    (void)sdm_bank_go(3);
+    sdm_wait();
+    sdu_key(11);
+    check(name_on() && !strcmp(nm.s, "D-12"), "... bank D, key 12: D-12 (the slot asked, not slot 1)");
+    name_close();
+    sec_name_set(0, "A-02");
+    sdu_key(11);
+    check(name_on() && !strcmp(nm.s, "D-12"), "the work still named by an earlier default (A-02), saved on D-12: D-12");
+    name_close();
+    sec_name_set(0, "MY SONG");
+    sdu_key(11);
+    check(name_on() && !strcmp(nm.s, "MY SONG") && !strcmp(nm.ph, "D-12"), "the work with a name of its own, on another slot: its name kept (an empty one would be D-12)");
+    name_close();
+    sec_name_set(0, "PROJECT");
+    sdu_key(11);
+    check(name_on() && !strcmp(nm.s, "D-12"), "the placeholder name PROJECT counts as unnamed too");
+    name_close();
+    sec_name_set(0, "");
+    (void)sdm_bank_go(0);
+    sdm_wait();
+    sdu_op(SDO_LOAD);
+    /* the engine filter: only that engine's banks count */
+    sdu_row(PR_CPRE);
+    sdu_frames(2);
+    for (i = 0; i < NENGINES && (i == e0 || !eng_built(eng_uid(i))); i++)
+        ;
+    if (i >= NENGINES) {
+        sdu_item_clean();
+        return;
+    }
+    e1 = i;
+    f_mkdir("Optimist/Presets");
+    f_mkdir("Optimist/Presets/User");
+    snprintf(dir, sizeof dir, "Optimist/Presets/User/%s", sdn_engine(eng_uid(e1)));
+    str_cpy(sdu_item_e[0], dir, sizeof sdu_item_e[0]);
+    f_mkdir(dir);
+    for (i = 0; i < 2u; i++) {
+        snprintf(path, sizeof path, "%s/%c", dir, 'A' + (char)i);
+        f_mkdir(path);
+    }
+    snprintf(path, sizeof path, "%s/A/02 - first.ops", dir);
+    sdu_put(path);
+    snprintf(path, sizeof path, "%s/B/04 - second.ops", dir);
+    sdu_put(path);
+    snprintf(dir, sizeof dir, "Optimist/Presets/User/%s", sdn_engine(eng_uid(e0)));
+    str_cpy(sdu_item_e[1], dir, sizeof sdu_item_e[1]);
+    f_mkdir(dir);
+    snprintf(path, sizeof path, "%s/C", dir);
+    f_mkdir(path);
+    snprintf(path, sizeof path, "%s/C/07 - other engine.ops", dir);
+    sdu_put(path);
+    sdm_st = SDM_OFF;
+    sdu_frames(4);
+    sdu_row(PR_CPRE);
+    sdu_frames(2);
+    (void)sdm_pre_show(1, e1, 0);
+    sdc.flt = (uint8_t)(2u + e1);
+    sdu_frames(2);
+    sdc.item = 1;
+    check(sdc_used(1) && sdm_bank_shown() == 0, "K2, a filter: the engine's bank A, slot 2 filled");
+    turn(EN_K2, 1);
+    check(sdm_bank_shown() == 1 && sdc.item == 3u, "K2 forward in the filter: its bank B, slot 4");
+    turn(EN_K2, 1);
+    check(sdm_bank_shown() == 1 && sdc.item == 3u, "... the other engine's bank C is no page: it stops");
+    turn(EN_K2, -1);
+    check(sdm_bank_shown() == 0 && sdc.item == 1u, "K2 back in the filter: bank A, slot 2");
+    turn(EN_K2, -1);
+    check(sdm_bank_shown() == 0 && sdc.item == 1u, "... and stops at the first");
+    sdu_item_clean();
+}
+/* PRESETS and KITS open on the flat NAME list, filtered by engine (the user, 2026-11-04: "flat name list, filtered by engine"); PROJECTS (their FOLDER is
+ * shown as NAME) and SAMPLES keep FOLDER. The banks' tests then run with FOLDER chosen, as a user can */
+static void sdu_default_views(void)
+{
+    check(sdc.view[SDC_PRE] == SDV_NAME && sdc.view[SDC_KIT] == SDV_NAME && sdc.view[SDC_PROJ] == SDV_FOLDER && sdc.view[SDC_SMP] == SDV_FOLDER,
+          "the lists' default views: PRESETS and KITS NAME, PROJECTS and SAMPLES FOLDER");
+    sdc.view[SDC_PRE] = SDV_FOLDER;
+    sdc.view[SDC_KIT] = SDV_FOLDER;
+    sdc.stale = 1;
+}
+static uint32_t sdu_name_has(const char *w)             /* the page shown holds a slot whose name holds w */
+{
+    uint32_t i;
+    for (i = 0; i < sdm_count(); i++)
+        if (sdl_has(sdc_name(i), w))
+            return 1;
+    return 0;
+}
+static uint32_t sdu_name_at(const char *w)
+{
+    uint32_t i;
+    for (i = 0; i < sdm_count(); i++)
+        if (sdl_has(sdc_name(i), w))
+            return i;
+    return 99;
+}
+static void sdu_name_files(const char *eng, const char *bank, const char *file)
+{
+    char p[160];
+    f_mkdir("Optimist");
+    f_mkdir("Optimist/Presets");
+    f_mkdir("Optimist/Presets/User");
+    snprintf(p, sizeof p, "Optimist/Presets/User/%s", eng);
+    f_mkdir(p);
+    str_app(p, "/", sizeof p);
+    str_app(p, bank, sizeof p);
+    f_mkdir(p);
+    str_app(p, "/", sizeof p);
+    str_app(p, file, sizeof p);
+    sdu_put(p);
+}
+static void sdu_name_tests(void)
+{
+    uint32_t ea = trk[0].eng_req % NENGINES, eb = NENGINES, ec = NENGINES, i, n = 0;
+    char nm[32];
+    for (i = 0; i < NENGINES; i++)
+        if (i != ea && eng_built(eng_uid(i))) {
+            if (eb == NENGINES)
+                eb = i;
+            else if (ec == NENGINES)
+                ec = i;
+        }
+    if (ec == NENGINES)
+        return;                                         /* (fewer than three engines built) */
+    song.sel = 0;
+    sdu_card();                                         /* (a card in, mounted: the tests before it left it cut or full) */
+    sdu_name_files(sdn_engine(eng_uid(ea)), "A", "01 - zzz first.ops");
+    sdu_name_files(sdn_engine(eng_uid(ea)), "A", "02 - aaa second.ops");
+    sdu_name_files(sdn_engine(eng_uid(eb)), "A", "01 - bbb other.ops");
+    for (i = 0; i < 20u; i++) {                         /* twenty of a third engine's: two pages */
+        snprintf(nm, sizeof nm, "%02u - qq%02u.ops", (unsigned)(i % 16u) + 1u, (unsigned)i);
+        sdu_name_files(sdn_engine(eng_uid(ec)), i < 16u ? "A" : "B", nm);
+    }
+    sdm_st = SDM_OFF;
+    sdu_frames(4);
+    sdc.view[SDC_PRE] = SDV_NAME;
+    sdc.flt = 0;
+    sdc.eng = 0xFFu;
+    sdc.stale = 1;
+    sdc.fmask = 0;
+    sdu_row(PR_CPRE);
+    sdu_pairs();
+    sdu_frames(6);
+    sdu_pairs();
+    check(sdc_here() == SDC_PRE && sdc.view[SDC_PRE] == SDV_NAME && sdm_bank_shown() < 0 && !strcmp(sdu_val(3), "NAME"), "PRESETS, NAME: the flat list, no bank");
+    check(sdu_name_has("ZZZ") && sdu_name_has("AAA") && !sdu_name_has("BBB") && !sdu_name_has("QQ"),
+          "... the track's engine only: its presets, not the others'");
+    check(sdu_name_at("AAA") < sdu_name_at("ZZZ"), "... sorted by name (AAA before ZZZ, not by slot)");
+    /* the PRESETS knob: the filter changes, NAME stays */
+    for (i = 0; i < 60u && sdc.flt != 2u + eb; i++)
+        turn(EN_PRESET, sdc.flt >= 2u && sdc.flt - 2u > eb ? -1 : 1), sdu_frames(1);
+    sdu_frames(6);
+    check(sdc.flt == 2u + eb && sdc.view[SDC_PRE] == SDV_NAME && sdu_name_has("BBB") && !sdu_name_has("ZZZ"), "PRESETS knob: another engine's presets, still NAME");
+    for (i = 0; i < 60u && sdc.flt != 1u; i++)
+        turn(EN_PRESET, -1), sdu_frames(1);
+    sdu_frames(6);
+    check(sdc.flt == 1u && sdu_name_has("BBB") && sdu_name_has("AAA"), "... ALL: every engine's");
+    /* K2 and the black keys on a flat list of two pages */
+    for (i = 0; i < 60u && sdc.flt != 2u + ec; i++)
+        turn(EN_PRESET, 1), sdu_frames(1);
+    sdu_frames(8);
+    n = sdm_pages();
+    check(sdc.flt == 2u + ec && n == 2u && sdm_page() == 0u && sdm_count() == 16u, "an engine with twenty presets: two pages, the first of sixteen");
+    sdc.item = 3;
+    ui.toast_t = 0;                                     /* (the engine popup of the knob away: the list shows) */
+    pop_kind = 0;
+    ui.force = 1;
+    sdu_frames(3);
+    ppm("opt-sd-list16");
+    sdc.item = 0;
+    for (i = 0; i < 15u; i++)
+        turn(EN_K2, 1);
+    check(sdc.item == 15u && sdm_page() == 0u, "K2 forward through the page: its last item");
+    turn(EN_K2, 1);
+    sdu_frames(8);
+    check(sdm_page() == 1u && sdc.item == 0u, "... on: the next page, its first item");
+    for (i = 0; i < 40u; i++)
+        turn(EN_K2, 1);
+    sdu_frames(2);
+    check(sdm_page() + 1u == sdm_pages() && sdc.item + 1u == sdm_count(), "... to the end: the last item of the last page, no wrap");
+    n = sdm_count();
+    for (i = 0; i + 1u < n; i++)
+        turn(EN_K2, -1);
+    check(sdc.item == 0u && sdm_page() + 1u == sdm_pages(), "K2 back through the last page: its first item");
+    turn(EN_K2, -1);
+    sdu_frames(8);
+    check(sdm_page() + 2u == sdm_pages() && sdc.item == 15u, "K2 back from the first item: the previous page, its last item");
+    for (i = 0; i < 40u; i++)
+        turn(EN_K2, -1);
+    sdu_frames(2);
+    check(sdm_page() == 0u && sdc.item == 0u, "... to the start: the first item, no wrap");
+    /* black keys: pages; the top F#: PREVIEW */
+    sdu_black(1);
+    sdu_frames(8);
+    check(sdm_page() == 1u && sdc.item == 0u, "a black key on the flat list: that page");
+    sdu_black(5);
+    sdu_frames(2);
+    check(sdm_page() == 1u, "... a key past the last page: nothing");
+    sdu_black(10);
+    check(sdc.pvp && !strcmp(ui.msg, "PREVIEW ON"), "the top F# is still PREVIEW");
+    sdu_black(10);
+    sdu_black(0);
+    sdu_frames(8);
+    check(sdm_page() == 0u, "... F#: page A");
+    /* FOLDER: today's banks, the other view */
+    while (sdc.view[SDC_PRE] != SDV_FOLDER)
+        turn(EN_K4, -1), sdu_frames(1);
+    sdu_frames(8);
+    check(sdm_bank_shown() >= 0 && !strcmp(sdu_val(3), "FOLDER"), "VIEW to FOLDER: the banks, as ever");
+    while (sdc.view[SDC_PRE] != SDV_NAME)
+        turn(EN_K4, 1), sdu_frames(1);
+    sdu_frames(8);
+    check(sdm_bank_shown() < 0, "... and back to NAME: the flat list");
+    sdu_row(PR_CKIT);
+    sdu_frames(4);
+    sdu_row(PR_CPRE);
+    sdu_frames(4);
+    check(sdc.view[SDC_PRE] == SDV_NAME, "NAME stays chosen after the page was left");
 }
 static void sdu_pvw_tests(void)
 {
@@ -751,6 +1156,22 @@ static void sdu_pvw_tests(void)
     tap(B_HOME);
     sdu_frames(4);
     check(!sdm_pvw_on() && sdu_snd_same(&was, 0), "HOME: the sound back");
+    /* ---- HOME held: the trial reverts and the mixer shows (the user, 2026-11-04) */
+    sdu_key(0);
+    frame();
+    check(sdm_pvw_on(), "on trial for the held HOME");
+    press(B_HOME);
+    hh_wait(500);
+    sdu_frames(4);
+    check(ui.scr == SCR_HOME && !sdm_pvw_on() && sdu_snd_same(&was, 0), "HOME held on a preset on trial: the sound back, the mixer");
+    release(B_HOME);
+    frames(2);
+    check(ui.scr == SCR_HOME, "... the release: no second HOME");
+    sdu_row(PR_CPRE);
+    sdu_frames(2);
+    (void)sdm_pre_show(1, e1, 0);
+    sdc.flt = (uint8_t)(2u + e1);
+    sdu_frames(2);
     /* ---- ALGO */
     sdu_key(0);
     frame();
@@ -818,6 +1239,9 @@ static void sdu_kit_row(void)
     turn(EN_ALGO, 1);
     sdu_frames(2);
     check(is_drum(TSEL) && sdc_pre_row() && sdc_here() == SDC_KIT && sdc.open == SDC_KIT, "ALGO onto DR: the row is the kits' list");
+    (void)sdm_bank_go(0);                               /* (the bank the kit is in: K2 earlier may have gone on to another with kits) */
+    sdm_wait();
+    sdu_frames(2);
     check(sdu_used() >= 1u && !strcmp(sdu_label(0), "BANK"), "... in banks, Kits/User");
     up = (uint32_t)trk[TRK_DRUM].p[P_E0];
     turn(EN_PRESET, 1);
@@ -1001,6 +1425,7 @@ static void sdcard_tests(void)
     check(sdm_ready() && sdu_has("Optimist/Projects") && sdu_has("Optimist/Presets") && sdu_has("Optimist/Kits") &&
           sdu_has("Optimist/System/index.bin"), "SD boot: the card ready, its folders made, the sample index written");
     check(sdx_open() == FR_OK && sdx.count == 2u, "SD boot: the two samples indexed");
+    sdu_item_tests();                                   /* (on the boot's empty card; it takes away what it made) */
     /* ---- PROJECT: the card's list */
     r = sdu_row(PR_PROJECT);
     check(sdc_listing() && !cards_2x2() && cards_2x1() && OP_PY == OY_PANEL, "PROJECT, a card: the card's list, two big cards, the panel at 76");
@@ -1466,6 +1891,7 @@ static void sdcard_tests(void)
     sdu_new_tests();
     sdu_filter_tree();
     sdu_pvw_tests();
+    sdu_hold_tests();
 #if FELUCCA_DRUM_KITS
     sdu_kit_row();
 #endif

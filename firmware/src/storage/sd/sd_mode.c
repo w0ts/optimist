@@ -862,7 +862,10 @@ static int sdm_open(uint32_t list, uint32_t view, const char *vname)
 {
     uint32_t n;
     FRESULT r;
-    int same = list == sdm.list && view == sdm.view && SDM_LIST.view == SDB_BANK && sdm_bank_letter(SDM_LIST.root) >= 0;
+    char own[40];
+    uint32_t ol = sdl_path(own, sizeof own, SDM_FOLDER[list % SDC_N], 0);
+    int same = list == sdm.list && view == sdm.view && SDM_LIST.view == SDB_BANK && sdm_bank_letter(SDM_LIST.root) >= 0 &&
+               ol && !sdl_ncmp(SDM_LIST.root, own, ol);   /* (the bank shown is this list's: another list's, its read still on the way, is not) */
 #if SDM_DX7
     if (sdm.bank && list == sdm.list && view == sdm.view && sdm_ready())
         return sdm_dx7_page();                       /* (a bank shown: read again, still shown) */
@@ -870,6 +873,8 @@ static int sdm_open(uint32_t list, uint32_t view, const char *vname)
 #endif
     sdm.list = (uint8_t)list;
     sdm.view = (uint8_t)view;
+    if (list != SDC_PRE || view != SDV_NAME)
+        sdb_flt[0] = 0;                              /* (the engine filter is the presets' NAME list's) */
     if (!same) {                                     /* (another list: not the old one's names under its title) */
         sdm.b.n = 0;
         sdm.b.page = 0;
@@ -903,6 +908,15 @@ static int sdm_open(uint32_t list, uint32_t view, const char *vname)
     if (r != FR_OK)
         sdm.b.n = 0;
     return r == FR_OK ? 0 : -1;
+}
+/* the flat NAME list of the presets by engine (the user, 2026-11-04: "flat name list, filtered by engine"): only the files under
+ * a folder of that engine's name; "" every engine's. Set before sdm_open; the list read again by it */
+static void sdm_name_filter(int32_t e)
+{
+    const char *eng = e >= 0 ? sdn_engine(eng_uid((uint32_t)e % NENGINES)) : "";
+    sdb_flt[0] = 0;
+    if (eng[0] && sdl_cat(sdb_flt, sdl_cat(sdb_flt, sdl_cat(sdb_flt, 0, sizeof sdb_flt, "/"), sizeof sdb_flt, eng), sizeof sdb_flt, "/") >= sizeof sdb_flt)
+        sdb_flt[0] = 0;
 }
 static void sdm_turn(int32_t step)
 {
@@ -1205,6 +1219,8 @@ static const char *sdm_slot(uint32_t k, uint32_t *dir, uint32_t *cut)
     } else if (!it->dir && !it->cut && (n = sdm_len_is(it->name, EXT[sdm.list % SDC_N])) != 0) {
         sdm.shown[n] = 0;
     }
+    if (sdm.view == SDV_NAME && sdm.list != SDC_SMP && !it->dir && sdb_bank_no(sdm.shown))
+        memmove(sdm.shown, sdm.shown + 5, sdl_len(sdm.shown + 5) + 1u);   /* (the flat list by name: without the bank's "NN - ") */
     return sdl_upper(sdm.shown);                     /* (the card's lowercase names: the screen's upper case) */
 }
 /* slot k's name (from the card: never cut; a bank's without its number), upper case as the FM-1 shows and types names

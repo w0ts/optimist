@@ -111,6 +111,7 @@ static void name_card(uint32_t list, const char *prefill, const char *was)
     nm.len = nm.cur = (uint8_t)str_len(nm.s);
 }
 #endif
+static void name_ph_set(const char *s) { str_cpy(nm.ph, s, sizeof nm.ph); }
 static void name_user_free(void)                        /* SAVE AS, SAVE + a sound button: the first free slot */
 {
     uint32_t i;
