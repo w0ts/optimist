@@ -330,13 +330,36 @@ static BYTE sd_crc_retry(BYTE *fails)
 	return ++*fails < 2;
 }
 
-/* Read partial sector (a CRC failure read again: sd_crc_retry) */
+/* a timeout or a wrong answer at run time, above the floor (t0: when the read began): a clock gone too fast reads so, not as a
+ * CRC failure (the data a bit late: FE reads FF, measured on an FM-1, 2026-11-04): one step down at once, the card stopped, 1 =
+ * read again. A card taken out fails each command in microseconds, so the walk to the floor costs nothing; SD_DOWN_MS bounds it
+ * all for the main loop. At the floor, or past that: 0, the failure stands */
+#define SD_DOWN_MS 150u
+static BYTE sd_time_retry(DWORD t0)
+{
+	DWORD t1;
+	if (sd_step >= SD_FLOOR || sd_ms_since(t0) >= SD_DOWN_MS) return 0;
+	sd_step++;
+	sd_demotions++;
+	SD_SET_STEP(sd_step);
+	SD_SEL();
+	(void)SD_RX();
+	(void)send_cmd(CMD12, 0);
+	t1 = SD_NOW();
+	while (SD_RX() != 0xFF && sd_ms_since(t1) < 20)
+		;
+	release_spi();
+	return 1;
+}
+
+/* Read partial sector (a CRC failure read again: sd_crc_retry; a timeout: sd_time_retry) */
 static DRESULT sd_readp(BYTE *buff, DWORD sector, UINT offset, UINT count)
 {
 	DRESULT r;
 	BYTE fails = 0;
+	DWORD t0 = SD_NOW();
 	sd_crc_bad = 0;
-	while ((r = sd_readp1(buff, sector, offset, count)) != RES_OK && sd_crc_bad && sd_crc_retry(&fails))
+	while ((r = sd_readp1(buff, sector, offset, count)) != RES_OK && (sd_crc_bad ? sd_crc_retry(&fails) : sd_time_retry(t0)))
 		sd_crc_bad = 0;
 	return r;
 }
@@ -369,11 +392,13 @@ static struct {
 
 static DRESULT sd_rd_open(DWORD sector, UINT n)
 {
+	DWORD t0 = SD_NOW();
 	if (!(CardType & CT_BLOCK)) sector *= 512;
 	sd_rd.multi = n > 1;
 	sd_rd.state = SDR_IDLE;
-	if (send_cmd(n > 1 ? CMD18 : CMD17, sector) != 0) {
+	while (send_cmd(n > 1 ? CMD18 : CMD17, sector) != 0) {
 		release_spi();
+		if (sd_time_retry(t0)) continue;
 		sd_rd.multi = 0;
 		return RES_ERROR;
 	}
@@ -448,6 +473,7 @@ static DRESULT disk_readblocks(BYTE *buf, DWORD sector, UINT n)
 {
 	BYTE st = SDR_ERR, fails = 0;
 	UINT done = 0;
+	DWORD t0 = SD_NOW();
 	if (!n) return RES_ERROR;
 	for (;;) {									/* a run from the first block not read yet */
 		if (sd_rd_open(sector + done, n - done) != RES_OK) return RES_ERROR;
@@ -460,7 +486,7 @@ static DRESULT disk_readblocks(BYTE *buf, DWORD sector, UINT n)
 		}
 		if (done == n) return sd_rd_close();
 		(void)sd_rd_close();
-		if (st != SDR_READY || !sd_crc_retry(&fails)) return RES_ERROR;	/* (a timeout, an error token: not retried) */
+		if (st != SDR_READY ? !sd_time_retry(t0) : !sd_crc_retry(&fails)) return RES_ERROR;
 	}
 }
 
