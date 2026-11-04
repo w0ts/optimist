@@ -122,6 +122,37 @@ static void t_chain(void)
     }
 }
 
+/* the scan moves 2048 / STRCH source samples a frame (STRCH 2^(v x 13 / 126), 127: none): a looped zone wraps into its loop,
+ * a one-shot's to its start, and every window stays in the zone; every preset sounds through a set shorter than the phrase */
+static void t_scan(void)
+{
+    static const int8_t V[] = {0, 30, 52, 100, 126};
+    uint32_t e = ENG_SLOT_STRETCH, i, f, moved;
+    int32_t o[2 * CTL];
+    track_t *t = &trk[0];
+    for (i = 0; i < sizeof V; i++) {
+        double want = 2048.0 / pow(2.0, V[i] * 13.0 / 126.0);
+        host_tracks_init();
+        host_preset(t, e, 0);
+        t->p[P_E1] = 0;
+        t->p[P_E2] = V[i];
+        check(fabs(pst_adv_q16(V[i]) / 65536.0 - want) <= want / 128.0 + 1.0 / 256.0, "STRCH: 2048 / STRCH samples a frame");
+    }
+    check(pst_adv_q16(127) == 0u, "STRCH 127: frozen");
+    host_tracks_init();
+    host_preset(t, e, 0);
+    t->p[P_E1] = 0;
+    t->p[P_E2] = 40;                                    /* (18x: 114 samples a frame) */
+    t->p[P_E3] = 0;
+    trk_note_on(t, 60, 100);
+    for (f = 0; f < 20u * ST_HOP / CTL + ST_BLK; f++) {
+        mix_block(o, CTL);
+        check(pstx.scan < (pstx.z ? pstx.z->n : 1u), "the scan stays in the zone");
+    }
+    moved = pstx.scan;
+    check(moved > 15u * 110u && moved < 22u * 120u, "20 frames at STRCH 40: about 20 x 114 samples scanned");
+}
+
 static void t_presets(void)
 {
     const engine_t *e = ENGINES[ENG_SLOT_STRETCH];
@@ -254,6 +285,7 @@ int main(void)
           !strcmp(ENGINES[ENG_SLOT_STRETCH]->name, "STRETCH"), "STRETCH: UID 27, its fallback SAMPLE");
     t_chain();
     t_ratio();
+    t_scan();
     t_presets();
     t_edits();
     t_corners();
