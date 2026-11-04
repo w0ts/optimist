@@ -37,8 +37,8 @@ static void knobcol_page_lines(uint32_t scr, const char *name)
     uint32_t j, on, ok;
     cell_t c;
     for (on = 1; on < 2u; on--) {
-        knob_colors = on;
         reset_ui();
+        knob_colors = on;                               /* (after reset_ui, which sets the tests' plain look: KNOB COLORS off) */
         song.sel = 0;
         if (scr == SCR_FX) tap(B_FX); else tap(B_EDIT);
         if (scr == SCR_FX) tap(B_FX);           /* (the family's next page: the sends, levels: a turn opens no popup over the lines) */
