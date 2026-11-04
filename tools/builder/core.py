@@ -323,6 +323,8 @@ def built(cfg, key):
         return False
     if key in R.DRUMS_ONLY and not built(cfg, "DRUMS"):
         return False
+    if key == "FAVORITES" and card_sets(cfg):           # (no favorites in SD card mode: registry.h, the user 2026-11-04)
+        return False
     return cfg[key] != 0
 
 
@@ -933,8 +935,8 @@ def arena_bufs(cfg):
 def card_sets(cfg):
     """SD card mode (the fake SD mode's layout with the card, MEMORY 2): the sample sets go on the card, never in the
     flash (the user, 2026-10-29: ticking a set there must not grow the flash). The image holds no set whatever is
-    ticked (gen_samples.py FELUCCA_SAMPLES_CARD: each set empty, its number and presets kept); the ticks choose the sets
-    the SD card zip carries (tools/sd_zip.py, OPTIMIST/SAMPLES/<SET>/), which SAMPLE streams (eng_sample.c
+    ticked (gen_samples.py FELUCCA_SAMPLES_CARD: each set empty, its number and presets kept); the SD card zip
+    carries every set whatever the ticks (tools/sd_zip.py, Optimist/Samples/<Set>/), which SAMPLE streams (eng_sample.c
     smp_bank_on)"""
     return sd_mode(cfg) and built(cfg, "SDCARD")
 
@@ -949,11 +951,6 @@ def image_cfg(cfg):
     if not card_sets(cfg):
         return cfg
     return dict(cfg, **{k: 0 for k in set_keys()})
-
-
-def card_set_names(cfg):
-    """-> the generator's names of the sets ticked for the SD card zip (SD card mode), [] otherwise"""
-    return [R.ITEMS[k].env for k in set_keys() if cfg.get(k)] if card_sets(cfg) else []
 
 
 def sd_mode(cfg):

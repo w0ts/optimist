@@ -177,6 +177,11 @@ def reply_text(kind, env):
             s = json.loads(Path(env["SUMMARY_FILE"]).read_text()).get("sizes") or {}
             rows = [f"{quiet(r)} {v:,}" for r, v in s.items() if isinstance(v, int)] if isinstance(s, dict) else []
             sizes = "\n\nSizes: " + ", ".join(rows) if rows else ""
+        sdzip = ""
+        if env.get("SUMMARY_FILE") and Path(env["SUMMARY_FILE"]).is_file() and \
+                json.loads(Path(env["SUMMARY_FILE"]).read_text()).get("sdzip"):
+            sdzip = (f"- The SD card zip (every factory preset and sample set; unzip it at the card's root): "
+                     f"[{env.get('STEM')}-sd-card.zip]({base}-sd-card.zip)\n")
         cached = "This configuration was built before: here it is again." if env.get("CACHED") == "true" else "Done."
         site = f"https://{owner.lower()}.github.io/{name}/webapp"
         build_id = env.get("KEY", "")[:16]
@@ -184,7 +189,7 @@ def reply_text(kind, env):
                 f"- **[Install it]({site}/installer/?build={build_id})** with the web installer\n"
                 f"- [Its configuration in the web builder]({site}/builder/?cloud={env.get('STEM', '')})\n"
                 f"- Firmware: [{env.get('STEM')}.fwsc]({base}.fwsc) (`python3 tools/optimist.py flash FILE.fwsc`)\n"
-                f"- The web editor's sidecar: [{env.get('STEM')}-ui.zip]({base}-ui.zip)\n\n"
+                f"- The web editor's sidecar: [{env.get('STEM')}-ui.zip]({base}-ui.zip)\n" + sdzip + "\n" +
                 f"Kept {RETAIN_DAYS} days after the last request for it. "
                 f"Built from `{env.get('COMMIT', '')[:12]}`, cloud key `{env.get('KEY', '')}`.{sizes}" +
                 (f"\n\nSHA-256 of the .fwsc: `{env['SHA256']}`" if re.fullmatch(r"[0-9a-f]{64}", env.get("SHA256", "")) else ""))
@@ -203,16 +208,19 @@ def shelf_entry(env, now):
     key, stem = env.get("KEY", ""), env.get("STEM", "")
     if not KEY.fullmatch(key) or not re.fullmatch(r"optimist-[a-z0-9-]{1,32}-[0-9a-f]{16}", stem) or not stem.endswith(key[:16]):
         raise ValueError(f"shelf: a key and its stem, got {key!r} {stem!r}")
-    sizes = {}
+    sizes, sdzip = {}, False
     if env.get("SUMMARY_FILE") and Path(env["SUMMARY_FILE"]).is_file():
-        s = json.loads(Path(env["SUMMARY_FILE"]).read_text()).get("sizes") or {}
+        summary = json.loads(Path(env["SUMMARY_FILE"]).read_text())
+        s = summary.get("sizes") or {}
         sizes = {quiet(r): v for r, v in s.items() if isinstance(v, int)} if isinstance(s, dict) else {}
+        sdzip = bool(summary.get("sdzip"))         # (a build with SDCARD: its SD card zip, a release asset only)
     issue = env.get("ISSUE", "")
     return {"id": key[:16], "key": key, "stem": stem, "name": safe_name(env.get("NAME")),
             "commit": env.get("COMMIT", "") if SHA.fullmatch(env.get("COMMIT", "")) else "",
             "date": now.strftime("%Y-%m-%dT%H:%M:%SZ"), "issue": int(issue) if issue.isdigit() else None,
             "sha256": env.get("SHA256", "") if re.fullmatch(r"[0-9a-f]{64}", env.get("SHA256", "")) else "",
-            "sizes": sizes, "fwsc": f"{stem}.fwsc", "ui": f"{stem}-ui.zip", "config": f"{stem}.config"}
+            "sizes": sizes, "fwsc": f"{stem}.fwsc", "ui": f"{stem}-ui.zip", "config": f"{stem}.config",
+            **({"sdzip": f"{stem}-sd-card.zip"} if sdzip else {})}
 
 
 def shelf_add(builds, entry):
@@ -240,7 +248,7 @@ def release_orphans(assets, builds, now, grace=timedelta(hours=24)):
     """the release assets of no build on the branch (one that expired before the branch kept builds, or one whose
     publish failed after the upload), older than `grace` (a build being published uploads before it reaches the
     branch); assets: [{"name", "createdAt"}] as `gh release view --json assets` gives them"""
-    keep = {b[k] for b in builds for k in ("fwsc", "ui")}
+    keep = {b[k] for b in builds for k in ("fwsc", "ui", "sdzip") if b.get(k)}
     out = []
     for a in assets:
         try:

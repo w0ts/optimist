@@ -188,6 +188,7 @@ jobs:
           python tools/optimist.py package --config work/request.config --out dist --summary dist/summary.json
           mkdir out
           mv dist/optimist-*-ui.zip "out/$STEM-ui.zip"
+          if [ -f dist/optimist-sd-card.zip ]; then mv dist/optimist-sd-card.zip "out/$STEM-sd-card.zip"; fi   # (a build with SDCARD)
           mv dist/optimist-*.fwsc "out/$STEM.fwsc"
           cp dist/summary.json out/summary.json
       - uses: mymindstorm/setup-emsdk@4528d102f7230f0e7b276855c01ea1159be0e984 # v16
@@ -238,7 +239,8 @@ jobs:
         run: |
           gh release view cloud-builds >/dev/null 2>&1 || gh release create cloud-builds --prerelease --latest=false --title "Cloud builds" --notes "Firmware built from the web builder's configurations (docs/WEB.md). Each file is named by its configuration's cloud key; the issue that asked for it has the details." || gh release view cloud-builds >/dev/null
           have="$(gh release view cloud-builds --json assets --jq '.assets[].name')"
-          for f in "out/$STEM.fwsc" "out/$STEM-ui.zip"; do
+          for f in "out/$STEM.fwsc" "out/$STEM-ui.zip" "out/$STEM-sd-card.zip"; do
+            [ "$f" != "out/$STEM-sd-card.zip" ] || [ -f "$f" ] || continue   # (the SD card zip: only a build with SDCARD)
             grep -qxF "$(basename "$f")" <<< "$have" || gh release upload cloud-builds "$f"
           done
       - name: The checksum of the published package

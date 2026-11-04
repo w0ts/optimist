@@ -16,7 +16,9 @@ with CI and the web page; this module adds what reads the disk or git (profiles,
 real builds' sizes), the build and the CLI, and re-exports the core's names as before.
 """
 import argparse
+import contextlib
 import importlib.util
+import io
 import json
 import os
 import re
@@ -520,15 +522,46 @@ def build(cfg, name, measure=False, log=None, extra=(), echo=False, on_line=None
            *(["--measure"] if measure else []), *extra]
     out, rc = "", 1
     (bdir / "sizes.json").unlink(missing_ok=True)   # (a failed build must not report the last one's)
+    (bdir / SD_ZIP).unlink(missing_ok=True)          # (nor its SD card zip)
     if not classic():
         rc, out = release_build(cfgfile, bdir, measure, extra, echo, on_line, parallel=bool(outdir), cancel=cancel)
-        if log:
-            Path(log).write_text(out)
-        return _sized(cfg, bdir, rc, measure, out)
-    rc, out = _run(cmd, env, echo, on_line, cancel)
+    else:
+        rc, out = _run(cmd, env, echo, on_line, cancel)
+    if rc == 0 and not measure and K.built(cfg, "SDCARD"):
+        rc, out = sd_card_zip(bdir, out, echo, on_line)
     if log:
         Path(log).write_text(out)
     return _sized(cfg, bdir, rc, measure, out)
+
+
+SD_ZIP = "optimist-sd-card.zip"                      # (tools/sd_zip.py NAME)
+
+
+def sd_card_zip(bdir, out, echo, on_line):
+    """a build with SDCARD (the user, 2026-11-04: every one makes it): the SD card zip beside its package
+    (bdir/optimist-sd-card.zip: tools/sd_zip.py, every factory preset and sample set, cached by its inputs) ->
+    (returncode, output with its line); a zip that cannot be made fails the build (SD card mode reads its presets from it)"""
+    sys.path.insert(0, str(ROOT / "tools"))
+    import sd_zip
+    try:
+        buf = io.StringIO()
+        with contextlib.redirect_stdout(buf):
+            sd_zip.make(bdir / SD_ZIP)
+        line = buf.getvalue().strip()
+        rc = 0
+    except (OSError, subprocess.CalledProcessError, SystemExit) as e:
+        line, rc = f"sd zip: FAILED ({e}): the SD card zip was not made", 1
+    if echo:
+        print(line, flush=True)
+    if on_line:
+        on_line(line)
+    return rc, out + ("\n" if out and not out.endswith("\n") else "") + line + "\n"
+
+
+def sd_zip_of(cfg, bdir=None):
+    """the SD card zip of the last build of cfg (a build with SDCARD), else None"""
+    p = build_dir(bdir) / SD_ZIP
+    return p if K.built(cfg, "SDCARD") and p.exists() else None
 
 
 def _sized(cfg, bdir, rc, measure, out):
@@ -577,7 +610,8 @@ def package(cfg, name, outdir, stem=None, echo=False, summary=None, release=None
     its identity and version string), named optimist-X.Y-<name> (release.yml)"""
     ok, sizes, out = build(cfg, name, measure=False, echo=echo, extra=["--release", release] if release else ())
     pkg, ui = build_dir() / "felucca.fwsc", build_dir() / "felucca-ui.zip"   # (OPTIMIST_BUILD_DIR's, as build's)
-    result = {"ok": False, "name": name, "hash": f"{cfg_hash(cfg):08x}", "sizes": sizes, "fwsc": None, "ui": None}
+    result = {"ok": False, "name": name, "hash": f"{cfg_hash(cfg):08x}", "sizes": sizes, "fwsc": None, "ui": None,
+              "sdzip": None}
     if not ok or not pkg.exists() or (classic() and not ui.exists()):
         if not echo:
             print(out[-2000:])
@@ -589,6 +623,10 @@ def package(cfg, name, outdir, stem=None, echo=False, summary=None, release=None
     (outdir / f"{slug}.fwsc").write_bytes(pkg.read_bytes())
     if ui.exists():                     # (the release, fm1-base's app, has no web editor sidecar)
         (outdir / f"{slug}-ui.zip").write_bytes(ui.read_bytes())
+    sdz = sd_zip_of(cfg)
+    if sdz:                             # (a build with SDCARD: its SD card zip beside the package, the name as it is)
+        (outdir / SD_ZIP).write_bytes(sdz.read_bytes())
+        result["sdzip"] = str(outdir / SD_ZIP)
     notices = ("LICENSE", "LICENSING.md") + tuple(sorted("LICENSES/" + p.name for p in (ROOT / "LICENSES").glob("*.txt")))
     for f in notices:                   # next to the package (JieLi SDK files, Apache-2.0; the MIT / BSD-3-Clause parts)
         dst = outdir / "LICENSES" / Path(f).name if f.startswith("LICENSES/") else outdir / f
@@ -596,6 +634,8 @@ def package(cfg, name, outdir, stem=None, echo=False, summary=None, release=None
         dst.write_bytes((ROOT / f).read_bytes())
     print(f"package: {outdir / (slug + '.fwsc')} " + ("(+ -ui.zip)" if ui.exists() else "") + ": " +
           ", ".join(f"{r} {sizes[r]:,}" for r in REGIONS))
+    if sdz:
+        print(f"package: {outdir / SD_ZIP}: the SD card zip (unzip it at the card's root)")
     result.update(ok=True, fwsc=str(outdir / f"{slug}.fwsc"), ui=str(outdir / f"{slug}-ui.zip") if ui.exists() else None)
     _summary(summary, result)
     return 0
