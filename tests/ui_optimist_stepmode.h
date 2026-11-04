@@ -59,32 +59,34 @@ static void stepmode_mute_tests(void)
     reset_ui();
 #endif
 }
-static void stepmode_memory_tests(void)
+static void stepmode_memory_tests(void)                 /* ENTRY the default (the user, 2026-11-04: "it is the default, but if the user changes
+                                                         * mode, we remember per track"; RAM only) */
 {
     sen_open(16);
-    sen_rec_off();
+    if (rec_wait || song.rec)
+        tap(B_REC);
     cards_up();
     frames(30);
-    check(!se_on() && st.se_pref[0] == 0u, "step modes, memory: T1 starts as REC and the transport say (stopped, REC off: MUTE)");
+    check(se_on() && st.se_pref[0] == 0u, "step modes, memory: T1 starts in ENTRY, the default (stopped, REC off too)");
     smd_dbl();
-    check(se_on() && st.se_pref[0] == 1u && st.se_pref[1] == 0u, "step modes, memory: two SEQ taps: T1's mode is ENTRY, T2's untouched");
+    check(!se_on() && se_mute_mode() && st.se_pref[0] == 2u && st.se_pref[1] == 0u, "step modes, memory: two SEQ taps: T1's mode is MUTE, T2's untouched");
     op_enter(SCR_HOME);
     frames(2);
     op_enter(SCR_STEP);
     frames(2);
-    check(se_on() && st.se_pref[0] == 1u, "step modes, memory: STEP left and entered: T1 is still ENTRY");
+    check(!se_on() && st.se_pref[0] == 2u, "step modes, memory: STEP left and entered: T1 is still MUTE");
     song.sel = 1;
     frames(2);
-    check(!se_on() && se_mute_mode(), "step modes, memory: T2 on STEP: its own mode, MUTE");
+    check(se_on(), "step modes, memory: T2 on STEP: its own mode, the default ENTRY");
     song.sel = 0;
     frames(2);
-    check(se_on(), "step modes, memory: back on T1: ENTRY");
+    check(!se_on() && se_mute_mode(), "step modes, memory: back on T1: MUTE");
     smd_dbl();
-    check(!se_on() && se_mute_mode() && st.se_pref[0] == 2u, "step modes, memory: two SEQ taps again: T1 is MUTE");
+    check(se_on() && st.se_pref[0] == 1u, "step modes, memory: two SEQ taps again: T1 is ENTRY");
     song.sel = 1;
     song.sel = 0;
     frames(2);
-    check(!se_on() && se_mute_mode(), "step modes, memory: T1 stays MUTE after another track was selected");
+    check(se_on(), "step modes, memory: T1 stays ENTRY after another track was selected");
     reset_ui();
 }
 static void stepmode_cue_tests(void)

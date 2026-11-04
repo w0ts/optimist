@@ -77,7 +77,7 @@ static void btnled_tests(void)
                 lv = led_lvl(b);
                 sig0 = bk_sig();
                 tap(b);
-                frames(2);
+                frames(b == B_SEQ ? SEQ_DBL_MS / 16u + 2u : 2u);   /* (SEQ on a synth track's STEP: its change after the double-tap window) */
                 act = sig0 != bk_sig();
                 bk_set(k, BK_SCR[s]);
                 ui.row[BK_SCR[s]] = (uint8_t)r;

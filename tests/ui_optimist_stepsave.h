@@ -87,6 +87,7 @@ static void sv_rec_tests(void)
     check(step_on(&t->step[5]) && ly_lock == LY_STEP && (f & sv_kw(5)) && (d & sv_whites()),
           "keys: REC off: a key toggles its step, the keys light the steps");
     check(st.pk == 5u && pk_ok(), "pick: the note a step key set is the picked one");
+    st.se_pref[song.sel % NTRK] = 0;                    /* (back to the default, ENTRY, since 2026-11-04: the keys above were MUTE MODE's) */
     tap(B_REC);
     frames(2);
     check(rec_wait && se_on() && step_keys(fm1_in.buttons) && ly_lock == LY_STEP, "keys: REC on (armed), stopped: STEP ENTRY, the keys reach the UI");

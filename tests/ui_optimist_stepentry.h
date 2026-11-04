@@ -23,6 +23,7 @@ static void sen_open(uint32_t len)                     /* STEP on T1, chromatic 
 {
     track_t *t;
     sv_open();
+    memset(st.se_pref, 0, sizeof st.se_pref);          /* (ENTRY, the default since 2026-11-04; the other STEP tests start in MUTE MODE: reset_ui) */
     t = TSEL;
     t->p[P_SLEN] = (int16_t)len;
     t->p[P_QUANT] = Q_OFF, t->p[P_TRANS] = 0, t->p[P_VOICE] = V_POLY;
@@ -38,12 +39,14 @@ static void sen_open(uint32_t len)                     /* STEP on T1, chromatic 
     frames(2);
     pk_cards_down();
 }
-static void sen_rec_off(void)
+static void sen_rec_off(void)                           /* REC off, stopped: the step sequencer, MUTE MODE (ENTRY is the default since
+                                                         * 2026-11-04: REC no longer turns it on or off) */
 {
     if (song.playing)
         tap(B_PLAY), frames(3);
     if (rec_wait || song.rec)
         tap(B_REC);
+    st.se_pref[song.sel % NTRK] = 2;
     frames(2);
 }
 static void sen_toggle_tests(void)
@@ -269,7 +272,7 @@ static void sen_play_tests(void)
     check(n == 2u && !st.se_park, "step entry: ... the note recorded; the arm done");
     tap(B_PLAY);
     frames(4);
-    check(!song.playing && !rec_wait && !se_on() && step_keys(fm1_in.buttons), "step entry: stopped: the take and REC end, the keys are steps");
+    check(!song.playing && !rec_wait && se_on() && step_keys(fm1_in.buttons), "step entry: stopped: the take and REC end, STEP ENTRY again (the default)");
     /* PLAY twice: the take at once (PLAY while armed, as before) */
     tap(B_REC);
     frames(2);
@@ -282,6 +285,7 @@ static void sen_play_tests(void)
     frames(3);
     check(!se_on() && !step_keys(fm1_in.buttons), "step entry: playing with REC: the keys record as before (no STEP ENTRY)");
     sen_rec_off();
+    st.se_pref[song.sel % NTRK] = 0;                    /* (ENTRY: PLAY arms the take there) */
     /* PLAY's arm let go by REC off */
     tap(B_REC);
     tap(B_PLAY);
@@ -289,8 +293,9 @@ static void sen_play_tests(void)
     tap(B_REC);
     frames(2);
     check(!rec_wait && !st.se_park && !song.playing && step_keys(fm1_in.buttons), "step entry: armed by PLAY, REC off: the keys are steps, nothing armed");
+    st.se_pref[song.sel % NTRK] = 2;                    /* (MUTE MODE: the keys are steps there; ENTRY is the default since 2026-11-04) */
     key(WK(7));
-    check(step_on(&t->step[7]), "step entry: REC off: a key toggles its step as before");
+    check(step_on(&t->step[7]), "step entry: MUTE MODE: a key toggles its step as before");
 }
 static void sen_other_tests(void)
 {

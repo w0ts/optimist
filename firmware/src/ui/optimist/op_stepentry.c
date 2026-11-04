@@ -25,9 +25,9 @@ static int se_on_h(int held_ok)                         /* held_ok: a step held 
     if (ci_on)
         return 0;
 #endif
-    if (SE_PREF == 1)
-        return !song.rec;                               /* (a double SEQ tap: on, playing too) */
-    return rec_wait && !song.playing && !song.rec && !transport_req;
+    return !song.rec;                                   /* (ENTRY, stopped or playing: the default since 2026-11-04, the user: "it is the
+                                                         * default, but if the user changes mode, we remember per track"; a double SEQ
+                                                         * tap: MUTE MODE for that track, and back, kept in RAM only) */
 }
 static int se_on(void) { return se_on_h(0); }
 /* MUTE MODE (the user, 2026-11-03: "the old step sequencer mode would be actually more useful as mute tool"): a synth track's STEP where the keys
