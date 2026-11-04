@@ -155,7 +155,7 @@ static void run_card(const char *img_path)
     CHECK(put_wav("Optimist/Samples/kick.wav", 44100, 1) && f_mkdir("Optimist/Samples/loops") == FR_OK &&
           put_wav("Optimist/Samples/loops/pad.wav", 66150, 2),
           "%s: two samples", what);
-    CHECK(sdx_update(buf, sizeof buf, work, 64) == FR_OK && sdx_open() == FR_OK, "%s: the index", what);
+    CHECK(sdx_update(buf, sizeof buf) == FR_OK && sdx_open() == FR_OK, "%s: the index", what);
     CHECK(sdx_find_path("Samples/kick.wav", &rec) >= 0, "%s: kick indexed", what);
     h0 = rec.hash;
     CHECK(sdx_find_path("Samples/loops/pad.wav", &rec) >= 0, "%s: pad indexed", what);

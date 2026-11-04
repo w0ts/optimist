@@ -24,7 +24,7 @@ _Static_assert(SDC_KEYS == SDB_KEYS && SDC_NAME == SDL_NAME_MAX + 1u && SDC_PNAM
                "sd_mode.c: the UI's sizes (op_sdcard.c) are the card's");
 #define SDM_ID SEC_ID_SDCARD
 #define SDM_HINT 52u
-enum { SDM_OFF = 0, SDM_NONE, SDM_MOUNTED, SDM_INDEX, SDM_READY };   /* the card's state for the UI */
+enum { SDM_OFF = 0, SDM_NONE, SDM_MOUNTED, SDM_INDEX, SDM_NAMES, SDM_READY };   /* the card's state for the UI */
 
 typedef struct {
     uint8_t magic[2];                                /* "SD" */
@@ -55,13 +55,24 @@ _Static_assert(sizeof(sdm_smp_t) == 64u && sizeof(sdm_smp_t) * SDM_NSMP <= SEC_R
 static uint32_t sdm_reboot_at;                       /* (fm1_ms + 1 when a restore asked for the restart: sdm_poll) */
 #define SDM_KEEP_MAX 16u
 #if PRESETS_CARD
-static void sdm_factory_scan(void);
+static int sdm_factory_step(void);
 static void sdm_factory_poll(void);
 #endif
 #define SDM_SCALE_MAX 16u                            /* (x 25 %: 400 %, sd_alloc.c's cap) */
 static sdm_rec_t sdm_rec;
 static uint8_t sdm_st, sdm_smp_dirty;               /* (the samples' record written once the audio is quiet: sdm_poll) */
 static uint8_t sdm_dirty;                            /* the settings changed: 2 on SYSTEM, 1 SYSTEM left (written, quiet) */
+/* the index's pass, in slices (sd_index.c): SDM_IX_SLICE_MS of each main loop pass, at most every SDM_IX_EVERY_MS. One unit
+ * (an f_open, a 512-byte chunk) past the slice's end at most: ~20 ms a pass, under half the bus left to the streams and
+ * the screen. Whoever needs the whole index waits for it: a project's presets and kit are looked up at SDM_READY, the
+ * streams' plan again when the pass ends, and no "not on card" is said meanwhile */
+#ifndef SDM_IX_SLICE_MS
+#define SDM_IX_SLICE_MS 8u
+#define SDM_IX_EVERY_MS 16u
+#define SDM_FAC_AT_ONCE 0                            /* (a test: the names in one call) */
+#endif
+static uint8_t sdm_ix_force, sdm_ix_pct;
+static uint32_t sdm_ix_at;
 static uint8_t sdm_dropped;                          /* the boot's pending save was another project's: dropped */
 static sdm_smp_t sdm_smp[SDM_NSMP];                  /* the open project's samples (the player's): parts, lanes */
 static uint32_t sdm_smp_key;                         /* the record read (its sequence + 1; 0 none read) */
@@ -382,6 +393,7 @@ static void sdm_poll(void)
     sdm_slow_tick();
 #endif
     if (sdm_st >= SDM_MOUNTED && sd_state != SD_READY) {
+        sdx_pass_cancel();                           /* (a card pulled mid-pass: index.bin as it was) */
         sdm_st = SDM_NONE;
         sdm.b.n = 0;
         sdm.b.pages = 1;
@@ -399,19 +411,38 @@ static void sdm_poll(void)
             ui_message("SD CARD ERROR");
         }
         (void)sdm_was(r);
+        (void)sdx_pass_begin(sdm_ix_force);          /* (a card unchanged since the last pass: nothing to walk) */
+        sdm_ix_force = 0;
+        sdm_ix_pct = 0;
         sdm_st = SDM_INDEX;
-        if (!ui.msg_t)
-            ui_message("SD CARD: SAMPLES");          /* (said before the pass, which holds the screen) */
         ui.force = 1;
         return;
     }
-    if (sdm_st == SDM_INDEX) {
-        (void)sdm_was(sdx_update(sd_blk, sizeof sd_blk, 0, 0));
+    if (sdm_st == SDM_INDEX && (uint32_t)(fm1_ms - sdm_ix_at) >= SDM_IX_EVERY_MS) {
+        sdm_ix_at = fm1_ms;
+        (void)sdm_was(sdx_pass_step(sd_blk, sizeof sd_blk, SDM_IX_SLICE_MS));
+        if (sdx_pass_on()) {
+            if (sdx_pass_pct() != sdm_ix_pct) {      /* (SYSTEM > SD CARD's SAMPLES line) */
+                sdm_ix_pct = sdx_pass_pct();
+                ui.force = 1;
+            }
+        } else {
+            sdm_st = SDM_NAMES;
+            ui.force = 1;
+#if FELUCCA_SD_STREAM
+            if (sstp.missing)
+                sstp.dirty = 1;                      /* (what the plan looked up in the old index, or none: again) */
+#endif
+        }
+    }
+    if (sdm_st == SDM_NAMES) {
+#if PRESETS_CARD
+        while (!sdm_factory_step())                  /* (the factory presets' names, an engine a pass) */
+            if (!SDM_FAC_AT_ONCE)
+                return;
+#endif
         sdm_st = SDM_READY;
         ui.force = 1;
-#if PRESETS_CARD
-        sdm_factory_scan();                          /* (the factory presets' names: the lists') */
-#endif
     }
 #if PRESETS_CARD
     sdm_factory_poll();
@@ -1093,7 +1124,7 @@ static uint64_t sdm_small_id(const char *path)
  * card", "card only in SD mode"): Optimist/Presets/Factory/<Engine>/<L>/<nn> - <name>.ops (banks of 16 in the
  * table's order: preset 18 is B/03), as tools/sd_factory.c writes them
  * (the SD card zip, tools/sd_zip.py). The firmware carries no preset tables (core.h PRESETS_PTR), only their counts.
- *   sdm_factory_scan    at a mount: each built engine's folder read once, the names into sdm_fac_nm (the lists, the
+ *   sdm_factory_step    at a mount, an engine a call: each built engine's folder read once, the names into sdm_fac_nm (the lists, the
  *                       favorites, the web editor: model.c preset_name -> sdm_factory_name; "?" a file missing)
  *   sdm_factory_ask     (model.c apply_preset_to: maybe the interrupts off) part k's engine defaults are set; its
  *                       preset file is loaded on the main loop's next pass (sdm_factory_poll), as a user preset loads
@@ -1158,17 +1189,22 @@ static uint32_t sdm_fac_pass(uint32_t e, int names)
     }
     return n;
 }
-/* at a mount: every built engine's count, then the names (their places depend on every count before them); the lists
- * made again (model.c bank_ready) */
-static void sdm_factory_scan(void)
+/* at a mount, a call a main loop pass: every built engine's count, then the names (their places depend on every count
+ * before them); the lists made again at the end (model.c bank_ready): 1 done */
+static int sdm_factory_step(void)
 {
-    uint32_t e;
-    memset(sdm_fac_nm, 0, sizeof sdm_fac_nm);
-    for (e = 0; e < NENGINES; e++)
-        sdm_fac_n[e] = (uint8_t)sdm_fac_pass(e, 0);
-    for (e = 0; e < NENGINES; e++)
-        (void)sdm_fac_pass(e, 1);
+    static uint32_t at;
+    if (!at)
+        memset(sdm_fac_nm, 0, sizeof sdm_fac_nm);
+    if (at < NENGINES)
+        sdm_fac_n[at] = (uint8_t)sdm_fac_pass(at, 0);
+    else
+        (void)sdm_fac_pass(at - NENGINES, 1);
+    if (++at < 2u * NENGINES)
+        return 0;
+    at = 0;
     bank_ready = 0;
+    return 1;
 }
 /* engine slot e's preset pi: its file's path into sdm.path (the bank's file numbered pi % 16 + 1, whatever its name):
  * its length, 0 none */
@@ -1738,6 +1774,7 @@ static void sdm_restore(void)
 
 static void sdm_again(void)                          /* SD CARD's YES: mounted again (or the first time), folders, index */
 {
+    sdm_ix_force = 1;                                /* (the walk, whatever the signature says) */
     if (sd_state == SD_READY)
         sdm_st = SDM_MOUNTED;
     else
@@ -1745,6 +1782,7 @@ static void sdm_again(void)                          /* SD CARD's YES: mounted a
     if (sd_state != SD_READY)
         ui_message("NO SD CARD");
 }
+static int32_t sdm_index_pct(void) { return sdm_st == SDM_INDEX ? (int32_t)sdm_ix_pct : -1; }   /* (-1: no pass) */
 #if FELUCCA_SD_STREAM
 static uint32_t sdm_pre_ms(void) { return sst_pre_ms; }
 static uint32_t sdm_pre_kb(void) { return sst_pre_kb(sst_pre_ms); }
@@ -1791,7 +1829,7 @@ static uint8_t sdm_bank_said;
 static void sdm_bank_tick(void)
 {
     char a[30];
-    uint32_t k, m = sd_state == SD_READY && sstp.state != SSTP_GATED ? sstp.bmiss : 0u;
+    uint32_t k, m = sd_state == SD_READY && sstp.state != SSTP_GATED && !sdx_pass_on() ? sstp.bmiss : 0u;
     sdm_bank_said &= (uint8_t)m;
     for (k = 0; k < SST_NPART && k < NPART; k++)
         if ((m >> k & 1u) && !(sdm_bank_said >> k & 1u) && !op_armed()) {

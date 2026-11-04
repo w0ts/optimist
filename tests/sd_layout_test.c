@@ -5,7 +5,7 @@
  *   - XXH64 against its published vectors, any split; a WAV's identity its data chunk only;
  *   - the folders made on a fresh card, names, the tree walk (a computer's hidden files skipped);
  *   - the index: a pass hashes new and changed files only, a moved sample found by its hash, a file the FM-1 wrote
- *     hashed at once, the same index with or without the work table, a power cut at every write of a pass;
+ *     hashed at once, a power cut at every write of a pass (tests/sd_index_pass_test.c: the pass in slices);
  *   - the 16-key pages: every view's entries each shown once, in order, forward and back, names cut on a UTF-8
  *     boundary and sorted by the cut, a slot's whole path found again;
  *   - the staged save: versions (N kept), the spare run reused, a power cut at every block write: the card holds the
@@ -306,7 +306,7 @@ static void index_tests(const char *what)
 
     samples();
     CHECK(sdx_open() == FR_NO_FILE, "%s: no index yet", what);
-    CHECK(sdx_update(buf, sizeof buf, work, 64) == FR_OK, "%s: the first pass", what);
+    CHECK(sdx_update(buf, sizeof buf) == FR_OK, "%s: the first pass", what);
     CHECK(sdx.files == 5 && sdx.hashed == 5 && sdx.kept == 0 && sdx.count == 5, "%s: 5 files hashed (%u %u %u)", what,
           (unsigned)sdx.files, (unsigned)sdx.hashed, (unsigned)sdx.kept);
     CHECK(sdx_open() == FR_OK && sdx.count == 5 && sdx.cap >= 5, "%s: the index read back", what);
@@ -318,12 +318,12 @@ static void index_tests(const char *what)
           "%s: a sample by its hash: %s", what, rec.path);
     CHECK(sdx_find_path("Samples/drums/._kick.wav", &rec) < 0, "%s: the ._ file not indexed", what);
 
-    CHECK(sdx_update(buf, sizeof buf, work, 64) == FR_OK && sdx.hashed == 0 && sdx.kept == 5,
+    CHECK(sdx_update(buf, sizeof buf) == FR_OK && sdx.hashed == 0 && sdx.kept == 5,
           "%s: a pass again: nothing hashed (%u)", what, (unsigned)sdx.hashed);
     sample("Optimist/Samples/drums/909/snare.wav", 6, 1400);   /* changed "elsewhere": another size */
     CHECK(f_rename("Optimist/Samples/top.wav", "Optimist/Samples/keys/moved top.wav") == FR_OK, "%s: moved", what);
     sample("Optimist/Samples/new.wav", 7, 640);
-    CHECK(sdx_update(buf, sizeof buf, 0, 0) == FR_OK && sdx.files == 6 && sdx.hashed == 3 && sdx.kept == 3,
+    CHECK(sdx_update(buf, sizeof buf) == FR_OK && sdx.files == 6 && sdx.hashed == 3 && sdx.kept == 3,
           "%s: a pass without the work table: the changed, the moved and the new hashed (%u %u %u)", what,
           (unsigned)sdx.files, (unsigned)sdx.hashed, (unsigned)sdx.kept);
     CHECK(sdx_find_hash(sample_hash(5, 100), &rec) >= 0 && !strcmp(rec.path, "Samples/keys/moved top.wav"),
@@ -338,7 +338,7 @@ static void index_tests(const char *what)
     CHECK(sdx_note_written("Optimist/Samples/drums/909/kick.wav", buf, sizeof buf) == FR_OK, "%s: noted", what);
     CHECK(sdx_find_hash(sample_hash(8, 2000), &rec) == no && rec.used == sdx.seq,
           "%s: the FM-1's write hashed at once, its use kept", what);
-    CHECK(sdx_update(buf, sizeof buf, work, 64) == FR_OK && sdx.hashed == 0,
+    CHECK(sdx_update(buf, sizeof buf) == FR_OK && sdx.hashed == 0,
           "%s: ... and a pass keeps it (its date and size as recorded): %u hashed", what, (unsigned)sdx.hashed);
     cnt = sdx.count;
     sample("Optimist/Samples/rec 1.wav", 9, 300);
@@ -356,7 +356,7 @@ static void index_tests(const char *what)
     CHECK(sdx_note_written("Optimist/Samples/one more.wav", buf, sizeof buf) == FR_DENIED, "%s: no room: FR_DENIED",
           what);
     cnt = sdx.count + 1u;
-    CHECK(sdx_update(buf, sizeof buf, work, 64) == FR_OK && sdx.count == cnt && sdx.hashed == 1,
+    CHECK(sdx_update(buf, sizeof buf) == FR_OK && sdx.count == cnt && sdx.hashed == 1,
           "%s: the pass takes it (%u records, %u hashed)", what, (unsigned)sdx.count, (unsigned)sdx.hashed);
 }
 
@@ -370,7 +370,7 @@ static void index_cuts(const char *what, uint8_t *img, uint32_t sectors, uint32_
     sample("Optimist/Samples/cut test.wav", 77, 2500);
     memcpy(snap, img, (size_t)sectors * 512u);
     w0 = C.writes;
-    CHECK(sdx_update(buf, sizeof buf, work, 64) == FR_OK, "%s: the pass (uncut)", what);
+    CHECK(sdx_update(buf, sizeof buf) == FR_OK, "%s: the pass (uncut)", what);
     want = sdx.count;
     total = C.writes - w0;
     for (k = 0; k < total; k++) {
@@ -378,11 +378,11 @@ static void index_cuts(const char *what, uint8_t *img, uint32_t sectors, uint32_
         card_power_on();
         if (mount() != FR_OK) { bad++; continue; }
         C.cut_at = C.writes + k;
-        (void)sdx_update(buf, sizeof buf, work, 64);
+        (void)sdx_update(buf, sizeof buf);
         card_power_on();
         if (mount() != FR_OK || sdx_open() != FR_OK) { bad++; continue; }
         if (sdx.count != want && sdx.count != want - 1u) { bad++; continue; }
-        if (sdx_update(buf, sizeof buf, work, 64) != FR_OK || sdx.count != want ||
+        if (sdx_update(buf, sizeof buf) != FR_OK || sdx.count != want ||
             sdx_find_hash(sample_hash(77, 2500), &sdx.rec) < 0)
             bad++;
         fat_check(1, what);                          /* (no cluster in two files: a cut rename's halves) */
@@ -492,7 +492,7 @@ static void browse_tests(const char *what)
     CHECK(sdb_turn(&b, 99) == FR_OK && b.page == b.pages - 1u && sdb_turn(&b, -99) == FR_OK && b.page == 0,
           "%s: turned past the ends: clamped", what);
 
-    CHECK(sdx_update(buf, sizeof buf, work, 64) == FR_OK, "%s: the index for the recent view", what);
+    CHECK(sdx_update(buf, sizeof buf) == FR_OK, "%s: the index for the recent view", what);
     for (i = 0; i < 20; i++) {                       /* 20 uses, the last one first */
         snprintf(name, sizeof name, "Samples/many/%c%02u.wav", i & 1 ? 'S' : 's', (unsigned)i);
         int32_t no = sdx_find_path(name, &sdx.rec);

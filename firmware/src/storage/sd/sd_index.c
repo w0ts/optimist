@@ -16,17 +16,34 @@
  * Optimist/ ("Samples/drums/kick.wav").
  *   sdx_open()                    the index's header read (sdx.count, sdx.cap, sdx.seq): FR_OK, FR_NO_FILE (none
  *                                 yet), FR_NO_FILESYSTEM (not an index: sdx_update replaces it)
- *   sdx_update(buf, bufn, work, work_n)   the pass: Samples/ walked, each file matched to its old record (the walk's
- *                                 order is the last pass's, so mostly the next record; else by the path's key in work,
- *                                 work_n words for that many old records; else by reading the old index through),
- *                                 hashed when new or changed; buf: bufn bytes (512 or more) for the hashing.
- *                                 sdx.files / sdx.hashed / sdx.kept: what it did
+ *   the pass, in slices across the main loop's passes (the user, 2026-11-04: one pass over the card in one frame froze the
+ *   FM-1 for 10 s and starved the second core): the files counted (the new index's exact run), then walked again into it,
+ *   each matched to its old record (the walk's order is the last pass's, so mostly the next record; else by reading the
+ *   old index through, a record a unit), hashed when new or changed (a chunk of bufn bytes a unit). A unit is one
+ *   directory entry, one record, one f_open or one chunk; sdx_pass_step runs units until its ms are spent. The card stays
+ *   usable: lookups read the old index, and whoever needs the new one waits for sdx_pass_on to end (sd_mode.c)
+ *   sdx_pass_begin(force)         a pass from the start, any running one dropped: 1 started, 0 nothing to do (not force, and
+ *                                 the card unchanged since the last pass: the header's signature, below)
+ *   sdx_pass_step(buf, bufn, ms)  the next units for ms, the bytes of buf (512 or more) free for the call; nothing while a
+ *                                 recording holds the card: FR_OK, or the error that ended the pass
+ *   sdx_pass_on()                 a pass under way (or to start again: a file written meanwhile)
+ *   sdx_pass_pct()                how far, 0..99
+ *   sdx_pass_cancel()             dropped: the files closed, index.bin as it was (a card pulled, a mount); index.tmp
+ *                                 stays until the next pass removes it. index.bin is only replaced by a whole pass
+ *   sdx_update(buf, bufn)         a whole pass at once, the walk forced (the tests'). sdx.files / sdx.hashed / sdx.kept:
+ *                                 what the last pass did
+ * The signature (sdx_sig, past the header in the header's record, outside its check: an older index has none): FSINFO's
+ * free clusters and next-free hint as a pass left them. Whatever a computer adds, removes or rewrites by a new chain moves
+ * one of them, so a mount that finds them equal skips the walk altogether. The FM-1's own later writes move them too (a
+ * walk at the next mount, in slices, the hashes kept). A file overwritten in place by a computer does not: SYSTEM > SD CARD's
+ * SAMPLES INDEX forces the walk. FAT16 has no FSINFO: always walked.
  *   sdx_find_hash(h, &rec)        the record of the sample with that hash: its number, or -1
  *   sdx_find_path(path, &rec)     the record of that path (from Optimist/, any case): its number, or -1
  *   sdx_read(no, &rec)            record no
- *   sdx_touch(no)                 record no used now (sdx.seq + 1): the recent view's order
+ *   sdx_touch(no)                 record no used now (sdx.seq + 1): the recent view's order (during a pass, not kept)
  *   sdx_note_written(path, buf, bufn)   the FM-1 wrote that sample: hashed again now, its record updated or added
- *                                 (FR_DENIED: no room left in the index's run: the next sdx_update makes some)
+ *                                 (FR_DENIED: no room left in the index's run: the next pass makes some). During a
+ *                                 pass: the pass dropped, done, and started again, or it would lose this
  * The presets and kits too (the user, 2026-11-04: "like samples, kits and presets should have a unique id so that if
  * they are moved a project finds them back"): every .ops under Presets/ and .opk under Kits/ is a record of the same
  * index, its hash the id in the file's header (sd_ids.h; sd_mode.c sdm_fh), flagged SDX_F_ID: the same pass, the same
@@ -71,6 +88,23 @@ static struct {
     sdx_rec rec;
     sdw_t walk;
 } sdx IN_POOL;
+
+enum { SDXP_OFF = 0, SDXP_START, SDXP_COUNT, SDXP_OLD, SDXP_TMP, SDXP_NEW, SDXP_WALK, SDXP_SCAN, SDXP_HASH, SDXP_PUT, SDXP_END,
+       SDXP_UNLINK, SDXP_MOVE, SDXP_SIG };
+static struct {
+    uint8_t st, root, old_open, new_open, smp_open, redo;
+    uint32_t n, k, cap, oldn, cursor, scan, used, left;
+    sdh_t hs;
+    sdx_rec rec;                                     /* (the pass's: sdx.rec and sdx.f are the lookups', between slices) */
+    FIL nf;                                          /* index.tmp */
+} sdxp IN_POOL;
+
+typedef struct {
+    char magic[4];                                   /* "OPSG" */
+    uint32_t free_clst, last_clst;
+} sdx_sig_t;
+#define SDX_SIG_AT 32u                               /* (past sdx_head, in the header's record) */
+_Static_assert(sizeof(sdx_head) <= SDX_SIG_AT && SDX_SIG_AT + sizeof(sdx_sig_t) <= SDX_REC, "sd_index.c: the signature's place");
 
 static uint32_t sdx_key(const char *p)               /* FNV-1a, 32 bits */
 {
@@ -223,9 +257,39 @@ static int sdx_wanted(const char *rel)
     return !sdl_ncmp(rel, "Kits/", 5) && sdl_ends(rel, ".opk") != 0;
 }
 
+static void sdx_pass_cancel(void)
+{
+    if (sdxp.smp_open)
+        (void)f_close(&sdx.smp);
+    if (sdxp.old_open)
+        (void)f_close(&sdx.old);
+    if (sdxp.new_open)
+        (void)f_close(&sdxp.nf);
+    sdxp.smp_open = sdxp.old_open = sdxp.new_open = 0;
+    sdxp.st = SDXP_OFF;
+}
+
+static int sdx_pass_on(void) { return sdxp.st != SDXP_OFF || sdxp.redo; }
+
+static uint32_t sdx_pass_pct(void)
+{
+    uint32_t pct = sdxp.cap && sdxp.st >= SDXP_WALK ? sdxp.k * 100u / sdxp.cap : 0u;
+    return pct > 99u ? 99u : pct;
+}
+
+static void sdx_pass_redo(void)                      /* the index written under a pass: dropped, to start again */
+{
+    if (sdxp.st != SDXP_OFF) {
+        sdx_pass_cancel();
+        sdxp.redo = 1;
+    }
+}
+
 static FRESULT sdx_put(uint32_t no, sdx_rec *rec, uint32_t count, uint32_t seq)   /* a record and the header */
 {
-    FRESULT r = sdx_open_file(&sdx.f, FA_READ | FA_WRITE);
+    FRESULT r;
+    sdx_pass_redo();
+    r = sdx_open_file(&sdx.f, FA_READ | FA_WRITE);
     if (r != FR_OK)
         return r;
     r = sdx_rw(&sdx.f, (no + 1u) * SDX_REC, rec, SDX_REC, 1);
@@ -242,11 +306,34 @@ static FRESULT sdx_put(uint32_t no, sdx_rec *rec, uint32_t count, uint32_t seq) 
 
 static FRESULT sdx_touch(uint32_t no)
 {
-    FRESULT r = sdx_read(no, &sdx.rec);
+    FRESULT r;
+    if (sdxp.st != SDXP_OFF)
+        return FR_OK;                                /* (a use is not worth a pass again: the recent view misses it) */
+    r = sdx_read(no, &sdx.rec);
     if (r != FR_OK)
         return r;
     sdx.rec.used = sdx.seq + 1u;
     return sdx_put(no, &sdx.rec, sdx.count, sdx.seq + 1u);
+}
+
+static void sdx_rec_end(sdx_rec *rec, const char *path, const FILINFO *fi, uint32_t used)   /* what every record says */
+{
+    rec->size = (uint32_t)fi->fsize;
+    rec->stamp = (uint32_t)fi->fdate << 16 | fi->ftime;
+    rec->used = used;
+    sdl_cat(rec->path, 0, SDX_PATH, path + SDX_SKIP);
+    rec->pkey = sdx_key(rec->path);
+}
+
+/* a preset's or kit's id, from its open file's header (sd_mode.c sdm_fh: magic, ver 2, len, hash, id) */
+static FRESULT sdx_id_of(FIL *f, sdx_rec *rec, uint8_t *buf)
+{
+    UINT k = 0;
+    FRESULT r = f_read(f, buf, 24, &k);
+    rec->flags = SDX_F_ID;
+    if (r == FR_OK && k == 24u && buf[4] == 2u && buf[5] == 0u)
+        memcpy(&rec->hash, buf + 16, 8);
+    return r;
 }
 
 /* a record for the file at path (from the card's root; its entry fi) hashed now; used carried over */
@@ -254,23 +341,13 @@ static FRESULT sdx_hash_into(sdx_rec *rec, const char *path, const FILINFO *fi, 
                              uint32_t bufn)
 {
     FRESULT r = f_open(&sdx.smp, path, FA_READ);
-    UINT k = 0;
     memset(rec, 0, sizeof *rec);
-    if (r == FR_OK && sdl_ncmp(path + SDX_SKIP, "Samples/", 8)) {   /* a preset or kit: the id in its header */
-        rec->flags = SDX_F_ID;
-        r = f_read(&sdx.smp, buf, 24, &k);           /* (sd_mode.c sdm_fh: magic, ver 2, len, hash, id) */
-        if (r == FR_OK && k == 24u && buf[4] == 2u && buf[5] == 0u)
-            memcpy(&rec->hash, buf + 16, 8);
-        (void)f_close(&sdx.smp);
-    } else if (r == FR_OK) {
-        r = sdh_file(&sdx.smp, buf, bufn, &rec->hash, &rec->hlen);
+    if (r == FR_OK) {
+        r = sdl_ncmp(path + SDX_SKIP, "Samples/", 8) ? sdx_id_of(&sdx.smp, rec, buf)
+                                                     : sdh_file(&sdx.smp, buf, bufn, &rec->hash, &rec->hlen);
         (void)f_close(&sdx.smp);
     }
-    rec->size = (uint32_t)fi->fsize;
-    rec->stamp = (uint32_t)fi->fdate << 16 | fi->ftime;
-    rec->used = used;
-    sdl_cat(rec->path, 0, SDX_PATH, path + SDX_SKIP);
-    rec->pkey = sdx_key(rec->path);
+    sdx_rec_end(rec, path, fi, used);
     return r;
 }
 
@@ -280,6 +357,7 @@ static FRESULT sdx_note_written(const char *path, uint8_t *buf, uint32_t bufn)  
     int32_t no;
     uint32_t used = 0;
     FRESULT r;
+    sdx_pass_redo();
     if (sdl_ncmp(path, SDL_ROOT "/", SDX_SKIP) || !sdx_wanted(path + SDX_SKIP) || sdl_len(path + SDX_SKIP) >= SDX_PATH)
         return FR_INVALID_NAME;                      /* (a sample, a preset or a kit, its path short enough) */
     if ((r = f_stat(path, &fi)) != FR_OK || ((r = sdx_open()) != FR_OK))
@@ -294,111 +372,299 @@ static FRESULT sdx_note_written(const char *path, uint8_t *buf, uint32_t bufn)  
     return sdx_put(no >= 0 ? (uint32_t)no : sdx.count, &sdx.rec, no >= 0 ? sdx.count : sdx.count + 1u, sdx.seq);
 }
 
-/* the pass: the files counted (the new index's exact run), then walked again into it */
-static FRESULT sdx_update(uint8_t *buf, uint32_t bufn, uint32_t *work, uint32_t work_n)
+/* ---- the pass (above: "the pass, in slices") */
+static FRESULT sdx_root_open(void)                   /* this root's walk (Samples/ first; Presets/, Kits/: none is no error) */
+{
+    FRESULT r = sdw_open(&sdx.walk, SDX_ROOTS[sdxp.root]);
+    if (sdxp.root && (r == FR_NO_PATH || r == FR_NO_FILE)) {
+        sdx.walk.depth = 0;                          /* (none: its walk ends at once) */
+        r = FR_OK;
+    }
+    return r;
+}
+
+static FRESULT sdx_fs_sig(sdx_sig_t *s, const FIL *f)  /* the volume's signature now: FR_NO_FILE none (FAT16, no FSINFO) */
+{
+    const FATFS *fs = f->obj.fs;
+    memcpy(s->magic, "OPSG", 4);
+    s->free_clst = fs->free_clst;
+    s->last_clst = fs->last_clst;
+    return fs->fs_type == FS_FAT32 && fs->free_clst != 0xFFFFFFFFu ? FR_OK : FR_NO_FILE;
+}
+
+static int sdx_unchanged(void)                       /* an index whose signature is the volume's now */
 {
     sdx_head h;
-    uint32_t n = 0, k = 0, cursor = 0, oldn = 0, key, i, used;
-    int32_t at;
-    int st, have_old = 0;
-    FRESULT r;
-    uint32_t root;
-    sdx.files = sdx.hashed = sdx.kept = 0;
-    for (root = 0; root < SDX_NROOT; root++) {      /* (Samples/ first; Presets/, Kits/: none yet is no error) */
-        if ((r = sdw_open(&sdx.walk, SDX_ROOTS[root])) != FR_OK) {
-            if (root && (r == FR_NO_PATH || r == FR_NO_FILE))
-                continue;
-            return r;
-        }
-        while ((st = sdw_next(&sdx.walk)) > 0)
-            n += sdl_len(sdx.walk.path + SDX_SKIP) < SDX_PATH && sdx_wanted(sdx.walk.path + SDX_SKIP);
-        if (st < 0)
-            return sdx.walk.err;
-    }
-
-    r = sdx_open_file(&sdx.old, FA_READ);            /* the old index, if any, and its keys into work */
-    if (r == FR_OK && sdx_head_read(&sdx.old, &h) == FR_OK) {
-        oldn = h.count;
+    sdx_sig_t now, was;
+    int same = 0;
+    if (sdx_open_file(&sdx.f, FA_READ) != FR_OK)
+        return 0;
+    if (sdx_head_read(&sdx.f, &h) == FR_OK && sdx_rw(&sdx.f, SDX_SIG_AT, &was, sizeof was, 0) == FR_OK &&
+        sdx_fs_sig(&now, &sdx.f) == FR_OK && !memcmp(&now, &was, sizeof now)) {
+        same = 1;
+        sdx.count = h.count;
+        sdx.cap = h.cap;
         sdx.seq = h.seq;
-        have_old = 1;
+    }
+    (void)f_close(&sdx.f);
+    return same;
+}
+
+static int sdx_pass_begin(int force)
+{
+    sdx_pass_cancel();
+    sdxp.redo = 0;
+    sdx.files = sdx.hashed = sdx.kept = 0;
+    if (!force && sdx_unchanged())
+        return 0;
+    sdxp.n = sdxp.k = sdxp.cap = sdxp.oldn = sdxp.cursor = 0;
+    sdxp.root = 0;
+    sdxp.st = SDXP_START;
+    return 1;
+}
+
+static FRESULT sdx_u_count(void)                     /* a file of the walk counted */
+{
+    int st = sdw_next(&sdx.walk);
+    if (st > 0) {
+        sdxp.n += sdl_len(sdx.walk.path + SDX_SKIP) < SDX_PATH && sdx_wanted(sdx.walk.path + SDX_SKIP);
+        return FR_OK;
+    }
+    if (st < 0)
+        return sdx.walk.err;
+    if (++sdxp.root < SDX_NROOT)
+        return sdx_root_open();
+    sdxp.st = SDXP_OLD;
+    return FR_OK;
+}
+
+static FRESULT sdx_u_old(void)                       /* the old index open */
+{
+    sdx_head h;
+    FRESULT r = sdx_open_file(&sdx.old, FA_READ);
+    if (r == FR_OK && sdx_head_read(&sdx.old, &h) == FR_OK) {
+        sdxp.oldn = h.count;
+        sdx.seq = h.seq;
+        sdxp.old_open = 1;
     } else if (r == FR_OK) {
         (void)f_close(&sdx.old);
         r = FR_NO_FILE;
     }
     if (r != FR_OK && r != FR_NO_FILE)
         return r;
-    for (i = 0; i < oldn && oldn <= work_n; i++) {
-        if ((r = sdx_read_in(&sdx.old, i, &sdx.rec)) != FR_OK)
-            goto out;
-        work[i] = sdx.rec.pkey;
-    }
+    sdxp.st = SDXP_TMP;
+    return FR_OK;
+}
 
+static void sdx_u_tmp(void)                          /* the last pass's leftover gone */
+{
     if (sdl_chain(SDX_TMP) && sdl_chain(SDX_TMP) == sdl_chain(SDX_FILE))
         (void)f_unlink_entry(SDX_TMP);               /* (a cut rename's other half: the index's own clusters) */
     else
         (void)f_unlink(SDX_TMP);                     /* (a cut pass's) */
-    if ((r = sda_create(&sdx.f, SDX_TMP, SDA_EXACT, (n + 1u) * SDX_REC, 0)) != FR_OK)
-        goto out;
-    memset(&sdx.rec, 0, sizeof sdx.rec);             /* the header slot zeroed: the run's old bytes never read as one */
-    sdx.cap = (uint32_t)(f_size(&sdx.f) / SDX_REC) - 1u;
-    r = sdx_rw(&sdx.f, 0, &sdx.rec, SDX_REC, 1);
-    root = 0;
-    if (r == FR_OK)
-        r = sdw_open(&sdx.walk, SDX_ROOTS[0]);
-    st = 1;
-    while (r == FR_OK && k < sdx.cap) {
-        const char *rel;
-        if ((st = sdw_next(&sdx.walk)) <= 0) {      /* (this root done: the next one) */
-            if (st < 0 || ++root >= SDX_NROOT)
-                break;
-            r = sdw_open(&sdx.walk, SDX_ROOTS[root]);
-            if (r == FR_NO_PATH || r == FR_NO_FILE) {
-                r = FR_OK;
-                sdx.walk.depth = 0;                  /* (none: its walk ends at once) */
-            }
-            continue;
-        }
-        rel = sdx.walk.path + SDX_SKIP;
-        if (sdl_len(rel) >= SDX_PATH || !sdx_wanted(rel))
-            continue;
-        key = sdx_key(rel);
-        at = -1;
-        if (cursor < oldn && sdx_read_in(&sdx.old, cursor, &sdx.rec) == FR_OK && !sdl_cmp(sdx.rec.path, rel))
-            at = (int32_t)cursor;                    /* (the last pass's order: the next record) */
-        else if (oldn && oldn <= work_n) {
-            for (i = 0; i < oldn && at < 0; i++)
-                if (work[i] == key && sdx_read_in(&sdx.old, i, &sdx.rec) == FR_OK && !sdl_cmp(sdx.rec.path, rel))
-                    at = (int32_t)i;
-        } else if (oldn) {
-            at = sdx_scan_path(&sdx.old, oldn, cursor, rel, &sdx.rec);
-        }
-        if (at >= 0)
-            cursor = (uint32_t)at + 1u;
-        sdx.files++;
-        if (at >= 0 && sdx.rec.size == (uint32_t)sdx.walk.fi.fsize &&
-            sdx.rec.stamp == ((uint32_t)sdx.walk.fi.fdate << 16 | sdx.walk.fi.ftime)) {
-            sdx.kept++;                              /* unchanged: its hash kept */
-        } else {
-            used = at >= 0 ? sdx.rec.used : 0;
-            if ((r = sdx_hash_into(&sdx.rec, sdx.walk.path, &sdx.walk.fi, used, buf, bufn)) != FR_OK)
-                break;
-            sdx.hashed++;
-        }
-        r = sdx_rw(&sdx.f, (k + 1u) * SDX_REC, &sdx.rec, SDX_REC, 1);
-        k++;
+    sdxp.st = SDXP_NEW;
+}
+
+static FRESULT sdx_u_new(void)                       /* the new index's run, the walk again */
+{
+    FRESULT r = sda_create(&sdxp.nf, SDX_TMP, SDA_EXACT, (sdxp.n + 1u) * SDX_REC, 0);
+    if (r != FR_OK)
+        return r;
+    sdxp.new_open = 1;
+    memset(&sdxp.rec, 0, sizeof sdxp.rec);             /* the header slot zeroed: the run's old bytes never read as one */
+    sdxp.cap = (uint32_t)(f_size(&sdxp.nf) / SDX_REC) - 1u;
+    if ((r = sdx_rw(&sdxp.nf, 0, &sdxp.rec, SDX_REC, 1)) != FR_OK)
+        return r;
+    sdxp.root = 0;
+    sdxp.st = SDXP_WALK;
+    return sdx_root_open();
+}
+
+/* the walked file matched (at: its old record, in sdxp.rec; -1 none): kept, or its hashing begun */
+static FRESULT sdx_matched(int32_t at, uint8_t *buf)
+{
+    FRESULT r;
+    if (at >= 0)
+        sdxp.cursor = (uint32_t)at + 1u;
+    sdx.files++;
+    if (at >= 0 && sdxp.rec.size == (uint32_t)sdx.walk.fi.fsize &&
+        sdxp.rec.stamp == ((uint32_t)sdx.walk.fi.fdate << 16 | sdx.walk.fi.ftime)) {
+        sdx.kept++;                                  /* unchanged: its hash kept */
+        sdxp.st = SDXP_PUT;
+        return FR_OK;
     }
-    if (r == FR_OK && st < 0)
-        r = sdx.walk.err;
-    if (r == FR_OK)
-        r = sdx_head_write(&sdx.f, k, sdx.cap, sdx.seq);
-    if (f_close(&sdx.f) != FR_OK && r == FR_OK)
+    sdxp.used = at >= 0 ? sdxp.rec.used : 0u;
+    memset(&sdxp.rec, 0, sizeof sdxp.rec);
+    if ((r = f_open(&sdx.smp, sdx.walk.path, FA_READ)) != FR_OK)
+        return r;
+    sdxp.smp_open = 1;
+    sdxp.st = SDXP_HASH;
+    if (sdl_ncmp(sdx.walk.path + SDX_SKIP, "Samples/", 8)) {
+        sdxp.left = 0;
+        return sdx_id_of(&sdx.smp, &sdxp.rec, buf);
+    }
+    return sdh_begin(&sdx.smp, buf, &sdxp.hs, &sdxp.left, &sdxp.rec.hlen);
+}
+
+static FRESULT sdx_u_walk(uint8_t *buf)              /* the next file: its old record the next one, or a scan begun */
+{
+    const char *rel;
+    int st;
+    if (sdxp.k >= sdxp.cap) {
+        sdxp.st = SDXP_END;
+        return FR_OK;
+    }
+    if ((st = sdw_next(&sdx.walk)) <= 0) {           /* (this root done: the next one) */
+        if (st < 0)
+            return sdx.walk.err;
+        if (++sdxp.root >= SDX_NROOT) {
+            sdxp.st = SDXP_END;
+            return FR_OK;
+        }
+        return sdx_root_open();
+    }
+    rel = sdx.walk.path + SDX_SKIP;
+    if (sdl_len(rel) >= SDX_PATH || !sdx_wanted(rel))
+        return FR_OK;
+    if (sdxp.cursor < sdxp.oldn && sdx_read_in(&sdx.old, sdxp.cursor, &sdxp.rec) == FR_OK && !sdl_cmp(sdxp.rec.path, rel))
+        return sdx_matched((int32_t)sdxp.cursor, buf);  /* (the last pass's order: the next record) */
+    if (!sdxp.oldn)
+        return sdx_matched(-1, buf);
+    sdxp.scan = 0;
+    sdxp.st = SDXP_SCAN;
+    return FR_OK;
+}
+
+static FRESULT sdx_u_scan(uint8_t *buf)              /* a record of the old index, from the cursor round */
+{
+    uint32_t no = (sdxp.cursor + sdxp.scan) % sdxp.oldn;
+    if (sdx_read_in(&sdx.old, no, &sdxp.rec) != FR_OK)
+        return sdx_matched(-1, buf);
+    if (!sdl_cmp(sdxp.rec.path, sdx.walk.path + SDX_SKIP))
+        return sdx_matched((int32_t)no, buf);
+    return ++sdxp.scan < sdxp.oldn ? FR_OK : sdx_matched(-1, buf);
+}
+
+static FRESULT sdx_u_hash(uint8_t *buf, uint32_t bufn)   /* a chunk; the file's end */
+{
+    if (sdxp.left)
+        return sdh_more(&sdx.smp, buf, bufn, &sdxp.hs, &sdxp.left);
+    if (!sdxp.rec.flags)
+        sdxp.rec.hash = sdh_end(&sdxp.hs);
+    (void)f_close(&sdx.smp);
+    sdxp.smp_open = 0;
+    sdx_rec_end(&sdxp.rec, sdx.walk.path, &sdx.walk.fi, sdxp.used);
+    sdx.hashed++;
+    sdxp.st = SDXP_PUT;
+    return FR_OK;
+}
+
+static FRESULT sdx_u_end(void)                       /* the header, last */
+{
+    FRESULT r = sdx_head_write(&sdxp.nf, sdxp.k, sdxp.cap, sdx.seq), c;
+    sdxp.new_open = 0;
+    c = f_close(&sdxp.nf);
+    if (r == FR_OK && c != FR_OK)
         r = FR_DISK_ERR;
-out:
-    if (have_old)
+    sdxp.st = SDXP_UNLINK;
+    return r;
+}
+
+static FRESULT sdx_u_unlink(void)                    /* the new index in the old one's place: the old one gone, */
+{
+    FRESULT r;
+    if (sdxp.old_open) {
         (void)f_close(&sdx.old);
-    if (r == FR_OK && ((r = f_unlink(SDX_FILE)) == FR_OK || r == FR_NO_FILE))
-        r = sdl_move(SDX_TMP, SDX_FILE);
-    if (r == FR_OK)
-        sdx.count = k;
+        sdxp.old_open = 0;
+    }
+    r = f_unlink(SDX_FILE);
+    sdxp.st = SDXP_MOVE;
+    return r == FR_NO_FILE ? FR_OK : r;
+}
+
+static FRESULT sdx_u_move(void)                      /* the new one renamed */
+{
+    FRESULT r = sdl_move(SDX_TMP, SDX_FILE);
+    if (r != FR_OK)
+        return r;
+    sdx.count = sdxp.k;
+    sdx.cap = sdxp.cap;
+    sdxp.st = SDXP_SIG;
+    return FR_OK;
+}
+
+static FRESULT sdx_u_sig(void)                       /* the signature, no allocation after it */
+{
+    sdx_sig_t s;
+    FRESULT r = FR_OK;
+    sdxp.st = SDXP_OFF;
+    if (f_open(&sdx.f, SDX_FILE, FA_READ | FA_WRITE) == FR_OK) {   /* (no signature: only a walk at the next mount) */
+        if (sdx_fs_sig(&s, &sdx.f) == FR_OK)
+            r = sdx_rw(&sdx.f, SDX_SIG_AT, &s, sizeof s, 1);
+        if (f_close(&sdx.f) != FR_OK && r == FR_OK)
+            r = FR_DISK_ERR;
+    }
+    return r;
+}
+
+static FRESULT sdx_unit(uint8_t *buf, uint32_t bufn)
+{
+    FRESULT r;
+    switch (sdxp.st) {
+    case SDXP_START:
+        sdxp.st = SDXP_COUNT;
+        return sdx_root_open();
+    case SDXP_COUNT:
+        return sdx_u_count();
+    case SDXP_OLD:
+        return sdx_u_old();
+    case SDXP_TMP:
+        sdx_u_tmp();
+        return FR_OK;
+    case SDXP_NEW:
+        return sdx_u_new();
+    case SDXP_WALK:
+        return sdx_u_walk(buf);
+    case SDXP_SCAN:
+        return sdx_u_scan(buf);
+    case SDXP_HASH:
+        return sdx_u_hash(buf, bufn);
+    case SDXP_PUT:
+        r = sdx_rw(&sdxp.nf, (sdxp.k + 1u) * SDX_REC, &sdxp.rec, SDX_REC, 1);
+        sdxp.k++;
+        sdxp.st = SDXP_WALK;
+        return r;
+    case SDXP_END:
+        return sdx_u_end();
+    case SDXP_UNLINK:
+        return sdx_u_unlink();
+    case SDXP_MOVE:
+        return sdx_u_move();
+    default:
+        return sdx_u_sig();
+    }
+}
+
+static FRESULT sdx_pass_step(uint8_t *buf, uint32_t bufn, uint32_t ms)
+{
+    DWORD t0 = SD_NOW();
+    FRESULT r = FR_OK;
+    if (sdxp.st == SDXP_OFF && sdxp.redo)
+        (void)sdx_pass_begin(1);
+    if (sd_wr.state != SDW_IDLE)
+        return FR_OK;                                /* (a recording's CMD25 open: no other command) */
+    while (sdxp.st != SDXP_OFF && r == FR_OK && sd_ms_since(t0) < ms)
+        r = sdx_unit(buf, bufn);
+    if (r != FR_OK)
+        sdx_pass_cancel();
+    return r;
+}
+
+static FRESULT __attribute__((unused)) sdx_update(uint8_t *buf, uint32_t bufn)
+{
+    FRESULT r = FR_OK;
+    (void)sdx_pass_begin(1);
+    while (r == FR_OK && sdxp.st != SDXP_OFF)
+        r = sdx_pass_step(buf, bufn, 0xFFFFFFFFu);
     return r;
 }

@@ -126,24 +126,42 @@ static FRESULT sdh_wav_data(FIL *fp, uint8_t *buf, uint32_t *ofs, uint32_t *len)
     return FR_OK;
 }
 
-static FRESULT sdh_file(FIL *fp, uint8_t *buf, uint32_t bufn, uint64_t *hash, uint32_t *len)
+/* sdh_file in steps (the index's pass, a chunk a call): sdh_begin finds what is hashed; sdh_more hashes up to bufn bytes of
+ * the left bytes */
+static FRESULT sdh_begin(FIL *fp, uint8_t *buf, sdh_t *s, uint32_t *left, uint32_t *len)
 {
-    sdh_t s;
-    UINT got;
-    uint32_t ofs, left;
-    FRESULT r = sdh_wav_data(fp, buf, &ofs, &left);
+    uint32_t ofs;
+    FRESULT r = sdh_wav_data(fp, buf, &ofs, left);
     if (r != FR_OK)
         return r;
     if (!ofs)
-        left = (uint32_t)f_size(fp);                 /* (no WAV: the whole file) */
-    *len = left;
-    sdh_init(&s);
-    if ((r = f_lseek(fp, ofs)) != FR_OK)
+        *left = (uint32_t)f_size(fp);                /* (no WAV: the whole file) */
+    *len = *left;
+    sdh_init(s);
+    return f_lseek(fp, ofs);
+}
+
+static FRESULT sdh_more(FIL *fp, uint8_t *buf, uint32_t bufn, sdh_t *s, uint32_t *left)
+{
+    UINT got;
+    FRESULT r = f_read(fp, buf, *left < bufn ? *left : bufn, &got);
+    if (r != FR_OK)
         return r;
-    while (left && (r = f_read(fp, buf, left < bufn ? left : bufn, &got)) == FR_OK && got) {
-        sdh_add(&s, buf, got);
-        left -= got;
-    }
-    *hash = sdh_end(&s);
-    return r != FR_OK ? r : left ? FR_INT_ERR : FR_OK;
+    if (!got)
+        return FR_INT_ERR;                           /* (shorter than its entry says) */
+    sdh_add(s, buf, got);
+    *left -= got;
+    return FR_OK;
+}
+
+static FRESULT sdh_file(FIL *fp, uint8_t *buf, uint32_t bufn, uint64_t *hash, uint32_t *len)
+{
+    sdh_t s;
+    uint32_t left;
+    FRESULT r = sdh_begin(fp, buf, &s, &left, len);
+    while (r == FR_OK && left)
+        r = sdh_more(fp, buf, bufn, &s, &left);
+    if (r == FR_OK)
+        *hash = sdh_end(&s);
+    return r;
 }

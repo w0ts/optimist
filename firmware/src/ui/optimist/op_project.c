@@ -1060,9 +1060,20 @@ static void sys_it_cell(uint32_t it, cell_t *c)     /* the cell of setting it */
         c->unit = "%";
         cell_gauge(c, 0, 0, 400, (int32_t)sdm_scale());
         break;
-    case SI_SDINDEX:
-        cell_act(c, 0, "SAMPLES", "INDEX", 0);
+    case SI_SDINDEX: {                                  /* a pass under way: how far ("INDEX 12 %") */
+        static char pct[12];
+        int32_t at = sdm_index_pct();
+        str_cpy(pct, "INDEX", sizeof pct);
+        if (at >= 0) {
+            char n[6];
+            fmt_int(n, at);
+            str_app(pct, " ", sizeof pct);
+            str_app(pct, n, sizeof pct);
+            str_app(pct, " %", sizeof pct);
+        }
+        cell_act(c, 0, "SAMPLES", pct, 0);
         break;
+    }
     case SI_SDBACK:
         cell_act(c, 0, "BACKUP", "TO CARD", 0);
         break;
