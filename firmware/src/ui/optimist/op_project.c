@@ -423,6 +423,7 @@ enum { SI_NONE, SI_TUNE, SI_RECQ, SI_PUNCH, SI_OUT, SI_SYNC, SI_CH1, SI_CH2,
        SI_SDCARD, SI_SDVERS, SI_SDSLACK, SI_SDINDEX,    /* SD CARD: the card, VERSIONS, SLACK, the sample index (sd_mode.c) */
        SI_SDPRE,                                        /* (SD_STREAM: the card samples' pre-buffer) */
        SI_SDBACK, SI_SDREST,                            /* SETTINGS: BACKUP to the card, RESTORE from it (sd_mode.c) */
+       SI_SDCLOCK,                                      /* SD CARD: the card's SPI clock, read-only (sd_mmc.c sd_clock_probe) */
 #endif
        SI_WFMODE, SI_WFNET, SI_WFSIG, SI_WFST,           /* SYSTEM > WI-FI (op_wifi.c): MODE, NETWORK, SIGNAL, STATE */
        SI_RAM,                                          /* INFO: the SRAM free at link, the stacks' least room left (stackmark.h) */
@@ -523,7 +524,10 @@ static const struct { const char *name; uint8_t it[4]; } SYS[] = {
     {"SD CARD", {SI_SDCARD, SI_SDVERS, SI_SDSLACK, SI_SDINDEX}},   /* (the card's state, a project's versions kept, the room
                                                          * a file's run gets past its size, the sample index again) */
 #if FELUCCA_SD_STREAM
-    {"SD CARD", {SI_SDPRE, SI_NONE, SI_NONE, SI_NONE}},   /* (the card samples' pre-buffer, its KB beside it) */
+    {"SD CARD", {SI_SDPRE, SI_SDCLOCK, SI_NONE, SI_NONE}},   /* (the card samples' pre-buffer, its KB beside it; the clock the
+                                                         * mount's detection kept, read-only: the user, 2026-11-04) */
+#else
+    {"SD CARD", {SI_SDCLOCK, SI_NONE, SI_NONE, SI_NONE}},
 #endif
     {"SETTINGS", {SI_SDBACK, SI_SDREST, SI_NONE, SI_NONE}},   /* (the device's settings to the card and back) */
 #endif
@@ -1105,6 +1109,21 @@ static void sys_it_cell(uint32_t it, cell_t *c)     /* the cell of setting it */
         str_app(kb, " KB", sizeof kb);
         c->unit = kb;
         cell_gauge(c, 1, 0, 3, ms <= 25u ? 0 : ms <= 50u ? 1 : ms <= 100u ? 2 : 3);
+        break;
+    }
+    case SI_SDCLOCK: {                                  /* the SPI clock the card runs at: "15 MHZ", "8.6 MHZ"; "-" with no card */
+        uint32_t t = (sd_clock_khz() + 50u) / 100u;     /* (tenths of a MHz) */
+        sys_ro(c, "CLOCK");
+        if (sdm_state() < 2u || !t) {
+            cell_val(c, "-");
+            break;
+        }
+        fmt_int(c->val, (int32_t)(t / 10u));
+        if (t % 10u) {
+            char d[3] = {'.', (char)('0' + t % 10u), 0};
+            str_app(c->val, d, sizeof c->val);
+        }
+        c->unit = "MHZ";
         break;
     }
 #endif

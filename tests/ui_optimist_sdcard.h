@@ -524,6 +524,19 @@ static void sdcard_tests(void)
         sdm_leave();
         sdu_frames(1);
         check(sdp_keep == 8u && sda_scale == 100u, "SHIFT + the knob: 8 versions, 100 %");
+        {   /* SD CARD page 2: CLOCK, read-only, the step the mount's detection kept (sd_mmc.c sd_clock_probe) */
+            const uint32_t k = FELUCCA_SD_STREAM ? 1u : 0u;
+            sys_cell(r + 1u, k, &c);
+            check(!strcmp(c.label, "CLOCK") && !strcmp(c.val, "6") && c.unit && !strcmp(c.unit, "MHZ") && c.kind == CK_RO,
+                  "SD CARD page 2: CLOCK 6 MHZ, read-only (the floor: no probe in this test)");
+            sd_step = 2;
+            sys_cell(r + 1u, k, &c);
+            check(!strcmp(c.val, "15"), "CLOCK: 15 MHZ at step 2");
+            sd_step = 5;
+            sys_cell(r + 1u, k, &c);
+            check(!strcmp(c.val, "8.6"), "CLOCK: 8.6 MHZ at step 5 (8.57)");
+            sd_step = SD_FLOOR;
+        }
 #if FELUCCA_SD_STREAM
         sys_cell(r + 1u, 0, &c);
         check(!strcmp(c.label, "PRE-BUFFER") && !strcmp(c.val, "50") && strstr(c.unit, "KB"), "SD CARD page 2: PRE-BUFFER 50 ms, its KB");

@@ -4,7 +4,8 @@
  *   sd                    mount: card type, size, filesystem; the read mode that found the card; the DMA probe
  *   sd mode duplex|dirrx|bitbang   how SPI1 reads bytes (hal/fm1_sd_bus.h), then sd again
  *   sd dma on|off         block data by SPI1's DMA (sd sets it from its probe)
- *   sd clock 20|30|auto   the card's clock (auto: the fastest the card proves at the mount), then the mount again
+ *   sd clock MHZ|auto     the card's clock: the fastest step at or under MHZ (hal/fm1_sd_clock.h: 30 20 15 12 10 8.6 7.5
+ *                         6.7 6), unchecked; auto: the mount's detection (sd_mmc.c sd_clock_probe); then the mount again
  *   sd raw SECTOR         the sector's first 64 bytes, no filesystem (sector 0: the MBR or boot record, 55 AA at 510)
  *   sd ls [DIR]           the directory's entries
  *   sd cat FILE           the file's first 64 bytes
@@ -20,8 +21,10 @@
  *   sd stream pre MS      the pre-buffer: 25, 50, 100 or 200 ms (placed again)
  *   sd stream part P FILE part P's CARD sample (1..3): FILE from Optimist/ ("Samples/kick.wav", any case), by its hash in the
  *                         index (until the sample picker sets it); no FILE: none
- *   sd diag               CMD0 and CMD8 by hand in every read mode, the bytes that came back and PC8's level (the line
- *                         when nothing mounts)
+ *   sd diag               first the clock: the one kept, what the mount's detection saw at each step, the CRC failures
+ *                         and the run-time steps down since; then CMD0 and CMD8 by hand in every read mode, the bytes
+ *                         that came back and PC8's level (the line when nothing mounts)
+ *   sd speed              the card's CSD read at each SPI clock (400 kHz .. 30 MHz), R1, token, its CRC16 checked
  *   sd pins [7|8|9|10]    the pin finder (bring-up, before the SD board: a breakout on J12, a multimeter): each of the
  *                         LCD's bus lines PC7 CS, PC8 D/C, PC9 CLK, PC10 MOSI (or the one named) held HIGH alone for
  *                         CON_SD_PIN_S seconds, the other three LOW, SPI1 off its pins; a dot a second meanwhile. The
@@ -150,11 +153,13 @@ static void con_sd_speed(void)
     con_puts("\r\n");
     for (k = 0; k < sizeof NB; k++) {
         uint8_t csd[16], r1, tok;
+        uint16_t c, got;
         fm1_sd_baud(NB[k]);
         r1 = send_cmd(CMD9, 0);
         tok = wait_token(100);
-        for (i = 0; i < 16u; i++)
-            csd[i] = fm1_sd_rx();
+        c = sd_rx_crc(csd, 16u, 0);
+        got = (uint16_t)(fm1_sd_rx() << 8);
+        got |= fm1_sd_rx();
         release_spi();
         con_puts("  kHz ");
         con_hex((uint32_t)(60000u / (NB[k] + 1u)), 5);
@@ -162,6 +167,7 @@ static void con_sd_speed(void)
         con_hex(r1, 2);
         con_puts(" token ");
         con_hex(tok, 2);
+        con_puts(tok == 0xFEu && got == c ? " crc ok" : " crc BAD");
         con_sd_dbytes(" csd", csd, 6u);
         fm1_wdt_feed();
     }
@@ -171,9 +177,57 @@ static void con_sd_speed(void)
     con_puts("sd speed: done, the screen back\r\n");
 }
 
+static void con_sd_mhz(uint32_t khz)                /* " 15 MHz", " 8.6 MHz" (to a tenth) */
+{
+    uint32_t t = (khz + 50u) / 100u;
+    con_putc(' ');
+    con_dec((int32_t)(t / 10u));
+    if (t % 10u) {
+        con_putc('.');
+        con_dec((int32_t)(t % 10u));
+    }
+    con_puts(" MHz");
+}
+
+/* the clock: "clock 15 MHz (auto: fastest passed 20 MHz, probe N ms) crc fails N steps down N", then a line per step:
+ * what the mount's detection saw there (sd_mmc.c SDK_*) */
+static void con_sd_clock(void)
+{
+    static const char *const RES[6] = {"not tried", "pass", "CRC failed", "data differs from the floor's",
+                                       "timeout or refused", "skipped (no high speed)"};
+    uint32_t k;
+    con_puts("clock");
+    con_sd_mhz(SD_CLOCK_KHZ());
+    if (sd_clock_pick) {
+        con_puts(" (set: sd clock)");
+    } else {
+        con_puts(" (auto: fastest passed");
+        if (sd_clk_top < SD_FLOOR)
+            con_sd_mhz(SD_STEP_KHZ(sd_clk_top));
+        else
+            con_puts(" none above the floor");
+        con_puts(", probe ms ");
+        con_dec((int32_t)sd_clk_ms);
+        con_putc(')');
+    }
+    con_puts(" crc fails ");
+    con_dec((int32_t)sd_crc_fails);
+    con_puts(" steps down ");
+    con_dec((int32_t)sd_demotions);
+    con_puts("\r\n");
+    for (k = 0; k < SD_NSTEP; k++) {
+        con_puts("  step");
+        con_sd_mhz(SD_STEP_KHZ(k));
+        con_puts(": ");
+        con_puts(RES[sd_clk_res[k] % 6u]);
+        con_puts(k == sd_step ? "  <- kept\r\n" : "\r\n");
+    }
+}
+
 static void con_sd_diag(void)
 {
     static const char *const MN[3] = {"duplex", "dirrx", "bitbang"};
+    con_sd_clock();                                  /* (before the bring-up below starts the card again) */
     static const uint8_t DG_CMD0[6] = {0x40, 0, 0, 0, 0, 0x95}, DG_CMD8[6] = {0x48, 0, 0, 0x01, 0xAA, 0x87};
     const uint8_t keep = fm1_sd_mode;
     uint32_t m, i;
@@ -250,16 +304,8 @@ static void con_sd_mount(void)
         con_sd_field("dma crc", (int32_t)(sd_probe_seen >> 1 & 1u));
         con_sd_field("same", (int32_t)(sd_probe_seen >> 2 & 1u));
         con_puts(")\r\n");
-        con_puts(sd_over ? "clock 7.5 MHz" : "clock 6 MHz");
-        if (!sd_over && sd_clock_pick != 20u) {
-            con_sd_field("(30 failed: blocks", (int32_t)sd_clock_bad);
-            con_sd_field("of", (int32_t)SD_CLOCK_BLOCKS);
-            con_putc(')');
-        }
-        con_puts(sd_clock_pick ? "  (set)" : "  (auto)");
-        con_sd_field(" crc fails", (int32_t)sd_crc_fails);
-        con_sd_field("drops to 20", (int32_t)sd_demotions);
-        con_puts("\r\n");
+        con_sd_clock();
+        con_kv("steps failed", (int32_t)sd_clock_bad);
     } else {
         con_puts("\r\n");
     }
@@ -344,7 +390,10 @@ static void con_sd_row(const char *name, uint32_t mode, uint32_t dma, uint32_t b
     fm1_sd_mode = (uint8_t)m0;
     fm1_sd_dma = (uint8_t)d0;
     con_puts(name);
-    con_puts(baud == FM1_SD_BAUD_FAST ? " 6MHz" : baud == FM1_SD_BAUD_OVER ? " 7.5MHz" : " bb");
+    if (mode == FM1_SD_BITBANG)
+        con_puts(" bb");
+    else
+        con_sd_mhz(FM1_SD_LSB_KHZ / (baud + 1u));
     con_puts(multi ? " cmd18:" : " cmd17:");
     if (!i) {
         con_puts(" failed (no block read)\r\n");
@@ -365,14 +414,13 @@ static void con_sd_row(const char *name, uint32_t mode, uint32_t dma, uint32_t b
 
 static void con_sd_bench_modes(void)
 {
-    static const uint8_t BAUD[2] = {FM1_SD_BAUD_FAST, FM1_SD_BAUD_OVER};
+    const uint8_t BAUD[2] = {FM1_SD_BAUD_FAST, (uint8_t)SD_BAUD()};   /* (the floor, the clock kept) */
     uint32_t s = sd_state == SD_READY ? sd_data_sector() : 0, b, cm = fm1_sd_mode == FM1_SD_BITBANG ? FM1_SD_DUPLEX
                                                                                                   : fm1_sd_mode;
     if (!sd_card_type()) {
         con_puts("sd: no card (mount first: sd)\r\n");
         return;
     }
-    uint32_t over = sd_over;
     con_kv("sd bench: blocks from sector", (int32_t)s);
     for (b = 0; b < 2u; b++) {
         con_sd_row("duplex", FM1_SD_DUPLEX, 0, BAUD[b], 1, s);
@@ -381,7 +429,6 @@ static void con_sd_bench_modes(void)
         con_sd_row("dma   ", cm, 1, BAUD[b], 0, s);
     }
     con_sd_row("bitbng", FM1_SD_BITBANG, 0, FM1_SD_BAUD_FAST, 1, s);
-    sd_over = (uint8_t)over;                         /* (the rows set their own clocks: the session's back) */
     con_puts("(the same sum on every row = the same data; crc_bad 0 = read right)\r\n");
 }
 
@@ -646,7 +693,14 @@ static void con_sd(const char *p)
             fm1_sd_dma = 0;
         con_kv("sd dma", fm1_sd_dma);
     } else if (con_word(&p, "clock")) {
-        sd_clock_pick = con_word(&p, "20") ? 20u : con_word(&p, "30") ? 30u : 0u;   /* (auto, or anything else) */
+        int ok;
+        uint32_t mhz = con_num(&p, &ok), k;
+        sd_clock_pick = 0;                           /* (auto, or anything else) */
+        for (k = 0; ok && k < SD_NSTEP && !sd_clock_pick; k++)
+            if (SD_STEP_KHZ(k) <= mhz * 1000u)
+                sd_clock_pick = (uint8_t)(k + 1u);  /* (the fastest step at or under it) */
+        if (ok && !sd_clock_pick)
+            sd_clock_pick = (uint8_t)(SD_FLOOR + 1u);   /* (under the floor: the floor) */
         con_sd_mount();
     } else if (con_word(&p, "raw")) {
         int ok;

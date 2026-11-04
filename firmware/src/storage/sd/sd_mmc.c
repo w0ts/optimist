@@ -21,6 +21,8 @@
  CRC16; every block read (disk_readp too) has its CRC16 checked (SD_RD_CRC 1, a nibble table). 2026-10-26: under
  full FatFs too (FELUCCA_SD_FATFS: fatfs/, the glue in sd_diskio.c): the start-up is sd_card_init, the partial read
  sd_readp; Petit FatFs' own entry points (disk_initialize, disk_readp, disk_writep) are at the end, Petit builds only.
+ 2026-11-04: the clock a step of hal/fm1_sd_clock.h (sd_step: 30 .. 6 MHz), found at the mount (sd_clock_probe), one
+ step down at run time on a CRC failure (sd_crc_retry).
 /-------------------------------------------------------------------------*/
 
 #if FELUCCA_SD_FATFS
@@ -37,8 +39,14 @@
 #define SD_RX() fm1_sd_rx()
 #define SD_SEL() fm1_sd_sel()
 #define SD_DESEL() fm1_sd_desel()
-#define SD_FAST() fm1_sd_baud(FM1_SD_BAUD_FAST)   /* the card is up: the full clock */
-#define SD_SET_OVER(on) fm1_sd_baud((on) ? FM1_SD_BAUD_OVER : FM1_SD_BAUD_FAST)   /* the faster clock (30 MHz) or 20 */
+#define SD_FAST() fm1_sd_baud(FM1_SD_BAUD_FAST)   /* the card is up: the floor (6 MHz) */
+#define SD_SLOW() fm1_sd_baud(FM1_SD_BAUD_SLOW)   /* the start-up's 400 kHz (the probe's recovery: sd_card_init again) */
+#define SD_NSTEP FM1_SD_NSTEP                     /* the clocks, fastest first, the floor last (hal/fm1_sd_clock.h) */
+#define SD_NSTEP_HS FM1_SD_NSTEP_HS
+#define SD_SET_STEP(k) fm1_sd_baud(FM1_SD_STEP_BAUD[k])
+#define SD_STEP_KHZ(k) FM1_SD_STEP_KHZ(k)
+#define SD_CLOCK_FIXED() (fm1_sd_mode == FM1_SD_BITBANG)   /* (bit-bang: the GPIO's own pace, no clock to pick) */
+#define SD_BAUD() ((uint32_t)FM1_SD_STEP_BAUD[sd_step])   /* every session's clock (sdcard.c) */
 #define SD_NOW() fm1_ticks()
 #define SD_TICKS_MS (FM1_TICKS_PER_US * 1000u)
 #define SD_RXBLK(p, n) fm1_sd_rx_block(p, n)
@@ -47,8 +55,12 @@
 #define SD_TXDMA(p, n) fm1_sd_tx_dma(p, n)
 #define SD_DMA_DONE() fm1_sd_rx_dma_done()
 #define SD_DMA_END() fm1_sd_rx_dma_end()
+#define SD_WDT() fm1_wdt_feed()                   /* (the clock probe: a step at a time, at most SD_NSTEP of them) */
 #endif
 
+#ifndef SD_WDT
+#define SD_WDT() ((void)0)                        /* (a host test: no watchdog) */
+#endif
 static DWORD sd_ms_since(DWORD t0) { return (DWORD)(SD_NOW() - t0) / SD_TICKS_MS; }   /* (wraps cleanly) */
 
 /* Definitions for MMC/SDC command */
@@ -58,6 +70,7 @@ static DWORD sd_ms_since(DWORD t0) { return (DWORD)(SD_NOW() - t0) / SD_TICKS_MS
 #define CMD6	(0x40+6)	/* SWITCH_FUNC */
 #define CMD8	(0x40+8)	/* SEND_IF_COND */
 #define CMD9	(0x40+9)	/* SEND_CSD */
+#define CMD10	(0x40+10)	/* SEND_CID */
 #define CMD12	(0x40+12)	/* STOP_TRANSMISSION */
 #define CMD16	(0x40+16)	/* SET_BLOCKLEN */
 #define CMD17	(0x40+17)	/* READ_SINGLE_BLOCK */
@@ -81,9 +94,12 @@ static DWORD sd_sectors;		/* the card's capacity in 512-byte sectors (CSD; 0: no
 #define SD_RD_CRC 1						/* every block's CRC16 checked (a nibble table: ~1 K operations a block) */
 #endif
 static BYTE sd_crc_on;			/* the card checks the CRCs (CMD59 accepted) */
-static BYTE sd_over;			/* the clock the card proved: 1 the faster one (SD_SET_OVER, 30 MHz), 0 the floor (20) */
-static DWORD sd_crc_fails, sd_demotions;	/* blocks whose CRC16 failed; drops from the faster clock to the floor */
+#define SD_FLOOR (SD_NSTEP - 1u)		/* the last step: the clock that always reads (6 MHz on the FM-1) */
+static BYTE sd_step = SD_FLOOR;	/* the clock every session runs at: a step, 0 the fastest (sd_clock_probe, sd_crc_retry) */
+static DWORD sd_crc_fails, sd_demotions;	/* blocks whose CRC16 failed; steps down for them at run time */
 static BYTE sd_crc_bad;			/* the last sd_readp failed on the block's CRC16 (not a timeout) */
+#define SD_CLOCK_KHZ() ((DWORD)SD_STEP_KHZ(sd_step))
+#define SD_CLOCK_RESET() (sd_step = SD_FLOOR)	/* (sdcard.c: a mount starts at the floor) */
 
 /* CRC16-CCITT (x^16 + x^12 + x^5 + 1, from 0), the SD data block's: a nibble at a time (a 32-byte table) */
 static const WORD SD_CRC16_NIB[16] = {
@@ -102,17 +118,20 @@ static WORD sd_crc16(const BYTE *p, UINT n)
 	return c;
 }
 
-/* CRC7 (x^7 + x^3 + 1) of a command's first five bytes, as the packet's last byte: CRC << 1 | the stop bit */
-static BYTE sd_crc7_end(const BYTE *p)
+/* CRC7 (x^7 + x^3 + 1) of n bytes, as the byte after them: CRC << 1 | the stop bit (a command's sixth byte; the CSD's
+ * and the CID's last) */
+static BYTE sd_crc7n(const BYTE *p, UINT k)
 {
-	BYTE c = 0, b, i, n;
-	for (n = 0; n < 5; n++)
+	BYTE c = 0, b, i;
+	UINT n;
+	for (n = 0; n < k; n++)
 		for (b = p[n], i = 0; i < 8; i++, b <<= 1) {
 			c <<= 1;
 			if ((b ^ c) & 0x80) c ^= 0x09;
 		}
 	return (BYTE)(c << 1 | 1);
 }
+static BYTE sd_crc7_end(const BYTE *p) { return sd_crc7n(p, 5); }
 
 static WORD sd_rx_crc(BYTE *p, UINT n, WORD c)	/* n bytes in (to p, or skipped: p NULL), the CRC16 updated */
 {
@@ -294,18 +313,20 @@ static DRESULT sd_readp1(
 	return res;
 }
 
-/* a block's CRC16 failed (fails: this block's failures so far): 1 = read it again. A second failure at the faster
- * clock drops the session to the floor (20 MHz) and the read goes on there; at the floor a second failure is an error */
+/* a block's CRC16 failed (fails: this block's failures so far): 1 = read it again. Above the floor the clock drops one
+ * step at once (counted: sd_demotions; this session and every later one) and the block is read again there, so nothing
+ * is lost; at the floor it is read once more as before, a second failure an error */
 static BYTE sd_crc_retry(BYTE *fails)
 {
 	sd_crc_fails++;
-	if (++*fails < 2) return 1;
-	if (!sd_over) return 0;
-	sd_over = 0;
-	sd_demotions++;
-	SD_SET_OVER(0);
-	*fails = 0;
-	return 1;
+	if (sd_step < SD_FLOOR) {
+		sd_step++;
+		sd_demotions++;
+		SD_SET_STEP(sd_step);
+		*fails = 0;
+		return 1;
+	}
+	return ++*fails < 2;
 }
 
 /* Read partial sector (a CRC failure read again: sd_crc_retry) */
@@ -442,13 +463,29 @@ static DRESULT disk_readblocks(BYTE *buf, DWORD sector, UINT n)
 	}
 }
 
-/* the clock the card proves (the user, 2026-10-25): the floor (20 MHz) always works by the spec; the faster clock (30)
- * only when the card shows it on this board. In a session at the floor after the mount: CMD6 asks an SDv2 card for high
- * speed (some refuse clocks over 25 MHz without it; SDv1 and MMC answer illegal command and stay at the floor), then
- * n blocks from sector 0 by one CMD18 at the floor and again at the faster clock into buf (512 B, aligned), each CRC16
- * checked, their CRCs summed: the faster clock kept only when every block read right and the sums agree. force: 20 or
- * 30 (the console's sd clock), 0 auto. sd_over set, the clock left set; returns the blocks that failed at 30 (n: not
- * tried, or the card refused the switch) */
+/* ---- the clock detection (the user, 2026-11-04: "this is sandisk ultra, it should go higher, we should have a speed
+ * detection feature"; docs/SD-CARD-DESIGN.md "The clock"). The start-up (CMD0, CMD8, ACMD41, CMD58) is always at
+ * 400 kHz and the first reads at the floor; only data moves faster. In a session at the floor after the mount:
+ *   1. a reference pass at the floor (sd_clk_pass: the CSD and the CID, each block's CRC16 and the register's CRC7,
+ *      SD_CLK_SINGLES blocks by CMD17 spread over the card, n blocks from 0 by one CMD18, every block's CRC16): its
+ *      fingerprint (a CRC16 over every byte the registers gave and every block's CRC16). The floor failing: the floor.
+ *   2. CMD6 asks an SDv2 card for high speed (the HS steps, 30 MHz, only when it took it). SDv1, MMC: the floor.
+ *   3. from the fastest step down: two passes at the step, each with no CRC failure, no timeout and the reference's
+ *      fingerprint (a line stuck low reads zeros with a right CRC16: the fingerprint catches it). A step that fails:
+ *      the clock back to the floor (a CMD18 stopped there), the card checked by a pass at the floor, started again
+ *      (400 kHz, sd_card_init, CMD6 again) when that fails too; the walk goes on one step slower.
+ *   4. the first step that passes is the fastest; the one below it must pass too (the margin) and is the clock kept
+ *      (the floor when that is the floor). It failing: the walk goes on from the step after it.
+ * sd_clk_res[k] says what each step did (SDK_*: the console's sd diag), sd_clk_top the fastest that passed, sd_clk_ms
+ * the probe's time. force (the console's sd clock): 0 the walk, else the step force - 1, set as it is. */
+enum { SDK_UNTRIED = 0, SDK_PASS, SDK_CRC, SDK_DIFF, SDK_ERR, SDK_NOHS };
+#ifndef SD_CLK_SINGLES
+#define SD_CLK_SINGLES 8u							/* CMD17 blocks a pass reads, spread over the card */
+#endif
+static BYTE sd_clk_res[SD_NSTEP];
+static BYTE sd_clk_top = SD_FLOOR;
+static DWORD sd_clk_ms;
+
 static BYTE sd_switch_hs(void)
 {
 	BYTE st[64], ok = 0;
@@ -464,42 +501,134 @@ static BYTE sd_switch_hs(void)
 	return ok;
 }
 
-static UINT sd_rd_sum(BYTE *buf, UINT n, WORD *sum)	/* n blocks from 0 by one CMD18 into buf: the blocks that failed */
+static WORD sd_sum_bytes(WORD s, const BYTE *p, UINT n)
 {
-	UINT i, bad = 0;
-	BYTE st;
-	*sum = 0;
-	if (sd_rd_open(0, n) != RES_OK) return n;
+	while (n--) s = sd_crc16_up(s, *p++);
+	return s;
+}
+
+/* the CSD (CMD9) or the CID (CMD10): 16 bytes in a data block, its CRC16 checked (SDK_CRC), no token (SDK_ERR); the
+ * register's own CRC7 (its last byte) goes into the fingerprint as a flag beside the bytes */
+static BYTE sd_reg_read(BYTE cmd, BYTE *r, WORD *sum)
+{
+	BYTE res = SDK_ERR;
+	WORD c, got;
+	if (send_cmd(cmd, 0) == 0 && wait_token(100) == 0xFE) {
+		c = sd_rx_crc(r, 16, 0);
+		got = (WORD)(SD_RX() << 8);
+		got |= SD_RX();
+		res = got == c ? SDK_PASS : SDK_CRC;
+		*sum = sd_crc16_up(sd_sum_bytes(*sum, r, 16), (BYTE)(sd_crc7n(r, 15) == r[15]));
+	}
+	release_spi();
+	return res;
+}
+
+/* n blocks from sector s by one CMD18 (CMD17 for one) into buf, each CRC16 checked, the CRCs into *sum: SDK_PASS,
+ * SDK_CRC, SDK_ERR (refused, a timeout, an error token). A failure: the floor's clock before the CMD12 */
+static BYTE sd_rd_crcs(BYTE *buf, DWORD s, UINT n, WORD *sum)
+{
+	UINT i;
+	BYTE st, res = SDK_PASS;
+	if (sd_rd_open(s, n) != RES_OK) return SDK_ERR;
 	for (i = 0; i < n; i++) {
 		sd_rd_next(buf);
 		while ((st = sd_rd_poll()) == SDR_BUSY)
 			;
-		if (st != SDR_READY) { sd_rd.state = SDR_ERR; bad += n - i; break; }
-		bad += !sd_rd.crc_ok;
+		if (st != SDR_READY) { sd_rd.state = SDR_ERR; res = SDK_ERR; break; }
+		if (!sd_rd.crc_ok) { res = SDK_CRC; break; }
 		*sum = sd_crc16_up(sd_crc16_up(*sum, (BYTE)(sd_rd.crc >> 8)), (BYTE)sd_rd.crc);
 	}
-	if (sd_rd_close() != RES_OK && !bad) bad = 1;
-	return bad;
+	if (res != SDK_PASS) SD_SET_STEP(SD_FLOOR);
+	if (sd_rd_close() != RES_OK && res == SDK_PASS) res = SDK_ERR;
+	return res;
+}
+
+/* one pass at the clock set (step 1's list); *sum its fingerprint; the first failure's SDK_* */
+static BYTE sd_clk_pass(BYTE *buf, UINT n, WORD *sum)
+{
+	BYTE reg[16], r;
+	UINT i;
+	DWORD span = sd_sectors / SD_CLK_SINGLES;
+	*sum = 0;
+	if ((r = sd_reg_read(CMD9, reg, sum)) != SDK_PASS) return r;
+	if ((r = sd_reg_read(CMD10, reg, sum)) != SDK_PASS) return r;
+	for (i = 0; i < SD_CLK_SINGLES; i++)
+		if ((r = sd_rd_crcs(buf, (span * i + i * 7u) % sd_sectors, 1, sum)) != SDK_PASS) return r;
+	if (n && (r = sd_rd_crcs(buf, 0, n, sum)) != SDK_PASS) return r;
+	return SDK_PASS;
+}
+
+/* step k tried: two passes, each the reference's fingerprint; the clock back at the floor after */
+static BYTE sd_clk_try(BYTE *buf, UINT n, BYTE k, WORD ref)
+{
+	WORD s;
+	BYTE r, i;
+	SD_SET_STEP(k);
+	for (r = SDK_PASS, i = 0; i < 2 && r == SDK_PASS; i++)
+		if ((r = sd_clk_pass(buf, n, &s)) == SDK_PASS && s != ref) r = SDK_DIFF;
+	SD_SET_STEP(SD_FLOOR);
+	return r;
+}
+
+/* after a failed step, at the floor: any CMD18 left running stopped, the card checked by a pass; failing, started
+ * again (400 kHz, then the floor) and checked once more. 0: the card no longer reads right at the floor (the probe ends) */
+static BYTE sd_clk_recover(BYTE *buf, UINT n, WORD ref, BYTE *hs)
+{
+	WORD s;
+	DWORD t0;
+	SD_DESEL(); (void)SD_RX();
+	SD_SEL(); (void)SD_RX();
+	(void)send_cmd(CMD12, 0);
+	t0 = SD_NOW();
+	while (SD_RX() != 0xFF && sd_ms_since(t0) < 100)
+		;
+	release_spi();
+	if (sd_clk_pass(buf, n, &s) == SDK_PASS && s == ref) return 1;
+	SD_SLOW();
+	if (sd_card_init() != 0) return 0;			/* (the floor's clock after it) */
+	*hs = sd_switch_hs();
+	return sd_clk_pass(buf, n, &s) == SDK_PASS && s == ref;
 }
 
 static UINT sd_clock_probe(BYTE *buf, UINT n, BYTE force)
 {
-	WORD s20, s30;
-	UINT bad = n, bad20;
-	sd_over = 0;
-	SD_SET_OVER(0);
-	if (force == 20 || !n || (!(CardType & CT_SD2) && force != 30)) return n;	/* (SDv1, MMC: the floor) */
-	(void)sd_switch_hs();
-	if (force == 30) {
-		sd_over = 1;
-	} else {
-		bad20 = sd_rd_sum(buf, n, &s20);
-		SD_SET_OVER(1);
-		bad = sd_rd_sum(buf, n, &s30);
-		sd_over = !bad20 && !bad && s20 == s30;
-		if (!bad && s20 != s30) bad = 1;
+	WORD ref;
+	BYTE k, hs, r;
+	UINT bad = 0;
+	DWORD t0 = SD_NOW();
+	for (k = 0; k < SD_NSTEP; k++) sd_clk_res[k] = SDK_UNTRIED;
+	sd_step = SD_FLOOR;
+	sd_clk_top = SD_FLOOR;
+	SD_SET_STEP(SD_FLOOR);
+	if (force) {								/* (the console's choice, unchecked) */
+		sd_step = (BYTE)(force - 1u < SD_NSTEP ? force - 1u : SD_FLOOR);
+		if (sd_step < SD_NSTEP_HS) (void)sd_switch_hs();
+		SD_SET_STEP(sd_step);
+		return 0;
 	}
-	SD_SET_OVER(sd_over);
+	if (!(CardType & CT_SD2) || !sd_sectors || SD_CLOCK_FIXED()) return 0;	/* (SDv1, MMC, bit-bang: the floor) */
+	r = sd_clk_pass(buf, n, &ref);
+	sd_clk_res[SD_FLOOR] = r;
+	if (r != SDK_PASS) return 0;
+	hs = sd_switch_hs();
+	for (k = 0; k < SD_FLOOR; k++) {
+		SD_WDT();								/* (a failing step: its timeouts, a start-up again: 1 s and more) */
+		if (k < SD_NSTEP_HS && !hs) { sd_clk_res[k] = SDK_NOHS; continue; }
+		r = sd_clk_res[k] = sd_clk_try(buf, n, k, ref);
+		if (r == SDK_PASS) {					/* the fastest: the margin step below it */
+			sd_clk_top = k;
+			if (k + 1u == SD_FLOOR) break;
+			r = sd_clk_res[k + 1u] = sd_clk_try(buf, n, (BYTE)(k + 1u), ref);
+			if (r == SDK_PASS) { sd_step = (BYTE)(k + 1u); break; }
+			sd_clk_top = SD_FLOOR;
+			k++;								/* (that step failed: the walk on after it) */
+		}
+		bad++;
+		if (!sd_clk_recover(buf, n, ref, &hs)) break;
+	}
+	SD_SET_STEP(sd_step);
+	sd_clk_ms = sd_ms_since(t0);
 	return bad;
 }
 

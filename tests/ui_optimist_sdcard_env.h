@@ -49,6 +49,7 @@ static uint32_t sd_mount(void)
     return sd_state;
 }
 static uint32_t sd_card_mb(void) { return sd_sectors / 2048u; }
+static uint32_t sd_clock_khz(void) { return SD_CLOCK_KHZ(); }   /* (sdcard.c's) */
 static FRESULT sd_was(FRESULT r)
 {
     if (r == FR_DISK_ERR || r == FR_NOT_READY)

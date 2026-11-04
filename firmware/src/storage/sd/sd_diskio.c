@@ -3,7 +3,7 @@
  * after sd_mmc.c by sdcard.c (the FM-1) and by tests/sd_test.c (the card model). One drive, pdrv 0:
  *   disk_initialize   the card's start-up (sd_card_init) in a session at the start-up clock (SD_SESSION_SLOW)
  *   disk_read         n sectors by one CMD18 run (CMD17 for one: disk_readblocks), each block's CRC16 checked (a
- *                     failure read again, a second one at 30 MHz dropping the session to 20: sd_crc_retry); by DMA
+ *                     failure above the floor read again one clock step down, at the floor once more: sd_crc_retry); by DMA
  *                     into an aligned buffer (FatFs' window; a caller's unaligned buffer by bytes)
  *   disk_write        n sectors, a CMD24 each (disk_writeblock: the CRC16 sent, the card's busy end waited for, so
  *                     nothing is pending after it: CTRL_SYNC has nothing to do)
@@ -12,7 +12,7 @@
  *                     web / iOS app could set it when it connects: docs/SD-CARD-DESIGN.md 8)
  * Each read and each write is a bus session of its own (SD_SESSION / SD_SESSION_END: sdcard.c takes the bus from the
  * LCD and gives it back), so any FatFs call runs from the main loop and the screen draws between its transfers. A card
- * that fails a read or a write (an error, a timeout, a CRC failing twice at 20 MHz) is taken as gone: sd_gone, every
+ * that fails a read or a write (an error, a timeout, a CRC failing twice at the floor) is taken as gone: sd_gone, every
  * later read and write RES_NOTRDY at once (FatFs: FR_DISK_ERR) until a mount starts it again, instead of each waiting
  * out its timeouts. disk_status stays 0 meanwhile, so FatFs never starts the card on its own in some later call. While
  * a recording's multi-block write is open (sd_mmc.c sd_wr: storage/sd/sd_rec.c) the card takes no other command: every

@@ -174,48 +174,51 @@ static void blocks(const char *what)
     dma_on = 0;
 }
 
-/* the clock the card proves (sd_clock_probe) and the drop to the floor on CRC failures (sd_crc_retry) */
+/* the clock the card proves (sd_clock_probe) on each card type, a CRC failure above the floor at run time (sd_crc_retry:
+ * one step down, the block read again) and at the floor (read again once, then an error); tests/sd_clock_test.c walks
+ * the steps in detail */
 static void clocks(const char *what)
 {
     static uint8_t buf[8 * 512] __attribute__((aligned(4)));
     uint8_t one[4], scratch[512];
-    uint32_t s0 = C.base + 3, n = card_sectors() < 64u ? card_sectors() : 64u;
-    UINT bad;
+    uint32_t s0 = C.base + 3, n = card_sectors() < 16u ? card_sectors() : 16u;
     long d0, r0 = C.crc_refused;
     int sd2 = C.v2 && !C.mmc;
 
-    C.bad30 = 0;
-    bad = sd_clock_probe(buf, n, 0);
+    C.ok_from = 0;
+    (void)sd_clock_probe(buf, n, 0);
     if (sd2) {
-        CHECK(bad == 0 && sd_over && t_over && C.hs, "%s: a card that reads right at 30 MHz: kept there (CMD6 switched)",
-              what);
+        CHECK(sd_clk_top == 0 && sd_step == 1 && t_step == 1 && C.hs,
+              "%s: a card that reads at every clock: 30 MHz passed (CMD6 switched), 20 kept (the margin)", what);
     } else {
-        CHECK(sd_over == 0 && !t_over && bad == n, "%s: SDv1 / MMC: the floor, 20 MHz, nothing tried", what);
+        CHECK(sd_step == SD_FLOOR && t_step == (int)SD_FLOOR, "%s: SDv1 / MMC: the floor, nothing tried", what);
         return;
     }
-    C.bad30 = 1;
-    bad = sd_clock_probe(buf, n, 0);
-    CHECK(bad == n && !sd_over && !t_over, "%s: a card that fails at 30 MHz: %u of %u blocks bad, back to 20", what,
-          (unsigned)bad, (unsigned)n);
-    CHECK(sd_clock_probe(buf, n, 20) == n && !sd_over && !t_over, "%s: sd clock 20: the floor, nothing tried", what);
-    CHECK(sd_clock_probe(buf, n, 30) == n && sd_over && t_over, "%s: sd clock 30: forced", what);
+    C.ok_from = 2;                             /* 30 and 20 MHz read wrong */
+    (void)sd_clock_probe(buf, n, 0);
+    CHECK(sd_clk_top == 2 && sd_step == 3 && t_step == 3, "%s: a card wrong at 30 and 20: 15 passed, 12 kept", what);
+    CHECK(sd_clock_probe(buf, n, (BYTE)(SD_FLOOR + 1u)) == 0 && sd_step == SD_FLOOR && t_step == (int)SD_FLOOR,
+          "%s: sd clock 6: the floor, nothing tried", what);
+    CHECK(sd_clock_probe(buf, n, 2) == 0 && sd_step == 1 && t_step == 1, "%s: sd clock 20: forced", what);
 
-    d0 = sd_demotions;                         /* at 30, the card starts failing: the read goes on at 20 */
-    CHECK(disk_readblocks(buf, s0, 8) == RES_OK && same_as_card(buf, s0, 8), "%s: CRC failures at 30: read right", what);
-    CHECK(sd_demotions == d0 + 1 && !sd_over && !t_over, "%s: ... the session dropped to 20 MHz once", what);
-    SD_SET_OVER(1), sd_over = 1;
+    d0 = sd_demotions;                         /* at 20, the card fails: one step down, the read goes on at 15 */
+    CHECK(disk_readblocks(buf, s0, 8) == RES_OK && same_as_card(buf, s0, 8), "%s: CRC failures at 20: read right", what);
+    CHECK(sd_demotions == d0 + 1 && sd_step == 2 && t_step == 2, "%s: ... one step down, to 15 MHz", what);
+    (void)sd_clock_probe(buf, n, 1);           /* (30 forced: CMD6 again) */
     CHECK(sd_readp(one, s0 + 1, 40, 4) == RES_OK && !memcmp(one, sector_ptr(s0 + 1, scratch) + 40, 4) &&
-          sd_demotions == d0 + 2 && !sd_over, "%s: sd_readp at 30 failing: read at 20, dropped", what);
-    C.bad30 = 0;
+          sd_demotions == d0 + 3 && sd_step == 2, "%s: sd_readp at 30 failing: 20 failing too, read at 15", what);
+    C.ok_from = 0;
+    SD_SET_STEP(SD_FLOOR);
+    sd_step = SD_FLOOR;
 
-    d0 = sd_demotions;                         /* at 20, a glitch: read again, no drop, no error */
+    d0 = sd_demotions;                         /* at the floor, a glitch: read again, no drop, no error */
     C.corrupt_once = s0 + 4;
     CHECK(disk_readblocks(buf, s0, 8) == RES_OK && same_as_card(buf, s0, 8) && sd_demotions == d0,
-          "%s: one CRC glitch at 20: the block read again, right", what);
+          "%s: one CRC glitch at the floor: the block read again, right", what);
     C.corrupt_once = s0 + 2;
     CHECK(sd_readp(buf, s0 + 2, 0, 512) == RES_OK && same_as_card(buf, s0 + 2, 1), "%s: ... sd_readp too", what);
-    C.corrupt = s0 + 4;                        /* at 20, a block that keeps failing: an error */
-    CHECK(disk_readblocks(buf, s0, 8) == RES_ERROR, "%s: a block failing twice at 20: an error", what);
+    C.corrupt = s0 + 4;                        /* at the floor, a block that keeps failing: an error */
+    CHECK(disk_readblocks(buf, s0, 8) == RES_ERROR, "%s: a block failing twice at the floor: an error", what);
     C.corrupt = 0xFFFFFFFFu;
     CHECK(C.crc_refused == r0, "%s: no command refused for its CRC through the probes", what);
 }
