@@ -83,6 +83,10 @@ int main(void)
         printf("%u X0X voices as a lane's source on kit %u\n", n, DRUM_DEFAULT_KIT);
     }
 #endif
+    if (!kits && !FELUCCA_DRUMS) {                      /* (DRUMS off: track 4 a 4th synth track, no kit by design) */
+        printf("DRUMS off: no drum track, no kit to hear\n");
+        return 0;
+    }
     if (!kits) {
         printf("no drum kit built  FAIL\n");
         return 1;

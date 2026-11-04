@@ -401,9 +401,9 @@ async def main():
                     if type(app.screen).__name__ == "Pick":
                         break
                 title = str(app.screen.title_) if type(app.screen).__name__ == "Pick" else ""
-                check("f: a confirmation screen with the running identity, the package and the recovery",
-                      "Optimist_730  [running]" in title and pkg.name in title and "FM-1_730" in title and
-                      "Getting back" in title and app.screen.options[0] == "Cancel")
+                check("f: a confirmation screen with the package, the running identity, the route and the warning",
+                      "running:  Optimist_730" in title and pkg.name in title and "FM-1_730" in title and
+                      "route:" in title and "Do not unplug" in title and app.screen.options[0] == "Cancel")
                 check("... only the identity was read so far (nothing written before the answer)",
                       calls == [["--info"]])
                 await pilot.press("escape")
