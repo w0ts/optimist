@@ -213,6 +213,8 @@ enum {
 };
 #define ARB_ANY ((FELUCCA_FX_SLICER ? NTRK : 0) + FELUCCA_ENG_WAVE + FELUCCA_DRUM_X909 + FELUCCA_DRUM_X808 + \
                  FELUCCA_PUNCH_SW + FELUCCA_ENG_FM6 + 1 + FMEM_NLEND)         /* (#if; 1: the SCOPE's ring) */
+#define SST_ARN_K (NPART + FXM_NC + (uint32_t)ARB_NC)   /* the card streams' block, after them (FELUCCA_SD_STREAM:
+                                                         * storage/sd/sd_stream_plan.c, the heads and the rings) */
 /* the CHO DLY REV inserts' lines (2026-10-29, the user: "each copy in an insert slot takes its memory from the arena, as
  * many as it holds"): a block each, placed when an owner takes the type and given back when it lets go (fx/fx_arena.c
  * fxm_cp_*, fxi.c fxa_place), after every other client; never moved (as the other buffers) */
@@ -231,7 +233,7 @@ enum {
 #endif
 #define FXM_CPN ((INS_CHO || INS_REV || INS_DLY || (FELUCCA_FXI_LINE_BLOCKS && (FELUCCA_INS_DELAY || FELUCCA_INS_JCHORUS || \
                   FELUCCA_INS_FLANGER || FELUCCA_INS_XDLY))) ? FXM_CPN_MAX : 0u)
-#define FXM_CP_K0 (NPART + FXM_NC + (uint32_t)ARB_NC)
+#define FXM_CP_K0 (SST_ARN_K + (FELUCCA_SD_STREAM ? 1u : 0u))
 #define ARN_PARTS (FXM_CP_K0 + FXM_CPN)
 #define ARN_TOPS (((1u << (ARN_PARTS - NPART)) - 1u) << NPART)   /* (the lines and buffers from the top, best fit:
                                                                  * core/arena.c) */
@@ -393,8 +395,8 @@ static int eng_free(uint32_t e) { (void)e; return 0; }   /* (registry.h: no stan
 static int preset_playable(const engine_t *e, uint32_t pi)
 {
     uint32_t s;
-    if (!ENG_IS(e, SAMPLE) && !ENG_IS(e, GRAIN))
-        return 1;
+    if (PRESETS_CARD || (!ENG_IS(e, SAMPLE) && !ENG_IS(e, GRAIN)))
+        return 1;                                        /* (SD card mode: the card's files, every one listed) */
     s = (uint32_t)e->presets[pi].e[0];
     return s >= SMP_NSETS || SMP_SETS[s].nz != 0;
 }
@@ -402,6 +404,7 @@ static int preset_playable(const engine_t *e, uint32_t pi)
 /* every factory sound as loud as the others: a level trim per preset, 1/2 dB, measured on a phrase
  * that fits the sound (tools/level_presets.py writes preset_trim.h, a row per engine UID, every engine);
  * a track keeps it in P_ED_FX */
+#if !PRESETS_CARD                                        /* (SD card mode: the card's records hold it) */
 #include "preset_trim.h"
 static int16_t preset_trim(uint32_t uid, uint32_t pi)    /* by engine UID */
 {
@@ -411,6 +414,7 @@ static int16_t preset_trim(uint32_t uid, uint32_t pi)    /* by engine UID */
 #endif
     return uid < PT_ENGINES && pi < PT_MAX ? PRESET_TRIM[uid][pi] : 0;
 }
+#endif
 
 /* the bytes engine slot e keeps in its part's memory (0: none) */
 static FASTI(seqev) uint32_t part_mem_bytes(uint32_t e)

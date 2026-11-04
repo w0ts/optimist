@@ -249,6 +249,8 @@ class Builder(App):
         ar = self.arena_item.get(key, 0)                 # (the arena one instance takes, whatever the item's state: "?" unknown)
         if ar is None or ar:
             t.append(f"  arena {self.arena_text(ar)}", style="bold reverse cyan" if self.sort_by == "arena" else "cyan")
+        if key.startswith("SET_") and C.card_sets(self.cfg):   # (SD card mode: 0 B of flash, the SD card zip holds it)
+            t.append("  on the card" if v else "  not on the card", style="cyan" if v else "dim")
         took = dict(deltas)
         if self.over and all(took.get(r, 0) >= o for r, o in self.over.items()):  # alone, it fits all
             t.append("  ◀ off = fits", style="bold red")

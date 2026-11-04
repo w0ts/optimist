@@ -342,7 +342,16 @@ static BOOT_ORDER void fm1_main(void)
     BOOT_STAGE(SETTINGS);
     settings_init();
     BOOT_STAGE(LCD);
+#if FELUCCA_SDCARD
+    fm1_lcd_hw_init();
+    (void)sd_mount_boot();                              /* the card in SPI mode before the first screen traffic: a card
+                                                         * still in its native mode reads the pixels on CMD (2026-10-25
+                                                         * review); none: a few failed CMD0s, ms */
+#endif
     lcd_init();
+#if FELUCCA_SDCARD
+    sd_lcd_live = 1;
+#endif
     boot_splash();                                      /* the Optimist logo and version (splash.c) */
 #if FELUCCA_SIMD
     sine_pk_init();                                     /* the packed sine of hal/fm1_simd.h (dsp.c) */
@@ -593,7 +602,17 @@ static BOOT_ORDER void fm1_main(void)
         ui_draw();
 #endif
         felucca_dbg.stage = 8;
+#if FELUCCA_SD_STREAM
+        sst_plan_poll();                                /* the card samples' heads and rings in the arena (sd_stream_plan.c) */
+        (void)sst_service();                            /* a run for the stream with the least left (sd_stream.c) */
+#endif
+#if FELUCCA_SD_REC
+        (void)sdr_service();                            /* a recording's next block to the card (sd_rec.c) */
+#endif
         autosave_tick();                                /* the working project into flash, when quiet */
+#if FELUCCA_SD_UI
+        sdm_poll();                                     /* SD card mode: the card after a mount, a save left pending (sd_mode.c) */
+#endif
 #if FELUCCA_BLE
         ble_bond_poll();                                /* a central bonded: saved with the settings (midi_ble.c) */
         ble_devices_poll();                             /* the scan's reports into the DEVICES list (ble_devices.c) */
@@ -626,6 +645,12 @@ static BOOT_ORDER void fm1_main(void)
             arb_poll();
             fxi_poll();                         /* (a type picked: its instance within a pass) */
             meter_tap();                        /* (once per audio half: the meters see every one) */
+#if FELUCCA_SD_STREAM
+            (void)sst_service();                /* (the card's runs into the streams' rings while the screen idles) */
+#endif
+#if FELUCCA_SD_REC
+            (void)sdr_service();                /* (a recording's blocks while the screen idles) */
+#endif
 #if FELUCCA_OTA && FELUCCA_EDITOR
             ed_service();                       /* editor replies without waiting for the next frame */
 #endif

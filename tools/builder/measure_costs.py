@@ -169,6 +169,10 @@ _LAYOUT = {"ENG_SAMPLE": 0, "DRUM_USR": 0, "SNAPSHOTS": 0, "PATTERNS": 1}
 for _k, (_slots, _, _) in R.LAYOUT_STEPS.items():   # (every MEMORY step past normal, core.py validate: no sample slot as
     if _k:                                           # LAYOUT 1 and S0; with slots, the patterns only)
         WITH[("LAYOUT", _k)] = dict(_LAYOUT) if not _slots else {"PATTERNS": 1}
+for _v in (16, 32, 64):
+    WITH[("SD_REC", _v)] = dict(_LAYOUT, LAYOUT=1)
+for _v in (4, 8, 12, 16):
+    WITH[("SD_RING", _v)] = dict(_LAYOUT, LAYOUT=1, ENG_SAMPLE=R.eng_place("ENG_SAMPLE"), ARENA=1)   # (ARENA is on/off since 2026-10-29, ENG_SAMPLE's 1 is no value of it: the context was refused, the rings unmeasured)
 
 
 def name_of(k, v):
@@ -439,6 +443,23 @@ PAIRS.append({"GEN_GRIDS": 1, "ED_SEQ": 0})
 _GENS = ({"SEQTOOLS": 1}, {"NOTEGEN": 1}, {"GEN_GRIDS": 1}, {"ED_SEQ": 0})
 for _n in (3, 4):
     PAIRS.extend({k: v for d in _c for k, v in d.items()} for _c in itertools.combinations(_GENS, _n))
+# the SD card in the big layout is full FatFs, not Petit FatFs (registry.h FELUCCA_SD_FATFS, 2026-10-26): its pair
+# the difference; the console's sd commands reach more of FatFs (open, read, write, seek, list, the link map). Until
+# measured here: costs.json holds local measurement builds on sd-card-mots + SDCARD=1, FatFs against Petit
+_SDM = {"SDCARD": 1, "LAYOUT": 1, "ENG_SAMPLE": 0, "DRUM_USR": 0, "SNAPSHOTS": 0, "PATTERNS": 1}   # (what
+                                                 # the big layout's rule needs from the defaults: a valid configuration)
+PAIRS.append(dict(_SDM))                         # (with the console too it is ~25 KB over SRAM on the defaults: not
+                                                 # measurable as a pair, left out)
+# the console's sd commands (console_sd.c) are built with the card and the console both: 2026-10-30 on the defaults
+# SDCARD=1 +1,108 B of flash, +528 B of RAM; with USB_CONSOLE=1 +3,324 B and +1,116 B (sd-card: SDCARD off freed
+# 3,304 B and 1,148 B, its delta said 1,112 and 528, RAM 620 B over ESTIMATE_NEAR's tolerance from sd-mode-probe)
+PAIRS.append({"SDCARD": 1, "USB_CONSOLE": 1})
+# GRAIN reads a card set through the stream's cache (sd_stream_rc.c, sdcard.c SST_PART_RAND), built where the ring is
+# (FELUCCA_SD_STREAM): SD_RING's delta, measured with GRAIN on (its default), holds GRAIN's part, so GRAIN off frees it
+# beside the ring (2026-10-30, sd-card-mots: ENG_GRAIN=0 -9,432 B of flash, -708 B of RAM; its delta -4,276 and 0)
+for _ring in (4, 8, 12, 16):
+    PAIRS.append({"ENG_GRAIN": 0, "SD_RING": _ring})
+    PAIR_WITH[f"ENG_GRAIN=0,SD_RING={_ring}"] = dict(WITH[("SD_RING", _ring)], SDCARD=1)   # (the ring's own context)
 # (the tables are always in the pool since 2026-10-29: in every measurement, no term and no pair)
 # the mirror over BLE (ed_mirror.c mbr_q, mbr_cb, mbr_rx, mbr_big: in the pool) is built only with both: 2026-10-27,
 # synths_USBaudio_BTaudio_BTmidi's BLE off freed 8,280 B of pool, the estimate said +4 (BLE's own delta, from the
@@ -731,7 +752,7 @@ def item_delta_of(out, k, v, cfg, base, logd, prev_sizes, ladder=False):
         record_failure(f"{k}={v}")
         return classic_delta(k, v), prev_sizes
     ctx = {r: 0 for r in REG}                           # (what cfg has beyond the start, counted by its own deltas, as the
-    ic, i0 = cfg, s0          # sum model counts them: an item whose parent is off not at all,
+    ic, i0 = C.K.image_cfg(cfg), C.K.image_cfg(s0)          # sum model counts them: an item whose parent is off not at all,
     for j, x in ic.items():                             # so the start's moved items count where k leaves them out too:
         if j == k:                                      # EDITOR 0 drops ED_LIVE 0's saving, DRUMS 0 the X0X kits' cost;
             continue                                    # as the image is built: in the SD card mode the sets on the card,
@@ -751,14 +772,14 @@ def context_pairs(out):
     delta, and the sum would count it twice; taken off once the pairs are measured. The pairs and groups with the item
     itself are left: they are measured beyond its delta. 2026-10-30: SD_REC, measured in the SD card mode, held the
     pair SDCARD=1,LAYOUT=1,.. (+31 KB of flash): a configuration with both counted it twice -> {"KEY=value": delta taken off}"""
-    s0, fixed = start(), {}
+    s0, fixed = C.K.image_cfg(start()), {}
     for (k, v), cfg in sorted(MEASURED_IN.items()):
         d = out["deltas"].get(k, {}).get(str(v))
         if d is None:
             continue
         others = dict(out, pairs={n: x for n, x in out.get("pairs", {}).items() if k not in dict(C.pair_conds(n))},
                       groups={n: g for n, g in out.get("groups", {}).items() if k not in g["members"]})
-        hi, lo = C.pair_delta(cfg, others), C.pair_delta(s0, others)
+        hi, lo = C.pair_delta(C.K.image_cfg(cfg), others), C.pair_delta(s0, others)
         off = {r: hi[r] - lo[r] for r in REG}
         if any(off.values()):
             out["deltas"][k][str(v)] = {r: d[r] - off[r] for r in REG}
