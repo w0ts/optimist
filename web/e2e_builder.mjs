@@ -291,15 +291,15 @@ ok(se.costs.length > 0 && se.costs.every((c) => c === "flash" || c === "ram"), "
 const mem = await run(`${U} const gs = [...document.querySelectorAll(".group")].map((g) => g.dataset.group);
   const keysOf = (n) => [...document.querySelectorAll('.group[data-group="' + n + '"] .row')].map((r) => r.dataset.key);
   const before = { ...B.state.values };
-  await B.setItem("SD_MODE", 1); const sd = { L: B.state.values.LAYOUT, S: B.state.values.SDCARD, M: B.state.values.MEMORY };
-  await B.setItem("SD_MODE", 0); await B.setItem("SMP_SLOTS", 2); const back = { L: B.state.values.LAYOUT, S: B.state.values.SDCARD, M: B.state.values.MEMORY };
-  return { first: gs[0], gs, memKeys: keysOf("Memory management"), conn: keysOf("Connectivity"), sd, back };`);
+  await B.setItem("PROJECTS", 2); const two = { L: B.state.values.LAYOUT, M: B.state.values.MEMORY };
+  await B.setItem("PROJECTS", 16); const back = { L: B.state.values.LAYOUT, M: B.state.values.MEMORY };
+  return { first: gs[0], gs, memKeys: keysOf("Memory management"), conn: keysOf("Connectivity"), two, back };`);
 ok(mem.first === "Memory management" && !mem.gs.includes("USB & BT & MIDI") && mem.gs.includes("Connectivity")
-   && mem.memKeys.slice(0, 3).join() === "SD_MODE,SMP_SLOTS,PROJECTS" && ["ARENA", "SD_RING", "SD_REC"].every((k) => mem.memKeys.includes(k)) && ["MEMORY", "RAM_PACKED", "LAYOUT", "SDCARD", "FAR_OK", "OVERLAY"].every((k) => !mem.memKeys.includes(k)),
-   "page: Memory management is the first section (SD CARD MODE, SAMPLE SLOTS, PROJECTS, then ARENA ...), Connectivity replaces USB & BT & MIDI");
+   && mem.memKeys.slice(0, 2).join() === "SMP_SLOTS,PROJECTS" && ["ARENA"].every((k) => mem.memKeys.includes(k)) && ["MEMORY", "RAM_PACKED", "LAYOUT", "SDCARD", "SD_MODE", "SD_RING", "SD_REC", "FAR_OK", "OVERLAY"].every((k) => !mem.memKeys.includes(k)),
+   "page: Memory management is the first section (SAMPLE SLOTS, PROJECTS, then ARENA ...), Connectivity replaces USB & BT & MIDI");
 ok(mem.conn.includes("WIFI_LINK") && mem.conn.includes("WIFI_AP"), "page: Connectivity lists Wi-Fi + Link and the access point");
-ok(mem.sd.L === 1 && mem.sd.S === 1 && mem.sd.M === 2 && mem.back.L === 0 && mem.back.S === 0 && mem.back.M === 0,
-   "page: picking SD card mode sets LAYOUT and SDCARD; normal clears them");
+ok(mem.two.L === 7 && mem.back.L === 0 && mem.back.M === 0,
+   "page: picking PROJECTS 2 sets LAYOUT (2 slots, 2 projects: 7); PROJECTS 16 is normal again");
 const dlEarly = events.filter((e) => e.method === "Page.downloadWillBegin").length;
 const dl = await run(`${U} let got = null; const orig = URL.createObjectURL; URL.createObjectURL = (b) => { got = b; return orig(b); };
   $("#download").click(); await until(() => got, 3000); URL.createObjectURL = orig; return { text: await got.text(), name: document.querySelector("a[download]") ? document.querySelector("a[download]").download : "gone" };`);

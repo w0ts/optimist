@@ -102,11 +102,10 @@ def defaults():
     return {k: it.default for k, it in R.ITEMS.items()}
 
 
-# ---- the memory fronts (registry.py SD_MODE, SMP_SLOTS, PROJECTS; MEMORY the old one-row front): views of LAYOUT,
-# SDCARD and PATTERNS, never stored in a .config (docs/SD-MODE-DESIGN.md 9.7)
-FRONTS = ("MEMORY", "SD_MODE", "SMP_SLOTS", "PROJECTS")
-MEMORY_KEYS = FRONTS + ("LAYOUT", "SDCARD")          # (a change of one may move the flash layout: change_notice)
-STREAMS_OFF = {"SDCARD": 0, "SD_RING": 0, "SD_REC": 0}
+# ---- the memory fronts (registry.py SMP_SLOTS, PROJECTS; MEMORY the old one-row front): views of LAYOUT and PATTERNS,
+# never stored in a .config (docs/SD-MODE-DESIGN.md 9.7)
+FRONTS = ("MEMORY", "SMP_SLOTS", "PROJECTS")
+MEMORY_KEYS = FRONTS + ("LAYOUT",)                   # (a change of one may move the flash layout: change_notice)
 
 
 def _grid():
@@ -114,51 +113,39 @@ def _grid():
     return {(s, p): k for k, (s, p, _) in R.LAYOUT_STEPS.items()}
 
 
-def sd_on(cfg):
-    """SD card mode: the card on in the big step (LAYOUT 1 + SDCARD)"""
-    return cfg.get("LAYOUT", 0) == 1 and bool(cfg.get("SDCARD", 0))
-
-
 def derive_memory(cfg):
-    """-> MEMORY's (old) value for these LAYOUT / SDCARD: 2 SD card mode, 1 more flash (LAYOUT 1 otherwise), 4 no user
-    samples (LAYOUT 3), 0 normal (a layout no step has reads normal), 5 another step of the grid"""
+    """-> MEMORY's (old) value for this LAYOUT: 1 more flash (LAYOUT 1), 4 no user samples (LAYOUT 3), 0 normal (a layout
+    no step has reads normal), 5 another step of the grid"""
     layout = cfg.get("LAYOUT", 0)
-    if sd_on(cfg):
-        return 2
     if layout not in R.LAYOUT_STEPS:
         return 0
     return R.MEMORY_OF.get(layout, 5)
 
 
 def derive_fronts(cfg):
-    """-> {SD_MODE, SMP_SLOTS, PROJECTS} as these LAYOUT / SDCARD / PATTERNS read: SD card mode on: no slot, the big
-    step's projects; normal with PATTERNS off: 3 slots"""
+    """-> {SMP_SLOTS, PROJECTS} as this LAYOUT / PATTERNS read: normal with PATTERNS off: 3 slots"""
     layout = cfg.get("LAYOUT", 0)
     slots, projects, _ = R.LAYOUT_STEPS.get(layout, R.LAYOUT_STEPS[0])
-    if sd_on(cfg):
-        slots = 0
-    elif layout == 0 and not cfg.get("PATTERNS", 0):
+    if layout == 0 and not cfg.get("PATTERNS", 0):
         slots = 3
-    return {"SD_MODE": int(sd_on(cfg)), "SMP_SLOTS": slots, "PROJECTS": projects}
+    return {"SMP_SLOTS": slots, "PROJECTS": projects}
 
 
 def sync_memory(cfg):
-    """-> cfg with MEMORY and the three fronts read back from the items they front (a copy)"""
+    """-> cfg with MEMORY and the two fronts read back from the items they front (a copy)"""
     return dict(cfg, MEMORY=derive_memory(cfg), **derive_fronts(cfg))
 
 
 def set_memory(cfg, mode):
-    """-> cfg with MEMORY = mode and the items it fronts set to match (a copy): 0 normal (LAYOUT, SDCARD and the
-    card's streams off); 4 no user samples (LAYOUT 3, no card); 1 more flash (LAYOUT 1, no card: SDCARD and the card's
-    streams off); 2 SD card mode (LAYOUT 1 and SDCARD on)"""
+    """-> cfg with MEMORY = mode and the items it fronts set to match (a copy): 0 normal; 4 no user samples (LAYOUT 3);
+    1 more flash (LAYOUT 1). 2 was the SD card mode (removed 2026-11-04: an old line reads as more flash)"""
     layouts = {m: k for k, m in R.MEMORY_OF.items()}
-    if mode not in layouts and mode != 2:
-        raise ConfigError(f"MEMORY={mode}: one of 0, 4, 1, 2")
-    out = dict(cfg)
     if mode == 2:
-        out.update(LAYOUT=1, SDCARD=1)
-    else:
-        out.update(LAYOUT=layouts[mode], **STREAMS_OFF)
+        mode = 1
+    if mode not in layouts:
+        raise ConfigError(f"MEMORY={mode}: one of 0, 4, 1")
+    out = dict(cfg)
+    out.update(LAYOUT=layouts[mode])
     return sync_memory(out)
 
 
@@ -168,10 +155,9 @@ def _near(pairs, want):
 
 
 def set_front(cfg, key, value):
-    """-> cfg with the front key (MEMORY, SD_MODE, SMP_SLOTS, PROJECTS) at value and LAYOUT / SDCARD / PATTERNS set to
-    match (a copy). SD_MODE off leaves the big step without the card (0 slots, 2 projects); SMP_SLOTS keeps the
-    projects and PROJECTS the slots when the grid has the pair, else the nearest step; SMP_SLOTS 3 is normal with
-    PATTERNS off (no projects: USR1 is a slot again), 0..2 turn PATTERNS on; leaving SD card mode turns the card off"""
+    """-> cfg with the front key (MEMORY, SMP_SLOTS, PROJECTS) at value and LAYOUT / PATTERNS set to match (a copy).
+    SMP_SLOTS keeps the projects and PROJECTS the slots when the grid has the pair, else the nearest step; SMP_SLOTS 3
+    is normal with PATTERNS off (no projects: USR1 is a slot again), 0..2 turn PATTERNS on"""
     if key == "MEMORY" and value == 5:                  # (another step, derived: LAYOUT and the fronts say which; a
         return sync_memory(cfg)                         # config handed in as KEY=value lines names it, not an error)
     if key == "MEMORY":
@@ -180,14 +166,8 @@ def set_front(cfg, key, value):
         raise ConfigError(f"{key}: not a memory front")
     now = derive_fronts(cfg)
     out = dict(cfg)
-    if key == "SD_MODE":
-        if value:
-            return set_memory(out, 2)
-        if now["SD_MODE"]:
-            out.update(STREAMS_OFF)
-        return sync_memory(out)
     if key == "SMP_SLOTS" and value == 3:
-        out.update(LAYOUT=0, PATTERNS=0, **STREAMS_OFF)
+        out.update(LAYOUT=0, PATTERNS=0)
         return sync_memory(out)
     want = (value, now["PROJECTS"]) if key == "SMP_SLOTS" else (min(now["SMP_SLOTS"], 2), value)
     grid = _grid()
@@ -196,7 +176,7 @@ def set_front(cfg, key, value):
                           f"({', '.join(str(v) for v, _ in R.ITEMS[key].choices)})")
     pair = want if want in grid else _near([sp for sp in grid if (sp[0] if key == "SMP_SLOTS" else sp[1]) == value],
                                            want)
-    out.update(LAYOUT=grid[pair], PATTERNS=1, **STREAMS_OFF)
+    out.update(LAYOUT=grid[pair], PATTERNS=1)
     return sync_memory(out)
 
 
@@ -226,8 +206,7 @@ def switch_loss(old_layout, new_layout):
 def change_notice(key, before, after):
     """the notice the menu and the web builder show when key changed from before to after (both whole, synced): for
     the memory items the backup warning of a layout change (the user, 2026-10-31: "when we flash a different layout,
-    we warn the user to backup their data first"), with the new code room; "" when the layout stays (SD card mode on
-    or off in the big step: the one project stays). Any other item: its own notice"""
+    we warn the user to backup their data first"), with the new code room; "" when the layout stays. Any other item: its own notice"""
     it = R.ITEMS[key]
     if key in MEMORY_KEYS:
         old, new = before.get("LAYOUT", 0), after.get("LAYOUT", 0)
@@ -263,7 +242,7 @@ def parse(text, base=None, strict=True, warn=None, reject_unknown=False):
         if not m:
             raise ConfigError(f"line {n}: expected KEY=number, got {s!r}")
         k, v = m.group(1), int(m.group(2))
-        if k in FRONTS:                                 # (a front: sets LAYOUT, SDCARD; the lines after it refine)
+        if k in FRONTS:                                 # (a front: sets LAYOUT; the lines after it refine)
             cfg = set_front(cfg, k, v)
             continue
         if k in R.FORBIDDEN:
@@ -294,7 +273,7 @@ def parse(text, base=None, strict=True, warn=None, reject_unknown=False):
     for k, it in R.ITEMS.items():                      # (a fixed item: what every build has, whatever the text says)
         if it.fixed:
             cfg[k] = it.default
-    cfg = sync_memory(cfg)                              # (MEMORY: read from LAYOUT and SDCARD, whatever the text says)
+    cfg = sync_memory(cfg)                              # (MEMORY: read from LAYOUT, whatever the text says)
     for into, on in merged_on.items():                  # (a survivor the text does not set: what its old items were, so
         cfg[into] = cfg[into] | on if into in named else on   # an older .config with all of them off keeps it off)
     return cfg, name
@@ -396,14 +375,6 @@ def validate(cfg):
             warn.append(Issue(f"MEMORY: SAMPLE SLOTS {slots} keeps flash for user samples that nothing in this build "
                               "uses (no SAMPLE, user drum samples, snapshots or CZ collection): SAMPLE SLOTS 0 gives it "
                               "to the code", ["LAYOUT"]))
-    if cfg.get("SD_RING") and not (cfg.get("SDCARD") and cfg.get("LAYOUT") == 1 and
-                                   cfg.get("ARENA") and built(cfg, "ENG_SAMPLE")):
-        err.append(Issue("samples from the card (SD_RING) need the card under full FatFs (SDCARD, LAYOUT 1), "
-                         "SAMPLE (its CARD set) and the arena (ARENA: the heads and the rings)",
-                         ["SD_RING", "SDCARD", "LAYOUT", "ENG_SAMPLE", "ARENA"]))
-    if cfg.get("SD_REC") and not (cfg.get("SDCARD") and cfg.get("LAYOUT") == 1):
-        err.append(Issue("recording to the card (SD_REC) needs the card under full FatFs (SDCARD, LAYOUT 1)",
-                         ["SD_REC", "SDCARD", "LAYOUT"]))
     revs = [k for k in R.REV_ALGOS if k in R.ITEMS]
     if built(cfg, "FX_REVERB") and not any(cfg[k] for k in revs):
         err.append(Issue("the reverb bus needs an algorithm: tick ROOM, PLATE, FDN8, SPRING or VTINY "
@@ -417,11 +388,6 @@ def validate(cfg):
     if built(cfg, "ENG_STRETCH") and not built(cfg, "ENG_SAMPLE"):
         err.append(Issue("STRETCH stretches SAMPLE's material: it needs SAMPLE", ["ENG_STRETCH", "ENG_SAMPLE"]))
     sets = set_keys()
-    if card_sets(cfg) and any(cfg[k] for k in sets) and not (cfg.get("SD_RING", 0) and built(cfg, "ENG_SAMPLE") and
-                                                          cfg.get("ARENA", 0)):
-        warn.append(Issue("SD card mode: the sample sets go on the card (the SD card zip), and only SAMPLE streaming "
-                          "from it (SD_RING, ARENA) plays them: without it they are silent",
-                          ["SD_RING", "ENG_SAMPLE", "ARENA"] + [k for k in sets if cfg[k]]))
     if any(cfg[k] for k in sets) and not built(cfg, "ENG_SAMPLE") and not built(cfg, "ENG_GRAIN"):
         warn.append(Issue("sample sets without SAMPLE or GRAIN: nothing plays them (only the drums use PERC)",
                           ["ENG_SAMPLE", "ENG_GRAIN"] + [k for k in sets if cfg[k]]))
@@ -525,12 +491,10 @@ def flags(cfg):
     out["FELUCCA_SLICE"] = cfg["ENG_SLICE"]
     if not built(cfg, "DRUM_SAMPLED") or not any(cfg[k] for k in R.ITEMS if k.startswith("KIT_")):
         out["FELUCCA_DRUM_SAMPLED"] = 0
-    card = card_sets(cfg)                           # (SD card mode: every set on the card, none in the image)
-    skip = [R.ITEMS[k].env for k in set_keys() if not cfg[k] and not card]
+    skip = [R.ITEMS[k].env for k in set_keys() if not cfg[k]]
     if not out.get("FELUCCA_DRUM_SAMPLED", 1):
         skip.append("PERC")
-    env = {"FELUCCA_SAMPLES_SKIP": ",".join(skip), "FELUCCA_SLICE": str(cfg["ENG_SLICE"]),
-           "FELUCCA_SAMPLES_CARD": "1" if card else "0"}
+    env = {"FELUCCA_SAMPLES_SKIP": ",".join(skip), "FELUCCA_SLICE": str(cfg["ENG_SLICE"])}
     return out, env
 
 
@@ -917,52 +881,20 @@ def arena_bufs(cfg):
 
 
 # the tables in the pool (core.h IN_POOL_AUDIO, always since TAB_IN_POOL was retired, 2026-10-29): a layout, not an item.
-# With the arena's extras (FELUCCA_FX_ARENA: the SD card mode with an arena) FM6's sine table is an arena block, not moved; the card's
-# stream tables (sd_stream.h sst[8] and sst_src[16], with FELUCCA_SD_STREAM) move as well. Their sizes from the
-# sd-card-mots build's symbols, 2026-10-27 (sst 800 B, sst_src 832 B; FM6_SIN[1025] int32 4,100 B): that build moved
-# 6,528 B of RAM to the pool where the old TAB_IN_POOL delta said 8,992
-FM6_SIN_RAM, SST_TABLES = 4100, 800 + 832
+# With the arena's extras (FELUCCA_FX_ARENA) FM6's sine table is an arena block, not moved (FM6_SIN[1025] int32 4,100 B)
+FM6_SIN_RAM = 4100
 
 
 def tab_pool(cfg):
     """-> {region: bytes} what the always-pooled tables move from RAM to the pool beyond the defaults' set (model_terms)"""
     fx_arena = cfg.get("ARENA", 0) > 0              # (every ARENA build: the extras)
-    stream = (fx_arena and built(cfg, "SDCARD") and cfg.get("LAYOUT", 0) == 1 and cfg.get("SD_RING", 0) > 0
-              and built(cfg, "ENG_SAMPLE"))
-    moved = (SST_TABLES if stream else 0) - (FM6_SIN_RAM if fx_arena and built(cfg, "ENG_FM6") else 0)
+    moved = -(FM6_SIN_RAM if fx_arena and built(cfg, "ENG_FM6") else 0)
     return {"ram": -moved, "pool": moved}
-
-
-def card_sets(cfg):
-    """SD card mode (the fake SD mode's layout with the card, MEMORY 2): the sample sets go on the card, never in the
-    flash (the user, 2026-10-29: ticking a set there must not grow the flash). The image holds no set whatever is
-    ticked (gen_samples.py FELUCCA_SAMPLES_CARD: each set empty, its number and presets kept); the ticks choose the sets
-    the SD card zip carries (tools/sd_zip.py, OPTIMIST/SAMPLES/<SET>/), which SAMPLE streams (eng_sample.c
-    smp_bank_on)"""
-    return sd_mode(cfg) and built(cfg, "SDCARD")
 
 
 def set_keys():
     """the builder's sample sets (registry.py SET_*): the generator's set names by item"""
     return [k for k in R.ITEMS if k.startswith("SET_")]
-
-
-def image_cfg(cfg):
-    """-> cfg as the image is built: in SD card mode every set off (card_sets: they are on the card), else cfg itself"""
-    if not card_sets(cfg):
-        return cfg
-    return dict(cfg, **{k: 0 for k in set_keys()})
-
-
-def card_set_names(cfg):
-    """-> the generator's names of the sets ticked for the SD card zip (SD card mode), [] otherwise"""
-    return [R.ITEMS[k].env for k in set_keys() if cfg.get(k)] if card_sets(cfg) else []
-
-
-def sd_mode(cfg):
-    """the SD card mode (registry.h FELUCCA_SD_MODE: the fake SD mode's layout, LAYOUT 1, until its own flag): the
-    builds that get the arena's extras (the effects' lines, the other buffers, the load's list page)"""
-    return cfg.get("LAYOUT", 0) == 1
 
 
 def arena_mem(cfg):
@@ -1009,13 +941,10 @@ SEND_LINES = ("the delay's line", "the chorus send's line", "the reverb's line")
 # sorting on that"). One instance = one part's engine state, one effect's line, one buffer: the same numbers arena_blocks
 # places (PART_MEM / NPART, fx_memory, arena_bufs), not a second table. A size option (DLY_LEN, XDLY_LEN, SL_LEN, PUNCH_N,
 # the reverb algorithms, the X909 sample widths) shows the block it sizes. 0: the item keeps nothing in the arena.
-# None ("?"): it does, but the size is not defined by a constant in this source: the card streams' block is the project's
-# (sd_stream_plan.c sst_need: its rings, caches and each card sample), and the features lent by the includer (core/feat_mem.c
+# None ("?"): it does, but the size is not defined by a constant in this source: the features lent by the includer (core/feat_mem.c
 # FMEM_FEATS: BT AUDIO, the mirror's Bluetooth ring, Wi-Fi Link, its access point) are sized in fm1-base (plat.h
 # plat_*_mem_bytes), which this checkout does not carry
 ARENA_UNKNOWN = {
-    "ENG_SAMPLE": "its card samples stream through a block sized by the project (sd_stream_plan.c sst_need)",
-    "SD_RING": "the card streams' block: the rings and each card sample, sized by the project (sd_stream_plan.c sst_need)",
     "BT_AUDIO": "a lent block, sized in fm1-base (plat_bta_mem_bytes), not in this source",
     "ED_MIRROR": "its Bluetooth ring is lent only by the includer (MIR_LEND; MIR_BLE_RING 8192 B when it is)",
     "WIFI_LINK": "a lent block, sized in fm1-base (plat_link_mem_bytes), not in this source",
@@ -1084,10 +1013,6 @@ def arena_sends(blocks):
 ARN_UNDO_LEAST = 16 * 1024      # engines.c ARN_UNDO_LEAST: the undo's least in the SRAM without the cache RAM
 ARN_UNDO_SRAM = 1024            # engines.c ARN_UNDO_SRAM: its SRAM part with the cache RAM, at least
 CACHE_RAM_BYTES = {2: 8192, 4: 16384, 7: 28672}   # hal/fm1_cache.h: the ways as RAM (4 KB each); the tested free part is a little less
-SD_GRAIN_CACHE, SD_STRETCH_CACHE = 33280, 16640   # a part's card cache, with its tags (docs/SD-CARD-DESIGN.md, sd_grain_test)
-SD_PRE_MS = 50                  # sd_stream_plan.c SST_PRE_MS default: the pre-buffer of a card sample
-SD_HEAD_B = SD_PRE_MS * 441 // 10 * 2   # (frames at 44.1 kHz, 16 bit mono: 2 B a frame; the sample's own rate and width decide)
-SD_RINGS_TYPICAL, SD_HEADS_TYPICAL = 4, 8   # a part's rings at most (SST_PART_RINGS); the card samples of a typical project
 ARENA_ESTIMATE_KB = 4           # the estimate's stated tolerance (KB) against a real build of a configuration the anchors know
 STG_RESERVE = 16600             # seq/undo.c, engines.c STG_MEM: the save / load staging buffers past the arena and its undo keep
                                 # (the undo history's while nothing stores), with the section log (SECTIONS 8, 16); measured on
@@ -1153,8 +1078,7 @@ def _kb1(n):
 
 def arena_fits(cfg):
     """-> {"rows": [(name, bytes each, count, note)], "all": bytes of everything at once, "typical": ...} what a project can put in
-    the arena, from the builder's own model (arena_blocks: the parts' engine states, the sends, the inserts' room, the other buffers;
-    the SD card mode's streams). "all" = every row at its count: a project using all of it at once"""
+    the arena, from the builder's own model (arena_blocks: the parts' engine states, the sends, the inserts' room, the other buffers). "all" = every row at its count: a project using all of it at once"""
     c = cfg                                         # (the effects memory is always auto: fx_memory's rule)
     blocks = arena_blocks(c)
     rows = []
@@ -1176,19 +1100,11 @@ def arena_fits(cfg):
         if k == "FM6's sine table":
             continue                                    # (held with FM6's engine state: a few KB, in the table's note)
         rows.append((k, v, 1, "a track each" if k.startswith("a track's") else "while the project uses it"))
-    if sd_mode(cfg) and built(cfg, "SDCARD") and cfg.get("SD_RING", 0) > 0 and built(cfg, "ENG_SAMPLE"):
-        rows.append(("a card sample's head", SD_HEAD_B, SD_HEADS_TYPICAL, f"pre-buffer {SD_PRE_MS} ms, typical {SD_HEADS_TYPICAL} samples"))
-        rows.append(("a card stream's ring", cfg["SD_RING"] * 1024, SD_RINGS_TYPICAL, "SD_RING a voice, typical one part"))
-    if sd_mode(cfg) and built(cfg, "SDCARD") and cfg.get("SD_RING", 0) > 0:
-        if built(cfg, "ENG_GRAIN"):
-            rows.append(("GRAIN's card cache", SD_GRAIN_CACHE, nparts(cfg), "a part on GRAIN with a card set"))
-        if built(cfg, "ENG_STRETCH"):
-            rows.append(("STRETCH's card cache", SD_STRETCH_CACHE, nparts(cfg), "a part on STRETCH with a card set"))
     total = sum(b * n for _, b, n, _ in rows)
     return {"rows": rows, "all": total}
 
 
-HINT = ("a typical project uses the sends and its parts' engines; WAVE, SLICER, PUNCH, the X0X states and the card caches only when it plays them",)
+HINT = ("a typical project uses the sends and its parts' engines; WAVE, SLICER, PUNCH, the X0X states only when it plays them",)
 
 
 def arena_text(cfg, total, exact=False):
@@ -1254,7 +1170,7 @@ def anchor_cfg(rec):
 def effective(cfg):
     """-> {key: value} what the image is built with: every image item, an option of an item left out at its default
     (the build ignores it), so two configurations that build the same image compare equal"""
-    full = image_cfg(dict(defaults(), **cfg))           # (SD card mode: the sets' ticks build the same image)
+    full = dict(defaults(), **cfg)
     return {k: full[k] if not it.parent or built(full, it.parent) else it.default
             for k, it in R.ITEMS.items() if not it.no_image}
 
@@ -1302,7 +1218,6 @@ def additive(cfg, costs):
     computed terms. Its error grows with the distance from the defaults (budget anchors it nearer)"""
     total = dict(costs["base"])
     items, missing = {}, []
-    cfg = image_cfg(cfg)                                # (SD card mode: the sets on the card, 0 B of flash each)
     for k, it in R.ITEMS.items():
         if it.parent and not built(cfg, it.parent):
             continue                                    # (the parent's own delta covers its options)
@@ -1358,17 +1273,14 @@ def _grown(cfg, acfg, costs):
 # costs.json "checks" NAME "contexts" KEY: {"from", "to", "delta"}, the real difference), and an estimate that
 # crosses one from its anchor counts the difference measured on the check configuration nearest to it (among those
 # agreeing on the other context items) in place of the sum model's. Measured 2026-10-30 (release, gpufarm, 3e0c9439):
-#   SDCARD 1: +1.1 KB of flash on the defaults, +3.3 KB with the console (sd-card), +33.2 KB in the big layout
-#     (sd-mode-probe: the full FatFs, the SD card mode)
-#   LAYOUT 1: -0.9 KB on the defaults, +29.1 KB with the card (sd-card: the SD card mode itself)
-CONTEXT_ITEMS = ("LAYOUT", "SDCARD")
+#   LAYOUT 1: -0.9 KB on the defaults (the SD card items that made it differ were removed 2026-11-04)
+CONTEXT_ITEMS = ("LAYOUT",)
 
 
 def _ctx_class(key, v):
     """a context item's value as the measures agree on it: LAYOUT is the big step (1) or not: the other steps (normal, the
-    sample-slot x project grid) build the same code, a few hundred bytes apart, so an SDCARD measure made on
-    normal stands for them (a step no check configuration has made 4 projects drop the measured delta and
-    show less flash than 16 projects)"""
+    sample-slot x project grid) build the same code, a few hundred bytes apart (a step no check configuration has
+    made 4 projects drop the measured delta and show less flash than 16 projects)"""
     return (v == 1) if key == "LAYOUT" else v
 
 

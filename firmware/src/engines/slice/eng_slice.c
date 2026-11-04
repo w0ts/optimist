@@ -64,14 +64,8 @@ typedef int16_t slc_rbuf_t[NVOICE][SLC_RB];          /* a part's reverse windows
                                                        * (engines.c part_mem_t, the arena) */
 AINL slc_rbuf_t *slc_mem(uint32_t p);                 /* (engines.c, after every engine) */
 #define SLC_SRC_CARD 4u
-#if FELUCCA_SD_STREAM
-#define SLC_NSRC 5u
-static const char *const N_SLC_SRC[] = {"BREAK", "USR1", "USR2", "USR3", "CARD"};
-static const slc_src_t *volatile slc_crd[SST_NPART];   /* each part's CARD material, 0 none (storage/sd/sd_slice.c) */
-#else
 #define SLC_NSRC 4u
 static const char *const N_SLC_SRC[] = {"BREAK", "USR1", "USR2", "USR3"};
-#endif
 static const char *const N_SLC_DIV[] = {"4", "8", "16", "32", "AUTO"};
 static const char *const N_SLC_MODE[] = {"ONE", "GATE", "LOOP"};
 static const char *const N_SLC_REV[] = {"OFF", "ON"};
@@ -83,14 +77,7 @@ static const slc_src_t *slc_get(uint32_t part, uint32_t src)
 {
     if (!src)
         return SLC_BREAK.len ? &SLC_BREAK : 0;
-#if FELUCCA_SD_STREAM
-    if (src == SLC_SRC_CARD) {
-        const slc_src_t *c = part < SST_NPART ? slc_crd[part] : 0;
-        return c && c->len ? c : 0;
-    }
-#else
     (void)part;
-#endif
     src--;
     return src < SMP_USER_SLOTS && usr_nz[src] && slc_usr[src].len ? &slc_usr[src] : 0;
 }
@@ -239,73 +226,6 @@ static void slc_user_scan(uint32_t k, int valid)
     s->len = at;
 }
 
-#if FELUCCA_SD_STREAM
-/* ---- a CARD's material (main loop: storage/sd/sd_slice.c): its table, then its ADPCM, in one block of memory.
- * slc_enc_bytes the block for a sample of frames; slc_enc_begin, slc_enc_put a mono sample (Q15) frame by frame,
- * slc_enc_end: the table scanned (slc_scan, as a user slot's), its length set last; the table, or 0 */
-typedef struct {
-    slc_src_t *s;
-    uint8_t *d;
-    uint32_t n, frames;
-    int32_t pred, idx;
-} slc_enc_t;
-#define SLC_TAB_BYTES (((uint32_t)sizeof(slc_src_t) + 7u) & ~7u)
-static uint32_t slc_enc_bytes(uint32_t frames) { return SLC_TAB_BYTES + (((frames + 1u) / 2u + 7u) & ~7u); }
-
-static void slc_enc_begin(slc_enc_t *e, void *mem, uint32_t frames, uint32_t rate)   /* (mem 8-byte aligned) */
-{
-    e->s = (slc_src_t *)mem;
-    e->d = (uint8_t *)mem + SLC_TAB_BYTES;
-    e->n = 0;
-    e->frames = frames;
-    e->pred = e->idx = 0;                               /* (a segment's data starts from 0 / 0) */
-    memset(e->s, 0, sizeof *e->s);
-    e->s->rate = rate;
-    e->s->dat = e->d;
-}
-
-static void slc_enc_put(slc_enc_t *e, int32_t x)       /* IMA ADPCM: the code nearest x, decoded as the voice will */
-{
-    int32_t step = IMA_STEP[e->idx], dx = x - e->pred;
-    uint32_t c = 0;
-    if (e->n >= e->frames)
-        return;
-    if (dx < 0) {
-        c = 8u;
-        dx = -dx;
-    }
-    if (dx >= step) {
-        c |= 4u;
-        dx -= step;
-    }
-    if (dx >= step >> 1) {
-        c |= 2u;
-        dx -= step >> 1;
-    }
-    if (dx >= step >> 2)
-        c |= 1u;
-    ima_nibble(c, step, &e->pred, &e->idx);
-    if (e->n & 1u)
-        e->d[e->n >> 1] |= (uint8_t)(c << 4);
-    else
-        e->d[e->n >> 1] = (uint8_t)c;
-    e->n++;
-}
-
-static const slc_src_t *slc_enc_end(slc_enc_t *e)
-{
-    slc_src_t *s = e->s;
-    if (!e->n)
-        return 0;
-    s->nseg = 1;
-    s->seg[0].off = 0;
-    s->seg[0].at = 0;
-    s->seg[0].n = e->n;
-    slc_scan(s, e->n);
-    s->len = e->n;
-    return s;
-}
-#endif
 
 /* ---- voices */
 static int16_t *slc_rb(track_t *t, voice_t *v)

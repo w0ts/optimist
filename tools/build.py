@@ -209,8 +209,7 @@ def layout():
 def build_loader():
     LDR.mkdir(parents=True, exist_ok=True)
     src = FW / "loader"
-    flags = [*CFLAGS, "-Ifirmware/hal", "-Ifirmware/src", f"-DFELUCCA_LAYOUT={layout()}",   # (it writes that slot)
-             *(["-DFELUCCA_SDCARD=1"] if CFG_VALUES.get("FELUCCA_SDCARD") == 1 else [])]   # (its LCD idles as the app's)
+    flags = [*CFLAGS, "-Ifirmware/hal", "-Ifirmware/src", f"-DFELUCCA_LAYOUT={layout()}"]   # (it writes that slot)
     tc_all(("cc", "-c", src / "crt0_ldr.S", "-o", LDR / "crt0_ldr.o"),
            ("cc", *flags, "-c", src / "loader.c", "-o", LDR / "loader.o"))
     elf = LDR / "loader.elf"
@@ -421,20 +420,6 @@ def build_app():
                       *(["-DFELUCCA_FX_ARENA=1"] if fx_arena else []), "-c",
                       FW / "src" / "drums" / "x0x" / "x0x_drums.c", "-o", OUT / "x0x.o"))
         objs.append(OUT / "x0x.o")
-    for o in ("pff.o", "ff.o", "ffuni.o"):
-        (OUT / o).unlink(missing_ok=True)
-    if CFG_VALUES.get("FELUCCA_SDCARD", 0) == 1 or os.environ.get("FELUCCA_SDCARD") == "1":
-        # the card's filesystem, ChaN's, vendored, its own units at the firmware's flags; the card driver it calls
-        # (disk_*) is in felucca.c (storage/sd/sdcard.c): full FatFs (fatfs/ff.c + the code page's tables, ffunicode.c)
-        # in the big layout (LAYOUT 1: registry.h FELUCCA_SD_FATFS), else Petit FatFs (pff.c)
-        sd = FW / "src" / "storage" / "sd"
-        if layout() == 1:
-            units += [("cc", *flags, "-Os", "-c", sd / "fatfs" / "ff.c", "-o", OUT / "ff.o"),
-                      ("cc", *flags, "-Os", "-c", sd / "fatfs" / "ffunicode.c", "-o", OUT / "ffuni.o")]
-            objs += [OUT / "ff.o", OUT / "ffuni.o"]
-        else:
-            units.append(("cc", *flags, "-Os", "-c", sd / "pff.c", "-o", OUT / "pff.o"))
-            objs.append(OUT / "pff.o")
     tc_all(*units)
     subprocess.run([sys.executable, SRC / "tools" / "size_fns.py",
                     OUT / "felucca.ll", OUT / "felucca_size.ll"], check=True)
@@ -785,10 +770,7 @@ def check(img, syms, dis, rt):
 #    mailbox, vectors), XIP 0x02000000-0x020FFFFF);
 #  - no inline asm, except the empty compiler barrier RING_PUBLISH() (emits no instruction);
 #  - no HAL register macro (a hal/ #define that is, or expands to, a volatile access).
-# Linker symbols (_bss_start[], _rt_load[], ...) are plain C objects and pass. ChaN's FatFs (vendored, storage/sd/fatfs/:
-# a filesystem over disk_*, no hardware in it) is held to every rule but the literals: its UTF-16 code is full of 0x10000
-# (the BMP's end), which the literal rule reads as a core SFR (18 places, 2026-10-26)
-MMIO_LIT_VENDORED = ("src/storage/sd/fatfs/ff.c", "src/storage/sd/fatfs/ffunicode.c")
+# Linker symbols (_bss_start[], _rt_load[], ...) are plain C objects and pass.
 MMIO_LIT = re.compile(r"\b0x0*(1[0-3][0-9a-f]{3}|4[0-3][0-9a-f]{3}|5[01][0-9a-f]{3}|1ee[0-9a-f]{4}|"
                       r"1c7f[0-9a-f]{3}|20[0-9a-f]{5})u?l?\b", re.I)
 MMIO_CAST = re.compile(r"\(\s*(?:const\s+)?volatile\b[^()]*\*\s*\)(?!\s*&)")
@@ -815,8 +797,6 @@ def mmio_check():
             where = f"{f.relative_to(FW)}:{no}"
             for rx, what in ((MMIO_LIT, "register/window address"), (MMIO_CAST, "volatile pointer cast"),
                              (MMIO_ASM, "inline asm")):
-                if rx is MMIO_LIT and f.relative_to(FW).as_posix() in MMIO_LIT_VENDORED:
-                    continue
                 m = rx.search(ln)
                 if m:
                     errors.append(f"{where}: {what} outside hal/ ({m.group(0).strip()}); add a hal/ helper")

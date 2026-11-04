@@ -72,20 +72,11 @@ static __attribute__((noinline)) uint32_t ua_take(int32_t *l, int32_t *r, uint32
 }
 #endif
 
-#if FELUCCA_SD_REC
-static void sdr_feed(const int32_t *q15, uint32_t n);    /* storage/sd/sd_rec.c */
-static uint32_t sdr_recording(void);
-#endif
 static uint8_t bt_streamed;                             /* the last block went to Bluetooth (its own output muted) */
 static void audio_block(int32_t *out, uint32_t n)       /* mix (fx.c), then Q15 -> 24 bit */
 {
     uint32_t i;
-#if FELUCCA_SD_REC
-    const uint32_t rec = sdr_recording();               /* (this block's: the recorder takes the plain output) */
-#else
-    const uint32_t rec = 0;
-#endif
-    oc_begin(bt_streamed, rec, n);                       /* SPK LOWCUT / HPHN BASS: the codec's output only (fx/outcorr.c) */
+    oc_begin(bt_streamed, 0, n);                       /* SPK LOWCUT / HPHN BASS: the codec's output only (fx/outcorr.c) */
 #if FELUCCA_USB_AUDIO
     track_capture_on = ua.cap_alt != 0;                 /* (the stems this block: fx.c capture_clear) */
 #endif
@@ -118,11 +109,6 @@ static void audio_block(int32_t *out, uint32_t n)       /* mix (fx.c), then Q15 
                 mst_frac[i] = 0;                        /* (nothing under the silence) */
             }
     }
-#endif
-#if FELUCCA_SD_REC
-    if (rec)
-        sdr_feed(oc_rec_frames(out), n);                /* the master into the card's ring (storage/sd/sd_rec.c): the plain
-                                                         * output, or its own stage's while the codec's is corrected */
 #endif
     for (i = 0; i < n; i++) {                           /* (no scope tap: SLOOP's HOME scope is gone) */
         out[2u * i] = (out[2u * i] << OUT_SHIFT) | mst_frac[2u * i];               /* (fx.c MASTER_VOL) */

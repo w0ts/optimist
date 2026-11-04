@@ -167,12 +167,6 @@ def cmd_package(a):
     # to the published profiles by it, web/make_site.py releases_of; a development package by its name, as before)
     stem = f"optimist-{a.release}-{a.profile}" if a.release and a.profile else None
     rc = C.package(cfg, name, Path(a.out).expanduser(), stem=stem, echo=True, summary=a.summary, release=a.release)
-    if not rc and cfg.get("SDCARD") and cfg.get("LAYOUT") == 1:
-        # SD card mode (registry.h FELUCCA_SD_UI) reads its factory presets from the card: the SD card zip beside it
-        # (tools/sd_zip.py; docs/SD-CARD-DESIGN.md 9), unzipped at the card's root
-        sys.path.insert(0, str(ROOT / "tools"))
-        import sd_zip
-        sd_zip.make(Path(a.out).expanduser() / "optimist-sd-card.zip", C.card_set_names(cfg))   # (the ticked sets)
     return rc
 
 

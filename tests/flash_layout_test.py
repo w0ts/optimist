@@ -52,8 +52,8 @@ check("S0's store, as the design has it: FM6 voices 0xB5000, autosave A 0xB7000,
       == (0xB5000, 0xB7000, 0xB8000, 32, 16) and L.STEPS[S0].slots == 0 and all(s.release_built for s in L.STEPS.values()))
 check("S0 is the grid's stack (no sample slot, 16 projects): FM6 voices, autosave A, the log under 0xD8000",
       L.stacked(3, "S0", "no user samples", 0, 16) == L.STEPS[S0])
-check("the projects by step: N 16, S0 16, L1 2 (the user, 2026-10-31: PROJECTS 2, 4 or 16; SD card mode keeps 1)",
-      [L.STEPS[k].projects for k in (N, S0, L1)] == [16, 16, 2] and "FELUCCA_SDCARD && FELUCCA_LAYOUT == 1 ? 1u : FL_PROJ_SLOTS"
+check("the projects by step: N 16, S0 16, L1 2 (the user, 2026-10-31: PROJECTS 2, 4 or 16)",
+      [L.STEPS[k].projects for k in (N, S0, L1)] == [16, 16, 2] and "define PROJ_SLOTS FL_PROJ_SLOTS"
       in (ROOT / "firmware" / "src" / "core" / "registry.h").read_text())
 check("app.bin's room: N 581,564, S0 720,828, L1 831,420 B (the far probe's reserve gone: code_limit == app_slot)",
       [L.app_slot(k) for k in (N, S0, L1)] == [581564, 720828, 831420] and all(L.code_limit(k) == L.app_slot(k) for k in L.STEPS))
@@ -83,7 +83,7 @@ check("LAYOUT's choices are the table's layouts; SAMPLE SLOTS' the table's slots
 _pat = dict(K.defaults(), PATTERNS=1)
 check("the fronts <-> LAYOUT: each step reads back as its (slots, projects); picking its projects from its slots, or its "
       "slots from its projects, gives the step",
-      all(K.derive_fronts(dict(_pat, LAYOUT=k)) == {"SD_MODE": 0, "SMP_SLOTS": L.STEPS[k].slots, "PROJECTS": L.STEPS[k].projects}
+      all(K.derive_fronts(dict(_pat, LAYOUT=k)) == {"SMP_SLOTS": L.STEPS[k].slots, "PROJECTS": L.STEPS[k].projects}
           and K.set_front(dict(_pat, LAYOUT=k), "PROJECTS", L.STEPS[k].projects)["LAYOUT"] == k
           and K.set_front(dict(_pat, LAYOUT=k), "SMP_SLOTS", L.STEPS[k].slots)["LAYOUT"] == k for k in L.STEPS))
 check("every (slots, projects) pair is one step: no two steps share it",

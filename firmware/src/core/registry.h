@@ -678,18 +678,9 @@ static uint32_t eng_slot_built(uint32_t uid) { return ENG_DENSE ? uid : ENG_SLOT
                                             * at a time; off again until the next start if the flash part ever holds an
                                             * erase in one window (seq.c SAVE_WAITS_PLAY, felucca.c FL_ERASE_HELD) */
 #endif
-#ifndef FELUCCA_SDCARD
-#define FELUCCA_SDCARD 0                   /* a microSD card on the LCD's SPI1 (a hardware mod, docs/SD-CARD-DESIGN.md):
-                                            * storage/sd/sdcard.c, hal/fm1_sd_bus.h; the console's sd commands */
-#endif
 #ifndef FELUCCA_LAYOUT
-#define FELUCCA_LAYOUT 0                   /* the flash layout, the MEMORY step (hal/fm1_steps.h): 3 no user samples, 1 the fake SD mode, the app slot to
+#define FELUCCA_LAYOUT 0                   /* the flash layout, the MEMORY step (hal/fm1_steps.h): 3 no user samples, 1 more flash (two projects), the app slot to
                                             * 0xD0000 over the user samples and snapshots (docs/SD-MODE-DESIGN.md) */
-#endif
-#ifndef FELUCCA_SD_MODE
-#define FELUCCA_SD_MODE (FELUCCA_LAYOUT == 1)   /* the SD card mode (one builder flag later: the bigger flash, the card,
-                                            * projects by name, banks of 16; the fake SD mode's layout until then): what
-                                            * only it builds keys on this one macro */
 #endif
 #if FELUCCA_ARENA_KB && !defined(FELUCCA_FX_ARENA)
 #define FELUCCA_FX_ARENA 1                 /* (the arena's extras: every build with an arena, 2026-10-29, the user: one
@@ -711,43 +702,11 @@ static uint32_t eng_slot_built(uint32_t uid) { return ENG_DENSE ? uid : ENG_SLOT
                                             * without the arena's extras the ring is static and PUNCH always there */
 #include "../../hal/fm1_flash_map.h"        /* FL_PROJ_SLOTS: the step's projects (hal/fm1_steps.h) */
 #ifndef PROJ_SLOTS
-#define PROJ_SLOTS (FELUCCA_SDCARD && FELUCCA_LAYOUT == 1 ? 1u : FL_PROJ_SLOTS)   /* the projects the flash keeps
-                                            * (PATTERNS): the step's (MEMORY's PROJECTS 2, 4 or 16: tools/flash_layout.py);
-                                            * the SD card mode one, the others on the card (the user, 2026-10-25) */
+#define PROJ_SLOTS FL_PROJ_SLOTS            /* the projects the flash keeps (PATTERNS): the step's (MEMORY's PROJECTS 2, 4 or
+                                            * 16: tools/flash_layout.py) */
 #endif
 /* (no FELUCCA_BT_PROJ since 2026-11-01: the projects' moves over Bluetooth are felucca.c MBR_PROJ, with EDITOR + BLE) */
 /* (no FELUCCA_FAR_OK since 2026-10-29, no far probe since 2026-10-30: every layout has its whole slot, tools/flash_layout.py) */
-#ifndef FELUCCA_SD_FATFS
-#define FELUCCA_SD_FATFS (FELUCCA_SDCARD && FELUCCA_LAYOUT == 1)   /* the card under full FatFs (its
-                                            * ~15 KB fit the big slot: storage/sd/fatfs/, tools/build.py), else Petit FatFs
-                                            * (the bring-up's: no files created, 8.3 names) */
-#endif
-#ifndef FELUCCA_SD_UI
-#define FELUCCA_SD_UI (FELUCCA_SD_MODE && FELUCCA_SD_FATFS)   /* the SD card mode's card side (docs/SD-CARD-DESIGN.md 9): the
-                                            * user's data on the card by name, every list as banks of 16 on the keys
-                                            * (storage/sd/sd_mode.c, ui/optimist/op_sdcard.c), the working project the one-
-                                            * project flash store's; the card under full FatFs (SDCARD + LAYOUT 1). Once the
-                                            * mode's one flag builds the card in: FELUCCA_SD_MODE alone */
-#endif
-#if FELUCCA_SD_UI && !(FELUCCA_PATTERNS && SEC_LOGGED && FELUCCA_LAYOUT == 1)
-#error "SD card mode needs the projects of the section log (PATTERNS, SECTIONS 8 or 16) in the fake SD mode's layout"
-#endif
-#ifndef FELUCCA_SD_RING_KB
-#define FELUCCA_SD_RING_KB 0               /* the builder's SD_RING (bit 415): samples streamed from the card, the KB of
-                                            * lookahead a playing voice keeps (storage/sd/sd_stream.c); 0 off */
-#endif
-#ifndef FELUCCA_SD_STREAM
-#define FELUCCA_SD_STREAM (FELUCCA_SD_FATFS && FELUCCA_SD_RING_KB > 0 && FELUCCA_ENG_SAMPLE && FELUCCA_FX_ARENA)   /* (the
-                                            * heads and the rings are an arena block per project: ARENA; the voices are
-                                            * SAMPLE's CARD set) */
-#endif
-#define FELUCCA_SD_LANES (FELUCCA_SD_STREAM && FELUCCA_DRUMS)   /* the drum lanes play card samples too (drums/lane_card.c:
-                                                                 * the same streams, a lane a slot of the plan) */
-#ifndef FELUCCA_SD_REC_KB
-#define FELUCCA_SD_REC_KB 0                /* the builder's SD_REC (bit 416): the master recorded to the card, the ring's KB
-                                            * (storage/sd/sd_rec.c: the card's stalls it covers); 0 off */
-#endif
-#define FELUCCA_SD_REC (FELUCCA_SD_FATFS && FELUCCA_SD_REC_KB > 0)   /* (full FatFs: the big layout's) */
 #ifndef FELUCCA_LANE_FX
 #define FELUCCA_LANE_FX 0                  /* a black key held on the drum track: its lane's FX page (ROLL CHANCE FILL NUDGE),
                                             * kept as the pattern's automation events (seq/lane_fx.c, auto.h AUTO_IS_LFX) */

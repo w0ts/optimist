@@ -1098,10 +1098,10 @@ job; ( jobin
     run "USB AUDIO (SYSTEM) with the X0X kits: a tapped lane of the shared sum, the mix untouched" "$OUT/usb_audio_route_x0x"
 ) >"$U.out" 2>&1 & jobbg
 # the output's correction by the headphone jack (fx/outcorr.c, system/hpjack.h): SPK LOWCUT / HP BASS on their side of
-# the jack, the codec's output only (Bluetooth, USB, the card's recorder plain, bit for bit), the jack's debounce
+# the jack, the codec's output only (Bluetooth, USB plain, bit for bit), the jack's debounce
 job; ( jobin
-    $CC -O2 -w -I"$HGEN" -Ifirmware/src -DOC_REC=1 -o "$OUT/outcorr_test" tests/outcorr_test.c -lm
-    run "SPK LOWCUT / HP BASS: each on its side of the jack, OFF never; Bluetooth, USB and the card plain bit for bit; the jack's debounce" "$OUT/outcorr_test"
+    $CC -O2 -w -I"$HGEN" -Ifirmware/src -o "$OUT/outcorr_test" tests/outcorr_test.c -lm
+    run "SPK LOWCUT / HP BASS: each on its side of the jack, OFF never; Bluetooth and USB plain bit for bit; the jack's debounce" "$OUT/outcorr_test"
 ) >"$U.out" 2>&1 & jobbg
 # issue 132: a soft note's release at MASTER max against a float fit (tests/fade_tail_test.c; the voice and mix products
 # rounded, dsp.c VOICE_OUT, fx.c mix_lg MIX_PAN; the master's bits under the output)
@@ -1240,8 +1240,6 @@ job; ( jobin   # the flash layouts (docs/SD-MODE-DESIGN.md): the numbers agree; 
     run "patterns and scenes in the fake SD mode's log (7 sectors at 0xD0000): store, MEM FULL" "$OUT/patterns_test_l1"
     $CC -O2 -w -I"$HGEN" -Ifirmware/src -DFELUCCA_SL24_XSTEP=1 $L1 -o "$OUT/project_scope_test_l1" tests/project_scope_test.c -lm
     run "MEMORY 0 slots / 2 projects (L1) keeps two projects: a third refused, one project may fill the log, MEM FULL" "$OUT/project_scope_test_l1"
-    $CC -O2 -w -I"$HGEN" -Ifirmware/src -DFELUCCA_SL24_XSTEP=1 $L1 -DPROJ_SLOTS=1u -o "$OUT/project_scope_test_sd" tests/project_scope_test.c -lm
-    run "SD card mode keeps one project in flash (PROJ_SLOTS 1): another refused, the log the one project's, MEM FULL" "$OUT/project_scope_test_sd"
     S0="-DFELUCCA_LAYOUT=3 -DFELUCCA_ENG_SAMPLE=0 -DFELUCCA_DRUM_USR=0 -DFELUCCA_SNAPSHOTS=0 -DFELUCCA_PATTERNS=1"   # (S0, no user samples: its 32-sector log at 0xB8000, fm1_steps.h)
     $CC -O2 -w -I"$HGEN" -Ifirmware/src -DFELUCCA_SL24_XSTEP=1 $S0 -o "$OUT/patterns_test_s0" tests/patterns_test.c -lm
     run "patterns and scenes in the no-user-samples step's log (S0: 32 sectors at 0xB8000): store, MEM FULL" "$OUT/patterns_test_s0"
@@ -1524,46 +1522,6 @@ job; ( jobin
     $CC -O2 -w -I"$HGEN" -Ifirmware/src -DFELUCCA_LIVE_SAVE=1 -o "$OUT/sections_live_test" tests/sections_test.c -lm
     run "song sections with LIVE_SAVE: saved while playing, the waiting ones one a call, back to waiting after a held erase" "$OUT/sections_live_test"
 ) >"$U.out" 2>&1 & jobbg
-job; ( jobin   # the SD card (SDCARD): ChaN's driver + Petit FatFs, then full FatFs, on a card model, real FAT16 / FAT32 images
-    gunzip -c tests/fixtures/sd/fat16.img.gz > "$OUT/sd_fat16.img"
-    gunzip -c tests/fixtures/sd/fat32.img.gz > "$OUT/sd_fat32.img"
-    $CC -O2 -Ifirmware/src -o "$OUT/sd_test" tests/sd_test.c firmware/src/storage/sd/pff.c
-    run "SD card (CRC7 + CMD59, every block's CRC16 both ways): SDHC / SDSC / SDv1 / MMC start-up, FAT16 + FAT32 (MBR or none), read, seek, list, write, no card, timeouts, LCD sees only 0xFF; CMD18 + CMD12 and CMD17 blocks by bytes and by a DMA model (polled, no CPU byte during a DMA), CRC16, the card's end, block writes, a file's runs" "$OUT/sd_test" "$OUT/sd_fat16.img" "$OUT/sd_fat32.img"
-    FF="firmware/src/storage/sd/fatfs/ff.c firmware/src/storage/sd/fatfs/ffunicode.c"
-    $CC -O2 -Ifirmware/src -o "$OUT/sd_fs_test" tests/sd_fs_test.c $FF
-    run "SD card, full FatFs (the big layout): FAT16 + FAT32 start-ups, long names (UTF-8), files created / grown / renamed / moved / deleted, folders, read back after a mount, f_expand one run (fragmented room, never across the volume's end), the fast-seek map's runs by CMD18, DMA (aligned window, unaligned buffer by bytes), the card pulled: every call fails at once" "$OUT/sd_fs_test" "$OUT/sd_fat16.img" "$OUT/sd_fat32.img"
-    $CC -O2 -Ifirmware/src -o "$OUT/sd_layout_test" tests/sd_layout_test.c $FF
-    run "SD card's layout (the big layout's FatFs): XXH64 (its vectors, a WAV's data only), the OPTIMIST folders, the sample index (new and changed files hashed, a moved one found by hash, the FM-1's writes hashed at once, a power cut at every write of a pass), the 16-key pages (folder / by name / recent: each entry once, in order, forward and back, cut names), the staged project save (versions, the spare run, a power cut at every block write: old or new whole, the boot finishes it, a cut rename's halves), every file the FM-1 writes one run on a card in holes" "$OUT/sd_layout_test" "$OUT/sd_fat16.img" "$OUT/sd_fat32.img"
-    $CC -O2 -Ifirmware/src -o "$OUT/sd_stream_test" tests/sd_stream_test.c $FF
-    run "SD card streaming (SD_RING): voices read their samples from rings filled by short CMD18 runs between the screen's strips, the audio an interrupt in the middle of the runs: 8 / 16 bits, mono / stereo, 22.05 / 44.1 / 48 kHz, contiguous and fragmented files, every sample the file's; a card busy 150 ms at a note's start (a 50 ms pre-buffer dry and faded, 200 ms covers it), a stall while playing (the ring covers 60 ms, not 250), the screen drawing through both; loops, a sample whole in its head, notes started again from the interrupt, a CRC failing once, the card pulled, a voice gone, more voices than rings, too much for the bus" "$OUT/sd_stream_test" "$OUT/sd_fat16.img" "$OUT/sd_fat32.img"
-    SDF_ENG=$(grep -oE "X\([0-9]+, [A-Z0-9_]+," firmware/src/core/registry.h | awk '{print $2}' | tr -d ',' | sort -u | grep -v SQUARE | sed 's/^/-DFELUCCA_ENG_/; s/$/=1/' | tr '\n' ' ')
-    $CC -O1 -w -I"$HGEN" -Ifirmware/src -DFELUCCA_FLASH=1 -DUP_CARD_ON=1 $SDF_ENG $FM6_PACKS_ON -o "$OUT/sd_factory_test" tests/sd_factory_test.c -lm
-    run "the SD card zip's factory presets (tools/sd_factory.c): every engine's every preset applied, taken as the card's record and loaded back into another sound: every value the same, FM6's voice too" "$OUT/sd_factory_test"
-    $CC -O2 -Ifirmware/src -o "$OUT/sd_wr_test" tests/sd_wr_test.c
-    run "SD card's polled multi-block writer (CMD25, the recorder's): 64 blocks by bytes and by DMA on SDHC and SDSC with the screen's bytes between them (the card deselected: the write stays open), nothing sent while busy, a 150 ms stall polled through, 600 ms: an error and the abort, a power cut" "$OUT/sd_wr_test"
-    $CC -O2 -Ifirmware/src -o "$OUT/sd_rec_test" tests/sd_rec_test.c $FF
-    run "recording to the SD card (SD_REC): the audio an interrupt feeding a 32 KB ring, the blocks to the card between the screen's strips: 2 s every frame and the WAV's header, a 150 ms stall covered, 300 ms: frames dropped and counted, never garbage, a take that fills its run (FULL), FatFs refused while it writes" "$OUT/sd_rec_test" "$OUT/sd_fat16.img" "$OUT/sd_fat32.img"
-    $CC -O2 -Ifirmware/src -o "$OUT/sd_stream_plan_test" tests/sd_stream_plan_test.c $FF
-    run "SD card streaming's memory per project: the parts' card samples by hash (the index), their heads (the pre-buffer) and the rings one arena block, placed again when the setting or the parts' voices change (the voices let go first), refused with what would make room proposed (a part, a shorter pre-buffer), placed by itself once there is room, a missing sample, a part on SLICE CARD (its sample whole, no ring or head), a part on a card set (its zones by path with their keys; a set not on the card MISSING), GRAIN / STRETCH on it (a cache of its own, no ring, no heads but a SAMPLE part's beside it)" "$OUT/sd_stream_plan_test" "$OUT/sd_fat16.img" "$OUT/sd_fat32.img"
-    mkdir -p "$OUT/optimist"
-    $CC -O2 -w -I"$HGEN" -Ifirmware/src -Ifirmware/hal -DFELUCCA_LAYOUT=1 -DFELUCCA_ENG_SAMPLE=0 -DFELUCCA_DRUM_USR=0 -DFELUCCA_SNAPSHOTS=0 -DFELUCCA_PATTERNS=1 -DSEC_LOG_SECTORS=7u -DFELUCCA_SECTIONS=16 -DFELUCCA_SDCARD=1 -DFELUCCA_SD_REC_KB=16 -DFELUCCA_ENG_CZ=1 -DPRESETS_CARD=0 -DUI_SDCARD=1 -o "$OUT/ui_optimist_sdcard_test" tests/ui_optimist_test.c $FF -lm
-    run "SD card mode's UI (the card model, FAT32): the boot's folders and index, PROJECT's card list (SAVE by name, a version, SAVES loaded, SAVE <work>? before a LOAD, DELETE, two pages), PRESETS / KITS by name, SAMPLES (folders, USE by hash, RECENT), SYSTEM > SD CARD, a full card, the card pulled, no card, a power cut at every block write of a save from the UI" "$OUT/ui_optimist_sdcard_test" "$OUT/optimist" "$OUT/sd_fat32.img"
-    $CC -O2 -w -I"$HGEN" -Ifirmware/src -Ifirmware/hal -DFELUCCA_LAYOUT=1 -DFELUCCA_ENG_SAMPLE=0 -DFELUCCA_DRUM_USR=0 -DFELUCCA_SNAPSHOTS=0 -DFELUCCA_PATTERNS=1 -DSEC_LOG_SECTORS=7u -DFELUCCA_SECTIONS=16 -DFELUCCA_SDCARD=1 -DFELUCCA_SD_REC_KB=16 -DPRESETS_CARD=1 -DUI_SDCARD=1 -o "$OUT/ui_optimist_sdcard_fac_test" tests/ui_optimist_test.c $FF -lm
-    run "SD card mode's factory presets on the card (PRESETS_CARD: no tables): the names read at the mount, a preset's file loaded on the next pass, an ask dropped by a sound over it, a missing file and no card said" "$OUT/ui_optimist_sdcard_fac_test" "$OUT/optimist" "$OUT/sd_fat32.img"
-    $CC -O2 -w -I"$HGEN" -Ifirmware/src -Ifirmware/hal -DFELUCCA_LAYOUT=1 -DFELUCCA_ENG_SAMPLE=1 -DFELUCCA_DRUM_USR=0 -DFELUCCA_SNAPSHOTS=0 -DFELUCCA_PATTERNS=1 -DSEC_LOG_SECTORS=7u -DFELUCCA_SECTIONS=16 -DFELUCCA_SDCARD=1 -DFELUCCA_ARENA_KB=96 -DFELUCCA_SD_RING_KB=4 -DFELUCCA_ENG_SLICE=1 -DUI_SDCARD=1 -o "$OUT/ui_optimist_sdstream_test" tests/ui_optimist_test.c $FF -lm
-    run "SD card mode's UI with streaming (SAMPLE, ARENA 96, SD_RING 4): the same, a picked sample given to the streams' plan (and from the project's record), SYSTEM > SD card's PRE-BUFFER and its KB, MEM FULL CARD: a part's drop asked, then the pre-buffer that fits; USE on a SLICE part: SLICE kept, SRC CARD, the file whole as its slice table; a cache's misses: CARD SLOW once" "$OUT/ui_optimist_sdstream_test" "$OUT/optimist" "$OUT/sd_fat32.img"
-    rm -f "$OUT/sd_fat16.img" "$OUT/sd_fat32.img"
-    $CC -O2 -w -I"$HGEN" -Ifirmware/src -DFELUCCA_ENG_SLICE=1 -o "$OUT/sd_stream_engine_test" tests/sd_stream_engine_test.c -lm
-    run "SAMPLE's CARD set (SD_RING): a note at its pitch, an octave up at most, a dry stream fades out with no click (counted), LOOP held past the end, the source let go, more notes than rings, a released voice's ring free; a drum lane on CARD: its hit streamed, a second hit cuts the first on the same ring; SLICE on CARD: the sample whole as ADPCM (25 dB or better), each slice by its key, REV, nothing placed silent" "$OUT/sd_stream_engine_test"
-    rm -rf "$OUT/sd_sets" && python3 tools/gen_samples.py --card "$OUT/sd_sets" >/dev/null   # (SD card mode's sets as the zip holds them)
-    $CC -O2 -w -I"$HGEN" -Ifirmware/src -o "$OUT/sd_sets_test" tests/sd_sets_test.c -lm
-    run "SD card mode's sample sets on the card (gen_samples.py --card, SAMPLE's smp_bank_on): each zone's keys, root and loop the flash zone's; every set's factory presets (a phrase over every zone, a held loop, LOOP off, BITS, TUNE, CUT, DRV) streamed from the card bit-identical to the flash set's render, never dry; a set not on the card silent" "$OUT/sd_sets_test" "$OUT/sd_sets"
-    gunzip -c tests/fixtures/sd/fat32.img.gz > "$OUT/sd_grain.img"
-    $CC -O2 -w -I"$HGEN" -Ifirmware/src -DFELUCCA_ENG_STRETCH=1 -o "$OUT/sd_grain_test" tests/sd_grain_test.c $FF -lm
-    run "GRAIN and STRETCH on SD card mode's sets (the caches read in any order: sd_stream_rc.h, the plan's wants, the pins): on the card model at 1.9 MB/s with the real scheduler and the audio interrupting the runs: an ideal card bit-identical to the flash's for every GRAIN preset on PIANO / VIBES / FLUTE and every STRETCH preset, in time and stalling 100 ms every 600 ms the reads counted with no click, the cache let go mid-phrase faded to silence, SAMPLE streaming beside GRAIN never dry, the pessimist's 1 MB/s; the numbers (reads, CPU, KB, bus)" "$OUT/sd_grain_test" "$OUT/sd_grain.img" "$OUT/sd_sets"
-    rm -f "$OUT/sd_grain.img"
-    run "the SD card zip's sample sets: the ticked sets' zones under SAMPLES/<SET>/ (the generator's files, fmt smpl inst data), no other set, the README naming them, the factory presets beside them" python3 tests/sd_zip_test.py "$OUT/sd_zip"
-) >"$U.out" 2>&1 & jobbg
 # the screen mirrored (ED_MIRROR, io/editor/ed_mirror.c): the stream through a stand-in USB ring decoded back to the panel after
 # every write, a stalled host, the keep-alive; then the Optimist UI's whole run through the encoder, the decoded screen its own
 job; ( jobin
@@ -1762,12 +1720,10 @@ job; ( jobin
     $FC -DFELUCCA_FM6_PK_KEYS=1 -DFELUCCA_FM6_PK_80S=1 -o "$OUT/fm6_compat_w" tests/fm6_compat_test.c -lm
     $FC -DFELUCCA_FM6_PK_80S=1 -o "$OUT/fm6_compat_80s" tests/fm6_compat_test.c -lm
     $FC -DFELUCCA_FM6_PK_BASS=1 -o "$OUT/fm6_compat_bass" tests/fm6_compat_test.c -lm
-    $FC -DUP_CARD_ON=1 -o "$OUT/fm6_compat_card" tests/fm6_compat_test.c -lm
     $FC -o "$OUT/fm6_compat_none" tests/fm6_compat_test.c -lm
     $FC $FM6_PACKS_ON -o "$OUT/fm6_compat_all" tests/fm6_compat_test.c -lm
     run "FM6 old data and pack ids, no pack: an old R / U VOICE number is INIT VOICE, MOD / M.TIM / C.TIM baked into the inline voice, user preset records" "$OUT/fm6_compat_none"
     run "FM6 old data and pack ids, every pack: the same, no old number lands on a pack voice" "$OUT/fm6_compat_all"
-    run "FM6 user presets on the SD card (SD card mode): an FM6 sound's file keeps its own voice, the operator edits back on a load; a file of before loads its VOICE" "$OUT/fm6_compat_card"
     run "FM6 pack ids: a project with an 80S voice (packs KEYS + 80S) stores a fixed number" "$OUT/fm6_compat_w" write "$OUT/fm6_compat_A.bin"
     run "FM6 pack ids: ... it loads as the same voice in a build with the 80S pack alone (another list index)" "$OUT/fm6_compat_80s" check "$OUT/fm6_compat_A.bin"
     run "FM6 pack ids: ... as INIT VOICE with the voice kept in a build without that pack" "$OUT/fm6_compat_bass" check "$OUT/fm6_compat_A.bin"

@@ -177,7 +177,7 @@ static void order_check(void)
                 printf("order: %s before %s\n", ENGINES[pe]->name, ENGINES[e]->name);
                 bad++;
             }
-        } else if (n < init_from && n > 0u && !PRESETS_CARD) {
+        } else if (n < init_from && n > 0u) {
             uint32_t ppk, pen = preset_all_at(n - 1u, &ppk);
             if (pen == e && nat_cmp(preset_name(e, ppk), preset_name(e, k)) > 0) {
                 printf("order: %s %s before %s\n", ENGINES[e]->name, preset_name(e, ppk), preset_name(e, k));

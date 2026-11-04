@@ -225,9 +225,6 @@ static int value_long(const param_desc_t *d, int32_t v, char *b)
 static uint32_t nb_kind(const track_t *t);              /* storage/nbank.c */
 static void nb_name(uint32_t kind, uint32_t k, char *nm);
 #endif
-#if FELUCCA_SD_UI
-static const char *sdm_part_name(uint32_t k);           /* (storage/sd/sd_mode.c: a card preset's name) */
-#endif
 static void snd_name(uint32_t c, char *b)
 {
     const track_t *t = &trk[c % NTRK];
@@ -244,12 +241,6 @@ static void snd_name(uint32_t c, char *b)
             nb_name(nb_kind(t), at, b);
             return;
         }
-    }
-#endif
-#if FELUCCA_SD_UI
-    if (!IS_DRUMK(c) && sdm_part_name(c)) {
-        str_cpy(b, sdm_part_name(c), 14);
-        return;
     }
 #endif
     if (IS_DRUMK(c))
@@ -542,10 +533,6 @@ static void op_dsnd_set(uint32_t id, int32_t v, int32_t steps)   /* as ui_drums.
             v = steps > 0 ? 4 : 0;
         if (!FELUCCA_DRUM_KITS && v > 3)
             v = 3;
-#if FELUCCA_SD_LANES
-        if (dl.src[l] == DL_CARD)
-            v = 0;                                      /* (off the card: KIT, dsnd_desc.c DSD_CARD) */
-#endif
         lane_set_src(l, dsnd_idx_src((uint32_t)v));   /* (an X0X voice: the lane takes its name) */
         ui.force = 1;
         break;

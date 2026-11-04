@@ -130,7 +130,7 @@ static void con_flr(const char *p)                  /* flash read over SPI (no X
 }
 #endif
 
-#if FELUCCA_BLE || FELUCCA_SDCARD
+#if FELUCCA_BLE
 /* the radio's calibration (BLE), the card's blocks (console_sd.c): each one built without the other too (2026-10-30: SDCARD with the console and no BLE did not link, con_bytes undefined) */
 static void con_bytes(const char *k, const uint8_t *d, uint32_t n)   /* "key: XX XX ..", 16 a line */
 {
@@ -1681,9 +1681,6 @@ static void con_cpu1park(void)
     con_kv("cpu1_why_after", dual.why);
 }
 #endif
-#if FELUCCA_SDCARD
-#include "console_sd.c"                              /* sd: the SD card (storage/sd/sdcard.c) */
-#endif
 
 static void con_exec(const char *p)
 {
@@ -1710,9 +1707,6 @@ static void con_exec(const char *p)
                  "  cpu1park"
 #endif
 #endif
-#if FELUCCA_SDCARD
-                 "  sd [mode duplex|dirrx|bitbang | dma on|off | raw SECTOR | ls [DIR] | cat FILE | bench [FILE] | write FILE]"
-#endif
                  "  keys  keylog  uboot yes\r\n");
     else if (con_word(&p, "status"))
         con_status();
@@ -1738,10 +1732,6 @@ static void con_exec(const char *p)
         con_params();
     else if (con_word(&p, "tabbench"))
         con_tabbench();
-#if FELUCCA_SDCARD
-    else if (con_word(&p, "sd"))
-        con_sd(p);
-#endif
 #if FELUCCA_MEMBENCH && defined(__PI32V2__)
     else if (con_word(&p, "membench"))
         con_membench();

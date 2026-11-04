@@ -419,11 +419,6 @@ enum { SI_NONE, SI_TUNE, SI_RECQ, SI_PUNCH, SI_OUT, SI_SYNC, SI_CH1, SI_CH2,
        SI_CH3, SI_CHD, SI_USB, SI_CPU, SI_ABOUT, SI_BLE, SI_KCOL, SI_DBGST, SI_METERS, SI_CLKOUT, SI_CPU1, SI_INFO, SI_BUILD, SI_REPO,
        SI_DROPS, SI_GUARD, SI_UAINFO, SI_XRUN, SI_DIAG, SI_CREDITS, SI_BLEST, SI_BLEPEER, SI_BLEMIDI, SI_BLELIST, SI_BLEAUTO,
        SI_BLEFGT, SI_FRESO, SI_HPBASS, SI_BTA, SI_BTAPEER, SI_BTAFMT, SI_BTAST, SI_CLKOFS, SI_BTOFS, SI_LINK, SI_LINKOFS,
-#if FELUCCA_SD_UI
-       SI_SDCARD, SI_SDVERS, SI_SDSLACK, SI_SDINDEX,    /* SD CARD: the card, VERSIONS, SLACK, the sample index (sd_mode.c) */
-       SI_SDPRE,                                        /* (SD_STREAM: the card samples' pre-buffer) */
-       SI_SDBACK, SI_SDREST,                            /* SETTINGS: BACKUP to the card, RESTORE from it (sd_mode.c) */
-#endif
        SI_WFMODE, SI_WFNET, SI_WFSIG, SI_WFST,           /* SYSTEM > WI-FI (op_wifi.c): MODE, NETWORK, SIGNAL, STATE */
        SI_RAM,                                          /* INFO: the SRAM free at link, the stacks' least room left (stackmark.h) */
        SI_UHMODE, SI_UHDEV,                             /* SYSTEM > USB (USB_HOST, the release): MODE DEVICE / HOST, DEVICE */
@@ -518,14 +513,6 @@ static const struct { const char *name; uint8_t it[4]; } SYS[] = {
 #if OP_BTSTATS
     {"BT STATS", {SI_BTSTAT, SI_NONE, SI_NONE, SI_NONE}},   /* the Bluetooth audio stream's counters (2026-11-01: sys_bts_cell) */
 #endif
-#endif
-#if FELUCCA_SD_UI
-    {"SD CARD", {SI_SDCARD, SI_SDVERS, SI_SDSLACK, SI_SDINDEX}},   /* (the card's state, a project's versions kept, the room
-                                                         * a file's run gets past its size, the sample index again) */
-#if FELUCCA_SD_STREAM
-    {"SD CARD", {SI_SDPRE, SI_NONE, SI_NONE, SI_NONE}},   /* (the card samples' pre-buffer, its KB beside it) */
-#endif
-    {"SETTINGS", {SI_SDBACK, SI_SDREST, SI_NONE, SI_NONE}},   /* (the device's settings to the card and back) */
 #endif
 #if FELUCCA_BLE                                         /* (Bluetooth, a page a side, each with its item: op_bt.c) */
     {"BT MIDI", {SI_BLE, SI_BLEPEER, SI_BLEMIDI, SI_BLEST}},   /* MODE, DEVICE, ACTIVITY, STATE */
@@ -1058,53 +1045,6 @@ static void sys_it_cell(uint32_t it, cell_t *c)     /* the cell of setting it */
     case SI_LINK: {
         static const char *const LKN[3] = {"OFF", "ON", "ON+S/S"};   /* (by LINK_*) */
         cell_list(c, "LINK", link_eff() != link_mode ? "ON (JAM)" : LKN[link_mode % 3u], LINK_ONSS, link_mode);   /* (MODE JAM forces ON: said, the stored value kept) */
-        break;
-    }
-#endif
-#if FELUCCA_SD_UI
-    case SI_SDCARD: {                                   /* the card: READY and its size, else what is wrong (YES: mounted again) */
-        static const char *const ST[4] = {"NONE", "NOT FAT", "PREPARING", "READY"};
-        static char sz[8];
-        uint32_t st = sdm_state(), mb = sd_card_mb();
-        sys_ro(c, "CARD");
-        cell_val(c, ST[st & 3u]);
-        c->col = st == 3u ? C_OK : C_WARN;
-        if (st >= 2u) {                                 /* (its capacity: the CSD's) */
-            fmt_int(sz, (int32_t)(mb >= 1024u ? mb >> 10 : mb));
-            str_app(sz, mb >= 1024u ? " GB" : " MB", sizeof sz);
-            c->unit = sz;
-        }
-        break;
-    }
-    case SI_SDVERS:
-        c->label = "VERSIONS";
-        fmt_int(c->val, (int32_t)sdm_keep());
-        cell_gauge(c, 0, 0, 16, (int32_t)sdm_keep());
-        break;
-    case SI_SDSLACK:
-        c->label = "SLACK";
-        fmt_int(c->val, (int32_t)sdm_scale());
-        c->unit = "%";
-        cell_gauge(c, 0, 0, 400, (int32_t)sdm_scale());
-        break;
-    case SI_SDINDEX:
-        cell_act(c, 0, "SAMPLES", "INDEX", 0);
-        break;
-    case SI_SDBACK:
-        cell_act(c, 0, "BACKUP", "TO CARD", 0);
-        break;
-    case SI_SDREST:
-        cell_act(c, 0, "RESTORE", "FROM CARD", 1);
-        break;
-    case SI_SDPRE: {                                    /* each card sample's head in RAM, ms, and what the project's take */
-        static char kb[10];
-        uint32_t ms = sdm_pre_ms();
-        c->label = "PRE-BUFFER";
-        fmt_int(c->val, (int32_t)ms);
-        fmt_int(kb, (int32_t)sdm_pre_kb());
-        str_app(kb, " KB", sizeof kb);
-        c->unit = kb;
-        cell_gauge(c, 1, 0, 3, ms <= 25u ? 0 : ms <= 50u ? 1 : ms <= 100u ? 2 : 3);
         break;
     }
 #endif
@@ -1655,13 +1595,6 @@ static void sys_set(uint32_t it, int32_t s)
         usbh_set((uint32_t)sys_step((int32_t)usbh_mode(), s, 1));
         return;
 #endif
-#if FELUCCA_SD_UI
-    case SI_SDVERS:
-    case SI_SDSLACK:
-    case SI_SDPRE:                                      /* (sd_mode.c: into the log when SYSTEM is left) */
-        sdm_set(it - SI_SDVERS - (it == SI_SDPRE), s ? s : 1);
-        break;
-#endif
     case SI_KCOL:                                       /* (kept in the settings word: settings_word.c) */
         knob_colors = (uint8_t)sys_step(knob_colors, s, 1);
         ui.redraw = 1;                                   /* (every band's colours move: the bands again over themselves, no black fill) */
@@ -1729,13 +1662,6 @@ static int sys_factory(uint32_t it)
 #if USBH_UI
     case SI_UHMODE:
         usbh_set(0);                                    /* (DEVICE: the computer again) */
-        return 1;
-#endif
-#if FELUCCA_SD_UI
-    case SI_SDVERS:
-    case SI_SDSLACK:
-    case SI_SDPRE:
-        sdm_set(it - SI_SDVERS - (it == SI_SDPRE), 0);   /* (8 versions, 100 %, 50 ms) */
         return 1;
 #endif
     case SI_HPBASS:
@@ -1858,23 +1784,6 @@ static int sys_yes(uint32_t r, uint32_t k, uint32_t ok)
         ui_say(FELUCCA_VERSION, " OPTIMIST UI");
         return 1;
     }
-#if FELUCCA_SD_UI
-    if (it == SI_SDCARD || it == SI_SDINDEX) {          /* the card mounted again (or found), its folders, the index's pass */
-        sdm_again();
-        return 1;
-    }
-    if (it == SI_SDBACK || it == SI_SDREST) {           /* the settings to the card or back (RESTORE: red, then a restart) */
-        if (!ok)
-            op_arm(SCR_SYSTEM, r, k, it == SI_SDBACK ? "BACKUP" : "RESTORE", "SETTINGS", it == SI_SDREST);
-        else if (it == SI_SDBACK)
-            sdm_backup();
-        else
-            sdm_restore();
-        return 1;
-    }
-    if (it == SI_SDVERS || it == SI_SDSLACK || it == SI_SDPRE)
-        return 0;                                       /* (numbers: the knob) */
-#endif
     if (d) {
         if (!val_toggle(d, vp))
             return 0;
@@ -1888,9 +1797,6 @@ static int sys_yes(uint32_t r, uint32_t k, uint32_t ok)
 }
 static void sys_leave(void)                             /* SYSTEM left: the settings into flash (as SLOOP's menu_close) */
 {
-#if FELUCCA_SD_UI
-    sdm_leave();                                        /* (the card's settings: the log's device record, sd_mode.c) */
-#endif
 #if FELUCCA_BT_UI
     dev_close();                                        /* (the devices list open: it closes, the scan stops) */
 #endif

@@ -3,11 +3,9 @@
 /* The output's correction by the headphone jack (fx/outcorr.c, system/hpjack.h): SPK LOWCUT (OFF / ON / BASS+) only while
  * nothing is in the jack, HPHN BASS (OFF / +3 / +6 dB) only while headphones are in, and only on the FM-1's own codec
  * output. Through the real mixer, each case from the same start (a child process each, the same notes): the codec's
- * output, what Bluetooth takes and what the card records, beside the plain output (both settings OFF).
+ * output and what Bluetooth takes, beside the plain output (both settings OFF).
  *   - each setting only on its side of the jack, OFF never;
  *   - Bluetooth: the plain output bit for bit while it streams, silence for a block corrected before it started;
- *   - the card's recorder: the plain output bit for bit (its own output stage, fx.c sd_mst_out), the codec's output as
- *     without the recorder (built with OC_REC: the recorder's stage without the card's code);
  *   - USB: MASTER (ua_mst) and the stems bit for bit whatever the settings and the jack;
  *   - the jack's debounce: a bouncing contact changes the state once, after HPJ_MS of a steady pin;
  *   - loud (into the limiter): the levels printed.
@@ -31,11 +29,11 @@ static void check(int ok, const char *what)
 #define NBLK 400u                                        /* ~0.3 s a case */
 #define NS (2u * CTL * NBLK)
 typedef struct {
-    int32_t codec[NS], bt[NS], sd[NS], mst[NS], stem[CTL * NTRK * NBLK];
-    int32_t bt_n, sd_n;
+    int32_t codec[NS], bt[NS], mst[NS], stem[CTL * NTRK * NBLK];
+    int32_t bt_n;
 } run_t;
 typedef struct {
-    uint8_t spk, hp, jack, bt, rec;                      /* SPK LOWCUT, HPHN BASS, 1 headphones in, Bluetooth streams, the card records */
+    uint8_t spk, hp, jack, bt;                           /* SPK LOWCUT, HPHN BASS, 1 headphones in, Bluetooth streams */
     int32_t vel;                                         /* the notes' velocity (loud: into the limiter) */
     uint32_t flip;                                       /* the block at which the jack changes (0: never) */
 } case_t;
@@ -59,7 +57,7 @@ static void block(run_t *r, uint32_t b, const case_t *c)
     int32_t *out = r->codec + 2u * CTL * b;
     const int32_t *f;
     uint32_t i, muted = 0;
-    oc_begin(bt_streamed, c->rec, CTL);
+    oc_begin(bt_streamed, 0, CTL);
     mix_block(out, CTL);
     f = ua_route(out, CTL);
     memcpy(r->mst + 2u * CTL * b, ua_mst, sizeof(int32_t) * 2u * CTL);
@@ -73,10 +71,6 @@ static void block(run_t *r, uint32_t b, const case_t *c)
         muted = 1;
     }
     bt_streamed = (uint8_t)muted;
-    if (c->rec) {
-        memcpy(r->sd + 2u * CTL * b, oc_rec_frames(out), sizeof(int32_t) * 2u * CTL);
-        r->sd_n++;
-    }
     if (muted)
         for (i = 0; i < 2u * CTL; i++)
             out[i] = 0;
@@ -114,7 +108,7 @@ static int same(const int32_t *a, const int32_t *b, uint32_t n)
     for (i = 0; i < n && a[i] == b[i]; i++)
         ;
     if (i < n && getenv("OC_DIFF"))
-        printf("    (first difference at sample %u, block %u: %d against %d)\n", i, i / (2u * CTL), a[i], b[i]);
+        printf("    (first difference at sample %u, block %u: %d against %d)\n", i, i / (2u * CTL), b[i]);
     return i == n;
 }
 static double rms(const int32_t *a, uint32_t n)
@@ -134,17 +128,17 @@ static int32_t peak(const int32_t *a, uint32_t n)
 
 static void t_sides(void)
 {
-    static const case_t OFF = {0, 0, 0, 0, 0, 90};
+    static const case_t OFF = {0, 0, 0, 0, 90};
     run_t *ref = run_case(&OFF), *r;
     uint32_t j, s, h;
     for (j = 0; j < 2u; j++) {                           /* OFF never, either side */
-        case_t c = {0, 0, (uint8_t)j, 0, 0, 90};
+        case_t c = {0, 0, (uint8_t)j, 0, 90};
         r = run_case(&c);
         check(same(r->codec, ref->codec, NS), j ? "both OFF, headphones in: the codec's output is the plain one"
                                                 : "both OFF, nothing plugged: the codec's output is the plain one");
     }
     for (s = 1; s <= 2u; s++) {                          /* SPK LOWCUT: the speaker only */
-        case_t c = {(uint8_t)s, 0, 0, 0, 0, 90}, d = {(uint8_t)s, 0, 1, 0, 0, 90};
+        case_t c = {(uint8_t)s, 0, 0, 0, 90}, d = {(uint8_t)s, 0, 1, 0, 90};
         r = run_case(&c);
         check(!same(r->codec, ref->codec, NS), s == 1u ? "SPK LOWCUT ON, nothing plugged: the codec's output corrected"
                                                        : "SPK LOWCUT BASS+, nothing plugged: the codec's output corrected");
@@ -155,7 +149,7 @@ static void t_sides(void)
                                                       : "SPK LOWCUT BASS+, headphones in (HPHN BASS OFF): the plain output");
     }
     for (h = 1; h <= 2u; h++) {                          /* HPHN BASS: the headphones only */
-        case_t c = {0, (uint8_t)h, 1, 0, 0, 40}, d = {0, (uint8_t)h, 0, 0, 0, 40}, o = {0, 0, 1, 0, 0, 40};
+        case_t c = {0, (uint8_t)h, 1, 0, 40}, d = {0, (uint8_t)h, 0, 0, 40}, o = {0, 0, 1, 0, 40};
         run_t *q = run_case(&o);
         r = run_case(&c);
         printf("  HPHN BASS %s: RMS %.0f against %.0f plain (x %.2f)\n", h == 1u ? "+3 dB" : "+6 dB", rms(r->codec, NS),
@@ -171,8 +165,8 @@ static void t_sides(void)
 
 static void t_bluetooth(void)
 {
-    static const case_t OFF = {0, 0, 0, 0, 0, 40}, SPK = {1, 0, 0, 1, 0, 40}, HP = {0, 2, 1, 1, 0, 40}, HPO = {0, 0, 1, 0, 0, 40},
-                        BOFF = {0, 0, 0, 1, 0, 40};
+    static const case_t OFF = {0, 0, 0, 0, 40}, SPK = {1, 0, 0, 1, 40}, HP = {0, 2, 1, 1, 40}, HPO = {0, 0, 1, 0, 40},
+                        BOFF = {0, 0, 0, 1, 40};
     run_t *ref = run_case(&OFF), *r = run_case(&SPK), *hr = run_case(&HPO), *h = run_case(&HP), *b0 = run_case(&BOFF);
     const uint32_t sk = 1u + (OC_LA + CTL - 1u) / CTL, ns = 2u * CTL * sk;   /* (the corrected block, then LIMIT's delay) */
     uint32_t i, z = 1;
@@ -187,35 +181,6 @@ static void t_bluetooth(void)
     check(same(h->bt + ns, hr->codec + ns, NS - ns),
           "Bluetooth streaming, HPHN BASS +6 dB, headphones in: the plain output, bit for bit");
     check(same(r->mst, ref->mst, NS) && same(r->stem, ref->stem, CTL * NTRK * NBLK), "Bluetooth streaming: USB bit for bit");
-}
-
-static void t_recorder(void)
-{
-    static const case_t OFF = {0, 0, 0, 0, 0, 40}, SPK = {1, 0, 0, 0, 0, 40}, REC = {1, 0, 0, 0, 1, 40},
-                        LOUD = {0, 0, 0, 0, 0, 127}, LSPK = {1, 0, 0, 0, 0, 127}, LREC = {1, 0, 0, 0, 1, 127},
-                        HOFF = {0, 0, 1, 0, 0, 127}, HP = {0, 2, 1, 0, 0, 127}, HREC = {0, 2, 1, 0, 1, 127};
-    run_t *ref = run_case(&OFF), *pre = run_case(&SPK), *post = run_case(&REC);
-    run_t *lref = run_case(&LOUD), *lpre = run_case(&LSPK), *lpost = run_case(&LREC);
-    run_t *href = run_case(&HOFF), *hpre = run_case(&HP), *hpost = run_case(&HREC);
-    static const case_t PLUG = {1, 0, 0, 0, 1, 40, NBLK / 2u}, UNPLUG = {1, 0, 1, 0, 1, 40, NBLK / 2u};
-    run_t *pl = run_case(&PLUG), *un = run_case(&UNPLUG);
-    double d = 0;
-    uint32_t i;
-    check(same(pl->sd, ref->codec, NS) && same(un->sd, ref->codec, NS),
-          "the card records while headphones go in (the correction off) or out (on): the plain output, bit for bit");
-    check(!same(pl->codec, ref->codec, NS) && !same(un->codec, ref->codec, NS), "... the codec's output corrected while unplugged");
-    check(post->sd_n == (int32_t)NBLK && same(post->sd, ref->codec, NS), "the card records: the plain output, bit for bit");
-    check(same(hpost->sd, href->codec, NS), "the card records, HPHN BASS +6 dB, headphones in: the plain output, bit for bit");
-    check(same(lpost->sd, lref->codec, NS) && same(hpost->sd, href->codec, NS),
-          "the card records, loud (into the limiter): the plain output, bit for bit, both sides of the jack");
-    check(same(post->codec, pre->codec, NS) && same(lpost->codec, lpre->codec, NS) && same(hpost->codec, hpre->codec, NS),
-          "while the card records: the codec's output as without it (the correction before the limiter in every case)");
-    for (i = 0; i < NS; i++)
-        d += fabs((double)lpre->codec[i] - lref->codec[i]);
-    printf("  loud, SPK LOWCUT ON: RMS %.0f, peak %d (plain RMS %.0f, peak %d); HPHN BASS +6 dB: RMS %.0f, peak %d\n",
-           rms(lpre->codec, NS), peak(lpre->codec, NS), rms(lref->codec, NS), peak(lref->codec, NS), rms(hpre->codec, NS),
-           peak(hpre->codec, NS));
-    (void)d;
 }
 
 static void t_debounce(void)
@@ -275,11 +240,10 @@ int main(void)
     t_debounce();
     t_sides();
     t_bluetooth();
-    t_recorder();
     if (fails) {
         printf("outcorr: %d FAILED\n", fails);
         return 1;
     }
-    puts("outcorr: SPK LOWCUT / HPHN BASS by the jack, the codec's output only (Bluetooth, USB, the card plain): OK");
+    puts("outcorr: SPK LOWCUT / HPHN BASS by the jack, the codec's output only (Bluetooth, USB): OK");
     return 0;
 }

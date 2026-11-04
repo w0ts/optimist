@@ -59,19 +59,6 @@
 #define GR_RB 128                /* reverse window, source samples */
 #define GR_STEP_MAX (2u << 16)   /* grain rate cap: 2 source samples per output sample */
 #define GR_LOAD_MAX (8u << 16)   /* decodes per output sample of all a part's grains (a reverse grain counts twice) */
-#if FELUCCA_SD_STREAM
-#define GR_CARD 1
-#define GR_AHEAD_MS 60u          /* the plan's horizon (the card's latency: an audio half 5.8 ms, a run 2.2 ms, the main
-                                  * loop's pass between strips; tests/sd_grain_test.c) */
-#define GR_AHEAD_BLK (GR_AHEAD_MS * 441u / 10u / CTL)
-#define GR_LATE_MS 20u           /* a grain waits for its sectors this long at most */
-#define GR_LATE_BLK (GR_LATE_MS * 441u / 10u / CTL)
-#define GR_FADE_BLK 4u           /* a grain that lost its sectors fades out over this many blocks (2.9 ms) */
-#define GR_PIN_MS 25u            /* a forward grain's sectors pinned ahead of its reader (the rest streamed to it) */
-_Static_assert(SST_RW >= GR_NG + 4u, "eng_grain.c: a want a grain, then the plan's");
-#else
-#define GR_CARD 0
-#endif
 
 /* sin^2(pi i / 256), Q15: the grain window */
 static const int16_t GR_HANN[257] TAB_RAM = {
@@ -111,13 +98,6 @@ typedef struct {
     uint8_t owner;               /* voice index + 1, 0 = free */
     uint8_t rev;
     uint8_t zl;                  /* its zone in the set */
-#if GR_CARD
-    uint8_t wait;                /* card: blocks it waited for its sectors (0: sounding) */
-    uint8_t dry;                 /* card: a sector gone while it sounds: it fades out */
-    uint8_t si;                  /* card: its source (sst_src) */
-    uint32_t cur, end, ph;       /* card: its sectors, the next one to look at, the last, the pin's top (forward) */
-    sst_rw_t w;                  /* card: the reader's window */
-#endif
 } gr_grain_t;
 
 typedef struct {
@@ -130,13 +110,6 @@ typedef struct {
     int32_t rng;
     uint8_t src;                 /* SRC + 1 the index holds, 0 = none */
     uint8_t nz;
-#if GR_CARD
-    uint8_t card;                /* SRC is a card set: zones smp_cz[part], read through sst_rc[part] */
-    uint8_t replan;              /* the plan made again at the next block (a note, a grain waited for) */
-    int32_t prng;                /* the generator the plan was made from */
-    uint32_t pnow;               /* when (the cache's clock) */
-    uint32_t rcg;                /* the cache's placement its pins and wants belong to */
-#endif
 } gr_part_t;
 /* in the part's engine memory (engines.c part_mem, the pool: a part plays one engine at a time, FM6 / PHYS / ACID
  * share it), zeroed when the part switches to GRAIN from another engine that used it */
@@ -146,30 +119,16 @@ AINL uint32_t gr_part(const track_t *t) { return (uint32_t)(t - trk) % NPART; }
 /* (part: a card set's zones are the part's, eng_sample.c smp_cz) */
 AINL uint32_t gr_nz(uint32_t part, uint32_t src)
 {
-#if GR_CARD
-    if (smp_cz_on(src))
-        return smp_cz_sync(part);
-#endif
     (void)part;
     return src < SMP_NSETS ? SMP_SETS[src].nz : usr_nz[(src - SMP_NSETS) % SMP_USER_SLOTS];
 }
 AINL const smp_zone_t *gr_zone(uint32_t part, uint32_t src, uint32_t zl)
 {
-#if GR_CARD
-    if (smp_cz_on(src))
-        return &smp_cz[part % SST_NPART][zl % SST_BANK_Z];
-#endif
     (void)part;
     return src < SMP_NSETS ? &SMP_ZONES[SMP_SETS[src].z0 + zl] : smp_usr_zone((src - SMP_NSETS) % SMP_USER_SLOTS, zl & 15u);
 }
 AINL uint32_t gr_stamp(uint32_t part, uint32_t src)
 {
-#if GR_CARD
-    if (smp_cz_on(src)) {
-        (void)smp_cz_sync(part);
-        return smp_cz_stamp[part % SST_NPART];
-    }
-#endif
     (void)part;
     return src < SMP_NSETS ? 0u : usr_nz[(src - SMP_NSETS) % SMP_USER_SLOTS] ? smp_user_gen : 0xFFFFFFFFu;
 }
@@ -205,19 +164,6 @@ static void gr_reset(gr_part_t *P, uint32_t part, uint32_t src, uint32_t stamp)
     P->nz = (uint8_t)(nz < GR_MAXZ ? nz : GR_MAXZ);
     for (i = 0; i < GR_NG; i++)
         P->g[i].owner = 0;
-#if GR_CARD
-    P->card = (uint8_t)smp_cz_on(src);
-    if (P->card) {                                  /* the card's zones: read, no index (every position "indexed") */
-        for (i = 0; i < P->nz; i++) {
-            P->zbase[i] = 0;
-            P->zcnt[i] = 1;
-            P->zdone[i] = 0xFFFFu;
-        }
-        sst_rc_reset(&sst_rc[part % SST_NPART]);    /* (the grains' pins: none sound) */
-        P->replan = 1;
-        return;
-    }
-#endif
     for (i = 0; i < P->nz; i++) {
         uint32_t c = (gr_zone(part, src, i)->n + GR_SEG - 1u) >> GR_SEG_LOG2;
         if (tot + c > GR_NIDX)
@@ -341,9 +287,6 @@ static int gr_geom(const gr_part_t *P, const int16_t *p, const smp_zone_t *z, ui
     return 1;
 }
 
-#if GR_CARD
-#include "grain_card.c"                         /* the card's sets: read through the part's cache */
-#endif
 
 /* start a grain of voice vi (zone zl) */
 static void gr_spawn(gr_part_t *P, const track_t *t, uint32_t vi, uint32_t zl, uint32_t iv, const vmod_t *m)
@@ -353,15 +296,6 @@ static void gr_spawn(gr_part_t *P, const track_t *t, uint32_t vi, uint32_t zl, u
     gr_grain_t *g = 0;
     uint32_t i, c, r1 = gr_rnd(P), r2 = gr_rnd(P), ov, cap = 0xFFFFFFFFu;
     gr_geo_t o;
-#if GR_CARD
-    uint32_t si = 0;
-    if (P->card) {                                   /* (the cache placed, the zone's source loaded: else none) */
-        si = smp_cz_src(gr_part(t), zl);
-        if (!sst_rc_live(&sst_rc[gr_part(t)]) || !sst_src[si].ready)
-            return;
-        cap = gr_card_cap(&sst_rc[gr_part(t)], &sst_src[si]);
-    }
-#endif
     for (i = 0; i < GR_NG && !g; i++)
         if (!P->g[i].owner)
             g = &P->g[i];
@@ -383,13 +317,6 @@ static void gr_spawn(gr_part_t *P, const track_t *t, uint32_t vi, uint32_t zl, u
     ov = o.len / (iv ? iv : 1u);
     g->gain = GR_NORM[ov < 1u ? 1u : ov > GR_NG ? GR_NG : ov];
     g->owner = (uint8_t)(vi + 1u);
-#if GR_CARD
-    if (P->card) {
-        g->si = (uint8_t)si;
-        gr_card_go(P, gr_part(t), g, (uint32_t)o.pos, o.span);
-        return;
-    }
-#endif
     if (o.rev) {
         int16_t *rb = P->rb[g - P->g];
         g->pos = (uint32_t)o.pos;
@@ -469,26 +396,10 @@ static void grain_note_on(track_t *t, voice_t *v)
     if (!v->env) {                                  /* a fresh voice: no grains left from before */
         for (i = 0; i < GR_NG; i++)
             if (P->g[i].owner == vi + 1u) {
-#if GR_CARD
-                if (P->card)
-                    sst_rc_unpin(&sst_rc[gr_part(t) % SST_NPART], i), sst_rc_unwant(&sst_rc[gr_part(t) % SST_NPART], i);
-#endif
                 P->g[i].owner = 0;
             }
         v->s[2] = 0;
     }
-#if GR_CARD
-    if (P->card) {                                  /* the plan now: this note's first grain is due */
-        if (!v->env) {
-            v->s[3] = 64 << 8;                      /* (no modulation yet: SHP at its centre, the note's pitch) */
-            v->s[4] = v->pitch16;
-            v->s[5] = 0;
-        }
-        P->replan = 1;
-        if (sst_rc_live(&sst_rc[gr_part(t) % SST_NPART]) && P->rcg == sst_rc[gr_part(t) % SST_NPART].gen)
-            gr_plan(P, t, gr_part(t), &sst_rc[gr_part(t) % SST_NPART]);
-    }
-#endif
 }
 
 /* per part and block: the index follows SRC (and a new upload), grains of ended voices go,
@@ -507,18 +418,8 @@ static void grain_block(track_t *t)
     }
     for (i = 0; i < GR_NG; i++)
         if (P->g[i].owner && !t->v[(P->g[i].owner - 1u) % NVOICE].active) {
-#if GR_CARD
-            if (P->card)
-                sst_rc_unpin(&sst_rc[gr_part(t) % SST_NPART], i), sst_rc_unwant(&sst_rc[gr_part(t) % SST_NPART], i);
-#endif
             P->g[i].owner = 0;
         }
-#if GR_CARD
-    if (P->card) {
-        gr_card_block(P, t, gr_part(t));
-        return;                                     /* (no index to build) */
-    }
-#endif
     gr_build(P, t);
 }
 
@@ -539,14 +440,6 @@ static void grain_render(track_t *t, voice_t *v, int32_t *out, uint32_t n, const
         acc[i] = 0;
     for (i = 0; i < GR_POLY; i++)
         nact += t->v[i].active;
-#if GR_CARD
-    if (P->card) {
-        gr_card_mod(v, m);
-        for (i = 0; i < GR_NG; i++)
-            if (P->g[i].owner == vi + 1u)
-                mine += gr_card_run(P, gr_part(t), &P->g[i], acc, n);
-    } else
-#endif
     for (i = 0; i < GR_NG; i++)
         if (P->g[i].owner == vi + 1u)
             mine += gr_run(P, &P->g[i], acc, n);

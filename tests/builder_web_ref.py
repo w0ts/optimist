@@ -26,7 +26,7 @@ C.exact_builds = lambda: {}
 def full(values):
     cfg = C.defaults()
     cfg.update({k: v for k, v in values.items() if k in cfg})
-    return cfg
+    return C.K.sync_memory(cfg)                  # (the page's web_api._cfg does too: MEMORY, SMP_SLOTS, PROJECTS read back from LAYOUT)
 
 
 def view(q, costs):
