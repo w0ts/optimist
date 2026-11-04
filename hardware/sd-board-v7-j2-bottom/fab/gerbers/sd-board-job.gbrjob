@@ -5,7 +5,7 @@
       "Application": "Pcbnew",
       "Version": "10.0.7"
     },
-    "CreationDate": "2026-11-04T15:31:55+01:00"
+    "CreationDate": "2026-11-04T21:54:23+01:00"
   },
   "GeneralSpecs": {
     "ProjectId": {
@@ -46,6 +46,11 @@
     {
       "Path": "sd-board-F_Paste.gbr",
       "FileFunction": "SolderPaste,Top",
+      "FilePolarity": "Positive"
+    },
+    {
+      "Path": "sd-board-B_Paste.gbr",
+      "FileFunction": "SolderPaste,Bot",
       "FilePolarity": "Positive"
     },
     {

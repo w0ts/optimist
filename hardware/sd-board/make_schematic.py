@@ -76,6 +76,7 @@ PARTS = [
     ("R5", "Device:R", "510", "Resistor_SMD:R_0603_1608Metric_Pad0.98x0.95mm_HandSolder", "C23193", 155, 125, {"1": "CLK_SD", "2": "CLK"}),
     ("R6", "Device:R", "510", "Resistor_SMD:R_0603_1608Metric_Pad0.98x0.95mm_HandSolder", "C23193", 170, 125, {"1": "MOSI_SD", "2": "MOSI"}),
     ("R7", "Device:R", "47k", "sdboard:R0603", "C25819", 185, 125, {"1": "SD_VDD", "2": "DAT0"}),
+    ("R8", "Device:R", "47k", "sdboard:R0603", "C25819", 215, 125, {"1": "SD_DI", "2": "SD_VDD"}),
     ("C3", "Device:C", "100nF", "sdboard:C0603", "C14663", 90, 125, {"1": "SD_VDD", "2": "GND"}),
     ("FB1", "Device:FerriteBead", "600R@100MHz", "sdboard:R0603", "C1002", 40, 125, {"1": "SD_VIN", "2": "SD_VDD"}),
     ("C1", "Device:C", "10uF", "sdboard:C0805", "C15850", 60, 125, {"1": "SD_VDD", "2": "GND"}),
@@ -112,7 +113,7 @@ def prop(name, value, x, y, hide=False):
 
 out = ['(kicad_sch (version 20250114) (generator "make_schematic.py") (generator_version "1.0")',
        f'(uuid "{ROOT}") (paper "A4")',
-       '(title_block (title "FM-1 SD board") (comment 1 "docs/SD-CARD-DESIGN.md; hardware/sd-board/README.md"))',
+       '(title_block (title "FM-1 SD board") (comment 1 "docs/SD-CARD-DESIGN.md; hardware/README.md"))',
        "(lib_symbols", *lib_symbols, ")"]
 for ref, lib, value, fp, lcsc, x, y, pins in PARTS:
     x, y = round(round(x / 2.54) * 2.54, 2), round(round(y / 2.54) * 2.54, 2)   # (on KiCad's connection grid)
