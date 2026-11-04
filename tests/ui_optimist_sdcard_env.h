@@ -52,7 +52,8 @@ static uint32_t sd_mount(void)
 static uint32_t sd_card_mb(void) { return sd_sectors / 2048u; }
 static uint32_t sd_clock_khz(void) { return SD_CLOCK_KHZ(); }   /* (sdcard.c's) */
 /* (these tests read the card's state a poll later: the index's pass whole in one poll; tests/sd_index_pass_test.c: its slices) */
-#define SDM_IX_SLICE_MS 0xFFFFFFFFu
+static uint32_t sdu_ix_ms = 0xFFFFFFFFu;                /* (a pass at once, but sdu_boot_clears') */
+#define SDM_IX_SLICE_MS sdu_ix_ms
 #define SDM_IX_EVERY_MS 0u
 #define SDM_FAC_AT_ONCE 1
 static FRESULT sd_was(FRESULT r)

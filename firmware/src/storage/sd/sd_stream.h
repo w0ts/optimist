@@ -100,7 +100,8 @@ typedef struct {
                                                       * FELUCCA_SD_LANES), slots SST_NPART + lane after the parts */
 #endif
 #define SST_NSLOT (SST_NPART + SST_NLANE)
-static sst_src_t sst_src[SST_NSRC] IN_POOL_AUDIO;
+#define SST_PVS SST_NSRC                             /* the SAMPLES list's preview: its source, past the plan's (sd_preview.h) */
+static sst_src_t sst_src[SST_NSRC + 1u] IN_POOL_AUDIO;
 static uint8_t sst_part_src[SST_NSLOT] = {[0 ... SST_NSLOT - 1u] = 0xFF};   /* the source each part's CARD (each card
                                                                              * lane) plays, 0xFF none (sd_stream_plan.c) */
 /* a part on a card set (SD card mode's built-in sets: gen_samples.py SMP_CARD_SETS, sd_stream_plan.c SST_PART_BANK):
@@ -127,7 +128,17 @@ static uint8_t sst_x9_src[SST_NX9] = {[0 ... SST_NX9 - 1u] = 0xFF};
 #ifndef SST_BANK_Z
 #define SST_BANK_Z 8u                                /* a card set's zones at most (gen_samples.py CARD_ZONES) */
 #endif
-static sst_t sst[SST_N] IN_POOL_AUDIO;
+#define SST_PV SST_N                                 /* ... and its stream, past the voices': no note ever takes it */
+#define SST_NALL (SST_N + 1u)
+static sst_t sst[SST_NALL] IN_POOL_AUDIO;
+enum { SPV_START = 1, SPV_STOP };
+static struct {
+    volatile uint8_t cmd;                            /* the main loop's: SPV_*; the audio clears it */
+    volatile uint8_t act;                            /* the audio's: the voice sounds */
+    uint8_t end;                                     /* its last frame read, or stopped: fading out */
+    int32_t a, b, g;                                 /* the frames it is between, its gain (sd_preview.h) */
+    uint32_t fr, frac;
+} sst_pv;
 static volatile uint32_t sst_dry;                    /* streams that ran dry (the console's sd stream) */
 static volatile uint32_t sst_nostream;               /* notes on a card sample with no ring free (silent) */
 
@@ -213,37 +224,43 @@ AINL int sst_frame(sst_t *st, const sst_src_t *s, uint32_t f, int32_t *out) { re
 /* the audio, at a note: a free stream for source si (looped: frames ls .. le, else one-shot); its index, or -1 none
  * (sst_nostream counted). bpms: the data bytes the voice reads a millisecond (sst_rate); owner: the voice's active
  * flag (a voice that ends without its engine knowing, a release's end, a steal, frees its stream with it) */
+AINL void sst_arm(sst_t *st, const sst_src_t *s, uint32_t si, uint32_t looped, uint32_t ls, uint32_t le, uint32_t bpms,
+                  const volatile uint8_t *owner)
+{
+    uint32_t k;
+    for (k = 0; k < SST_K; k++)
+        st->tag[k] = 0;
+    st->gen = (uint8_t)(st->gen + 1u);
+    st->src = (uint8_t)si;
+    st->rd = 0;
+    st->in_ring = 0;
+    st->dry = 0;
+    st->win = s->head;
+    st->wlo = 0;
+    st->wn = s->hlen;
+    st->pos = 0;
+    st->bpms = bpms;
+    if (looped && le >= ls && le < s->frames) {
+        st->lpstart = ls << s->fsh;
+        st->lpend = (le + 1u) << s->fsh;
+    } else {
+        st->lpstart = st->lpend = 0;
+    }
+    st->owner = owner;
+    st->on = 1;                                      /* (last: the main loop fills it from here) */
+}
 static int32_t sst_start(uint32_t si, uint32_t looped, uint32_t ls, uint32_t le, uint32_t bpms,
                          const volatile uint8_t *owner)
 {
     const sst_src_t *s = &sst_src[si];
-    uint32_t i, k;
+    uint32_t i;
     if (si >= SST_NSRC || !s->ready || !s->frames)
         return -1;
     for (i = 0; i < SST_N; i++) {
         sst_t *st = &sst[i];
         if ((st->on && !(st->owner && !*st->owner)) || !st->ring)
             continue;
-        for (k = 0; k < SST_K; k++)
-            st->tag[k] = 0;
-        st->gen = (uint8_t)(st->gen + 1u);
-        st->src = (uint8_t)si;
-        st->rd = 0;
-        st->in_ring = 0;
-        st->dry = 0;
-        st->win = s->head;
-        st->wlo = 0;
-        st->wn = s->hlen;
-        st->pos = 0;
-        st->bpms = bpms;
-        if (looped && le >= ls && le < s->frames) {
-            st->lpstart = ls << s->fsh;
-            st->lpend = (le + 1u) << s->fsh;
-        } else {
-            st->lpstart = st->lpend = 0;
-        }
-        st->owner = owner;
-        st->on = 1;                                  /* (last: the main loop fills it from here) */
+        sst_arm(st, s, si, looped, ls, le, bpms, owner);
         return (int32_t)i;
     }
     sst_nostream++;
@@ -252,7 +269,7 @@ static int32_t sst_start(uint32_t si, uint32_t looped, uint32_t ls, uint32_t le,
 
 AINL void sst_stop(uint32_t i)                      /* the audio: the voice is over */
 {
-    if (i < SST_N)
+    if (i < SST_NALL)
         sst[i].on = 0;
 }
 

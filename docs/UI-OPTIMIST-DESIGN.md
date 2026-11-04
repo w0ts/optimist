@@ -418,10 +418,12 @@ USER, TOOLS, MEMORY as before. A list row has four cards, of which two show at a
 |---|---|
 | 1 BANK | the bank's letter; a view with no banks: its pages of 16 as letters over */N*; ALL (PRESETS): the engine and its bank; OCT- / OCT+ tapped too |
 | 2 ITEM | the slot (1..16), across the pages |
-| 3 ACTION | LOAD (the default), SAVE, DELETE; SAVES: LOAD, DELETE; SAMPLES: USE. Red when it destroys or replaces |
+| 3 ACTION | LOAD (the default), SAVE, DELETE; PROJECTS also NEW (PROJECT's NEW: the work blank, no card file touched, on any key or YES; asked, red, "SAVE <the work>?" first when it changed and has a name, as a LOAD's); SAVES: LOAD, DELETE; SAMPLES: empty, its one action USE is the white keys' and YES's. Red when it destroys or replaces |
 | 4 VIEW | PROJECTS: NAME, SAVES (the item's versions, the title its name); PRESETS, KITS: FOLDER, NAME (every file under it, by name); SAMPLES: FOLDER, NAME, RECENT (the ones used, last first) |
 
 A page comes in slices of the main loop's (`sd_browse.c` `sdb_go`, `sd_mode.c` `sdm_read_pump`), never in one blocking pass: the cards and the title show where the list is going at once, the names stay until the new page is whole, turns during a read add up, and a page not there 200 ms after it was asked brings the toast *LOADING* until it is (`op_sdcard.c` `sdc_loading`; nothing shows on a read that makes it). A white key under LOADING does nothing: the page it would pick is not there yet.
+
+SAMPLES' black keys (the user, 2026-11-05): the first ten pick pages A .. J in every view, lit as a bank's (K1 and OCT reach the rest), a jump of pages one pass a page; the top F# is PREVIEW, on and off with a toast, lit while on, remembered for the session in RAM. PREVIEW on: a white key or K2 onto a file selects it and plays it (a voice of its own, `sd_preview.h`: a 25 ms head and a ring in RAM, streamed, into the master mix at half level, no track's engine or sound touched), the same key again stops it, USE is YES's, a folder still opens; leaving the page stops it. A white key with PREVIEW off is USE, as ever.
 
 The page: two columns of eight names, the slots as the white keys sit (left octave, then right), the ITEM framed in white;
 a folder grey with a "/", a name cut with "~" (14 characters a column); our own files without their extension, a version

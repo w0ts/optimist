@@ -4,7 +4,7 @@
  * ready: the card's projects; without: the flash slot as before), PRESETS, KITS, SAMPLES. A list row is two big cards of
  * the four, the pair of the knob last turned (every knob works whichever shows: op_layers.c cards_2x1), and the page under them, two columns of eight names as the keys sit (the left octave, then the right):
  *   KNOB 1 BANK   the bank (a list with no banks: its pages of 16, A, B ..; OCT- / OCT+ tapped too)
- *   KNOB 2 ITEM   the slot, across the pages                   KNOB 3 ACTION   LOAD (the default), SAVE, DELETE; USE
+ *   KNOB 2 ITEM   the slot, across the pages                   KNOB 3 ACTION   LOAD (the default), SAVE, DELETE, PROJECTS NEW; SAMPLES empty, USE
  *   KNOB 4 VIEW   PROJECTS: NAME, SAVES (the item's versions); PRESETS, KITS: FOLDER, NAME; SAMPLES: FOLDER, NAME, RECENT
  * The two first never change meaning (the user, 2026-11-05). On PRESETS and SAMPLES ALGORITHM selects the track as on
  * the normal pages (T1 .. DR, the lanes; the header shows it, a load goes to it), the PRESETS list following its engine;
@@ -18,7 +18,9 @@
 enum { SDC_PROJ, SDC_PRE, SDC_KIT, SDC_SMP, SDC_N };   /* the card's lists */
 enum { SDV_FOLDER, SDV_NAME, SDV_RECENT, SDV_VERSIONS };   /* the views (sd_browse.c's, and a project's versions) */
 enum { SDO_LOAD, SDO_SAVE, SDO_DELETE, SDO_USE,       /* (ACTION) */
-       SDO_SAVE_LOAD };                                 /* "SAVE <the work>?" before a LOAD (op_prjflow.c PO_SAVE_LOAD is 3: USE) */
+       SDO_SAVE_LOAD,                                   /* "SAVE <the work>?" before a LOAD (op_prjflow.c PO_SAVE_LOAD is 3: USE) */
+       SDO_NEW, SDO_SAVE_NEW,                           /* PROJECTS: the work blank, no file touched (TOOLS' NEW); "SAVE <the work>?" first */
+       SDO_N };
 #define SDC_KEYS 16u                                    /* a page's slots (sd_browse.c SDC_KEYS) */
 #define SDC_NAME 64u                                    /* a card name's room (sd_layout.c SDL_NAME_MAX + 1) */
 #define SDC_PNAME 13u                                   /* the flash project's name's (sections.c SEC_NAME_LEN + 1) */
@@ -52,6 +54,9 @@ static uint32_t sdm_shown_page(void);
 static int sdm_reading(void);                           /* (a page asked and still coming: sd_mode.c sdm_read_pump) */
 static uint32_t sdm_read_ms(void);
 static void sdm_wait(void);
+static void sdm_pv_play(uint32_t k);                    /* (the SAMPLES list's preview) */
+static void sdm_pv_stop(void);
+static int sdm_pv_busy(void);
 static int sdm_into(uint32_t k);
 static void sdm_load_later(uint32_t k);
 static int sdm_up(void);
@@ -60,6 +65,7 @@ static void sdm_folder(char *b, uint32_t cap);
 static void sdm_do(uint32_t op, uint32_t k);
 static int sdm_save(uint32_t list, const char *name, const char *was);
 static void sdm_load_name(const char *name);
+static void sdm_new(void);
 static uint32_t sdm_keep(void);                         /* (SYSTEM > SD CARD: op_project.c) */
 static void sdm_backup(void);                           /* (SYSTEM > SETTINGS: to the card and back) */
 static void sdm_restore(void);
@@ -77,7 +83,6 @@ static void name_card(uint32_t list, const char *prefill, const char *was);   /*
 static void sec_name(uint32_t s, char *b);              /* storage/sections/sections.c */
 
 static struct {
-    uint8_t loading;                                    /* the LOADING toast up (sdc_loading) */
     uint8_t open, stale, ready, item, op, tried;        /* the list in sd_mode.c's page (SDC_N none); read again; the card
                                                          * ready when it was read; the cursor's slot; the action; a mount tried */
     uint8_t view[SDC_N];
@@ -86,9 +91,11 @@ static struct {
     uint8_t flt, eng;                                   /* PRESETS' filter: 0 the track's engine (eng: the one shown), 1 ALL,
                                                          * 2 + a slot that engine; until the row is left */
     uint32_t fmask;                                     /* the engines on the card (sdm_pre_mask), 0 not read */
+    uint8_t loading;                                    /* the LOADING toast up (sdc_loading) */
+    uint8_t pv, pv_ask, pv_k;                           /* SAMPLES: PREVIEW on (RAM only); K2 moved, the item to hear; the key heard */
 } sdc = {SDC_N, 1, 0, 0, 0, 0, {SDV_FOLDER, SDV_FOLDER, SDV_FOLDER, SDV_FOLDER}, "", "", 0, 0xFFu, 0};
 static const char *const SDV_NAME_S[2][4] = {{"FOLDER", "NAME", "RECENT", "SAVES"}, {"NAME", "NAME", "NAME", "SAVES"}};
-static const char *const SDO_NAME_S[4] = {"LOAD", "SAVE", "DELETE", "USE"};
+static const char *const SDO_NAME_S[SDO_N] = {[SDO_LOAD] = "LOAD", [SDO_SAVE] = "SAVE", [SDO_DELETE] = "DELETE", [SDO_USE] = "USE", [SDO_NEW] = "NEW"};
 static const char *const SDC_WHAT[SDC_N] = {"PROJECT", "PRESET", "KIT", "SAMPLE"};
 
 /* the row's list: PROJECT only with a card ready, the card's rows always (they say NO SD CARD); SDC_N none */
@@ -102,10 +109,10 @@ static int sdc_listing(void) { return sdc_here() < SDC_N; }
 static uint32_t sdc_views(uint32_t l) { return l == SDC_SMP ? 3u : 2u; }   /* (PROJECTS: FOLDER = by name, then SAVES) */
 static uint32_t sdc_view_at(uint32_t l, uint32_t i) { return l == SDC_PROJ && i ? SDV_VERSIONS : i; }
 static uint32_t sdc_view_ix(uint32_t l) { return sdc.view[l] == SDV_VERSIONS ? 1u : sdc.view[l]; }
-static uint32_t sdc_nops(uint32_t l) { return l == SDC_SMP ? 1u : l == SDC_PROJ && sdc.view[l] == SDV_VERSIONS ? 2u : 3u; }
+static uint32_t sdc_nops(uint32_t l) { return l == SDC_SMP ? 1u : l != SDC_PROJ ? 3u : sdc.view[l] == SDV_VERSIONS ? 2u : 4u; }
 static uint32_t sdc_op_at(uint32_t l, uint32_t i)
 {
-    return l == SDC_SMP ? SDO_USE : sdc_nops(l) == 2u && i ? SDO_DELETE : i;
+    return l == SDC_SMP ? SDO_USE : sdc_nops(l) == 2u && i ? SDO_DELETE : i == 3u ? SDO_NEW : i;
 }
 static void sdc_op_reset(void)                          /* (prj_op_reset: a screen entered, an action) */
 {
@@ -202,10 +209,12 @@ static void sdc_cell(uint32_t kind, uint32_t k, cell_t *c)
         c->unit = sdc.unit;
         cell_gauge(c, 0, 0, (int32_t)sdm_pages() - 1, (int32_t)sdm_page());
     } else if (k == 2u) {
+        if (l == SDC_SMP)
+            return;                                     /* (K3 empty on SAMPLES: one action, USE, on the keys and YES) */
         c->label = "ACTION";
         c->kind = CK_VAL;
         cell_val(c, SDO_NAME_S[op]);
-        c->col = op == SDO_DELETE || (op == SDO_SAVE && sdc_used(sdc.item)) ? C_ERR : 0;
+        c->col = op == SDO_DELETE || op == SDO_NEW || (op == SDO_SAVE && sdc_used(sdc.item)) ? C_ERR : 0;
         cell_gauge(c, 1, 0, (int32_t)sdc_nops(l) - 1, (int32_t)sdc.op);
     } else if (k == 1u) {
         c->label = "ITEM";
@@ -252,7 +261,7 @@ static void sdc_view_set(uint32_t l, uint32_t v)        /* VIEW: the list again 
     (void)sdm_open(l, v, sdc.vname);
     sdc.open = (uint8_t)l;
     sdc.stale = 0;
-    ui.force = 1;
+    ui.redraw = 1;
 }
 static void sdc_turn(uint32_t kind, uint32_t k, int32_t s)
 {
@@ -279,6 +288,7 @@ static void sdc_turn(uint32_t kind, uint32_t k, int32_t s)
         } else {
             sdc.item = (uint8_t)step_in(sdc.item, d, (int32_t)(sdm_count() ? sdm_count() : 1u));
         }
+        sdc.pv_ask = l == SDC_SMP && sdc.pv;            /* (heard when the page is here: sdc_frame) */
     } else {
         sdc_view_set(l, sdc_view_at(l, (uint32_t)step_in((int32_t)sdc_view_ix(l), d, (int32_t)sdc_views(l))));
     }
@@ -299,7 +309,7 @@ static void sdc_use_now(uint32_t k, uint32_t e)
     ui.toast_next = 1;
     sdm_do(SDO_USE, k);
     ui.toast_next = 0;
-    ui.force = 1;
+    ui.redraw = 1;
 }
 static void sdc_use(uint32_t k)
 {
@@ -324,7 +334,7 @@ static void sdc_pick_end(void)
     sdc_pk.on = 0;
     ui.toast_t = 0;
     pop_kind = 0;
-    ui.force = 1;
+    ui.redraw = 1;
 }
 static void sdc_pick_frame(uint32_t pressed)            /* one UI frame of the pick (op_input.c ui_input) */
 {
@@ -402,7 +412,7 @@ static int sdc_presets_turn(int32_t s)
     ui.toast_next = 0;
     ui.toast_col = l[at] >= NENGINES ? C_HI : ENG_COL[l[at]];
     pop_kind = 4;
-    ui.force = 1;
+    ui.redraw = 1;
     return 1;
 }
 /* a card's PRESETS or SAMPLES: a page with the track (ALGORITHM, the header) */
@@ -426,9 +436,23 @@ static void sdc_loading(void)
             ui.toast_t = 0;
     }
 }
+static void sdc_pv_item(void)                           /* PREVIEW on, K2 moved: the item heard; a folder or an empty slot: silence */
+{
+    sdc.pv_ask = 0;
+    if (sdc_used(sdc.item) && !sdc_is_dir(sdc.item)) {
+        sdm_pv_play(sdc.item);
+        sdc.pv_k = sdc.item;
+    } else {
+        sdm_pv_stop();
+    }
+}
 static void sdc_frame(void)                             /* every UI frame: the filter ends with the row */
 {
     sdc_loading();
+    if (sdc_here() != SDC_SMP && sdm_pv_busy())
+        sdm_pv_stop();                                  /* (the page left: silence; PREVIEW stays on for the session) */
+    if (sdc.pv_ask && !sdm_reading() && sdc_here() == SDC_SMP)
+        sdc_pv_item();
     if (!sdm_reading() && sdc.item >= sdm_count() && sdm_count())
         sdc.item = (uint8_t)(sdm_count() - 1u);         /* (a shorter last page, come) */
     if (sdc.flt && sdc_here() != SDC_PRE) {
@@ -458,6 +482,18 @@ static void sdc_name_for(uint32_t l, uint32_t k)        /* NAME, prefilled: the 
 static void sdc_ask(uint32_t r, uint32_t l, uint32_t op, uint32_t k)
 {
     char a[16], cur[SDC_PNAME];
+    if (op == SDO_NEW) {                                /* (any slot: it acts on none) */
+        prj_arm_slot = (uint8_t)k;
+        sec_name(0, cur);
+        if (work_changed() && cur[0] && !song.playing && !transport_req) {
+            prj_arm_op = SDO_SAVE_NEW;                  /* "SAVE <the work's name>?" first, as a LOAD's */
+            op_arm(SCR_PROJECT, r, 0, "SAVE", cur, 1);
+        } else {
+            prj_arm_op = SDO_NEW;
+            op_arm(SCR_PROJECT, r, 0, "NEW", "PROJECT", 1);
+        }
+        return;
+    }
     if (op == SDO_SAVE && !sdc_used(k)) {
         sdc_name_for(l, k);
         return;
@@ -470,7 +506,7 @@ static void sdc_ask(uint32_t r, uint32_t l, uint32_t op, uint32_t k)
     }
     if (sdc_is_dir(k)) {
         if (sdm_into(k))                                /* a folder: into it, no question */
-            sdc.item = 0, ui.force = 1;
+            sdc.item = 0, ui.redraw = 1;
         return;
     }
     if (op == SDO_USE) {
@@ -493,11 +529,21 @@ static void sdc_ask(uint32_t r, uint32_t l, uint32_t op, uint32_t k)
 }
 static int sdc_no(void)                                 /* HOME on "SAVE <the work>?": the LOAD asked next (prj_no's) */
 {
-    if (ui.arm_scr != SCR_PROJECT || prj_arm_op != SDO_SAVE_LOAD || sdc_here() != SDC_PROJ)
+    if (ui.arm_scr != SCR_PROJECT || (prj_arm_op != SDO_SAVE_LOAD && prj_arm_op != SDO_SAVE_NEW) || sdc_here() != SDC_PROJ)
         return 0;
+    if (prj_arm_op == SDO_SAVE_NEW) {
+        prj_arm_op = SDO_NEW;
+        op_arm(SCR_PROJECT, ui.arm_row, 0, "NEW", "PROJECT", 1);
+        return 1;
+    }
     prj_arm_op = SDO_LOAD;
     op_arm(SCR_PROJECT, ui.arm_row, 0, "LOAD", sdc_name(prj_arm_slot), 1);
     return 1;
+}
+static void sdc_new(void)                               /* YES to NEW: TOOLS' NEW; the card's project no longer the open one */
+{
+    (void)op_global_go(G_NEWPRJ);
+    sdm_new();
 }
 static int sdc_yes(uint32_t r, uint32_t kind, uint32_t ok)
 {
@@ -519,6 +565,13 @@ static int sdc_yes(uint32_t r, uint32_t kind, uint32_t ok)
         sdm_save_at(0xFFu);                             /* (no slot asked: the work's own place) */
         if (!sdm_save(SDC_PROJ, cur, cur))
             sdm_load_name(want);                        /* (the card's copy whole first: never the flash copy's only) */
+    } else if (op == SDO_SAVE_NEW) {                    /* YES to "SAVE <the work>?": saved by its name, then blank */
+        sec_name(0, cur);
+        sdm_save_at(0xFFu);
+        if (!sdm_save(SDC_PROJ, cur, cur))
+            sdc_new();
+    } else if (op == SDO_NEW) {
+        sdc_new();
     } else if (op == SDO_SAVE) {
         sdc_name_for(l, k);
     } else if (op == SDO_LOAD && l == SDC_PROJ && (song.playing || transport_req)) {
@@ -528,7 +581,7 @@ static int sdc_yes(uint32_t r, uint32_t kind, uint32_t ok)
     }
     sdc.op = 0;
     sdc.stale = 1;                                      /* (what it changed: read again) */
-    ui.force = 1;
+    ui.redraw = 1;
     return 1;
 }
 
@@ -552,10 +605,22 @@ static void sdc_key(uint32_t kind, int32_t w)
         return;                                         /* (the page it would pick is not here yet) */
     sdc_sync(l);
     sdm_wait();
+    if (l == SDC_SMP && sdc.pv && w >= 0 && (uint32_t)w < sdm_count() && sdc_used((uint32_t)w) && !sdc_is_dir((uint32_t)w)) {
+        sdc.item = (uint8_t)w;                          /* PREVIEW on: a key selects and plays, again stops; USE is YES's */
+        ui.hot = 1;
+        ui.hot_lit = 1;
+        if (sdc.pv_k == (uint8_t)w && sdm_pv_busy()) {
+            sdm_pv_stop();
+        } else {
+            sdm_pv_play((uint32_t)w);
+            sdc.pv_k = (uint8_t)w;
+        }
+        return;
+    }
     sdc.item = (uint8_t)w;
     ui.hot = 1;                                         /* (K2: ITEM) */
     ui.hot_lit = 1;
-    ui.force = 1;
+    ui.redraw = 1;
     sdc_ask(ui.row[SCR_PROJECT], l, sdc_op_at(l, sdc.op), (uint32_t)w);
 }
 static uint32_t sdc_bank_avail(void)
@@ -574,15 +639,50 @@ static void sdc_bank_say(void)                          /* "BANK C" */
     ui_say("BANK ", b);
     ui.toast_next = 0;
 }
+static void sdc_page_say(void)                          /* "BANK C/6": a list with no banks, its pages as letters */
+{
+    char b[8];
+    b[0] = (char)('A' + sdm_page() % 26u);
+    b[1] = 0;
+    str_app(b, "/", sizeof b);
+    fmt_app(b, (int32_t)sdm_pages());
+    ui.toast_next = 1;
+    ui_say("BANK ", b);
+    ui.toast_next = 0;
+}
+/* SAMPLES' black keys (the user, 2026-11-05): the first ten its pages A .. J in every view (K1 and OCT reach the rest),
+ * the top F# PREVIEW on or off, lit while on (sd_preview.h: the voice) */
+#define SDC_PV_KEY 10u
+static void sdc_smp_key(uint32_t b)
+{
+    if (b == SDC_PV_KEY) {
+        sdc.pv = !sdc.pv;
+        sdc.pv_ask = 0;
+        if (!sdc.pv)
+            sdm_pv_stop();
+        ui.toast_next = 1;
+        ui_message(sdc.pv ? "PREVIEW ON" : "PREVIEW OFF");
+        ui.toast_next = 0;
+    } else if (b < sdm_pages() && b != sdm_page()) {
+        sdm_turn((int32_t)b - (int32_t)sdm_page());
+        sdc.item = 0;
+        sdc.pv_k = 0xFFu;
+        sdc_page_say();
+    }
+}
 /* a black key on a list of banks (the user, 2026-11-04: one black key a bank): the 11 black keys of the 27 (F# G# A#
  * C# D# twice, the top F#) are banks A .. K, in key order; OCT goes on to L .. Z (sdc_bank_tap). Black key b of the
  * keyboard (0 .. 10) */
 static void sdc_bank_key(uint32_t kind, uint32_t b)
 {
     uint32_t l = sdc_list_of(kind);
-    if (!sdm_ready() || l >= SDC_SMP || b > 10u || op_armed())
+    if (!sdm_ready() || l >= SDC_N || b > 10u || op_armed())
         return;
     sdc_sync(l);
+    if (l == SDC_SMP) {
+        sdc_smp_key(b);
+        return;
+    }
     if (sdm_bank_go(b)) {
         if (sdc.flt == 1u)
             sdm_all_sync();                             /* (ALL: this engine's bank, its place among them all) */
@@ -593,26 +693,19 @@ static void sdc_bank_key(uint32_t kind, uint32_t b)
 static uint32_t sdc_bank_lit(void)                      /* the black key of the bank shown (A .. K), 0 none */
 {
     static const uint8_t B[5] = {1, 3, 5, 8, 10};       /* F# G# A# C# D# from F (punch_key's white keys between) */
-    int32_t bk = sdm_bank_shown();
-    return bk >= 0 && bk < 11 ? 1u << ((uint32_t)bk / 5u * 12u + B[bk % 5]) : 0u;
+    int32_t bk = sdc.open == SDC_SMP ? (sdm_page() < SDC_PV_KEY ? (int32_t)sdm_page() : -1) : sdm_bank_shown();
+    uint32_t m = bk >= 0 && bk < 11 ? 1u << ((uint32_t)bk / 5u * 12u + B[bk % 5]) : 0u;
+    return sdc.open == SDC_SMP && sdc.pv ? m | 1u << (SDC_PV_KEY / 5u * 12u + B[0]) : m;
 }
 static void sdc_bank_tap(uint32_t up)
 {
-    char b[8];
     if (!((sdc_bank_avail() >> (up ? B_OCTUP : B_OCTDN)) & 1u))
         return;
     sdc_page_turn(up ? 1 : -1);
-    if (sdm_bank_shown() >= 0) {
+    if (sdm_bank_shown() >= 0)
         sdc_bank_say();
-        return;
-    }
-    b[0] = (char)('A' + sdm_page() % 26u);
-    b[1] = 0;
-    str_app(b, "/", sizeof b);
-    fmt_app(b, (int32_t)sdm_pages());
-    ui.toast_next = 1;
-    ui_say("BANK ", b);
-    ui.toast_next = 0;
+    else
+        sdc_page_say();
 }
 static int sdc_home(void)                               /* HOME: up a folder, SAVES back to the projects; 1 done */
 {
@@ -627,7 +720,7 @@ static int sdc_home(void)                               /* HOME: up a folder, SA
     if (sdm_at_top() || !sdm_up())
         return 0;
     sdc.item = 0;
-    ui.force = 1;
+    ui.redraw = 1;
     return 1;
 }
 static void sdc_keys_lit(uint32_t *f, uint32_t *d, uint32_t blink)   /* a file full, a folder dim, the ITEM blinking */

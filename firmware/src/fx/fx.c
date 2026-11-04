@@ -3178,6 +3178,7 @@ static HOT2 __attribute__((noinline)) void ut_mix(uint32_t n)
         ut_snd[i] = to[i];
 }
 #endif
+#include "../storage/sd/sd_preview.h"                  /* the SAMPLES list's preview voice, into the mix as the USB input */
 static int32_t master_cur = -1;                        /* the volume knob, ramped per sample (no zipper) */
 /* The visualiser's tap (ui_vis.c; the Optimist UI's SCOPE and the mixer's master column, op_scope.c): each block's
  * mix, copied whole once a block (a word loop, both sides), as MASTER all the way up: after the buses and the master compressor, before the volume, the limiter and the knee (the
@@ -3389,6 +3390,9 @@ static HOT void mix_block(int32_t *out, uint32_t n)
     }
 #if FELUCCA_USB_AUDIO
     ut_mix(n);                                          /* the USB input, a track (above) */
+#endif
+#if FELUCCA_SD_STREAM && FELUCCA_SD_UI
+    sst_pv_mix(n);
 #endif
     mix_finish(out, n);
 #if FELUCCA_MACROS

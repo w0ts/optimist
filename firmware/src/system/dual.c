@@ -1081,6 +1081,9 @@ static HOT void mix_block_dual(int32_t *out, uint32_t n)
 #if FELUCCA_USB_AUDIO
     ut_mix(n);                                     /* the USB input, a track (fx.c) */
 #endif
+#if FELUCCA_SD_STREAM && FELUCCA_SD_UI
+    sst_pv_mix(n);                                 /* the SAMPLES list's preview (storage/sd/sd_preview.h) */
+#endif
     BPT(BPT_UT);
     DSTAGE(0x5A);
     mix_finish(out, n);
