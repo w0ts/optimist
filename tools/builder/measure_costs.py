@@ -141,7 +141,12 @@ GROUPS = {"INS_FX": _any_of("core/core.h", "INS_FX"),   # (the insert slots)
           # FM6's voice packs (registry.h FM6_NPACKS: eng_fm6.c's pack dictionary and decoder, the list's pack slots):
           # 2026-10-24 on synths_USBaudio_BTaudio_BTmidi (all five) PADS off freed 1,236 B of flash, its delta said
           # 2,152, and FM6 off read 2,572 B too much
-          "FM6_PACKS": _any_of("core/registry.h", "FM6_NPACKS")}
+          "FM6_PACKS": _any_of("core/registry.h", "FM6_NPACKS"),
+          # ANALOG 2's four filter models (a2_models.c, the options of ENG_ANALOG): they share the filter core, and the RAM
+          # their first one moves by layout. 2026-11-04, real builds on the defaults: the four together +3,712 B of flash and
+          # -12 B of RAM where their deltas, added, say +7,436 and -68 (one alone: -8 / -20 B of RAM). On mots-config
+          # (all four on) ENG_ANALOG off then read RAM +44 (the check allows 32) and 2.9 KB more flash saved than the build gives
+          "A2_FILTERS": tuple(k for k, it in R.ITEMS.items() if it.parent == "ENG_ANALOG" and k.startswith("A2_"))}
 # a pair whose values are not valid alone: measured with these set too (their cost is in the estimate it is
 # measured against)
 PAIR_WITH = {"MICRO=1,FILLS=1": {"SL24_XSTEP": 1},

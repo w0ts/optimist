@@ -4995,6 +4995,20 @@
     "pool": 0,
     "ramtext": 0
    }
+  },
+  "A2_FILTERS": {
+   "members": [
+    "A2_LADR",
+    "A2_OTA",
+    "A2_DIOD",
+    "A2_MS20"
+   ],
+   "shared": {
+    "flash": 1240,
+    "ram": -19,
+    "pool": 0,
+    "ramtext": 467
+   }
   }
  }
 }

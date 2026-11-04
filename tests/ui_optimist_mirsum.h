@@ -10,7 +10,7 @@ static uint16_t mt_fb[240 * 240];                       /* the device's picture 
 enum { MS_RATE = 9000, MS_LAG = 3000, MS_QMAX = 1u << 18 };
 static struct {
     int on, nosum;                                      /* the lossy link on; MIRROR_SUMS=off: no SUMS (the control) */
-    int lose_clear, nolose;                             /* MIRROR_SUMS=page: the next whole-panel clear lost; nothing else lost */
+    int lose_clear, nolose;                             /* MIRROR_SUMS=page: the next whole-panel clear lost; nothing else lost, no wrong put injected */
     int behind;                                         /* the lag rule refused a frame: nothing encoded until the catch-up */
     uint8_t q[MS_QMAX];                                 /* the link: frames as (len lo, len hi, flag, bytes), drained at MS_RATE */
     uint32_t qw, qr, qbytes, credit;                    /* write, read; bytes waiting; bytes the link may still carry this tick */
