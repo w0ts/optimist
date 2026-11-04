@@ -14,6 +14,8 @@ fake executable that records its arguments.
                       --with-bootloader, never --board (the model is M-Flasher's to identify: refused when uncertain)"""
 from __future__ import annotations
 
+import codecs
+import io
 import os
 import platform
 import re
@@ -72,6 +74,11 @@ MBOOT_COPIES = {ROOT / "web" / "fm1base" / "m-bootloader" / "fm1-uboot-1.2.boot"
                 ROOT / "web" / "fm1base" / "m-bootloader" / "fm1-uboot-1.2.fwsc": "fm1-uboot.fwsc",
                 SUBMODULE / "data" / "bootloader-fm1.boot": "fm1-uboot.boot"}
 COMMANDS = ("find", "download-mode", "info", "backup", "restore", "firmware", "bootloader", "restart")
+# the commands that open the unit in download mode: on macOS each run starts M-Flasher's root helper after the system's
+# password dialog (its src/macos.rs: one helper per process, AuthorizationExecuteWithPrivileges, nothing kept between
+# runs), on Windows each is an administrator prompt. find and download-mode list the units from the I/O registry and
+# USB-MIDI without the helper: no dialog. Installers keep these runs as few as their checks allow (fm1_anyflash.py)
+OPENS_UNIT = ("info", "backup", "restore", "firmware", "bootloader", "restart")
 
 
 class MFlasherError(Exception):
@@ -123,8 +130,9 @@ def notes(system: str | None = None) -> list:
     if (system or platform.system()) == "Darwin":
         return ["M-Flasher on macOS is not signed with an Apple certificate: if macOS blocks it, the user opens "
                 "System Settings > Privacy & Security > Open Anyway (this installer does not bypass that).",
-                "When it finds the unit, it asks for the password in the system's dialog (its root helper takes the USB "
-                "device from macOS's disk driver) and once whether it may access files on a removable volume: Allow.",
+                "When it finds the unit, it asks for the password in the system's dialog, once per run that opens the unit "
+                "(its root helper takes the USB device from macOS's disk driver: an install is two runs, the backup and "
+                "the write, a third with m-bootloader) and once whether it may access files on a removable volume: Allow.",
                 "Run from Terminal at the Mac itself, not over SSH (macOS asks about the removable volume on the screen)."]
     if (system or platform.system()) == "Windows":
         return ["M-Flasher is not signed: if Windows says it protected the PC, the user chooses More info > Run anyway; "
@@ -257,18 +265,22 @@ def build_from_source() -> Path:
 # ---------------------------------------------------------------- the command lines ---
 
 def argv(exe, cmd: str, *, arg: str | None = None, backup_dir: str | None = None, yes: bool = False,
-         restart: bool = False, boot_file: str | None = None) -> list:
+         restart: bool = False, boot_file: str | None = None, stock: str | None = None) -> list:
     """one M-Flasher command line (docs/usage.md "Command line"); arg: backup's DIR, restore's BACKUP.bin,
-    firmware's PACKAGE.fwsc"""
+    firmware's PACKAGE.fwsc; stock: bootloader's --stock PACKAGE.fwsc (the stock bootloader put back)"""
     if cmd not in COMMANDS:
         raise MFlasherError(f"not an M-Flasher command here: {cmd}")
     if restart and cmd not in ("restore", "firmware", "bootloader"):
         raise MFlasherError("--restart is for restore, firmware and bootloader")
     if cmd in ("backup", "restore", "firmware") and not arg:
         raise MFlasherError(f"{cmd} needs its file or folder")
+    if (boot_file or stock) and (cmd != "bootloader" or (boot_file and stock)):
+        raise MFlasherError("--file or --stock: one of them, for bootloader")
     out = [str(exe), cmd, *([arg] if arg else [])]
-    if cmd == "bootloader" and boot_file:
+    if boot_file:
         out += ["--file", str(boot_file)]
+    if stock:
+        out += ["--stock", str(stock)]
     if backup_dir and cmd in ("restore", "firmware", "bootloader"):
         out += ["--backup-dir", str(backup_dir)]
     if yes and cmd in ("restore", "firmware", "bootloader"):
@@ -298,25 +310,68 @@ def backup_path(text: str) -> str | None:
     return m[1] if m else None
 
 
-def run(args: list, answer: str | None = None, capture: bool = True, on_line=None) -> tuple:
+def run(args: list, answer: str | None = None, capture: bool = True, on_line=None, decide=None) -> tuple:
     """run one M-Flasher command -> (exit code, its output, "" when not captured). answer: what its "Type yes" prompt
-    reads ("no\\n": its plan is shown and nothing is written). capture=False: the program has this terminal (its own
-    "Type yes" question is asked there, the user answers it)"""
+    reads ("no\\n": its plan is shown and nothing is written). decide(output so far) -> bool: called when the program
+    asks its "Type yes" question (PROMPT), while it waits with the unit open; True answers "yes", False "no" (nothing
+    written). One run then reads the flash, shows its plan and writes: one password dialog on macOS, not two.
+    capture=False: the program has this terminal (its own "Type yes" question is asked there, the user answers it)"""
+    show = on_line or (lambda s: print(s, end="", flush=True))
     try:
         if not capture:
             return subprocess.run(args).returncode, ""
-        p = subprocess.Popen(args, stdin=subprocess.PIPE if answer is not None else subprocess.DEVNULL,
-                             stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, bufsize=1)
+        p = subprocess.Popen(args, stdin=subprocess.PIPE if answer is not None or decide else subprocess.DEVNULL,
+                             stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
     except OSError as e:
         raise MFlasherError(f"cannot run {args[0]}: {e}")
-    if answer is not None:
-        p.stdin.write(answer)
+    if answer is not None and not decide:
+        p.stdin.write(answer.encode())
         p.stdin.close()
-    lines = []
-    for ln in p.stdout:
-        lines.append(ln)
-        (on_line or (lambda s: print(s, end="", flush=True)))(ln)
-    return p.wait(), "".join(lines)
+    text = _read_answering(p, show, decide)
+    return p.wait(), text
+
+
+PROMPT = 'Type "yes" to write: '
+
+
+def _answer(p, yes: bool) -> None:
+    try:
+        p.stdin.write(b"yes\n" if yes else b"no\n")
+        p.stdin.close()
+    except BrokenPipeError:
+        raise MFlasherError("M-Flasher stopped while it waited for its answer: nothing was answered, see its lines above")
+
+
+def _read_answering(p, show, decide) -> str:
+    """the program's output, shown line by line ("\\r  NN%" a line of its own: tools/progress.py reads them); its
+    question (printed without a newline) answered by decide"""
+    dec = io.IncrementalNewlineDecoder(codecs.getincrementaldecoder("utf-8")(errors="replace"), translate=True)
+    text, shown, asked = "", 0, False
+    fd = p.stdout.fileno()
+    while True:
+        chunk = os.read(fd, 4096)
+        text += dec.decode(chunk, final=not chunk)
+        end = text.rfind("\n") + 1
+        if end > shown:
+            for ln in text[shown:end].splitlines(keepends=True):
+                show(ln)
+            shown = end
+        if decide and not asked and text.endswith(PROMPT):
+            asked = True
+            yes = False
+            try:
+                yes = decide(text)
+            finally:                                # (decide raised: "no", nothing written)
+                text += "\n"                        # (what a terminal echoes: the next line starts on its own)
+                shown = len(text)                   # (the program's question is not shown: the caller asked its own)
+                _answer(p, yes)
+        if not chunk:
+            break
+    if decide and not asked and p.stdin:
+        p.stdin.close()
+    if shown < len(text):
+        show(text[shown:])
+    return text
 
 
 def check_mboot_copies() -> list:

@@ -14,7 +14,9 @@ BOOTLOADER): tools/fm1_route.py, docs/INSTALL-PATHS.md.
 
 Every write in download mode: the model check (an FM-1, from M-Flasher's read of the flash), a full backup first
 (its path printed), the plan shown (the sectors, ours and M-Flasher's own, compared), and a typed "yes" (or --yes,
-given by a caller that asked already: make flash, the builder's f). --dry-run sends nothing to the FM-1 (no soft key,
+given by a caller that asked already: make flash, the builder's f). Each M-Flasher run that opens the unit is one
+password dialog on macOS (mflasher.OPENS_UNIT), so the checks share runs: an install is the backup and one write
+(fm1_route.unit_runs), a restore or a bootloader one run. --dry-run sends nothing to the FM-1 (no soft key,
 no M-Flasher) and prints what would be run and written where; with --flash-image (a backup) the exact sectors.
 The bootloader is left as it is, whatever the build's BOOTLOADER says; --install-mboot installs m-bootloader (download mode).
 
@@ -119,11 +121,11 @@ def need_mflasher(env):
         env.say("  " + n)
 
 
-def mf(env, cmd, answer=None, capture=True, **kw):
+def mf(env, cmd, answer=None, capture=True, decide=None, **kw):
+    """one M-Flasher run; decide: its "Type yes" question answered by the caller (checked_write)"""
     args = env.mf(cmd, **kw)
     env.say("$ " + " ".join(args))
-    rc, text = env.run_mf(args, answer=answer, capture=capture)
-    return rc, text
+    return env.run_mf(args, answer=answer, capture=capture, decide=decide)
 
 
 def find_device(env):
@@ -147,28 +149,32 @@ def enter_download_mode(env, route, secs=20.0):
     raise AnyError("notfound", f"no FM-1 in download mode after {secs:.0f} s ({route.enter}); nothing was written")
 
 
-def read_info(env):
-    rc, text = mf(env, "info")
-    info = MF.parse_info(text)
-    if rc or not info:
-        raise AnyError("lost", f"M-Flasher could not read the FM-1 (exit {rc}); nothing was written")
+def check_model(info, unit=None):
+    """the model check (an FM-1 exactly) and, for a write after the first read, the same unit (its unit id)"""
     model = info.get("model", "unknown")
     if model != "FM-1":
         raise AnyError("model", f"M-Flasher reads the model as {model!r}, not an FM-1: nothing is written "
                                 "(an SMK-37 or an uncertain model: use M-Flasher itself, with --board if you know it)")
-    return info
+    if unit and info.get("unit id") != unit:
+        raise AnyError("model", f"M-Flasher reads another unit ({info.get('unit id', '?')}) than the one backed up "
+                                f"({unit}): nothing is written")
 
 
 def backup(env, folder):
+    """the first run that opens the unit (one password dialog on macOS): M-Flasher reads the whole flash, prints what it
+    reads (the model, bootloader, firmware, chip key, unit id: `info`'s lines) and saves it -> (info, backup, flash).
+    The model is checked from those lines: `info` is not run on its own"""
     rc, text = mf(env, "backup", arg=str(folder))
+    info = MF.parse_info(text)
     path = MF.backup_path(text)
-    if rc or not path or not Path(path).is_file():
-        raise AnyError("lost", f"the backup failed (exit {rc}); nothing was written")
+    if rc or not info or not path or not Path(path).is_file():
+        raise AnyError("lost", f"M-Flasher could not read and back up the FM-1 (exit {rc}); nothing was written")
+    check_model(info)
     data = Path(path).read_bytes()
     if len(data) != L.FLASH_SIZE:
         raise AnyError("lost", f"the backup {path} is {len(data)} B, not 1 MiB; nothing was written")
     env.say(f"backup: {path}  (keep it: `fm1_anyflash.py restore {path}` puts this flash back)")
-    return Path(path), data
+    return info, Path(path), data
 
 
 RANGE_RE = re.compile(r"0x([0-9A-F]{5})-0x([0-9A-F]{5})")
@@ -194,40 +200,70 @@ def confirm(env, yes, what):
     return env.ask(f"{what}\nType yes to write (anything else: nothing is written): ") == "yes"
 
 
-def planned_write(env, cmd, arg, ours, backup_dir, yes, restart):
-    """M-Flasher's own plan first (its question answered no: nothing written), compared with ours; then the write"""
-    rc, text = mf(env, cmd, arg=arg, answer="no\n", backup_dir=str(backup_dir))
-    theirs = mf_plan_sectors(text)
-    if rc or theirs is None:
-        raise AnyError("refused", f"M-Flasher refused the plan (exit {rc}); nothing was written")
-    if tuple(sorted(theirs)) != tuple(sorted(ours)):
-        raise AnyError("planmismatch", f"M-Flasher would write {len(theirs)} sectors, this installer planned {len(ours)}: "
-                                   "nothing was written (send this output)")
-    if not ours:
+def checked_write(env, cmd, ours, yes, restart, what, unit=None, **kw):
+    """one M-Flasher run that reads the flash, plans, writes and verifies (one password dialog on macOS): without --yes,
+    so it stops at its own "Type yes" question with the unit open; there its lines are checked (the model, the unit
+    backed up, its plan against ours: `ours` the sector addresses, or a callable that judges them), then the user's
+    yes (or the caller's --yes), and only then "yes" is answered. Anything else answers "no": nothing written.
+    M-Flasher saves a full backup of the flash it read before its first write (src/ops.rs apply). -> written"""
+    seen = {}
+
+    def decide(text):
+        try:
+            check_model(MF.parse_info(text), unit)
+        except AnyError as e:
+            seen["stop"] = e
+            return False
+        theirs = mf_plan_sectors(text)
+        agree = theirs is not None and (ours(theirs) if callable(ours) else sorted(theirs) == sorted(ours))
+        if not agree:
+            seen["stop"] = AnyError("planmismatch", f"M-Flasher would write {len(theirs or ())} sectors, not the "
+                                                    f"planned ones: nothing was written (send this output)")
+            return False
+        if not confirm(env, yes, what(len(theirs)) if callable(what) else what):
+            seen["stop"] = AnyError("cancel", "cancelled: nothing was written")
+            return False
+        seen["yes"] = True
+        return True
+    rc, text = mf(env, cmd, restart=restart, decide=decide, **kw)
+    if "stop" in seen:
+        raise seen["stop"]
+    if "yes" not in seen:                            # no question: refused, or nothing to write
+        theirs = mf_plan_sectors(text)
+        if rc or theirs is None:
+            raise AnyError("refused", f"M-Flasher refused (exit {rc}): see its lines above; nothing was written")
+        if theirs or (not callable(ours) and ours):
+            raise AnyError("planmismatch", "M-Flasher has nothing to write where this installer planned sectors: "
+                                           "nothing was written (send this output)")
         env.say("nothing to write: the flash holds this already")
         return False
-    if not confirm(env, yes, f"{len(ours)} sectors, as planned above (M-Flasher's plan agrees)"):
-        raise AnyError("cancel", "cancelled: nothing was written")
-    rc, _ = mf(env, cmd, arg=arg, backup_dir=str(backup_dir), yes=True, restart=restart)
+    if rc and "Done: " in text:
+        raise AnyError("lost", f"written and verified, then M-Flasher stopped (exit {rc}): switch the FM-1 off and on")
     if rc:
         raise AnyError("lost", f"M-Flasher stopped (exit {rc}): see its lines above. Do not switch the FM-1 off; "
                                "run the same command again, or restore the backup")
+    saved = MF.backup_path(text)
+    env.say(f"M-Flasher's backup before this write: {saved}" if saved else
+            "M-Flasher printed no backup path for this write (the backup taken first is above)")
     return True
 
 
-def install_mboot(env, info, backup_dir, yes):
+def needs_mboot(env, info):
     if info.get("bootloader", "").startswith("m-bootloader"):
         env.say(f"bootloader: {info['bootloader']} found: kept")
         return False
     env.say(f"bootloader: {info.get('bootloader', '?')} -> m-bootloader {MF.MBOOT_RELEASE['version']} "
-            "(the boot area 0x00000-0x03FFF only; the unit's configuration in it kept)")
-    if not confirm(env, yes, "install m-bootloader now?"):
-        raise AnyError("cancel", "cancelled: nothing was written")
-    rc, _ = mf(env, "bootloader", backup_dir=str(backup_dir), yes=True)
-    if rc:
-        raise AnyError("lost", f"M-Flasher stopped (exit {rc}) installing m-bootloader: do not switch the FM-1 off; "
-                               "run it again, or restore the backup")
+            "(the boot area 0x00000-0x03FFF only; the unit's configuration in it kept), after the firmware")
     return True
+
+
+def boot_area_only(theirs):
+    return bool(theirs) and all(a < L.APP_LO for a in theirs)
+
+
+def install_mboot(env, backup_dir, yes, unit, restart):
+    return checked_write(env, "bootloader", boot_area_only, yes, restart, "install m-bootloader now (M-Flasher's plan "
+                         "above: the boot area only)?", unit, backup_dir=str(backup_dir))
 
 
 def write_target(backup_bin, target, pkg_name):
@@ -245,34 +281,48 @@ def write_target(backup_bin, target, pkg_name):
     return out
 
 
-def firmware_step(env, pkg_path, flash, current, backup_bin, backup_dir, yes, info, wipe=""):
+def firmware_step(env, pkg_path, flash, current, backup_bin, backup_dir, yes, info, wipe="", restart=True):
     if fm1_rescue.package_chip_key(flash) != int(info.get("chip key", "0x980F"), 16):
         raise AnyError("model", "the package is built for another chip key than this FM-1's; nothing was written")
     p = L.plan(current, flash, wipe=wipe)
     for ln in p.describe():
         env.say(ln)
+    what = f"{len(p.sectors)} sectors, as planned above (M-Flasher's plan agrees)"
+    unit = info.get("unit id")
     if not p.clears:                                 # M-Flasher's own rule is enough: the package's area
-        return planned_write(env, "firmware", str(pkg_path), p.writes, backup_dir, yes, True)
+        return checked_write(env, "firmware", p.writes, yes, restart, what, unit, arg=str(pkg_path),
+                             backup_dir=str(backup_dir))
     target = L.target_image(current, flash, p)       # a switch: the whole planned flash, restored
     t = write_target(backup_bin, target, Path(pkg_path).name)
     env.say(f"planned flash: {t}")
-    return planned_write(env, "restore", str(t), p.sectors, backup_dir, yes, True)
+    return checked_write(env, "restore", p.sectors, yes, restart, what, unit, arg=str(t), backup_dir=str(backup_dir))
 
 
 def download_install(env, route, pkg_path, flash, backup_dir, yes, product, wipe=""):
-    """wipe: the new firmware's settings to erase too (fm1_layouts.WIPE key; "" keeps them)"""
+    """wipe: the new firmware's settings to erase too (fm1_layouts.WIPE key; "" keeps them). The runs that open the
+    unit (a password dialog each on macOS): the backup, the firmware's write, m-bootloader's write when asked for
+    (fm1_route.unit_runs). Every question is asked before the first write"""
     need_mflasher(env)
     enter_download_mode(env, route)
-    info = read_info(env)
+    info, backup_bin, current = backup(env, backup_dir)
     for k in ("model", "bootloader", "firmware"):
         env.say(f"  {k:10} {info.get(k, '?')}")
-    backup_bin, current = backup(env, backup_dir)
-    if route.install_mboot and install_mboot(env, info, backup_dir, yes):
-        backup_bin, current = backup(env, backup_dir)          # (the boot area changed: plan on the flash as it is)
-    if flash is None:
+    mboot = route.install_mboot and needs_mboot(env, info)
+    if mboot and flash is not None and not confirm(env, yes, "install m-bootloader too, after the firmware?"):
+        raise AnyError("cancel", "cancelled: nothing was written")
+    unit = info.get("unit id")
+    if flash is not None:
+        firmware_step(env, pkg_path, flash, current, backup_bin, backup_dir, yes, info, wipe, restart=not mboot)
+    if mboot:
+        try:
+            install_mboot(env, backup_dir, yes or flash is not None, unit, restart=True)
+        except AnyError as e:
+            if flash is None:
+                raise
+            raise AnyError(e.code, f"the firmware is written and verified; m-bootloader: {e}")
+    elif flash is None:
         mf(env, "restart")
         return info
-    firmware_step(env, pkg_path, flash, current, backup_bin, backup_dir, yes, info, wipe)
     if env.wait_back:
         back = env.wait_back(product)
         env.say(f"done: the FM-1 runs {back}" if back else "written and verified; the FM-1 did not show up on "
@@ -299,15 +349,18 @@ def dry_run(env, route, info, flash, backup_dir, flash_image, wipe=""):
                 "(its own layout switch clears what the other layout left); the bootloader is not touched")
         return
     exe = env.exe or MF.binary() or "m-flasher"
-    cmds = [MF.argv(exe, "find"), MF.argv(exe, "info"), MF.argv(exe, "backup", arg=str(backup_dir))]
-    if route.install_mboot:
-        cmds.append(MF.argv(exe, "bootloader", backup_dir=str(backup_dir), yes=True) + ["(if not there)"])
+    cmds = [MF.argv(exe, "backup", arg=str(backup_dir)) + ["(also the model check: info's lines)"]]
     if flash is not None:
-        cmds.append(MF.argv(exe, "firmware", arg="PACKAGE", backup_dir=str(backup_dir), yes=True, restart=True)
-                    + ["(or restore of the planned flash on a layout switch)"])
+        cmds.append(MF.argv(exe, "firmware", arg="PACKAGE", backup_dir=str(backup_dir), restart=not route.install_mboot)
+                    + ["(its plan compared, then yes typed into it; restore of the planned flash on a layout switch)"])
+    if route.install_mboot:
+        cmds.append(MF.argv(exe, "bootloader", backup_dir=str(backup_dir), restart=True) + ["(if not there)"])
+    elif flash is None:
+        cmds.append(MF.argv(exe, "restart"))
     env.say("M-Flasher would run (nothing is run now):")
     for c in cmds:
         env.say("  " + " ".join(map(str, c)))
+    env.say(f"runs that open the FM-1 (macOS: the admin password each): {len(R.unit_runs(route))} at most")
     if flash is not None and flash_image:
         cur = Path(flash_image).read_bytes()
         p = L.plan(cur, flash, wipe=wipe)
@@ -378,31 +431,33 @@ def run(a, env):
 
 
 def service(a, env):
-    """backup, restore, bootloader, restart: download mode, M-Flasher's own plan and question"""
+    """backup, restore, bootloader, restart: download mode, one M-Flasher run each (one password dialog on macOS). A
+    restore or bootloader run reads the flash, saves its full backup before its first write (M-Flasher's src/ops.rs
+    apply), shows its plan and stops at its question: the model is checked there (an FM-1), the plan shown, the user's
+    yes asked here (or --yes), and only then "yes" answered"""
     route = R.Route("download", a.cmd, R.entry_for(R.NONE, None)[1], soft_key=True)
+    stock = getattr(a, "stock", None)
+    if a.cmd == "restart":
+        kw = {}
+    elif a.cmd == "backup":
+        kw = {"arg": str(a.backup_dir)}
+    else:
+        kw = {"arg": getattr(a, "backup", None), "backup_dir": str(a.backup_dir), "stock": stock}
     if a.dry_run:
         exe = env.exe or MF.binary() or "m-flasher"
-        arg = {"backup": str(a.backup_dir), "restore": getattr(a, "backup", None)}.get(a.cmd)
-        env.say("M-Flasher would run (nothing is run now): " + " ".join(MF.argv(exe, a.cmd, arg=arg)))
+        restart = {"restart": True} if a.cmd in ("restore", "bootloader") else {}
+        env.say("M-Flasher would run (nothing is run now): " + " ".join(MF.argv(exe, a.cmd, **kw, **restart)))
         return 0
     need_mflasher(env)
-    if a.cmd != "restart":
-        enter_download_mode(env, route)
-        read_info(env)
+    if a.cmd == "restart":
+        return mf(env, "restart")[0]
+    enter_download_mode(env, route)
     if a.cmd == "backup":
         backup(env, a.backup_dir)
         return 0
-    if a.cmd == "restart":
-        return mf(env, "restart")[0]
-    backup(env, a.backup_dir)
-    kw = {"boot_file": None} if a.cmd == "bootloader" else {}
-    args = dict(arg=a.backup if a.cmd == "restore" else None, backup_dir=str(a.backup_dir), restart=True, **kw)
-    if a.cmd == "bootloader" and a.stock:
-        args["arg"] = None
-        cmdline = env.mf("bootloader", **args) + ["--stock", a.stock]
-        env.say("$ " + " ".join(cmdline))
-        return env.run_mf(cmdline, answer=None, capture=False)[0]
-    return mf(env, a.cmd, capture=False, **args)[0]       # M-Flasher shows its plan and asks for "yes" itself
+    ours = boot_area_only if a.cmd == "bootloader" else bool
+    checked_write(env, a.cmd, ours, a.yes, True, lambda n: f"{n} sectors, M-Flasher's plan above", **kw)
+    return 0
 
 
 if __name__ == "__main__":

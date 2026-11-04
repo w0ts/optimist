@@ -201,8 +201,20 @@ class Route:
     why: str
     enter: str = ""                 # how download mode is entered
     soft_key: bool = False          # the installer sends the soft key over USB-MIDI
-    install_mboot: bool = False     # m-bootloader is installed (if the FM-1 does not have it), after the backup
+    install_mboot: bool = False     # m-bootloader is installed (if the FM-1 does not have it), after the firmware
     steps: tuple = field(default=())
+    firmware: bool = True           # the package has a firmware to write (m-bootloader's installer has none)
+
+
+def unit_runs(route: Route) -> tuple:
+    """the M-Flasher runs that open the unit on a download-mode route, at most (mflasher.OPENS_UNIT: each one is the
+    system's password dialog on macOS, an administrator prompt on Windows; find and download-mode are not): the backup,
+    which is also the read the plan is made on and the model check (its lines are info's); the firmware's write
+    (firmware, or restore of the planned flash on a layout switch), checked and answered in the same run, which restarts
+    the unit; m-bootloader's write when asked for, after the firmware, which restarts it then. A package without a
+    firmware and no bootloader to write: a restart"""
+    runs = ("backup",) + (("firmware",) if route.firmware else ()) + (("bootloader",) if route.install_mboot else ())
+    return runs if len(runs) > 1 else runs + ("restart",)
 
 
 def bootloader_choice(build_value: str | None, install_mboot: bool = False) -> tuple:
@@ -305,17 +317,22 @@ def choose(running: str, pkg: PackageInfo, bootloader: str = KEEP, mboot_present
                                            "the loader writes the firmware area; the FM-1 restarts",
                                            "the installer checks the identity it comes back with"))
     reason = "m-bootloader was asked for (--install-mboot)" if want else why
-    steps = ["download mode: " + enter, "M-Flasher reads the flash (model, bootloader, firmware): an FM-1 only",
-             "M-Flasher saves a full backup (its path is printed)"]
-    if want and mboot_present is not True:
-        steps.append("m-bootloader into the boot area only (if the FM-1 does not have it), after your yes")
+    steps = ["download mode: " + enter, "M-Flasher reads the flash and saves a full backup (its path is printed); "
+             "the model it reads (model, bootloader, firmware) must be an FM-1"]
     if pkg.kind == P_MBOOT:
-        steps.append("m-bootloader into the boot area only, after your yes")
+        steps.append("m-bootloader into the boot area only: M-Flasher's plan checked, then your yes; the FM-1 restarts")
     else:
         steps += ["the installer plans the firmware area (only the sectors that change; a layout switch clears what "
-                  "the other layout left), M-Flasher's own plan read back and compared, then your yes",
-                  "M-Flasher writes and verifies every sector, stops on a mismatch; the FM-1 restarts"]
-    return Route("download", reason, enter, soft, want or pkg.kind == P_MBOOT, tuple(steps))
+                  "the other layout left); M-Flasher reads the flash again and shows its own plan, compared, then your yes",
+                  "M-Flasher saves another backup, writes and verifies every sector, stops on a mismatch; the FM-1 "
+                  "restarts" + (" after m-bootloader" if want else "")]
+        if want:
+            steps.append("m-bootloader into the boot area only (if the FM-1 does not have it), asked with the firmware")
+    route = Route("download", reason, enter, soft, want or pkg.kind == P_MBOOT, tuple(steps), pkg.kind != P_MBOOT)
+    n = len(unit_runs(route))
+    return Route(route.method, route.why, route.enter, route.soft_key, route.install_mboot,
+                 route.steps + (f"macOS asks for the admin password once per M-Flasher run that opens the FM-1: {n} "
+                                "at most (" + ", ".join(unit_runs(route)) + ")",), route.firmware)
 
 
 def head_refused(running: str, pkg: PackageInfo, code: str) -> bool:

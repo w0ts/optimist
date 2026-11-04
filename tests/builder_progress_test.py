@@ -108,12 +108,13 @@ LOADER_CHILD = (
 MF = "/Users/x/optimist/build/m-flasher/m-flasher-0.7.0/M-Flasher.app/Contents/MacOS/M-Flasher"
 DOWNLOAD_LINES = (["route:    download: the build's BOOTLOADER is m-bootloader", f"M-Flasher: {MF}",
                    "sent the soft key (F0 22 24 35 7D F7) over USB-MIDI; waiting for download mode",
-                   f"$ {MF} find", "In download mode: /dev/x", f"$ {MF} info", "  model      FM-1",
+                   f"$ {MF} find", "In download mode: /dev/x",
                    f"$ {MF} backup /Users/x/Documents/M-Flasher/backups"] + [f"  {v:3d}%" for v in range(0, 101, 20)] +
-                  ["Backup saved: /x/fm1.bin", f"$ {MF} bootloader --backup-dir /x"] + [f"  {v:3d}%" for v in (0, 50, 100)] +
-                  [f"$ {MF} firmware /x/p.fwsc --backup-dir /x", "Nothing written.",
-                   f"$ {MF} firmware /x/p.fwsc --backup-dir /x --yes"] + [f"  {v:3d}%" for v in range(0, 101, 10)] +
-                  [f"$ {MF} restart", "done: the FM-1 runs FM-1_7900"])
+                  ["  model      FM-1", "Backup saved: /x/fm1.bin", f"$ {MF} firmware /x/p.fwsc --backup-dir /x"] +
+                  [f"  {v:3d}%" for v in range(0, 101, 10)] +
+                  ["Backup saved: /x/fm1-2.bin", "Writing 0x04000-0x92FFF", "Done: everything written is verified",
+                   f"$ {MF} bootloader --backup-dir /x --restart"] + [f"  {v:3d}%" for v in (0, 50, 100)] +
+                  ["Writing 0x00000-0x03FFF", "Done: everything written is verified", "done: the FM-1 runs FM-1_7900"])
 
 
 def replay(code):
@@ -142,7 +143,7 @@ check("replay, the download-mode route: download mode, backup, m-bootloader, M-F
       and any(lb.startswith("writing") and 50 < v < 97 for v, lb in bar) and vals[0] < 5)
 check("download route: a percentage before any M-Flasher command does not jump the bar",
       P.FlashTracker().feed(("pct", 80)) == 0)
-check("download route: the write call (the second firmware call) is past the plan",
+check("download route: the write (the firmware run's Writing lines) is past the plan",
       P.MF_RANGES["firmware2"][0] >= P.MF_RANGES["firmware"][1])
 for ln, want in ((f"$ {MF} backup /x", ("mf", "backup")), ("  42%", ("pct", 42)), ("done: the FM-1 runs FM-1_700", ("done", 100)),
                  ("put the FM-1 in download mode: by hand: REC", ("enter", 0))):

@@ -9,7 +9,8 @@ records every command line it is given and plays a unit in a folder instead of U
   FAKE_MF_DIR/calls.jsonl one line per call: its arguments and what it read on stdin
 
 Its plans follow M-Flasher's rules (src/ops.rs): firmware = the package's flash.bin [0x4000, its end), restore = the
-whole image, bootloader = the boot area; only the 4 KiB sectors that differ; "Type yes" unless --yes."""
+whole image, bootloader = the boot area; only the 4 KiB sectors that differ; "Type yes" unless --yes; a full backup
+saved in --backup-dir before the first write of the run, as Session::apply does."""
 import json
 import os
 import sys
@@ -43,10 +44,23 @@ def ranges(secs):
     return ", ".join(f"0x{a:05X}-0x{b - 1:05X}" for a, b in out)
 
 
-def apply(target, secs, yes, st, restart):
+def save_backup(flash, st, folder):
+    out = Path(folder)
+    out.mkdir(parents=True, exist_ok=True)
+    n = len(list(out.glob("fm1-*.bin"))) + 1
+    b = out / f"fm1-{n:03d}.bin"
+    b.write_bytes(flash)
+    b.with_suffix(".json").write_text(json.dumps({"unit id": st["unit"], "model": st["model"]}))
+    print(f"Backup saved: {b}")
+
+
+def apply(target, secs, yes, st, restart, folder):
     print("\nPlan")
     if not secs:
         print("Nothing to write: the flash already holds this.")
+        if restart:
+            st["download"] = False
+            save(st)
         return 0, ""
     print(f"Writes {len(secs)} sectors ({len(secs) * 4} KiB): {ranges(secs)}")
     answer = ""
@@ -57,6 +71,7 @@ def apply(target, secs, yes, st, restart):
             print("Nothing written.")
             return 0, answer
     cur = bytearray((D / "flash.bin").read_bytes())
+    save_backup(bytes(cur), st, folder)
     for a in secs:
         cur[a:a + SECTOR] = target[a:a + SECTOR]
     (D / "flash.bin").write_bytes(bytes(cur))
@@ -65,6 +80,9 @@ def apply(target, secs, yes, st, restart):
         st["download"] = False
         save(st)
         print("Running: the FM-1 is on USB MIDI")
+    if st.pop("wrote", None) == "boot":
+        st["bootloader"] = "m-bootloader 1.2-22e2559 (fm1)"
+        save(st)
     return 0, answer
 
 
@@ -107,13 +125,9 @@ def main(args):
         return 0
     if cmd == "backup":
         log(args)
-        out = Path(pos[1])
-        out.mkdir(parents=True, exist_ok=True)
-        n = len(list(out.glob("fm1-*.bin"))) + 1
-        b = out / f"fm1-{n:03d}.bin"
-        b.write_bytes(flash)
-        b.with_suffix(".json").write_text(json.dumps({"unit id": st["unit"], "model": st["model"]}))
-        print(f"Backup saved: {b}")
+        save_backup(flash, st, pos[1])
+        st["unit"] = st.get("next_unit", st["unit"])     # (a test's other unit plugged in after the backup)
+        save(st)
         return 0
     yes, restart = "--yes" in opts, "--restart" in opts
     if cmd == "firmware":
@@ -127,16 +141,15 @@ def main(args):
     elif cmd == "bootloader":
         target = bytes([0xB0]) * 0x1000 + flash[0x1000:]          # (a new boot area: its first sector here)
         secs = [0] if flash[:SECTOR] != target[:SECTOR] else []
-        if yes:
-            st["bootloader"] = "m-bootloader 1.2-22e2559 (fm1)"
-            save(st)
+        st["wrote"] = "boot"
     else:
         log(args)
         print(f"Refused: usage ({cmd})", file=sys.stderr)
         return 1
     if st.get("extra") is not None and st["extra"] not in secs:
         secs = sorted(secs + [st["extra"]])
-    rc, answer = apply(target, secs, yes, st, restart)
+    folder = args[args.index("--backup-dir") + 1] if "--backup-dir" in args else D / "default-backups"
+    rc, answer = apply(target, secs, yes, st, restart, folder)
     log(args, answer)
     return rc
 
