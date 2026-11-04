@@ -93,6 +93,7 @@ static DWORD sd_sectors;		/* the card's capacity in 512-byte sectors (CSD; 0: no
 #ifndef SD_RD_CRC
 #define SD_RD_CRC 1						/* every block's CRC16 checked (a nibble table: ~1 K operations a block) */
 #endif
+static WORD sd_wait_ms = 100;	/* a read's token: 100 ms; the clock probe's SD_CLK_WAIT_MS */
 static BYTE sd_crc_on;			/* the card checks the CRCs (CMD59 accepted) */
 #define SD_FLOOR (SD_NSTEP - 1u)		/* the last step: the clock that always reads (6 MHz on the FM-1) */
 static BYTE sd_step = SD_FLOOR;	/* the clock every session runs at: a step, 0 the fastest (sd_clock_probe, sd_crc_retry) */
@@ -415,7 +416,7 @@ static BYTE sd_rd_poll(void)
 			}
 			if (d != 0xFF) { sd_rd.state = SDR_ERR; return SDR_ERR; }	/* an error token */
 		}
-		if (sd_ms_since(sd_rd.t0) >= 100) sd_rd.state = SDR_ERR;
+		if (sd_ms_since(sd_rd.t0) >= sd_wait_ms) sd_rd.state = SDR_ERR;
 		return sd_rd.state;
 	}
 	if (sd_rd.state == SDR_DMA) {
@@ -477,7 +478,13 @@ static DRESULT disk_readblocks(BYTE *buf, DWORD sector, UINT n)
  *   4. the first step that passes is the fastest; the one below it must pass too (the margin) and is the clock kept
  *      (the floor when that is the floor). It failing: the walk goes on from the step after it.
  * sd_clk_res[k] says what each step did (SDK_*: the console's sd diag), sd_clk_top the fastest that passed, sd_clk_ms
- * the probe's time. force (the console's sd clock): 0 the walk, else the step force - 1, set as it is. */
+ * the probe's time. force (the console's sd clock): 0 the walk, else the step force - 1, set as it is.
+ * The time (the watchdog: 8 s, fed once a main loop pass): every wait here is SD_CLK_WAIT_MS, so a pass takes at most
+ * 26 x 20 ms + 2 busy ends ~ 0.56 s however slowly the card answers; no step starts after SD_CLK_BUDGET_MS; a step that
+ * times out or is refused (SDK_ERR) ends the walk at the floor; the watchdog fed at every pass and before a start-up
+ * again: ~5 s at the very worst, ~1.7 s between feeds (device/sd.c in fm1-base has the same walk and the sum). */
+#define SD_CLK_WAIT_MS 20u
+#define SD_CLK_BUDGET_MS 1000u
 enum { SDK_UNTRIED = 0, SDK_PASS, SDK_CRC, SDK_DIFF, SDK_ERR, SDK_NOHS };
 #ifndef SD_CLK_SINGLES
 #define SD_CLK_SINGLES 8u							/* CMD17 blocks a pass reads, spread over the card */
@@ -486,19 +493,29 @@ static BYTE sd_clk_res[SD_NSTEP];
 static BYTE sd_clk_top = SD_FLOOR;
 static DWORD sd_clk_ms;
 
-static BYTE sd_switch_hs(void)
+static BYTE sd_cmd6(DWORD arg, BYTE *st)		/* CMD6's switch status: 1 = its 64 bytes in, their CRC16 right */
 {
-	BYTE st[64], ok = 0;
+	BYTE ok = 0;
 	WORD c, got;
-	if (!(CardType & CT_SD2)) return 0;
-	if (send_cmd(CMD6, 0x80FFFFF1UL) == 0 && wait_token(100) == 0xFE) {	/* mode 1 (switch), group 1 = 1 (high speed) */
+	if (send_cmd(CMD6, arg) == 0 && wait_token(sd_wait_ms) == 0xFE) {
 		c = sd_rx_crc(st, 64, 0);
 		got = (WORD)(SD_RX() << 8);
 		got |= SD_RX();
-		ok = got == c && (st[16] & 15) == 1;	/* bits 379:376, group 1's function now: 1 = high speed */
+		ok = got == c;
 	}
 	release_spi();
 	return ok;
+}
+
+/* 1 = the card is at high speed now. Asked first (mode 0, group 1 = 1): switched (mode 1) only when that status says group
+ * 1 supports function 1 (bit 401: byte 13 bit 1) and would switch to it (bits 379:376 = 1: byte 16); then the switch's own
+ * status says it did. Every status's CRC16 checked */
+static BYTE sd_switch_hs(void)
+{
+	BYTE st[64];
+	if (!(CardType & CT_SD2)) return 0;
+	return sd_cmd6(0x00FFFFF1UL, st) && (st[13] & 2) && (st[16] & 15) == 1 && sd_cmd6(0x80FFFFF1UL, st) &&
+	       (st[16] & 15) == 1;
 }
 
 static WORD sd_sum_bytes(WORD s, const BYTE *p, UINT n)
@@ -513,7 +530,7 @@ static BYTE sd_reg_read(BYTE cmd, BYTE *r, WORD *sum)
 {
 	BYTE res = SDK_ERR;
 	WORD c, got;
-	if (send_cmd(cmd, 0) == 0 && wait_token(100) == 0xFE) {
+	if (send_cmd(cmd, 0) == 0 && wait_token(sd_wait_ms) == 0xFE) {
 		c = sd_rx_crc(r, 16, 0);
 		got = (WORD)(SD_RX() << 8);
 		got |= SD_RX();
@@ -550,6 +567,7 @@ static BYTE sd_clk_pass(BYTE *buf, UINT n, WORD *sum)
 	BYTE reg[16], r;
 	UINT i;
 	DWORD span = sd_sectors / SD_CLK_SINGLES;
+	SD_WDT();									/* (a pass: 0.56 s at most) */
 	*sum = 0;
 	if ((r = sd_reg_read(CMD9, reg, sum)) != SDK_PASS) return r;
 	if ((r = sd_reg_read(CMD10, reg, sum)) != SDK_PASS) return r;
@@ -581,10 +599,11 @@ static BYTE sd_clk_recover(BYTE *buf, UINT n, WORD ref, BYTE *hs)
 	SD_SEL(); (void)SD_RX();
 	(void)send_cmd(CMD12, 0);
 	t0 = SD_NOW();
-	while (SD_RX() != 0xFF && sd_ms_since(t0) < 100)
+	while (SD_RX() != 0xFF && sd_ms_since(t0) < sd_wait_ms)
 		;
 	release_spi();
 	if (sd_clk_pass(buf, n, &s) == SDK_PASS && s == ref) return 1;
+	SD_WDT();									/* (the start-up again: ACMD41's 1 s at most) */
 	SD_SLOW();
 	if (sd_card_init() != 0) return 0;			/* (the floor's clock after it) */
 	*hs = sd_switch_hs();
@@ -608,12 +627,12 @@ static UINT sd_clock_probe(BYTE *buf, UINT n, BYTE force)
 		return 0;
 	}
 	if (!(CardType & CT_SD2) || !sd_sectors || SD_CLOCK_FIXED()) return 0;	/* (SDv1, MMC, bit-bang: the floor) */
+	sd_wait_ms = SD_CLK_WAIT_MS;
 	r = sd_clk_pass(buf, n, &ref);
 	sd_clk_res[SD_FLOOR] = r;
-	if (r != SDK_PASS) return 0;
+	if (r != SDK_PASS) { sd_wait_ms = 100; sd_clk_ms = sd_ms_since(t0); return 0; }
 	hs = sd_switch_hs();
-	for (k = 0; k < SD_FLOOR; k++) {
-		SD_WDT();								/* (a failing step: its timeouts, a start-up again: 1 s and more) */
+	for (k = 0; k < SD_FLOOR && sd_ms_since(t0) < SD_CLK_BUDGET_MS; k++) {
 		if (k < SD_NSTEP_HS && !hs) { sd_clk_res[k] = SDK_NOHS; continue; }
 		r = sd_clk_res[k] = sd_clk_try(buf, n, k, ref);
 		if (r == SDK_PASS) {					/* the fastest: the margin step below it */
@@ -625,8 +644,9 @@ static UINT sd_clock_probe(BYTE *buf, UINT n, BYTE force)
 			k++;								/* (that step failed: the walk on after it) */
 		}
 		bad++;
-		if (!sd_clk_recover(buf, n, ref, &hs)) break;
+		if (!sd_clk_recover(buf, n, ref, &hs) || r == SDK_ERR) break;	/* (a timeout or a refusal: the floor) */
 	}
+	sd_wait_ms = 100;
 	SD_SET_STEP(sd_step);
 	sd_clk_ms = sd_ms_since(t0);
 	return bad;

@@ -51,6 +51,8 @@ DRESULT disk_read(BYTE pdrv, BYTE *buff, LBA_t sector, UINT count)
         return RES_PARERR;
     if (sd_gone || sd_wr.state != SDW_IDLE)          /* (gone; or a recording's CMD25 open: sd_rec.c) */
         return RES_NOTRDY;
+    SD_WDT();                                        /* (a pass over the card's files holds one main loop pass: the
+                                                      * index's first, a FAT scan; a stuck card fails a call first) */
     SD_SESSION();
     r = disk_readblocks(buff, sector, count);
     SD_SESSION_END();
@@ -66,6 +68,7 @@ DRESULT disk_write(BYTE pdrv, const BYTE *buff, LBA_t sector, UINT count)
         return RES_PARERR;
     if (sd_gone || sd_wr.state != SDW_IDLE)          /* (gone; or a recording's CMD25 open: sd_rec.c) */
         return RES_NOTRDY;
+    SD_WDT();
     SD_SESSION();
     for (i = 0; i < count && r == RES_OK; i++)
         r = disk_writeblock(buff + i * 512u, sector + i);

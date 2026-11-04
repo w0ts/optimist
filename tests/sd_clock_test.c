@@ -6,7 +6,9 @@
  *   - every step reads: 30 MHz passes (CMD6 took high speed), 20 kept (the margin step below the fastest);
  *   - no high speed: 30 skipped, 20 passes, 15 kept; SDv1 and MMC: the floor, nothing tried;
  *   - reads wrong above each step in turn: that step the fastest, the next kept (the floor when that is the floor);
- *   - timeouts above 10 MHz: each step given up within its limits, the card reads at the floor after, 8.57 kept;
+ *   - timeouts above 10 MHz: the first ends the walk at the floor, the card reads there;
+ *   - the black FM-1's failure: noise past the start-up above 15 MHz: mounts at the floor; CMD6 switched only when its
+ *     status (CRC right) says high speed is supported;
  *   - zeros with a right CRC16 above 12 MHz: caught by the floor's fingerprint (SDK_DIFF);
  *   - a block in 30 wrong above 8.57 MHz: the second pass catches what the first missed; 6.67 kept;
  *   - the margin step failing alone: the walk goes on after it;
@@ -117,12 +119,27 @@ static void walks(void)
     {
         uint32_t t0 = clk;
         (void)probe("timeouts");
-        expect("timeouts", 5, 6);
-        CHECK(sd_clk_res[2] == SDK_ERR && sd_clk_res[4] == SDK_ERR, "timeouts: the steps given up as errors");
+        expect("timeouts", SD_FLOOR, SD_FLOOR);
+        CHECK(sd_clk_res[0] == SDK_ERR && sd_clk_res[1] == SDK_UNTRIED, "timeouts: the first ends the walk at the floor");
         CHECK(clk - t0 < 1000u * 1500u, "timeouts: the probe took %u ms (under 1.5 s)", (unsigned)((clk - t0) / 1000u));
         printf("sd_clock_test: the model's probe times (a byte a us): timeouts above 10 MHz %u ms\n",
                (unsigned)sd_clk_ms);
     }
+
+    fresh(1, 1, 0);                                    /* noise past the start-up above 15 MHz */
+    C.garbage_from = 3;
+    (void)probe("noise");
+    expect("noise", SD_FLOOR, SD_FLOOR);
+    CHECK(CardType && sd_clk_ms < 5500u, "noise: mounted, the probe under 5.5 s (%u ms)", (unsigned)sd_clk_ms);
+
+    fresh(1, 1, 0);                                    /* CMD6's status wrong: no switch */
+    C.cmd6_crc_bad = 1;
+    (void)probe("CMD6 CRC");
+    CHECK(!C.cmd6_switches && sd_clk_res[0] == SDK_NOHS, "CMD6's status CRC wrong: not switched, 30 skipped");
+    fresh(1, 1, 0);
+    C.no_hs = 1;
+    (void)probe("CMD6 unsupported");
+    CHECK(!C.cmd6_switches, "CMD6's status says no high speed: not switched");
 
     fresh(1, 1, 0);                                    /* zeros with a right CRC16 above 12 MHz */
     C.zero_from = 3;
