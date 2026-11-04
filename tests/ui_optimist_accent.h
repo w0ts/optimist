@@ -439,7 +439,7 @@ static void acc_walk_tests(void)
     ui.force = 1;
     frames(2);
     ppm("opt-mixer-accent");
-    check(px_in(0, mx_row_y(MXR_ACC), 240, 1, C_HI), "... the row at the foot of the lanes, framed");
+    check(px_in(0, mx_row_y(MXR_ACC) + 2u, MXL_BW, 8, mx_col(MXR_ACC)), "... the row at the foot of the lanes, its bar on the left");
     reset_ui();
 }
 static void acc_guard_tests(void)                       /* every screen, the accent lane selected: no read past the 16 sounds (ASAN builds see it) */
