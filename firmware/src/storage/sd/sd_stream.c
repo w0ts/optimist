@@ -24,7 +24,7 @@
  * card that does not send a block's token within SST_WAIT_US (busy: 100 ms and more now and then) is let go (CMD12, the
  * bus back to the screen) and asked again SST_BACKOFF_MS later: a stall never freezes the screen, the rings and the
  * heads carry the voices through it, or a voice runs dry and fades out (counted). A block whose CRC16 fails is read
- * again (sd_crc_retry: a second failure at 30 MHz drops to 20); a card that fails SST_DEAD_ERRS runs in a row is gone
+ * again (sd_crc_retry: one clock step down first, above the floor); a card that fails SST_DEAD_ERRS runs in a row is gone
  * (sd_gone, as a disk read's failure): the voices run dry and fade, nothing waits on it. A stream whose voice is no
  * longer rendered (its beat still for SST_DEAD_MS: a release's end, a steal) is taken back. */
 #include "sd_stream.h"

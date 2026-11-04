@@ -35,12 +35,14 @@
 #include <stdint.h>
 #include "fm1_gpio.h"
 #include "fm1_lcd_hw.h"
+#include "fm1_sd_clock.h"
 
 enum { FM1_SD_DUPLEX = 0, FM1_SD_DIRRX = 1, FM1_SD_BITBANG = 2 };
 #define FM1_SD_BAUD_SLOW 149u          /* 60 MHz / 150 = 400 kHz: the card's start-up (at most 400 kHz) */
 #define FM1_SD_BAUD_FAST 9u            /* 6 MHz: the floor. The first SD board (v6, 510 Ohm on CLK and MOSI, 220 on DO) reads right to
-                                        * 7.5 MHz and not from 10 (the console sd speed, 2026-11-04); the spec allows 25 */
-#define FM1_SD_BAUD_OVER 7u            /* 7.5 MHz: the faster clock the mount's probe tries (a board that reads more: raise it) */
+                                        * 7.5 MHz (the console sd speed, 2026-11-04); the spec allows 25. The faster clocks: the
+                                        * steps of fm1_sd_clock.h, tried at the mount (sd_mmc.c sd_clock_probe) */
+_Static_assert(FM1_SD_FLOOR_BAUD == FM1_SD_BAUD_FAST, "fm1_sd_clock.h: the last step is the floor");
 #define FM1_SD_CON_LCD 0x4021u         /* SPI1 as fm1_lcd_hw_init sets it */
 
 static uint8_t fm1_sd_mode = FM1_SD_DUPLEX;

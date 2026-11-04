@@ -15,11 +15,12 @@ import time
 READ_ONLY = ("status", "dbg", "boot", "crash", "help", "keys", "keylog", "bletrim", "blevm",
              "tabbench", "membench", "far",
              "sd", "sd pins", "sd pins 7", "sd pins 8", "sd pins 9", "sd pins 10",
-             "sd bench", "sd stream", "sd rec", "sd rec 5000", "sd rec stop",
+             "sd bench", "sd stream", "sd rec", "sd rec 5000", "sd rec stop", "sd diag", "sd speed",
              "wifiup", "wifiscan", "wifidata")   # (sd bench, sd rec: they read and write the
                                                      # SD card only (a bench file, a take in Optimist/Record), never the FM-1's flash)   # (sd pins: the LCD's lines held one at a
                                                      # time for a multimeter; GPIO only, nothing written)   # (far: the far probe reads a constant and calls a function past 0x93000)
                                                      # (wifiup brings the Wi-Fi side up; wifidata listens after wifijoin)
+                                                     # (sd diag, sd speed: the card started again and read, nothing written)
 FM1_VID = 0x1209                         # usb.c
 QUIET_S = 0.6                            # a reply is over after this long without a byte
 

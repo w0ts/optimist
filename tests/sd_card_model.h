@@ -18,6 +18,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include "../firmware/hal/fm1_sd_clock.h"     /* (the FM-1's clock steps: the probe walks the same table) */
 
 static uint32_t clk;                           /* the fake clock: one tick a byte, 1000 a millisecond */
 
@@ -45,7 +46,16 @@ typedef struct {
     uint32_t rsec;                             /* the next block it sends */
     uint32_t corrupt;                          /* a sector whose data comes with one byte flipped (its CRC unchanged) */
     uint32_t corrupt_once;                     /* the same, the first time it is read only (a glitch) */
-    int bad30;                                 /* every block's data wrong at the faster clock (a card that cannot) */
+    int ok_from;                               /* clock steps faster than this one (t_step < ok_from) read wrong: a byte of
+                                                * every block and register flipped (its CRC unchanged); 0 every step reads */
+    int dead_from;                             /* steps faster than this: nothing comes back (every byte 0xFF: timeouts) */
+    int zero_from;                             /* steps faster than this: the line stuck low after the token (zeros, and a
+                                                * CRC16 of zeros: right) */
+    int flaky_from, flaky_every;               /* steps faster than flaky_from: every flaky_every-th block flipped */
+    int bad_only;                              /* >0: step bad_only - 1 alone reads wrong (a resonance), the rest right */
+    int die_from;                              /* steps faster than this: the card stops answering for good (as C.present 0) */
+    int no_hs;                                 /* CMD6 answers, but the card stays at default speed */
+    long flaky_n;
     int hs;                                    /* CMD6 switched it to high speed */
     int nac_long;                              /* 1: some gaps before a token longer than a poll's tries */
     long cmd18s, cmd12s, cmd17s;
@@ -61,7 +71,7 @@ typedef struct {
     long wblocks, cmd25s, wr_misuse;           /* CMD25 blocks written, CMD25s, tokens / commands sent while busy */
 } card_t;
 static card_t C;
-static int t_over;                             /* the host's clock: 1 the faster one (SD_SET_OVER) */
+static int t_step = FM1_SD_NSTEP - 1;          /* the host's clock: a step of fm1_sd_clock.h (SD_SET_STEP), the floor last */
 
 static void q(uint8_t b) { if (C.outlen < (int)sizeof C.out) C.out[C.outlen++] = b; }
 
@@ -93,6 +103,30 @@ static uint16_t crc16(const uint8_t *p, int n)  /* the model's own (CRC16-CCITT 
     return c;
 }
 
+static int clock_bad(void)                     /* this clock reads wrong: past what the card takes, or 30 MHz without CMD6 */
+{
+    return t_step < C.ok_from || t_step == C.bad_only - 1 || (t_step < (int)FM1_SD_NSTEP_HS && !C.hs);
+}
+
+static void q_reg(const uint8_t *r16)          /* a register's data block (the CSD, the CID): its 15 bytes' CRC7 last */
+{
+    uint8_t d[16], cc = 0, b;
+    uint16_t c;
+    int n, k;
+    memcpy(d, r16, 15);
+    for (n = 0; n < 15; n++)
+        for (b = d[n], k = 0; k < 8; k++, b <<= 1) {
+            cc <<= 1;
+            if ((b ^ cc) & 0x80) cc ^= 0x09;
+        }
+    d[15] = (uint8_t)(cc << 1 | 1);
+    c = crc16(d, 16);
+    if (clock_bad()) d[3] ^= 0x20;
+    q(0); q(0xFF); q(0xFE);
+    for (n = 0; n < 16; n++) q(d[n]);
+    q((uint8_t)(c >> 8)); q((uint8_t)c);
+}
+
 static void q_block(uint32_t s, int gap)       /* gap 0xFF bytes, the token, the data, its CRC */
 {
     uint8_t scratch[512], d[512];
@@ -100,7 +134,9 @@ static void q_block(uint32_t s, int gap)       /* gap 0xFF bytes, the token, the
     int i;
     memcpy(d, sector_ptr(s, scratch), 512);
     c = crc16(d, 512);
-    if (s == C.corrupt || (t_over && C.bad30)) d[100] ^= 0x10;
+    if (s == C.corrupt || clock_bad()) d[100] ^= 0x10;
+    if (t_step < C.flaky_from && C.flaky_every && ++C.flaky_n % C.flaky_every == 0) d[300] ^= 0x04;
+    if (t_step < C.zero_from) memset(d, 0, 512), c = 0;
     if (s == C.corrupt_once) d[200] ^= 0x01, C.corrupt_once = 0xFFFFFFFFu;
     while (gap--) q(0xFF);
     q(0xFE);
@@ -168,8 +204,8 @@ static void command(void)
         uint16_t c;
         if (!C.v2 || C.mmc || C.idle) { q(0x05); return; }
         memset(st, 0, 64);
-        C.hs = (arg >> 31) && (arg & 15u) == 1u;
-        st[16] = (uint8_t)(arg & 15u);         /* bits 379:376: group 1's function now */
+        C.hs = !C.no_hs && (arg >> 31) && (arg & 15u) == 1u;
+        st[16] = (uint8_t)(C.no_hs ? 0u : arg & 15u);   /* bits 379:376: group 1's function now */
         c = crc16(st, 64);
         q(0); q(0xFF); q(0xFE);
         for (i = 0; i < 64; i++) q(st[i]);
@@ -203,10 +239,14 @@ static void command(void)
         q(arg == 512 ? 0 : 0x40);
         return;
     case 9:
-        q(0); q(0xFF); q(0xFE); csd(c16);
-        for (i = 0; i < 16; i++) q(c16[i]);
-        q(0); q(0);
+        csd(c16);
+        q_reg(c16);
         return;
+    case 10: {                                 /* the CID: a SanDisk-like one */
+        static const uint8_t cid[16] = {0x03, 'S', 'D', 'S', 'C', '1', '6', 'G', 0x80, 0x12, 0x34, 0x56, 0x78, 0x01, 0x5A, 0};
+        q_reg(cid);
+        return;
+    }
     case 12:
         C.rs = 0;
         C.cmd12s++;
@@ -249,6 +289,10 @@ static uint8_t xchg(uint8_t in)
         if (in != 0xFF) C.lcd_bad++;
         return 0xFF;
     }
+    if (t_step < C.die_from)                   /* the card gone at this clock (a crash: nothing brings it back) */
+        C.present = 0;
+    if (!C.present || t_step < C.dead_from)   /* too fast for the line: the card hears nothing, says nothing */
+        return 0xFF;
     if (clk < C.busy_until && C.outpos >= C.outlen) {   /* a write's busy: DO low; anything sent but 0xFF is misuse */
         if (in != 0xFF) C.wr_misuse++;
         return 0x00;
@@ -392,7 +436,12 @@ static void rx_block(uint8_t *p, unsigned n)
 #define SD_SEL() (C.selected = 1)
 #define SD_DESEL() (C.selected = 0, C.cmdlen = 0, C.outlen = C.outpos = 0, C.rs = C.rs == 2 ? 0 : C.rs)
 #define SD_FAST() ((void)0)
-#define SD_SET_OVER(on) (t_over = (on))
+#define SD_SLOW() ((void)0)
+#define SD_NSTEP FM1_SD_NSTEP
+#define SD_NSTEP_HS FM1_SD_NSTEP_HS
+#define SD_SET_STEP(k) (t_step = (int)(k))
+#define SD_STEP_KHZ(k) FM1_SD_STEP_KHZ(k)
+#define SD_CLOCK_FIXED() 0
 #define SD_NOW() clk
 #define SD_TICKS_MS 1000u
 
@@ -421,7 +470,7 @@ static void card(uint8_t *img, uint32_t sectors, uint32_t base, int v2, int hc, 
     C.present = 1; C.v2 = v2; C.hc = hc; C.mmc = mmc;
     C.acmd41_busy = 20;
     C.corrupt = C.corrupt_once = 0xFFFFFFFFu;
-    t_over = 0;
+    t_step = FM1_SD_NSTEP - 1;
 }
 
 
@@ -442,5 +491,5 @@ static void card_power_on(void)                /* the power back after a cut: a 
     C.idle = 1;
     C.cmdlen = C.outlen = C.outpos = 0;
     C.acmd41_busy = 20;
-    t_over = 0;
+    t_step = FM1_SD_NSTEP - 1;
 }
