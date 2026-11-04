@@ -569,14 +569,19 @@ the SD card zip unzipped at its root (section 9); there is no layout of before t
   Presets/User/<Engine>/<L>/<nn> - <name>.ops      the presets saved on the FM-1, in their engine's banks
   Samples/                    samples, in any sub-folders the user makes; WAV (16-bit mono by default, the M8's
                               speed advice); loop points and slice markers inside the WAV (as the M8 does)
-    <Set>/z0.wav ..           the sample sets (Piano, Bass, Vibes, Horns, Strgs, Flute, Scrch: the zip's)
-  Kits/Factory/<L>/<nn> - <name>.opk   every factory kit (the zip's): 16 a bank in the kit list's order
-  Kits/User/<L>/<nn> - <name>.opk      the kits saved on the FM-1, in banks of 16 as the presets
+    <Set>/z0.wav ..           the sample sets (Piano, Bass, Vibes, Horns, Strgs, Flute, Scrch: the zip's), each zone
+                              from its source at the source's rate (Piano, Flute 44.1 kHz; the others 22.05 kHz)
+    Kits/Acoustic/<nn> - <name>.wav   the sampled kits' 16 sounds (01 - kick .. 16 - wood block), 44.1 kHz
+    X0X/909/hh.wav crash.wav ride.wav  the X0X 909's hats and cymbals, 44.1 kHz
+    Hiphop/<Sound>/<file>.wav  the hip-hop pack (Bass, Horns, Scratch, Strings, Upright, Vibes), 22.05 kHz
+  Kits/Factory/<L>/<nn> - <name> (<instruments>).opk   every factory kit (the zip's): 16 a bank in the kit list's
+                              order, its drum instruments named (909, 808, synth, kawa, plaits, sampled)
+  Kits/User/<L>/<nn> - <name> (<instruments>).opk      the kits saved on the FM-1, in banks of 16 as the presets
   Record/rec-0001.wav         recordings (a new file each, the first free number)
   Renders/                    song / stem renders
   Backup/settings.opd         the settings backup (SYSTEM > SETTINGS); whole-device backups later
-  System/index.bin            the sample index: path, size, date -> hash (rebuilt for files whose size or date
-                              changed: hashing every sample at each mount would be slow)
+  System/index.bin            the index: a sample's path, size, date -> hash (rebuilt for files whose size or date
+                              changed: hashing every sample at each mount would be slow); a preset's or kit's -> its id
 ```
 
 - **Names.** A name typed on the FM-1 (upper case, the NAME page) is written lowercase (`sd_layout.c sdl_lower`); a
@@ -603,6 +608,69 @@ the SD card zip unzipped at its root (section 9); there is no layout of before t
   when free, else the bank's lowest free number; none: BANK FULL (NAME stays). A project saved again by its name goes
   back to its own place (`sdm_work`, "B/03 - p18"). A preset goes into its engine's User folder, the bank's letter the
   one shown.
+
+### Every sample on the card, the drums from it, ids (2026-11-04)
+
+The user's rulings: "the xox samples etc should also be on the sd card, in highest resolution we have", "the drum kits
+samples as well", "Highest for all now"; a kit's file names its instruments; "like samples, kits and presets should
+have a unique id so that if they are moved a project finds them back", "the ids should be the same for the factory
+presets for all devices".
+
+- **The samples** (`tools/sd_samples.py`, in the zip whatever the builder's ticks, no space limit): every sample source
+  of the repo at its own rate, **16-bit mono**. The streams read 16-bit and mix a stereo frame to mono anyway
+  (`sd_stream.h sst_frame`), so a stereo or 24-bit source (FLUTE: 44.1 kHz 24-bit stereo; the CC0 kit's tambourine,
+  shaker, conga, claves, wood block: stereo; the 909's hat: 24-bit) becomes 16-bit mono: half the bus and the card's RAM
+  for the same sound, nothing the FM-1 could play lost. A set's zone is the flash zone's processing (`gen_samples.py
+  cc0_entries card=True`: its onset trim, PIANO's steady loop, FLUTE's crossfaded sustain loop, the one-shots' end
+  fade, the level), never ADPCM-coded, resampled or cut short: its length the source's from its onset. A kit sound is
+  the flash kit's processing at the source's rate and to the source's end (the kick's and toms' damped body, the
+  balance, a 30 ms end fade). The 909's three and the hip-hop pack are the sources' own samples, their roots and keys
+  added (smpl, inst).
+- **The streams at 44.1 kHz** (`tests/sd_stream_bus_test.c`, the card model with the screen's strips, SD_RING 4: a
+  4 KB ring is 46 ms of 44.1 kHz 16-bit mono, a 50 ms head 4,412 B): a voice reads 88.2 KB/s at its pitch, twice an
+  octave up. Voices with none dry: 8 at 1.9 MB/s (20 MHz by DMA), 7 at 937 KB/s, 6 at 733 KB/s (the measured 7.5 MHz).
+  Over the bus a voice whose ring runs dry fades out over 1.5 ms and is counted (`sst_dry`, the console's `sd stream`),
+  its stream given back: at 733 KB/s 8 voices at once lose 3 and the other 5 play to their end; the next notes play
+  again (never garbage, never a hang). GRAIN on a 44.1 kHz set (PIANO, FLUTE) spreads its grains over twice the bytes,
+  more than its 32 KB cache holds: some grains are skipped (counted late / missed, no click; `tests/sd_grain_test.c`).
+- **The drums from the card** (SD card mode: the builder sets `FELUCCA_KITS_CARD`, and `FELUCCA_X909_CARD` with the
+  909, `core.py flags`): the five sampled kits (ACOUSTIC, DEEP, TIGHT, BRIGHT, DUST, kit UIDs 0..4) are kits of every
+  SD card mode build whatever KIT_* say, and play `Samples/Kits/Acoustic/` (`drums/kit_card.c`: a GM note -> its file
+  and root, the flash kit's map; the kit's treatment and the lane's TUNE / DECAY / CUT / LEVEL as before) through the
+  lanes' card streams (`lane_card.c dlc_go`); the 909's hats, crash and ride play `Samples/X0X/909/` through a stream
+  each voice (`drums/x0x/x0x_card.c`, read from drum909.c by integers only). The plan (`sd_stream_plan.c`) places only
+  the files the lanes play (`kc_want`, `x9c_want`), by path, their heads at most 25 ms (`SST_KIT_PRE_MS`), 3 rings for
+  the kit's hits and 2 for the 909's (of the 8). A file not on the card: that hit silent, "KIT SAMPLES MISSING" /
+  "909 SAMPLES MISSING" once (`sd_mode.c sdm_kit_tick`). Synthesised kits stay synthesised. sd-card-mots: 803,812 B of
+  flash (817,688 before: 13,876 B less, the 909's 6-bit hats out of the flash), SRAM +2,192 B (the 32 sources).
+- **A kit's file name** (`drum_kits.c ukit_card_instr`): `<nn> - <name> (<instruments>).opk`, the instruments its
+  lanes name, in the order 909, 808, synth (the 32 synthesised kits), kawa, plaits, sampled (the sampled kits, a USR or
+  CARD sample): the family of each lane's source by its UID, whatever the build has of it (a stand-in is not named);
+  the factory kits' (`tools/sd_factory.c`) and a kit saved on the FM-1 the same way. The FM-1 shows the name only, the
+  part before " (" (`sdm_strip`; a 5-letter tile has no room for more), and finds and loads a kit whatever the
+  parentheses say (renamed on a computer too). Saved over its name with other instruments: the old file goes.
+- **Ids** (`storage/sd/sd_ids.h`): every .ops / .opk file's header (version 2, `sd_mode.c sdm_fh`, 24 bytes) carries
+  a 64-bit id. A **factory** id is XXH64 of "OPID", the kind, the engine's UID and the preset's name (its nth of that
+  name in the engine's list when it repeats), or the kit's UID: the same on every machine and every zip
+  (`tests/sd_zip_test.py` recomputes each by a second XXH64 and builds the zip again elsewhere); its bank slot, a
+  device, a time, a path never enter it. What changes it: the preset's name or its engine's UID (a kit: its UID); its
+  values retuned keep it. A **user** id (bit 63 set) is made at the first save: 31 bits of the FM-1's flash part's
+  factory unique ID's hash (one a chip: two FM-1s never share it), the device record's 16-bit count, 16 bits of the
+  milliseconds; saved over by its name it is kept, a save as another name gets a new one. The index (`sd_index.c`)
+  holds every .ops under Presets/ and .opk under Kits/ with its id (`SDX_F_ID`), the same pass, the same kept-when-
+  unchanged rule. A project keeps each part's preset and its kit by id and path (the SEC_ID_SDSMP record, after the
+  samples): at its load the path first, then the id (`sdx_find_id`): found elsewhere, the path updated (on the card at
+  the project's next save); a copied file: the first found, "SAME ID TWICE" said; gone: "P1 PRESET MISSING" /
+  "KIT MISSING".
+- **make sdcard** (`tools/sd_card.py`, `tools/sd_card_volumes.py`): prepares a mounted card from the zip's content.
+  No CARD: it lists the mounted removable FAT volumes (macOS diskutil, Linux lsblk or /proc/mounts, Windows drive
+  letters) with size, free space and whether they have Optimist/, the last five used first (build/sdcard-last.json,
+  a card known by its volume UUID under any mount name; Enter takes the last, q or 0 cancels; another folder can be
+  typed), shows "card X: N files to add, M to replace, K factory files to remove; user content kept" and asks
+  "Go? [y/N]" (`--yes` skips it; no terminal and no CARD: refused). CARD= / `--card` must be a mounted FAT volume's
+  root, never /, the home or the repo. The factory trees (Presets/Factory, Kits/Factory, the factory sample folders,
+  readme.txt) are mirrored; everything else is the user's and is never written or removed; the FM-1's folders made when
+  missing; plain writes (a ._ twin of a written file removed), os.sync, "eject in Finder". The user runs it.
 
 ### How it works
 
