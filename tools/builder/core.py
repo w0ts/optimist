@@ -528,7 +528,7 @@ def flags(cfg):
     if not built(cfg, "DRUM_SAMPLED") or not any(cfg[k] for k in R.ITEMS if k.startswith("KIT_")):
         out["FELUCCA_DRUM_SAMPLED"] = 0
     card = card_sets(cfg)                           # (SD card mode: every set on the card, none in the image)
-    if card:                                        # (and the drums' samples: the sampled kits, the 909's hats and
+    if card_drums(cfg):                             # (and the drums' samples: the sampled kits, the 909's hats and
         out["FELUCCA_KITS_CARD"] = 1                # cymbals, whatever their ticks: registry.h KITS_CARD, X909_CARD)
         if out.get("FELUCCA_DRUM_X909"):
             out.update(FELUCCA_X909_CARD=1, FELUCCA_X909_CYM=0, FELUCCA_X909_HAT=0)
@@ -600,9 +600,18 @@ def header(cfg, name="custom"):
          "#pragma once", f'#define FELUCCA_CFG_NAME "{name}"', f"#define FELUCCA_CFG_HASH {cfg_hash(cfg)}u",
          "#define FELUCCA_CFG_BITS {" + ", ".join(map(str, cfg_bits(cfg))) + "}"]
     target = {R.ITEMS[k].flag for k in R.ITEMS if R.ITEMS[k].target_only} | {"FELUCCA_LINK"} | set(R.ALWAYS_ON_TARGET)
+    # the drums' samples on the card (card_drums) are the target's: the host builds have no card (SDCARD, SD_RING are
+    # target-only above), so there they keep the samples as the flash would (the configuration without the card's
+    # streams), else the 909 read a card nothing compiled for the host (kits_sound_test did not link, 2026-11-04)
+    host = flags(dict(cfg, SD_RING=0))[0] if card_drums(cfg) else f
     for k in sorted(f):
         suffix = "u" if k in ("FELUCCA_DLY_LEN", "FELUCCA_PUNCH_N", "FELUCCA_SL_LEN", "LCD_BAUD") else ""
         body = [f"#ifndef {k}", f"#define {k} {f[k]}{suffix}", "#endif"]
+        hv = host.get(k, 0)                             # (a switch only the card's build sets: 0 on the host)
+        if k not in target and hv != f[k]:
+            L += ["#ifdef __PI32V2__"] + body + ["#else", f"#ifndef {k}", f"#define {k} {hv}{suffix}", "#endif",
+                                                  "#endif"]
+            continue
         L += (["#ifdef __PI32V2__"] + body + ["#endif"]) if k in target else body
     return "\n".join(L) + "\n"
 
@@ -950,11 +959,29 @@ def set_keys():
     return [k for k in R.ITEMS if k.startswith("SET_")]
 
 
+def card_drum_keys():
+    """the drum samples SD card mode plays from the card, never from the flash (flags(): FELUCCA_KITS_CARD, X909_CARD;
+    the user, 2026-11-04: "drum samples, xox samples should be on sdcard and not in flash"): the sampled kits (the PERC
+    set) and the X0X 909's hats and cymbals"""
+    return ["DRUM_SAMPLED", "X909_CYM", "X909_HAT"] + [k for k in R.ITEMS if k.startswith("KIT_")]
+
+
+def card_drums(cfg):
+    """the drums' samples play from the card (registry.h KITS_CARD and X909_CARD need the card's streams: SD_LANES =
+    SD_STREAM (full FatFs, SD_RING, SAMPLE, ARENA) and DRUMS): SD card mode with the streams. Without them the drum
+    samples stay in the flash (a 909 asked to read the card with no stream there did not link: x0x_drums.c's
+    X0X_909_CARD against x0x_card.c's X909_CARD, 2026-11-04)"""
+    return (card_sets(cfg) and bool(cfg.get("SD_RING", 0)) and built(cfg, "ENG_SAMPLE") and cfg.get("ARENA", 0) > 0
+            and built(cfg, "DRUMS"))
+
+
 def image_cfg(cfg):
-    """-> cfg as the image is built: in SD card mode every set off (card_sets: they are on the card), else cfg itself"""
+    """-> cfg as the image is built: in SD card mode every set off and, with the card's streams, every drum sample off
+    (card_sets, card_drums, card_drum_keys: they are on the card, 0 B of flash), else cfg itself"""
     if not card_sets(cfg):
         return cfg
-    return dict(cfg, **{k: 0 for k in set_keys()})
+    off = set_keys() + (card_drum_keys() if card_drums(cfg) else [])
+    return dict(cfg, **{k: 0 for k in off if k in R.ITEMS})
 
 
 def sd_mode(cfg):
