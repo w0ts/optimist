@@ -103,6 +103,15 @@ static void settle(uint32_t n)
 static uint32_t bta_k(void) { return ARB_K(ARB_BTA); }
 /* the memory line's width (op_draw.c memline_px of op_project.c info_ram_pct: ram_fill's used = ARN_BYTES - arn_room(),
  * of ARN_BYTES + ARN_UNDO_KEEP), 240 px = 100 % */
+/* the arena's bytes the features hold now (their blocks placed; given back, free) */
+static uint32_t fmem_held(void)
+{
+    uint32_t f, n = 0;
+    for (f = 0; f < FMEM_N; f++)
+        if (FMEM[f].k != FMEM_NO_K && arn_cur[FMEM[f].k].len)
+            n += arn_cur[FMEM[f].k].len;
+    return n;
+}
 static uint32_t ml_px(void)
 {
     uint32_t total = ARN_BYTES + ARN_UNDO_KEEP, used = ARN_BYTES - arn_room(), pct = used * 100u / total;
@@ -242,7 +251,7 @@ int main(void)
     settle(8);
     CHECK(!bta_ptr() && !rb.p && !opt_bta_lent && arb_st[ARB_BTA] == FXM_NONE && arn_room() == room0 && rb.takes == 1u,
           "... then given back (the arena's room as before)");
-    CHECK(fmem_held() == 0u, "... the features hold nothing (INFO's RAM USE: R0)");
+    CHECK(fmem_held() == 0u, "... the features hold nothing");
     CHECK(blk && POISONED(blk) && POISONED(blk + RB_BYTES - 1u), "... and poisoned (ASan %s): the radio may not touch it",
           HAVE_ASAN ? "on" : "off: not checked");
     CHECK(same_output(256, 0, &h), "the output with nothing switched: the same in two runs (the comparison's premise)");
