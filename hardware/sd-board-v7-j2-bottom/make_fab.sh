@@ -14,7 +14,7 @@ kicad-cli sch export netlist --format kicadxml -o fab/sd-board.net.xml sd-board.
 "$KP" check_nets.py fab/sd-board.net.xml sd-board.kicad_pcb 2>&1 | grep -v "wxApp\|stdpbase"
 kicad-cli sch export pdf -o sd-board-schematic.pdf sd-board.kicad_sch >/dev/null 2>&1
 rm -rf fab/gerbers && mkdir -p fab/gerbers
-kicad-cli pcb export gerbers --layers F.Cu,B.Cu,F.Mask,B.Mask,F.Paste,F.Silkscreen,B.Silkscreen,Edge.Cuts \
+kicad-cli pcb export gerbers --layers F.Cu,B.Cu,F.Mask,B.Mask,F.Paste,B.Paste,F.Silkscreen,B.Silkscreen,Edge.Cuts \
     --no-protel-ext --use-drill-file-origin -o fab/gerbers/ sd-board.kicad_pcb >/dev/null
 kicad-cli pcb export drill --format excellon --excellon-separate-th --drill-origin plot -o fab/gerbers/ sd-board.kicad_pcb >/dev/null
 (cd fab/gerbers && zip -q -r ../sd-board-gerbers.zip .)
