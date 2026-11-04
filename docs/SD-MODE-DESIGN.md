@@ -421,8 +421,8 @@ fragmentation", "arena first, undo gets the rest", "never a drop-out while it pl
 - **SYSTEM > INFO's RAM bar** (op_project.c `info_ram`): drawn as the CPU bars, RAM with the used / total KB; the arena's
   blocks in use the fill, the undo history's share a dimmer segment after it, the rest free; the bright tick the last
   ~10 s's most in use, the dim one the most since boot (system/overload.h's RAM ring, sampled with the CPU's). Without an
-  arena the SRAM in use at link. The stacks: the label amber and STACK LOW when one has had under 1 KB left. Its line
-  ARENA MOVE: the longest move / the longest interrupts-off window (us).
+  arena the SRAM in use at link. The stacks: the label amber and STACK LOW when one has had under 1 KB left. The page has four lines (CPU0, CPU1, RAM,
+  UNDERRUNS); the moves' times (`arn_probe`) are on SYSTEM > TOP and in the console, not on INFO (2026-11-04).
 - **The stress test** (`tests/arena_frag_test.c` on gpufarm: the jam profile's engines, sends and inserts, `DLY_ARENA` 64;
   20,000 random steps with step edits and undos, 3 seeds summed; fm1-next 1451bf56 against this; at 64 KB the delay's
   line 8192 samples in both). 103,680 B and 104,704 B are the arena the jam profile (crashhist) and sd-card-mots get on

@@ -428,8 +428,6 @@ enum { SI_NONE, SI_TUNE, SI_RECQ, SI_PUNCH, SI_OUT, SI_SYNC, SI_CH1, SI_CH2,
        SI_WFMODE, SI_WFNET, SI_WFSIG, SI_WFST,           /* SYSTEM > WI-FI (op_wifi.c): MODE, NETWORK, SIGNAL, STATE */
        SI_RAM,                                          /* INFO: the SRAM free at link, the stacks' least room left (stackmark.h) */
        SI_UHMODE, SI_UHDEV,                             /* SYSTEM > USB (USB_HOST, the release): MODE DEVICE / HOST, DEVICE */
-       SI_ARN,                                          /* INFO: the arena's longest move and interrupts-off window (us) */
-       SI_RAMUSE,                                       /* INFO: the arena's use, parts / features / free (core/feat_mem.c) */
        SI_DUALT,                                        /* SYSTEM > CPU TIMES: the dual render's times (SYS_DEBUG, the second core) */
        SI_BTSTAT,                                       /* SYSTEM > BT STATS: the Bluetooth audio stream's counters (SYS_DEBUG) */
        SI_TOP,                                          /* SYSTEM > TOP: what takes the CPU and the RAM (SYS_TOP: op_top.c) */
@@ -889,38 +887,9 @@ static void sys_it_cell(uint32_t it, cell_t *c)     /* the cell of setting it */
         info_bar(c, OVL_CPU0, now);
         break;
     }
-#if PART_DROPS
-    case SI_ARN: {                                      /* the arena's moves (core/arena.c arn_probe): the longest, start to
-                                                         * swap, and the longest interrupts-off window of one (us; 0/0: none) */
-        uint32_t n;
-        sys_ro(c, "MOVE");                              /* (the big font: "MOVE 1234/56 us", the longest move / its interrupts-off window) */
-        fmt_int(c->val, (int32_t)(arn_probe.max_us > 99999u ? 99999u : arn_probe.max_us));
-        n = str_len(c->val);
-        c->val[n] = '/';
-        fmt_int(c->val + n + 1u, (int32_t)(arn_probe.off_us > 9999u ? 9999u : arn_probe.off_us));
-        c->unit = "us";
-        break;
-    }
-#endif
     case SI_RAM:
         info_ram(c);
         break;
-#if FMEM_ANY
-    case SI_RAMUSE: {                                   /* where the arena's RAM is: "61/18/22" KB (parts and effects, the
-                                                         * features' blocks: the radios', free), the memory line's split */
-        uint32_t fr = arn_room(), fe = fmem_held(), pa = ARN_BYTES - fr > fe ? ARN_BYTES - fr - fe : 0u, n;
-        sys_ro(c, "ARENA");                             /* (the user, 2026-11-03: the big font: "ARENA 61/18/22 KB", parts / features / free) */
-        fmt_int(c->val, (int32_t)(pa / 1024u));
-        n = str_len(c->val);
-        c->val[n++] = '/';
-        fmt_int(c->val + n, (int32_t)fmem_kb(fe));
-        n = str_len(c->val);
-        c->val[n++] = '/';
-        fmt_int(c->val + n, (int32_t)(fr / 1024u));
-        c->unit = "KB";
-        break;
-    }
-#endif
 #if FELUCCA_SYS_DEBUG
     case SI_DROPS: {                                    /* late halves (gaps in the sound) since boot or the last clear */
         uint32_t n = ovl_drops();
@@ -1520,11 +1489,11 @@ static void sys_rst_cell(cell_t *c)
  *   INTERNALS (page 1): LAST RESET, the longest flash interrupts-off time, the second core's internals (DUAL builds)
  *   USB STATS (page 2, USB audio builds): the USB audio counters */
 #if FELUCCA_SYS_DEBUG
-#define INFO_BASE (5u + (uint32_t)FELUCCA_CPU_GUARD + (uint32_t)PART_DROPS + (uint32_t)FMEM_ANY)   /* (no CLOCK line since 2026-11-01:
+#define INFO_BASE (5u + (uint32_t)FELUCCA_CPU_GUARD)   /* (no CLOCK line since 2026-11-01:
                                                          * the clock is fixed; cpu_khz stays in the console and the CPU guard) */
 #else
-#define INFO_BASE (3u + (uint32_t)DUAL_LOAD + (uint32_t)PART_DROPS + (uint32_t)FMEM_ANY)   /* (without the debug pages: CPU LOAD (CPU0, CPU1),
-                                                         * RAM, ARENA MOVE with an arena, UNDERRUNS) */
+#define INFO_BASE (3u + (uint32_t)DUAL_LOAD)   /* (without the debug pages: CPU LOAD (CPU0, CPU1),
+                                                         * RAM, UNDERRUNS) */
 #endif
 #define INFO_N INFO_BASE                                /* INFO's lines */
 #ifndef FELUCCA_STOCK_SUPPLY
@@ -1536,12 +1505,6 @@ static void sys_info_cell(uint32_t i, cell_t *c)        /* INFO's line i */
 {
 #if FELUCCA_SYS_DEBUG
     static const uint8_t INFO[INFO_BASE] = {SI_CPU, SI_CPU1, SI_RAM,
-#if FMEM_ANY
-                                            SI_RAMUSE,
-#endif
-#if PART_DROPS
-                                            SI_ARN,
-#endif
                                             SI_DROPS, SI_XRUN
 #if FELUCCA_CPU_GUARD
                                             , SI_GUARD
@@ -1553,12 +1516,6 @@ static void sys_info_cell(uint32_t i, cell_t *c)        /* INFO's line i */
                                             SI_CPU1,    /* (both cores' load: the user, 2026-10-18) */
 #endif
                                             SI_RAM,     /* (the user, 2026-10-28) */
-#if FMEM_ANY
-                                            SI_RAMUSE,  /* (where it is: parts, radios, free; the user, 2026-10-30) */
-#endif
-#if PART_DROPS
-                                            SI_ARN,     /* (the arena's moves: the FM-1's copy speed, 2026-10-29) */
-#endif
                                             SI_XRUN};   /* (what a player wants, the user 2026-10-17; the battery is the header's, 2026-10-29) */
 #endif
     sys_it_cell(INFO[i % INFO_N], c);
