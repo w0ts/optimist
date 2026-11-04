@@ -34,7 +34,7 @@
  * The DRUMS' card sounds (SD card mode: registry.h KITS_CARD, X909_CARD): the sampled kits' sounds the lanes play
  * (SST_KIT_WANT(): a mask of drums/kit_card.c KC_FILE, Optimist/Samples/Kits/Acoustic/<nn> - <name>.wav) and the 909's
  * hh, crash, ride (SST_X9_WANT(), Samples/X0X/909/), found by path as a set's zones, their heads at most SST_KIT_PRE_MS
- * (a hit starts at once from it, the ring follows), SST_KIT_RINGS rings for the kit's hits and SST_X9_RINGS for the
+ * (a hit starts at once from it, the ring follows), SST_KIT_RINGS rings (no room: fewer, down to SST_KIT_RINGS_MIN) for the kit's hits and SST_X9_RINGS for the
  * 909's; sst_kit_src / sst_x9_src (sd_stream.h) point the drums at them. One not on the card: kmiss / x9miss (sd_mode.c
  * says MISSING once), that sound silent.
  * A part on GRAIN or STRETCH with SRC CARD (SST_PART_FREE(p); the user, 2026-11-05): its own WAV, by its hash as a CARD
@@ -76,7 +76,12 @@
 #define SST_KIT_PRE_MS 25u                           /* a drum sound's head at most: a hit starts from it */
 #endif
 #ifndef SST_KIT_RINGS
-#define SST_KIT_RINGS 3u                             /* the kit's hits at once (a 4th takes the oldest's voice or is silent) */
+#define SST_KIT_RINGS 6u                             /* the kit's hits at once: a ring a drum voice (drums.c NDRUM); no room for them,
+                                                      * down to SST_KIT_RINGS_MIN (sst_place_rings). More hits: the oldest tail's
+                                                      * ring (drums/lane_card.c dlc_ring_free) */
+#endif
+#ifndef SST_KIT_RINGS_MIN
+#define SST_KIT_RINGS_MIN 3u
 #endif
 #ifndef SST_X9_RINGS
 #define SST_X9_RINGS 2u                              /* the 909's hat and a cymbal at once */
@@ -122,7 +127,7 @@ static struct {
     uint64_t hash[SST_NSRC];
     uint8_t use[SST_NSRC];                           /* SSTU_STREAM: a slot streams it, SSTU_SLICE: a SLICE part's */
     uint8_t zb[SST_NSRC], zz[SST_NSRC];              /* a card set's zone: its set + 1 and zone (zb 0: by hash) */
-    uint8_t nsrc, nring, slc;                        /* slc: the slots on SLICE CARD when placed (sst_slicers) */
+    uint8_t nsrc, nring, nring_want, slc;                        /* slc: the slots on SLICE CARD when placed (sst_slicers) */
     uint8_t rc;                                      /* the parts given a cache when placed (sst_rcs_of), a mask */
 } sstp IN_POOL;
 enum { SSTU_STREAM = 1, SSTU_SLICE = 2, SSTU_RAND = 4, SSTU_KIT = 8 };   /* (RAND: a cache's part reads it, no head for
@@ -165,8 +170,8 @@ static uint32_t sst_slicers(void)                    /* the parts on SLICE with 
     return m;
 }
 
-static uint32_t sst_nring(void)                      /* the rings the CARD parts (SST_PART_RINGS each at most) and the card
-                                                      * lanes can use at once */
+static uint32_t sst_nring_kit(uint32_t kit)          /* the rings the CARD parts (SST_PART_RINGS each at most), the card lanes
+                                                      * and kit for the kit's hits can use at once */
 {
     uint32_t p, n = 0;
     uint32_t sl = sst_slicers();
@@ -175,10 +180,11 @@ static uint32_t sst_nring(void)                      /* the rings the CARD parts
             continue;                                /* (read through its cache, no ring) */
         else if ((sst_part_hash[p] || (p < SST_NPART && sst_part_bank[p] && !(sst_part_rnd >> p & 1u))) && !((sl >> p) & 1u))
             n += p < SST_NPART ? (SST_PART_VOICES(p) < SST_PART_RINGS ? SST_PART_VOICES(p) : SST_PART_RINGS) : 1u;
-    n += sst_kit_want ? SST_KIT_RINGS : 0u;
+    n += sst_kit_want ? kit : 0u;
     n += sst_x9_want ? SST_X9_RINGS : 0u;
     return n < SST_N ? n : SST_N;
 }
+static uint32_t sst_nring(void) { return sst_nring_kit(SST_KIT_RINGS); }
 
 static void sst_part_set(uint32_t part, uint64_t hash)   /* (part: a slot, SST_NPART + lane a card lane) */
 {
@@ -611,6 +617,15 @@ static void sst_free_pick(void)
     }
 }
 
+static void sst_place_rings(void)                    /* no room for the kit's rings: fewer, down to SST_KIT_RINGS_MIN's count */
+{
+    uint32_t low = sst_nring_kit(SST_KIT_RINGS_MIN);
+    while (sstp.nring > low && !arn_fits(SST_ARN_K, sstp.need, 0)) {
+        sstp.nring--;
+        sstp.need = sst_need(sst_pre_ms);
+    }
+}
+
 static int sst_place(void)                           /* 0 placed (or nothing to place), -1 refused */
 {
     uint8_t *mem = 0;
@@ -662,7 +677,7 @@ static void sst_plan_poll(void)
         sstp.dirty = 1;                              /* (a part went on or off a card set, or to another one) */
     if ((sstp.state == SSTP_PLACED || sstp.state == SSTP_REFUSED) && sst_slicers() != sstp.slc)
         sstp.dirty = 1;                              /* (a part went on or off SLICE CARD: whole, or streamed) */
-    if (sstp.state == SSTP_PLACED && sst_nring() != sstp.nring)
+    if (sstp.state == SSTP_PLACED && sst_nring() != sstp.nring_want)
         sstp.dirty = 1;                              /* (a CARD part's voices changed: its rings) */
     if (sstp.dirty) {
         sstp.dirty = 0;
@@ -683,10 +698,11 @@ static void sst_plan_poll(void)
         arn_give(SST_ARN_K);                         /* (no voice reads it: gated two halves ago) */
         fm1_irq_on();
         sst_lookup();
-        sstp.nring = (uint8_t)sst_nring();
+        sstp.nring = sstp.nring_want = (uint8_t)sst_nring();
         sstp.rc = (uint8_t)sst_rcs_of();
         sst_free_pick();
         sstp.need = sst_need(sst_pre_ms);
+        sst_place_rings();
         sstp.kb = sstp.nsrc ? (sstp.need - sstp.nring * SST_K * 512u - sst_cache_bytes(sstp.rc) - sst_slice_need() + 1023u) / 1024u : 0u;
         (void)sst_place();
         return;

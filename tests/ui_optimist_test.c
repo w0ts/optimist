@@ -44,6 +44,7 @@ static uint32_t band_y = 240u, band_h, band_hits;               /* the help band
 static uint32_t gl_info_wide(void);                     /* op_gldraw.c: SYSTEM > INFO's first page has no help band: its rows run to the foot */
 static uint32_t probe_hits;                             /* the blits that cover the probe pixel (120, 180): inside PRESETS' popup, a flash when more than one a frame */
 static uint32_t blit_n;                                 /* the blits (strips) sent (CANVAS_BENCH) */
+static uint32_t fill_n, fill_px;                        /* the fills, their pixels (ui_optimist_buscost.h) */
 static uint32_t blit_px;                                /* the pixels sent (ui_optimist_slowframe.h: a step press sends its column) */
 /* the memory line's rows (0-1, ui_optimist_memline.h): while top_on, every pixel any write puts there is held against top_want
  * (the line as it must stay, swapped as the screen holds it); top_bad counts the writes that put another colour there, a
@@ -224,6 +225,8 @@ static void lcd_fill(uint32_t x, uint32_t y, uint32_t w, uint32_t h, uint16_t c)
     mc_trace('F', x, y, w, h, 0, c);
 #endif
     full_fills += w == 240u && h == 240u;
+    fill_n++;
+    fill_px += w * h;
     top_see(x, y, w, h, 0, swap16(c));
     fl_see(x, y, w, h, 0, swap16(c));
     for (j = 0; j < h; j++)
@@ -4269,6 +4272,7 @@ static void preset_engine_tests(void)
 #include "ui_optimist_top.h"                        /* SYSTEM > TOP (builder item SYS_TOP); off: no page */
 #include "ui_optimist_sysdbg.h"                     /* builder item SYS_DEBUG off: INFO is CPU LOAD, UNDERRUNS, BATTERY */
 #include "ui_optimist_stack.h"                      /* SYSTEM > INFO: the CPU bars and their peaks, the RAM line, the stacks' marks */
+#include "ui_optimist_buscost.h"                    /* BUS_COST: the LCD's bytes a frame, the REC ring, a page change */
 #include "ui_optimist_canvasbench.h"              /* CANVAS_BENCH: the drawing's CPU, strips and pixels a frame at the canvas's rows */
 #include "ui_optimist_mirload.h"                     /* the mirror's workload (MIRROR_WORKLOAD: tests/mirror_aimd_test.c) */
 #include "ui_optimist_mirsum_run.h"                  /* the mirror's self-check over a lossy link (MIRROR_SUMS) */
@@ -4460,6 +4464,10 @@ int main(int argc, char **argv)
     layers_init();
     go_home();
     frames(3);
+    if (getenv("BUS_COST")) {                         /* (alone: ui_optimist_buscost.h) */
+        bus_cost_bench();
+        return 0;
+    }
     if (getenv("CANVAS_BENCH")) {                     /* (alone: ui_optimist_canvasbench.h) */
         canvas_bench();
         return 0;
@@ -4668,6 +4676,7 @@ int main(int argc, char **argv)
     lane_preview_tests();
     step_pages_tests();
     rec_hold_tests();
+    ring_bus_tests();
     keyvel_tests();
     drum_env_tests();
     mix35_tests();

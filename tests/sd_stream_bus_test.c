@@ -18,9 +18,14 @@
  *     every frame, one run a frame), SD CARD's page 2 before (13 blocks and commands a frame in the draw, one sample in the
  *     plan), then each now (INFO: at most 4 times a second, the changed lines' rows, 195,906 B in 27 strips in 2 s; reads
  *     between the strips, the rings filled after a frame).
- *   sd_stream_bus_test FAT32.img */
+ *   - the card before the screen (the user, 2026-11-05: "sd card should have prio over screen"): 8 voices at 1,147 KB/s, the REC
+ *     ring, page changes and the whole screen every frame, before (one run a strip, none in a clear: voices dry) and now (none
+ *     dry), the paints a second; over the bus the screen goes on; a card busy or gone costs the screen no wait.
+ *   sd_stream_bus_test FAT32.img (FELUCCA_SD_RING_KB: the rings' KB, run_tests.sh 4 and 8) */
 #define FELUCCA_SD_FATFS 1
+#ifndef FELUCCA_SD_RING_KB
 #define FELUCCA_SD_RING_KB 4
+#endif
 #define AINL static inline
 #define IN_POOL
 #include "sd_card_model.h"
@@ -137,12 +142,26 @@ typedef struct {
     const char *name;
     uint32_t strips, strip_b, every_ms;              /* a paint's strips and bytes each, its period (0: every frame) */
     uint32_t draw_blocks;                            /* the card's blocks read in the draw, a frame (each a command too) */
-    uint8_t hook, fill;                              /* sst_strip between strips; the rings filled after a frame */
+    uint8_t hook, fill;                              /* the card between strips (PG_*); the rings filled after a frame */
+    uint32_t clear_b;                                /* a paint's whole-screen clear first, bytes (a page change: 115,200) */
+    uint32_t cpu_us;                                 /* a strip's drawing, 0 STRIP_CPU_US (the audio's share of the CPU in it) */
 } page_t;
+enum { PG_NONE, PG_ONE_RUN, PG_FIRST };              /* no run; one run a strip and none in a clear (as until 2026-11-05);
+                                                      * the card first: sst_strip, a clear in strips, a frame held back */
 #define STRIP_CPU_US 1000u                           /* (assumed, not measured) a strip's canvas and text, XIP code */
+#define LCD_CLEAR_B 7680u                            /* a clear between the card's turns: 16 rows (1.4 ms) */
 #define STRIP_US(b) ((b) * 18u / 100u)               /* (an LCD byte: 0.18 us, 44 MHz effective) */
 #define DRAW_BLOCK_US 1010u                          /* 610 + a command's 400 (the host's model) */
 static const page_t *page;
+static uint32_t paints, paint_max;                   /* the paints done, the longest (ticks) */
+
+static void pg_card(const page_t *P)                 /* the card's turn before a strip */
+{
+    if (P->hook == PG_FIRST)
+        (void)sst_strip();
+    else if (P->hook == PG_ONE_RUN)
+        (void)sst_go(SST_URGENT_MS);
+}
 
 static void fm1b_loop(const page_t *P, uint32_t ms)
 {
@@ -150,13 +169,23 @@ static void fm1b_loop(const page_t *P, uint32_t ms)
     while (clk < end) {
         t0 = clk;
         wait_ticks(P->draw_blocks * DRAW_BLOCK_US * tick_ms / 1000u);
-        if (P->strips && (int32_t)(clk - next) >= 0) {
+        if (P->strips && (int32_t)(clk - next) >= 0 && !(P->hook == PG_FIRST && sst_frame_late())) {
             next = t0 + P->every_ms * tick_ms;
-            for (s = 0; s < P->strips; s++) {
-                if (P->hook)
-                    (void)sst_strip();
-                wait_ticks((STRIP_CPU_US + STRIP_US(P->strip_b)) * tick_ms / 1000u);
+            if (P->clear_b && P->hook == PG_FIRST) {
+                for (k = 0; k < P->clear_b; k += LCD_CLEAR_B) {
+                    pg_card(P);
+                    wait_ticks(STRIP_US(LCD_CLEAR_B) * tick_ms / 1000u);
+                }
+            } else if (P->clear_b) {
+                wait_ticks(STRIP_US(P->clear_b) * tick_ms / 1000u);
             }
+            for (s = 0; s < P->strips; s++) {
+                pg_card(P);
+                wait_ticks(((P->cpu_us ? P->cpu_us : STRIP_CPU_US) + STRIP_US(P->strip_b)) * tick_ms / 1000u);
+            }
+            paints++;
+            if (clk - t0 > paint_max)
+                paint_max = clk - t0;
         }
         t1 = clk;
         if (P->fill) {
@@ -242,14 +271,106 @@ static uint32_t page_fit(const page_t *P)            /* the most voices at 44.1 
     return fit;
 }
 
+/* the card first (the user, 2026-11-05: "sd card should have prio over screen"): the figures from tests/ui_optimist_buscost.h
+ * (BUS_COST=1, 16 canvas rows: a page change a clear of 115,200 B and 16 strips of 7,170 B, whichever the page; the REC ring
+ * 8 strips of 7,380 B every frame until the fix), the bus the card's 12 MHz (1,147 KB/s measured on two FM-1s). A strip's
+ * drawing at 1 ms and at 2.5 ms (the audio holding 60 % of the CPU): assumed, not measured. */
+static void screen_row(const page_t *P, long *dried)
+{
+    res_t r;
+    paints = paint_max = 0;
+    page = P;
+    r = play(NV, 1.0, 2500);
+    page = 0;
+    CHECK(r.bad == 0 && (long)sst_dry == r.dried, "%s: garbage %ld, dry %ld counted %u", P->name, r.bad, r.dried, sst_dry);
+    printf("  %-38s dry %ld of 8, %2u.%u paints a second, the longest %3u ms, least lead %u ms\n", P->name, r.dried, paints / 2u,
+           paints * 5u % 10u, paint_max / tick_ms, r.lead == SST_NONE ? 0u : r.lead);
+    *dried = r.dried;
+}
+
+static void screen_first_tests(void)
+{
+    static const page_t RING_OLD = {"the REC ring as it was", 8, 7380, 0, 0, PG_ONE_RUN, 1, 0, 0};
+    static const page_t RING_OLD_B = {"the REC ring as it was, busy audio", 8, 7380, 0, 0, PG_ONE_RUN, 1, 0, 2500};
+    static const page_t CHG_OLD = {"a page change a 300 ms, as it was", 16, 7170, 300, 0, PG_ONE_RUN, 1, 115200, 0};
+    static const page_t CHG_OLD_B = {"a page change, as it was, busy audio", 16, 7170, 300, 0, PG_ONE_RUN, 1, 115200, 2500};
+    static const page_t RING = {"the REC ring's whole panel, card first", 8, 7380, 0, 0, PG_FIRST, 1, 0, 0};
+    static const page_t RING_B = {"the same, busy audio", 8, 7380, 0, 0, PG_FIRST, 1, 0, 2500};
+    static const page_t CHG = {"a page change a 300 ms, card first", 16, 7170, 300, 0, PG_FIRST, 1, 115200, 0};
+    static const page_t CHG_B = {"the same, busy audio", 16, 7170, 300, 0, PG_FIRST, 1, 115200, 2500};
+    static const page_t FULL = {"the whole screen every frame", 16, 7170, 0, 0, PG_FIRST, 1, 0, 0};
+    static const page_t FULL_B = {"the same, busy audio", 16, 7170, 0, 0, PG_FIRST, 1, 0, 2500};
+    long d_ring_old, d_chg_old, d;
+    uint32_t i;
+    tick_ms = 1147u;
+    printf("  1,147 KB/s, 8 voices at their pitch, rings of %u KB, 2.5 s:\n", SST_K / 2u);
+    screen_row(&RING_OLD, &d_ring_old);
+    screen_row(&RING_OLD_B, &d);
+    d_ring_old += d;
+    screen_row(&CHG_OLD, &d_chg_old);
+    screen_row(&CHG_OLD_B, &d);
+    d_chg_old += d;
+    printf("  as it was: %ld dry on the ring, %ld on page changes\n", d_ring_old, d_chg_old);
+    screen_row(&RING, &d);
+    CHECK(d == 0, "the REC ring, card first: none dry (%ld)", d);
+    screen_row(&RING_B, &d);
+    CHECK(d == 0, "the REC ring, card first, busy audio: none dry (%ld)", d);
+    screen_row(&CHG, &d);
+    CHECK(d == 0, "page changes, card first: none dry (%ld)", d);
+    CHECK(paints >= 6u, "page changes, card first: the pages still come (%u paints in 2.5 s)", paints);
+    screen_row(&CHG_B, &d);
+    CHECK(d == 0, "page changes, card first, busy audio: none dry (%ld)", d);
+    screen_row(&FULL, &d);
+    CHECK(d == 0, "the whole screen every frame, card first: none dry (%ld)", d);
+    CHECK(paints >= 10u, "the screen goes on (%u paints in 2.5 s)", paints);
+    screen_row(&FULL_B, &d);
+    CHECK(d == 0, "the whole screen every frame, card first, busy audio: none dry (%ld)", d);
+    CHECK(paints >= 5u, "the screen goes on, busy audio (%u paints in 2.5 s)", paints);
+
+    /* the limits: a bus too slow for the voices, a card that stops */
+    tick_ms = 300u;
+    screen_row(&FULL, &d);
+    CHECK(d > 0 && paints >= 10u, "300 KB/s, over the bus: voices dry, counted, and the screen at its floor (%ld dry, %u paints)", d,
+          paints);
+    tick_ms = 1147u;
+    quiet();
+    next_block_x10 = (uint64_t)clk * 441u;
+    for (i = 0; i < NV; i++)
+        tv_note(i, i, 1.0);
+    (void)sst_service();
+    wait_ticks(20u * tick_ms);                       /* (a 50 ms head: 30 ms left, under any ring's urgency) */
+    {
+        uint32_t t0;
+        sst_st.drawn = clk;
+        CHECK(sst_frame_late() == 1u, "a stream short of data: the frame held back");
+        sst_st.drawn = clk - SST_HOLD_MS * tick_ms - tick_ms;
+        CHECK(sst_frame_late() == 0u, "a frame held back %u ms at most", SST_HOLD_MS);
+        sst_st.backoff = 1;                          /* (the card busy: the streams wait, the screen does not) */
+        sst_st.backoff_t0 = clk;
+        t0 = clk;
+        CHECK(sst_strip() == 0u && clk == t0, "the card busy: no wait before a strip");
+        wait_ticks(0u);
+        sst_st.drawn = clk;
+        CHECK(!sst_frame_late(), "the card busy: the frame drawn");
+        sst_st.backoff = 0;
+        sd_gone = 1;                                 /* (a card pulled: every later call fails at once) */
+        t0 = clk;
+        CHECK(sst_strip() == 0u && clk == t0, "a card gone: no wait before a strip");
+        sst_st.drawn = clk;
+        CHECK(!sst_frame_late(), "a card gone: the frame drawn");
+        sd_gone = 0;
+    }
+    quiet();
+}
+
 int main(int argc, char **argv)
 {
     static const uint32_t BUS[3] = {1900u, 937u, 733u};
-    static const page_t QUIET = {"a quiet page", 0, 0, 0, 0, 1, 1};
-    static const page_t INFO_OLD = {"INFO before", 8, 14220, 0, 0, 0, 0};
-    static const page_t P2_OLD = {"SD CARD page 2 before", 0, 0, 0, 13, 0, 0};
-    static const page_t INFO_LOOP = {"INFO, its paint as before", 8, 14220, 0, 0, 1, 1};
-    static const page_t INFO_NEW = {"INFO now", 6, 7256, 250, 0, 1, 1};
+    static const page_t QUIET = {"a quiet page", 0, 0, 0, 0, PG_FIRST, 1};
+    static const page_t INFO_OLD = {"INFO before", 8, 14220, 0, 0, PG_NONE, 0};
+    static const page_t P2_OLD = {"SD CARD page 2 before", 0, 0, 0, 13, PG_NONE, 0};
+    static const page_t INFO_LOOP = {"INFO, its paint as before", 8, 14220, 0, 0, PG_ONE_RUN, 1};
+    static const page_t INFO_NEW = {"INFO now", 6, 7256, 250, 0, PG_FIRST, 1};
     uint32_t fit_q, fit_i0, fit_il, fit_i, fit_p0;
     uint32_t sectors, i, n, b, used, at = 0, fit[3] = {0, 0, 0};
     char path[16];
@@ -332,6 +453,7 @@ int main(int argc, char **argv)
            "SD CARD page 2 %u before, %u now (no card in its draw: a quiet page)\n", fit_q, fit_i0, fit_i, fit_il, fit_p0, fit_q);
     CHECK(fit_i >= fit_q, "840 KB/s: INFO costs no voice against a quiet page (%u, %u)", fit_i, fit_q);
     CHECK(fit_i > fit_i0, "840 KB/s: INFO carries more than before (%u, %u)", fit_i, fit_i0);
+    screen_first_tests();
     clk_hook = 0;
     free(img);
     printf("sd_stream_bus_test: %d checks, %d failed\n", checks, fails);
