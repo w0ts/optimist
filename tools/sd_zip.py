@@ -12,7 +12,7 @@ mode, unzipped at its root. Folders capitalised, files lowercase (the user, 2026
                                 sources, each applied and taken as the device does; the engines' folders sd_names.h's;
                                 SD card mode reads them here, it carries no preset tables (sd_mode.c sdm_factory_*)
   Optimist/Presets/User/        the presets saved on the FM-1 go to User/<Engine>/<L>/ (empty here)
-  Optimist/Kits/Factory/<L>/<nn> - <name>.opk   every factory kit (drums.c: every kit UID, the sampled, the 32
+  Optimist/Kits/Factory/<L>/<nn> - <name> (<instruments>).opk   every factory kit (drums.c: every kit UID, the sampled, the 32
                                 synthesised, X0X's and their styles, KAWA, PLAITS), 16 a bank in the kit list's order,
                                 each as a user kit is saved (drum_kits.c ukit_card_take: the lanes, their sources by
                                 reference to the built-in drum sounds, the sends); Kits/User/<L>/ the user's (empty here)
@@ -61,9 +61,11 @@ Unzip at the card's root (FAT32): this Optimist folder is the FM-1's.
                                       The folders above are the factory's (make sdcard replaces them); your own samples
                                       go anywhere else under Samples/.
   Kits/Factory/A, B ...               every factory kit (the sampled, the synthesised, X0X, KAWA, PLAITS), 16 a bank
-                                      ("01 - acoustic.opk" ..), the kit list's order; a kit this firmware leaves out
-                                      plays its stand-in, as a project naming it does
+                                      ("01 - acoustic (sampled).opk" ..: its drum instruments in the parentheses, 909,
+                                      808, synth, kawa, plaits, sampled), the kit list's order; a kit this firmware
+                                      leaves out plays its stand-in, as a project naming it does
   Kits/User/A, B ...                  the kits you save on the FM-1, in banks of 16 the same way
+  Every preset and kit file carries an id: move or rename one (into User/ too) and a project still finds it.
   Record, Renders, Backup, System     the FM-1's own; it makes whatever is missing.
 On the FM-1 names show upper case; on the card the files are lowercase.
 """
