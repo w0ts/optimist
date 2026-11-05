@@ -20,6 +20,7 @@ each track keeps its mode until power-off.
   - Memory layouts in the builder: fewer sample slots and stored projects in exchange for more firmware space (up to 823 KB instead of 581 KB).
   - Engines and effects share memory. FX MEM sets the effects' share per project. If a new engine does not fit, the FM-1 offers to shrink an effect.
   - SYSTEM > TOP shows CPU and RAM use per part. SYSTEM > METERS draws the load at the bottom of the screen.
+- **Optimist Mirror is on the App Store**, for iPhone, iPad and Mac: <https://apps.apple.com/app/id6826362906>
 - **Mirror over Bluetooth**, in the app and the web editor.
 - **Built on the latest fm1-base**, the shared FM-1 platform.
 - **An open-source compiler**: the firmware is built with Julius Vitkauskas's ([@jvitkauskas](https://github.com/jvitkauskas)) pi32v2-llvm instead of JieLi's proprietary compiler, natively on Linux and macOS, with no Docker. Builds are 14 to 30 KB smaller. Thank you, Julius!
