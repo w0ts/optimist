@@ -47,6 +47,7 @@ each track keeps its mode until power-off.
 - With several FM-1s connected, the builder and `make flash` ask which one, or flash them all one after the other.
 - KNOB COLORS is on by default. SYSTEM lists Bluetooth and Wi-Fi first.
 - The USB serial console (builder option USB_CONSOLE) is on from the first start. The SERIAL switch in SYSTEM is gone.
+- Card samples stream through the audio render: the card's blocks arrive in an interrupt, so a dense kit no longer runs dry (195 dry voices in 28 s before, 0 after, on one FM-1).
 - Release packages carry GitHub build provenance.
 - The web builder shows measured sizes for every option.
 
