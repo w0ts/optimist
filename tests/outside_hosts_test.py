@@ -28,6 +28,7 @@ ALLOW = [
     ("web/builder/logic.js", "https://motscousus.com/optimist/cloud-build.php", "builder: Build in the cloud (relay)"),
     ("web/builder/logic.js", "https://raw.githubusercontent.com/", "builder: cloud build results"),
     ("web/builder/logic.js", "https://github.com/", "builder: opens the issue (a link)"),
+    ("web/make_site.py", "https://apps.apple.com/", "the menu bar's App Store badges (a link; the images are inlined)"),
     ("web/builder/builder.js", "https://raw.githubusercontent.com/", "builder: cloud build results"),
     ("web/builder/builder.js", "cdn.jsdelivr.net", "builder: its own caption about Pyodide (text)"),
     ("web/builder/cloud.js", "https://api.github.com/", "builder: cloud build index"),
