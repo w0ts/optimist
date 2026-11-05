@@ -33,35 +33,20 @@ static int glo_yes(uint32_t r, uint32_t k, uint32_t ok) { return sys_yes(glo_sys
 /* ---- the list: line i of screen s (0 GLOBAL, 1 SYSTEM) is cell k of row u, kept as u << 2 | k (built once: what a row
  * shows depends on the build only) */
 #define GL_PAGE 4u                                      /* the lines on screen, the knobs' */
-/* the lines of a screen, at most: SYSTEM's in this build (12 always, DEBUG STATS 1, USB audio 5, LIGHTS 2, CDC 1, BLE 5 + 2 with
- * BLE_CENTRAL, WI-FI 4), never under 24 (GLOBAL's 19 at most); sized from the build so no RAM goes to lines it cannot have */
-#if FELUCCA_BT_UI
-#define GL_NBLE (5u + 2u * (BLE_CENTRAL != 0))
-#else
-#define GL_NBLE 0u
-#endif
-#if FELUCCA_USB_AUDIO
-#define GL_NUA (1u + (uint32_t)UAS_N)                   /* (USB STATS, a line a source) */
-#else
-#define GL_NUA 0u
-#endif
-#define GL_NLIT 2u
-#if FELUCCA_CDC
-#define GL_NCDC 1u
-#else
-#define GL_NCDC 0u
-#endif
-#define GL_NSYSL (12u + DBG_STATS + GL_NUA + GL_NLIT + GL_NCDC + GL_NBLE + 4u * WIFI_UI + 2u * USBH_UI)   /* (WI-FI: MODE NETWORK SIGNAL STATE; USB: MODE DEVICE) */
+/* the lines of a screen, at most: SYSTEM's rows x 4 cells, from the table itself (a count kept by hand left the SD pages out, so
+ * GENERAL, SERIAL and the pages after them fell off the end: the user, 2026-11-05), never under 24 (GLOBAL's 19 at most) */
+#define GL_NSYSL ((uint32_t)NSYS_SETUP * 4u)
 #define GL_MAXL (GL_NSYSL > 24u ? GL_NSYSL : 24u)
 #if FELUCCA_BT_UI
 #define GL_DEV BDV_OPEN                         /* SYSTEM shows the BLE devices list (op_project.c) */
 #else
 #define GL_DEV 0
 #endif
-#define GL_MAXP 16u                                     /* the pages of a screen, at most (gll.cont's bits; USB AUDIO's five) */
+#define GL_MAXP (GL_MAXL / 4u)                          /* the pages of a screen, at most: a row a page */
+_Static_assert(GL_MAXP <= 32u, "op_global.c: gll.cont has a bit a page");
 static struct {
     uint8_t ok, n[2], np[2];
-    uint16_t cont[2];                                   /* bit p: page p goes on with the section page p - 1 ended with */
+    uint32_t cont[2];                                   /* bit p: page p goes on with the section page p - 1 ended with */
     uint8_t at[2][GL_MAXL], pg[2][GL_MAXL];             /* line i: its cell (row << 2 | cell), its page */
     uint8_t pf[2][GL_MAXP + 1u];                        /* page p: its first line; [np] the line count */
 } gll;
@@ -126,7 +111,7 @@ static void gl_build(void)
             grp = n0 && gl_grp(s, gll.at[s][n0]) == gl_grp(s, gll.at[s][n0 - 1u]);
             if (!grp || cnt + n - n0 > GL_PAGE) {       /* (the next page: another group, or this one is full) */
                 if (same)
-                    gll.cont[s] |= (uint16_t)(1u << np);   /* (one section over two pages: REC) */
+                    gll.cont[s] |= 1u << np;   /* (one section over two pages: REC) */
                 gll.pf[s][np++] = (uint8_t)n0;
                 cnt = 0;
             }
