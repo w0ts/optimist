@@ -13,10 +13,16 @@
 import { PORT_NAMES, usualName, livePorts, outputFor, pairs, askAll, IS_BLUETOOTH } from "./fm1ports.js";
 
 const HS_QUERY = [0xF0, 0x00, 0x32, 0x45, 0x00, 0x00, 0x00, 0x40, 0x7F, 0xF7];
+// the handshake with the one-byte body 01 (00 59 11, length 1, 01, checksum FE): a firmware on felucca-bsp's chip/ota.c
+// answers HS_QUERY with its name, '_' and three digits only ("FM-1_601": M-UPGRADE 3.11 refuses more) and this one with
+// its whole identity ("FM-1_6010000"). M-VAVE's firmware, the update loaders and older builds don't answer it.
+// (PERF-1's scheme: its installers and ours ask the same way)
+export const HS_FULL = [0xF0, 0x00, 0x32, 0x45, 0x08, 0x00, 0x00, 0x40, 0x00, 0x7E, 0x01, 0xF7];
 const UPGRADE = [0xF0, 0x22, 0x24, 0x35, 0x7F, 0xF7];
 const MAXDATA = 512;
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const IS_OTA = (id) => /^ota-/i.test(id.model);
+
 
 // M-VAVE's FM1 Open firmware (V10, 2026-10): its updater takes only a package it has been told about
 // first (cmd 49 reads its state, cmd 50 arms it with the image length and the package's SHA-256); then
@@ -86,7 +92,8 @@ function parseRequest(pkt) {
 function parseIdentity(pkt) {
   const d = unpack7(pkt.slice(1, -1));
   if (d.length !== 34 || d[0] !== 0 || d[1] !== 0x59 || d[2] !== 0x11) return null;
-  const txt = String.fromCharCode(...d.slice(6, 33)).replace(/\0+$/, "");
+  const z = d.indexOf(0, 6);                     // the text up to its first zero (bytes after it may carry data)
+  const txt = String.fromCharCode(...d.slice(6, z < 0 || z > 33 ? 33 : z));
   if (OPEN_RE.test(txt)) return { text: txt, model: "FM-1", version: 0, open: true };
   if (OPEN_LOADER_RE.test(txt)) return { text: txt, model: "ota-FM1C", version: 0, open: true };
   const m = /^([^_]+)_(\d+)$/.exec(txt);
@@ -149,17 +156,30 @@ class Link {
   close() { this.input.onmidimessage = null; }
 }
 
+// send a handshake -> the identity answered, null (no answer in ms), false (the send failed)
+async function ask(link, query, ms) {
+  if (!link.send(query)) return false;
+  const end = Date.now() + ms;
+  while (Date.now() < end) {
+    const p = await link.read(end - Date.now());
+    if (!p) break;
+    const id = parseIdentity(p);
+    if (id) return id;
+  }
+  return null;
+}
+
+// the identity: HS_QUERY, then HS_FULL when the answer is NAME_ and three digits (a firmware on chip/ota.c tells its
+// whole identity so); the plain answer when nothing answers HS_FULL (M-VAVE's, an older build)
 async function handshake(link, tries = 3) {
   link.drain();
   for (let t = 0; t < tries; t++) {
-    if (!link.send(HS_QUERY)) return null;
-    const end = Date.now() + 1000;
-    while (Date.now() < end) {
-      const p = await link.read(end - Date.now());
-      if (!p) break;
-      const id = parseIdentity(p);
-      if (id) return id;
-    }
+    const id = await ask(link, HS_QUERY, 1000);
+    if (id === false) return null;
+    if (id === null) continue;
+    if (IS_OTA(id) || !/^[^_]+_\d{3}$/.test(id.text)) return id;
+    const full = await ask(link, HS_FULL, 600);
+    return full && full.model === id.model && full.text.startsWith(id.text) ? full : id;
   }
   return null;
 }
@@ -209,16 +229,16 @@ export class Updater {
   unwatch() { this.baseline = null; }
 
   // the port names that have an input and an output, whatever they are called (for a list to pick from)
-  ports() { return [...new Set(pairs(this.access).map((p) => p.name))]; }
+  ports() { return [...new Set(pairs(this.access).map((p) => p.name))].filter((n) => !IS_BLUETOOTH(n)); }
 
   // never probe other gear: a usual name, a port the user allowed or that answered a HELLO, or one that appeared during
-  // an update
+  // an update; never a Bluetooth MIDI port
   askable(name) { return !IS_BLUETOOTH(name) && (this.usual(name) || this.allowed.has(name) || (!!this.baseline && !this.baseline.has(name || ""))); }
 
   // FM-1s on ports of any name: the ones that answer the screen reader's HELLO (fm1ports.js askAll; every fm1-base
   // firmware does), allowed from then on -> their port names (also kept in this.answered)
   async answering() {
-    const got = await askAll(this.access, { skip: (n) => this.askable(n) });
+    const got = await askAll(this.access, { skip: (n) => this.askable(n) || IS_BLUETOOTH(n) });
     for (const g of got) { this.allow(g.name); this.answered.add(g.name); }
     return got.map((g) => g.name);
   }
@@ -240,7 +260,7 @@ export class Updater {
   // every in/out pair with the same port name that answers the handshake (only: the port called only)
   async find(filter, only) {
     for (const input of livePorts(this.access.inputs)) {
-      if (only != null ? input.name !== only : !this.askable(input.name)) continue;
+      if (IS_BLUETOOTH(input.name) || (only != null ? input.name !== only : !this.askable(input.name))) continue;
       const output = outputFor(this.access, input);
       if (!output) continue;
       try { await input.open(); await output.open(); } catch (_) { continue; }

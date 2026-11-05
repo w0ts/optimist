@@ -128,13 +128,15 @@ cable. This page works in Chrome or Edge, and there is nothing to install.</p>
 const FW = { name: "{{NAME}}", id: "{{ID}}", magic: "{{MAGIC}}", version: Number("{{BACKUP_VERSION}}"), ext: "{{EXT}}" };
 const PB = (() => {
   const HS_QUERY = [0xF0, 0x00, 0x32, 0x45, 0x00, 0x00, 0x00, 0x40, 0x7F, 0xF7];   // fm1_install.py / fm1ota.js
+  // the one with the body 01: the whole identity (HS_QUERY gets NAME_ and three digits, M-UPGRADE 3.11's limit)
+  const HS_FULL = [0xF0, 0x00, 0x32, 0x45, 0x08, 0x00, 0x00, 0x40, 0x00, 0x7E, 0x01, 0xF7];
   const RS_REQ = 0x41, BU_REQ = 0x42, BU_END = 0x43;
   const OK_ADDR = 0xC0000000, ASK_ADDR = 0xC1000000, FAIL_ADDR = 0xCF000000;
   const NAME = FW.name, MAGIC = [...FW.magic].map((c) => c.charCodeAt(0)), VERSION = FW.version;   // app.h's
   const HEAD = 16, REC = 8, PAYLOAD_MAX = 3840, MAXDATA = 512;
   const PLAYING = 10, DECLINED = 11;
   const ID = FW.id;                                                // the firmware's package identity (its prefix)
-  const DELAY = { poll: 500, idle: 10000, ask: 75000, first: 3000, hs: 1000 };   // ms, as fm1_backup.py
+  const DELAY = { poll: 500, idle: 10000, ask: 75000, first: 3000, hs: 1000, hsFull: 600 };   // ms, as fm1_backup.py
   const ERRORS = {
     1: "the file's size", 2: "the transfer (a piece of the file did not arrive)", 3: "the file's head",
     4: "a part's header", 5: "a part's check (a byte changed on the way)", 6: "the whole file's check",
@@ -210,7 +212,8 @@ const PB = (() => {
     if (pkt.length < 2 || pkt[0] !== 0xF0 || pkt[pkt.length - 1] !== 0xF7) return null;
     const d = unpack7(pkt.slice(1, -1));
     if (d.length !== 34 || d[0] !== 0 || d[1] !== 0x59 || d[2] !== 0x11) return null;
-    const txt = String.fromCharCode(...d.slice(6, 33)).replace(/\0+$/, "");
+    const z = d.indexOf(0, 6);                   // the text up to its first zero (bytes after it may carry data)
+    const txt = String.fromCharCode(...d.slice(6, z < 0 || z > 33 ? 33 : z));
     return /^[^_]+_\d+$/.test(txt) ? txt : null;
   }
 
@@ -279,17 +282,29 @@ const PB = (() => {
     return `${used} of ${objs.length} parts with something saved (${total.toLocaleString("en")} bytes)`;
   }
 
+  // send a handshake -> the identity answered, null (no answer in ms), false (the send failed)
+  async function ask(link, query, ms) {
+    if (!link.send(query)) return false;
+    const end = Date.now() + ms;
+    while (Date.now() < end) {
+      const p = await link.read(end - Date.now());
+      if (!p) break;
+      const id = parseIdentity(p);
+      if (id) return id;
+    }
+    return null;
+  }
+  // the identity (fm1ota.js handshake): HS_QUERY, then HS_FULL when the answer is NAME_ and three digits; the plain
+  // answer when nothing answers HS_FULL (M-VAVE's, an older build)
   async function handshake(link, tries = 2) {
     link.drain();
     for (let t = 0; t < tries; t++) {
-      if (!link.send(HS_QUERY)) return null;
-      const end = Date.now() + DELAY.hs;
-      while (Date.now() < end) {
-        const p = await link.read(end - Date.now());
-        if (!p) break;
-        const id = parseIdentity(p);
-        if (id) return id;
-      }
+      const id = await ask(link, HS_QUERY, DELAY.hs);
+      if (id === false) return null;
+      if (id === null) continue;
+      if (/^ota-/i.test(id) || !/^[^_]+_\d{3}$/.test(id)) return id;
+      const full = await ask(link, HS_FULL, DELAY.hsFull);
+      return full && full.split("_")[0] === id.split("_")[0] && full.startsWith(id) ? full : id;
     }
     return null;
   }
@@ -303,10 +318,13 @@ const PB = (() => {
   // port answers); with only, that one port
   const NAME_RE = new RegExp(NAME.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "i");
   const USUAL = PORT_NAMES.filter((n) => n !== "ota");
-  const askable = (name, allowed) => NAME_RE.test(name || "") || usualName(name, USUAL) || allowed.includes(name);
+  // never a Bluetooth MIDI port: an FM-1 paired over Bluetooth shows one beside its USB port and it never answers
+  const BLUETOOTH_RE = /bluetooth/i;
+  const askable = (name, allowed) => !BLUETOOTH_RE.test(name || "") &&
+    (NAME_RE.test(name || "") || usualName(name, USUAL) || allowed.includes(name));
   // the input port names the page does not ask by itself, that have an output (for Try)
   function others(access, allowed = []) {
-    return [...new Set(pairs(access).map((p) => p.name).filter((n) => !askable(n, allowed)))];
+    return [...new Set(pairs(access).map((p) => p.name).filter((n) => !askable(n, allowed) && !BLUETOOTH_RE.test(n)))];
   }
   async function find(access, makeLink, allowed = [], only = null) {
     let other = null;
@@ -323,11 +341,12 @@ const PB = (() => {
       }
       return null;
     };
-    const ins = livePorts(access.inputs).filter((p) => (only != null ? p.name === only : askable(p.name, allowed)));
+    const ins = livePorts(access.inputs).filter((p) => !BLUETOOTH_RE.test(p.name || "") &&
+      (only != null ? p.name === only : askable(p.name, allowed)));
     ins.sort((a, b) => NAME_RE.test(b.name) - NAME_RE.test(a.name));
     let dev = await ask(ins);
     if (!dev && only == null) {
-      const heard = await askAll(access, { skip: (n) => askable(n, allowed) });
+      const heard = await askAll(access, { skip: (n) => askable(n, allowed) || BLUETOOTH_RE.test(n) });
       dev = await ask(heard.map((h) => h.input));
     }
     if (dev) return dev;
@@ -402,7 +421,7 @@ const PB = (() => {
     }
   }
 
-  return { HS_QUERY, RS_REQ, BU_REQ, BU_END, OK_ADDR, ASK_ADDR, FAIL_ADDR, VERSION, PLAYING, DECLINED, ID, NAME, MAGIC, DELAY, ERRORS,
+  return { HS_QUERY, HS_FULL, RS_REQ, BU_REQ, BU_END, OK_ADDR, ASK_ADDR, FAIL_ADDR, VERSION, PLAYING, DECLINED, ID, NAME, MAGIC, DELAY, ERRORS,
            pack7, unpack7, crc32, frame, parseFrame, response, parseRequest, parseIdentity, parse, split, join, summary, find, others, backup,
            restore };
 })();

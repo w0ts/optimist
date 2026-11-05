@@ -38,6 +38,9 @@ from pathlib import Path
 import flash_layout                  # (tools/: the MEMORY steps' one table)
 
 HS_QUERY = bytes([0xF0, 0x00, 0x32, 0x45, 0x00, 0x00, 0x00, 0x40, 0x7F, 0xF7])
+# the handshake with the one-byte body 01: the whole identity from a firmware that cuts the plain answer for M-UPGRADE
+# 3.11 (NAME_ and 1-3 digits only: felucca-bsp chip/ota.c; fm1-base's tools/fm1_install.py)
+HS_FULL = bytes([0xF0, 0x00, 0x32, 0x45, 0x08, 0x00, 0x00, 0x40, 0x00, 0x7E, 0x01, 0xF7])
 UPGRADE = bytes([0xF0, 0x22, 0x24, 0x35, 0x7F, 0xF7])
 MIDI_STOP = bytes([0xFC])      # real-time STOP: the running firmware stops its transport before an update (harmless if it already does)
 ED_INFO = bytes([0xF0, 0x7D, 0x46, 0x4C, 0x01, 0xF7])   # the editor's INFO (web/EDITOR_PROTOCOL.md): its tag 0x68 says which
@@ -65,7 +68,7 @@ PORT_RE = re.compile(r"fm-?1|felucca|optimist|smk-37|ota|composite|sinco|usb-mid
 # seconds; the tests shorten them
 DELAY = {"info": 1.0, "open": 0.3, "stop": 0.1, "start": 2.0, "start_fast": 0.05, "fast": 0.5, "reply": 0.01, "loader": 3.0,
          "reboot": 3.0, "retry": 1.0,
-         "poll": 1.0, "hs": 1.0, "idle_check": 8.0, "idle_write": 180.0,
+         "poll": 1.0, "hs": 1.0, "hs_full": 0.6, "idle_check": 8.0, "idle_write": 180.0,
          "wait_loader": 30.0, "wait_reboot": 40.0,
          "resume_poll": 0.5, "resume_cap": 600.0,   # (a drop: the FM-1 looked for every 0.5 s; --yes gives up after 10 min)
          "check_frames": 0.5, "check_tick": 0.1, "sector_check": 0.012, "loader_poll": 0.2}
@@ -248,7 +251,7 @@ def parse_identity(pkt):
     d = unpack7(pkt[1:-1])
     if len(d) != 34 or d[:3] != b"\x00\x59\x11":
         return None
-    txt = d[6:33].rstrip(b"\0").decode("latin-1")
+    txt = d[6:33].split(b"\0", 1)[0].decode("latin-1")   # the text up to its first zero (bytes after it may carry data)
     m = re.fullmatch(r"([^_]+)_(\d+)", txt)
     return Identity(txt, m[1], int(m[2])) if m else None
 
@@ -359,19 +362,35 @@ class Device:
         self.link, self.id, self.name = link, ident, name
 
 
+def ask(link, query, secs):
+    """send a handshake -> the identity answered, None (no answer in secs), False (the send failed)"""
+    if not link.send(query):
+        return False
+    end = time.monotonic() + secs
+    while (left := end - time.monotonic()) > 0:
+        p = link.read(left)
+        if p is None:
+            break
+        ident = parse_identity(p)
+        if ident:
+            return ident
+    return None
+
+
 def handshake(link, tries=3):
+    """the identity: HS_QUERY, then HS_FULL when the answer is NAME_ and three digits; the plain answer when nothing
+    answers HS_FULL (M-VAVE's firmware, Optimist's own, an older build)"""
     link.drain()
     for _ in range(tries):
-        if not link.send(HS_QUERY):
+        ident = ask(link, HS_QUERY, DELAY["hs"])
+        if ident is False:
             return None
-        end = time.monotonic() + DELAY["hs"]
-        while (left := end - time.monotonic()) > 0:
-            p = link.read(left)
-            if p is None:
-                break
-            ident = parse_identity(p)
-            if ident:
-                return ident
+        if ident is None:
+            continue
+        if ident.text.lower().startswith("ota-") or not re.fullmatch(r"[^_]+_\d{3}", ident.text):
+            return ident
+        full = ask(link, HS_FULL, DELAY["hs_full"])
+        return full if full and full.model == ident.model and full.text.startswith(ident.text) else ident
     return None
 
 

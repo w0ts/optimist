@@ -6,6 +6,9 @@ import Foundation
 
 enum FlashProtocol {
     static let handshake: [UInt8] = [0xF0, 0x00, 0x32, 0x45, 0x00, 0x00, 0x00, 0x40, 0x7F, 0xF7]
+    /// the handshake with the one-byte body 01: the whole identity from a firmware that cuts the plain answer for
+    /// M-UPGRADE 3.11 (NAME_ and 1-3 digits only: felucca-bsp chip/ota.c)
+    static let handshakeFull: [UInt8] = [0xF0, 0x00, 0x32, 0x45, 0x08, 0x00, 0x00, 0x40, 0x00, 0x7E, 0x01, 0xF7]
     static let upgrade: [UInt8] = [0xF0, 0x22, 0x24, 0x35, 0x7F, 0xF7]
     /// real-time STOP: the transport stops before an update starts (the firmware does it too; harmless there)
     static let midiStop: [UInt8] = [0xFC]
@@ -158,6 +161,17 @@ enum FlashProtocol {
         }
         guard r.length <= maxData, Int(r.address) + r.length <= image.count else { return nil }
         return image[Int(r.address)..<(Int(r.address) + r.length)]
+    }
+
+    /// a plain answer that may be cut: NAME_ and three digits, not a loader (fm1-base's tools/fm1_install.py handshake)
+    static func mayBeCut(_ id: Identity) -> Bool {
+        !id.isLoader && id.text.range(of: #"^[^_]+_\d{3}$"#, options: .regularExpression) != nil
+    }
+
+    /// the identity to use: the full answer when it is the plain one's, else the plain one (nothing answered 01)
+    static func whole(_ plain: Identity, _ full: Identity?) -> Identity {
+        if let full, full.model == plain.model, full.text.hasPrefix(plain.text) { return full }
+        return plain
     }
 
     static func identity(_ pkt: [UInt8]) -> Identity? {

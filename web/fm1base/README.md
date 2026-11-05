@@ -5,8 +5,8 @@ CRC check) and `fm1ports.js` (finding FM-1s on Web MIDI: usual names, then the s
 files, MPL-2.0 (their headers say so and name their authors), as the fork has them, with one change of ours in `fm1ports.js`:
 a Bluetooth MIDI port (`IS_BLUETOOTH`) is never listed, asked or tried (`livePorts`; `fm1ota.js` `askable` too):
 
-- from: fm-1-base, web/fm1ota.js, web/fm1pkg.js and web/fm1ports.js on the fork's branch `up-fm1base` at 59d0559 (fm-1-base's
-  upstream main 02f422c7 merged into the fork's integration line; our four installer branches
+- from: fm-1-base, web/fm1ota.js, web/fm1pkg.js and web/fm1ports.js on the fork's integration line with fm-1-base's upstream
+  main 3c4a57ee merged (M-UPGRADE 3.11's handshake: `HS_FULL`; our four installer branches
   feat/web-skip-bluetooth, fix/install-port-names (family port names: now answered by the HELLO instead), foreign-loader,
   stock-checksum are in it)
 - `m-bootloader/`: our m-bootloader 1.4 (w0ts/m-bootloader, branch optimist, 8b171dd; by Julius Vitkauskas, MIT; its LICENSE is beside it)
