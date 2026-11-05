@@ -978,7 +978,9 @@ _MONO_MOVES = ("REV_POOL", "SECTIONS", "ARENA", "UNDO_HISTORY")
 _MONO_ALLOW = {"DIV_ORDER": "flash", "FX_DJF": "flash", "FX_DELAY": "pool", "XDLY_LEN": "pool", "DRUMS": "pool"}
 # (the pool moves by its 4-byte alignment too: the classic costs measured at 76bfe3a1, BACKUP 0 pool +4 B, CPU_GUARD 1
 # pool +4 B, ED_LIVE 0 + BACKUP 0 pool +4 B: real builds, so an item off can show pool +4 there)
-_MONO_NOISE = {"flash": K.ALIGN_NOISE, "ram": 32, "pool": 4}
+# (RAM moves in 64 B steps with the layout: the two costs runs of 2026-11-04/05 measured DIG_TONE, NOTEGEN, GEN_GRIDS and several
+# pairs 64 B apart on the same code; the user allowed that step for RAM, 2026-11-05. Flash and pool stay strict)
+_MONO_NOISE = {"flash": K.ALIGN_NOISE, "ram": 64, "pool": 4}
 _mono_bad = []
 if costs:
     for _pn in (C.REFERENCE_PROFILE, None):
