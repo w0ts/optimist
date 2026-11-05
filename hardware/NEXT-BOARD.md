@@ -69,7 +69,7 @@ Changes to the sum of the CLK and DO delays, against tuned v6 (8.2 ns at 50 %, 1
 | ESD 2.5 pF to 0.5 pF | 0.5-0.9 ns | cheap if a part fits the layout |
 | A card with 5 pF instead of 8 | 0.7-1.4 ns | not ours to choose |
 | R5/R6 100, R1 47 | 3.6-6.5 ns | **the only large one**, unsafe without a gate (below) |
-| Stronger SCK (35 to 20 Ohm) | 0.5 ns | firmware; HD0 on SCK has not been tried |
+| Stronger SCK (35 to 20 Ohm) | 0.5 ns | firmware; HD + HD0 on SCK gave nothing over HD on the 510/220 board, not tried at 330/150 |
 
 The model under-predicts: 510 to 340 gave more than the model's 3.3-5 ns, as the table of steps needs. So take these gains as a
 lower bound, for example the card's or ESD's real capacitance may be larger.
@@ -126,9 +126,9 @@ Target: pink (FM1-620C), the test unit, with its hand-tuned v6. In order, each d
 
 | # | Test | Who | Decides |
 |---|---|---|---|
-| 1 | **Loopback.** Card out, a wire from R6's bus side to R1's bus side, new firmware test reads back its own MOSI at each clock | Claude builds and runs; user solders the wire | The chip's own share. If it fails at 15 MHz, stop: no board helps, take the tuned resistors. If it passes at 20-30, the gate is worth it |
+| 1 | **Loopback.** Card out, 100 Ohm plus a wire from R6's bus side to JP1's right pad (`BENCH-SHEET.md`; a bare wire would short PC10 against PC8), new firmware test reads back its own MOSI at each clock | Claude builds and runs; user solders the wire | The chip's own share. If it fails at 15 MHz, stop: no board helps, take the tuned resistors. If it passes at 20-30, the gate is worth it |
 | 2 | **Bus load.** PC8 and PC9 driven high, released to a pull, time to fall counted by the CPU | Claude | Replaces the 35 pF guess, firmware only |
-| 3 | **SCK HD0 + HD.** Strongest drive on SCK | Claude | Free gain, firmware only |
+| 3 | **SCK HD0 + HD at the tuned resistors.** Strongest drive on SCK | Claude | Free gain, firmware only |
 | 4 | **Cold boot at 330/150.** Stock and SLOOP, card in, screen right? | User | Whether 330 can ship. Blocks every board |
 | 5 | **Lower resistors.** R5/R6 150, R1 100, then 47; read clock and screen | User solders, Claude reads | Checks the model's largest gain on real copper before spending on a gate |
 | 6 | **Ribbon 50, 60, 80 mm** (the cables on the shelf) | User swaps, Claude reads | Checks "ribbon does not matter" directly |
