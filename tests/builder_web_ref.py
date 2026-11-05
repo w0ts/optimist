@@ -12,8 +12,10 @@ answers: {"views": [{"eval", "savings", "arena_item", "conflicts", "over", "fit"
           "texts": [{"values", "name", "warnings", "error"}], "registry": core.describe()}
 """
 import json
+import os
 import sys
 
+os.environ.pop("OPTIMIST_CLASSIC", None)    # (the page is the release: its rules, limits and costs, as export_builder_web.py; run_tests.sh sets it)
 from builder_path import ROOT  # noqa: F401  (tools/builder on sys.path)
 import configure as C
 import registry as R
@@ -26,7 +28,7 @@ C.exact_builds = lambda: {}
 def full(values):
     cfg = C.defaults()
     cfg.update({k: v for k, v in values.items() if k in cfg})
-    return cfg
+    return C.K.sync_memory(cfg)                  # (MEMORY and the fronts read back from their items, as the page's _cfg)
 
 
 def view(q, costs):
