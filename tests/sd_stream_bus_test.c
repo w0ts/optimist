@@ -319,6 +319,9 @@ static void short_ring_tests(void)
             printf("  rings of %u KB (urgent under %u ms), 5 hits on 25 ms heads, %-40s dry %ld, %u paints, least lead %u ms\n", KB[k],
                    SST_URGENT_MS, P[i]->name, r.dried, paints, r.lead == SST_NONE ? 0u : r.lead);
             CHECK(r.dried == 0, "rings of %u KB, %s: none dry (%ld)", KB[k], P[i]->name, r.dried);
+            if (KB[k] >= 8u)
+                CHECK(sst_st.blocks >= 4u * sst_st.runs, "rings of %u KB, %s: long runs, a ring not topped up a block at a time (%u blocks in %u runs)",
+                      KB[k], P[i]->name, sst_st.blocks, sst_st.runs);
         }
     }
     quiet();

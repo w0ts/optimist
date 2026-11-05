@@ -421,7 +421,7 @@ static void run_card(const char *img_path)
     main_loop(400);
     all_ok("stall at the start, 50 ms", 1);
     CHECK(V[0].reads > 2000 && V[0].reads < 2300, "%s: dry at the head's end (%ld frames)", what, V[0].reads);
-    CHECK(sst_st.stalls >= 5, "%s: the stall let go and asked again (%u)", what, sst_st.stalls);
+    CHECK(sst_st.stalls >= 3, "%s: the stall let go and asked again, a try each SST_WAIT_US (%u)", what, sst_st.stalls);
     CHECK(gap_max < SST_WAIT_US + 600u, "%s: the screen drew through the stall (longest wait %u us)", what, gap_max);
     quiet();
     load_src(0, &WAVS[0], 200, what);                /* (after the others: theirs stay where they are) */

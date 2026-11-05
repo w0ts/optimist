@@ -341,10 +341,21 @@ static void run_card(const char *img_path)
         settle();
         CHECK(sstp.state == SSTP_REFUSED && sstp.nring == 1u + SST_KIT_RINGS_MIN, "%s: no room for 5 rings: refused, not fewer (state %u, %u)",
               what, sstp.state, sstp.nring);
+        CHECK(sst_kit_pre == SST_KIT_PRE_MS, "%s: and every step taken first, the heads down to 25 ms (%u)", what, sst_kit_pre);
         kit_want = 0u;
         sst_plan_poll();
         settle();
         arn_give(1);
+        CHECK(sst_kit_pre == SST_PRE_MS[3], "%s: the kit gone: no cap on a kit's heads again (%u)", what, sst_kit_pre);
+        /* a kit's heads (the user: "changing the buffer size has no effect"): cut only when short of room */
+        CHECK(sst_use_pre(SSTU_KIT, 25u) == SST_KIT_HEAD_MS && sst_use_pre(SSTU_KIT, 50u) == SST_KIT_HEAD_MS && sst_use_pre(SSTU_KIT, 200u) == 200u,
+              "%s: a drum sound's head: 100 ms, the setting's if longer (%u %u %u)", what, sst_use_pre(SSTU_KIT, 25u), sst_use_pre(SSTU_KIT, 50u),
+              sst_use_pre(SSTU_KIT, 200u));
+        CHECK(sst_use_pre(SSTU_STREAM, 50u) == 50u, "%s: a melodic sample's head stays the setting's (%u)", what, sst_use_pre(SSTU_STREAM, 50u));
+        sst_kit_pre = SST_KIT_PRE_MS;
+        CHECK(sst_use_pre(SSTU_KIT, 200u) == SST_KIT_PRE_MS && sst_use_pre(SSTU_STREAM, 200u) == 200u,
+              "%s: short of room only the kit's heads are cut (%u %u)", what, sst_use_pre(SSTU_KIT, 200u), sst_use_pre(SSTU_STREAM, 200u));
+        sst_kit_pre = SST_PRE_MS[3];
     }
     part_voices[0] = 8u;
     sst_plan_poll();

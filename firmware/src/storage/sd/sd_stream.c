@@ -37,7 +37,9 @@
 #define SST_RUN 8u                                   /* blocks a run at most: the screen's longest wait (a parameter) */
 #endif
 #ifndef SST_WAIT_US
-#define SST_WAIT_US 3000u                            /* a block's token not come in this: the run let go */
+#define SST_WAIT_US 12000u                           /* a block's token not come in this: the run let go. A quarter of the first blocks take 3
+                                                      * to 6 ms, the most under 12 (measured 2026-11-05, 6 streams): at 3 ms each was given up
+                                                      * and asked again, 178 stalls in 15 s */
 #endif
 #ifndef SST_BACKOFF_MS
 #define SST_BACKOFF_MS 2u                            /* then the card left alone this long (the screen draws) */
@@ -48,8 +50,16 @@
                                                       * 44.1 kHz mono, 40 .. 64 ms. Rings filled together drain together: all 8
                                                       * voices' runs (3.5 ms each at 12 MHz) must fit in it with the strips between */
 #endif
+#ifndef SST_TOPUP_MS
+#define SST_TOPUP_MS 30u                             /* a stream is read when half its ring is free, or with less than this left: 2.2 blocks a
+                                                      * run on a dense kit (measured 2026-11-05: 330,604 blocks in 150,702 runs, 400 KB/s, DRY 459) */
+#endif
 #ifndef SST_STRIP_MS
 #define SST_STRIP_MS 8u                              /* the card's turn before a strip at most: the screen's floor */
+#endif
+#ifndef SST_HOLD_LEAD_MS
+#define SST_HOLD_LEAD_MS SST_TOPUP_MS                /* a whole frame waits only for a stream with less than this left; the card still goes
+                                                      * before each strip under SST_URGENT_MS (rings kept half full live below that) */
 #endif
 #ifndef SST_HOLD_MS
 #define SST_HOLD_MS 100u                             /* a frame held back for the card this long at most */
@@ -166,7 +176,10 @@ static uint32_t sst_lead(uint32_t i, uint32_t now)
     if (st->done || st->dry || used >= sst_k)
         return SST_NONE;
     ahead = used * 512u + (!st->in_ring && st->pos < s->hlen ? s->hlen - st->pos : 0u);
-    return ahead / (st->bpms ? st->bpms : 1u);
+    ahead = ahead / (st->bpms ? st->bpms : 1u);
+    if (used * 2u > sst_k && ahead >= SST_TOPUP_MS)
+        return SST_NONE;                             /* (a ring topped up a block at a time spends the bus on commands: long runs) */
+    return ahead;
 }
 
 /* a token not come in SST_WAIT_US, or the stream's note started again meanwhile: let go (0); 1 the block is in */
@@ -334,7 +347,7 @@ static uint32_t sst_frame_late(void)
     if (!sst_st.in && !sd_gone && sd_wr.state == SDW_IDLE && SST_CARD_OK() && !sst_st.backoff &&
         sst_us(now - sst_st.drawn) < SST_HOLD_MS * 1000u) {
         sst_st.in = 1;
-        late = sst_pick(SST_URGENT_MS) != SST_NONE;
+        late = sst_pick(SST_HOLD_LEAD_MS) != SST_NONE;
         sst_st.in = 0;
     }
     if (late)
