@@ -977,8 +977,9 @@ _add("USB_MIDI", "", "USB MIDI (always: notes, clock, the editor, updates)", M, 
      desc="USB MIDI is in every build: notes and clock both ways, the web editor, and firmware updates (the installer "
           "and the builder flash through it). Shown for the record, it cannot be switched off.")
 _add("USB_CONSOLE", "", "USB serial console (logs, diagnostics)", M, 360, default=0,
-     desc="A read-only serial console on the USB port, next to USB MIDI: the logs and the diagnostic commands "
-          "(with Bluetooth audio, its btinq / btpage traces). Not with USB audio: the USB port has three data "
+     desc="A read-only serial console on the USB port, next to USB MIDI, presented from the first start (no switch on the "
+          "device): the logs and the diagnostic commands (with Bluetooth audio, its btinq / btpage traces). Not with USB "
+          "audio: the USB port has three data "
           "endpoints, USB MIDI takes one and USB audio the other two.")
 _add("USB_AUDIO", "", "USB audio (4 stems in, stereo out)", M, 361, default=0,
      desc="4 stems in + stereo out (UAC1) next to USB MIDI; the stems are resampled to the computer's clock (cubic, "
