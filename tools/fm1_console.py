@@ -48,7 +48,7 @@ def main(argv=None):
     ap.add_argument("commands", nargs="+", help="one of: " + ", ".join(READ_ONLY) + " (quote the ones with a space: 'sd pins')")
     ap.add_argument("--port", help="the console's serial port (default: the first USB device 0x1209)")
     a = ap.parse_args(argv)
-    refused = [c for c in a.commands if c not in READ_ONLY]
+    refused = [c for c in a.commands if c not in READ_ONLY and not c.startswith(("sd ls", "sd cat ", "sd diag", "sd stats", "sd irq", "sd clock "))]   # (reads; sd irq N picks the reader, sd clock N remounts at N)
     if refused:
         raise SystemExit("fm1_console: refused (not read-only): " + ", ".join(refused))
     try:
