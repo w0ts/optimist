@@ -29,6 +29,18 @@ final class FlashTests: XCTestCase {
         XCTAssertTrue(id!.isLoader && id!.isOurLoader)
         XCTAssertFalse(FlashProtocol.identity(FakeFlashDevice.identity("ota-FM-1_015"))!.isOurLoader)
         XCTAssertFalse(FlashProtocol.identity(FakeFlashDevice.identity("FM-1_700"))!.isLoader)
+        // M-UPGRADE 3.11: FM-1_790 to the plain query, the whole identity to the query with 01
+        let body: [UInt8] = [0, 0x59, 0x11, 1, 0, 0, 1, 0xFE]
+        XCTAssertEqual(FlashProtocol.handshakeFull, [0xF0] + FlashProtocol.pack7(body) + [0xF7])
+        let cut = FlashProtocol.identity(FakeFlashDevice.identity("FM-1_790"))!
+        let full = FlashProtocol.identity(FakeFlashDevice.identity("FM-1_7900"))!
+        XCTAssertTrue(FlashProtocol.mayBeCut(cut))
+        XCTAssertFalse(FlashProtocol.mayBeCut(full))
+        XCTAssertFalse(FlashProtocol.mayBeCut(id!))
+        XCTAssertEqual(FlashProtocol.whole(cut, full), full)
+        XCTAssertEqual(FlashProtocol.whole(cut, nil), cut)                   // (nothing answered 01)
+        let other = FlashProtocol.identity(FakeFlashDevice.identity("FM-1_8000"))!
+        XCTAssertEqual(FlashProtocol.whole(cut, other), cut)                 // (another identity: not this answer's)
     }
 
     // MARK: - packages

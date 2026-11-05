@@ -158,11 +158,18 @@ final class FlashUpdater {
         c.drain()
         for _ in 0..<tries {
             guard c.send(FlashProtocol.handshake) else { return nil }
-            let end = Date().addingTimeInterval(1)
-            while Date() < end {
-                guard let p = await c.read(timeout: end.timeIntervalSinceNow) else { break }
-                if let id = FlashProtocol.identity(p) { return id }
-            }
+            guard let id = await identity(c, seconds: 1) else { continue }
+            guard FlashProtocol.mayBeCut(id), c.send(FlashProtocol.handshakeFull) else { return id }
+            return FlashProtocol.whole(id, await identity(c, seconds: 0.6))
+        }
+        return nil
+    }
+
+    private func identity(_ c: FlashChannel, seconds: TimeInterval) async -> FlashProtocol.Identity? {
+        let end = Date().addingTimeInterval(seconds)
+        while Date() < end {
+            guard let p = await c.read(timeout: end.timeIntervalSinceNow) else { break }
+            if let id = FlashProtocol.identity(p) { return id }
         }
         return nil
     }

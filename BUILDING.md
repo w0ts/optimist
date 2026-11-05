@@ -313,6 +313,11 @@ loader answers `ota-FM-1_700`. `optimist flash` takes only these identities.
   `make_site.py` accept both ranges.
 - The USB product string is what the editor and installers look for in port names: `FM1-XXXX` (the name since 2026-10-29: four upper-case hex digits, the same four as the Bluetooth name "FM1-XXXX", from the BLE address kept in the settings or else the flash part's unique ID; `firmware/src/system/devname.h`; the manufacturer string stays "Hügelton Instruments"), and for an FM-1 on older firmware `optimist`, `felucca` and `FM-1`.
 
+M-VAVE's M-UPGRADE 3.11 takes an identity of `NAME_` and 1 to 3 digits only, and refuses a longer one. So the fm1-base
+build (`FM-1_7900`) answers the plain handshake with `FM-1_790` and its whole identity to the handshake with the body 01
+(felucca-bsp `chip/ota.c`); `fm1_install.py`, the web installer and Mirror ask that way. Checked on an FM-1 with
+M-UPGRADE 3.11.0311 for macOS: it lists the device, firmware 790.
+
 Not verified on hardware: that the stock V15 updater installs a `FM-1_7XX` package, and that M-VAVE's own updater app
 goes back to V15 from one (the same holds for every `9XX` package).
 

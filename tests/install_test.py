@@ -22,7 +22,7 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "tools"))
 import fm1_install as I  # noqa: E402
 
-I.DELAY.update(info=0.2, open=0, start=0.01, reply=0, loader=0.01, reboot=0.01, retry=0.02, poll=0.05, hs=0.1,
+I.DELAY.update(info=0.2, open=0, start=0.01, reply=0, loader=0.01, reboot=0.01, retry=0.02, poll=0.05, hs=0.1, hs_full=0.1,
                idle_check=0.4, idle_write=0.4, wait_loader=2, wait_reboot=2, resume_poll=0.05, resume_cap=0.5)
 failed = 0
 
@@ -75,6 +75,7 @@ class FakeFM1:
         self.stall_after, self.bad_addr = stall_after, bad_addr
         self.fast, self.fast_on, self.fast_words = fast, False, 0     # (the fast install: docs/INSTALL-SPEED.md)
         self.served = self.bad = self.upgrades = 0
+        self.hs_full, self.answers_full = 0, False      # (the handshake with body 01; fm1-base's firmwares answer it)
         self.stops = self.stops_before_upgrade = 0      # (MIDI STOP 0xFC received; how many came before the first upgrade command)
         self.soft_keys = 0                              # (the download-mode soft key F0 22 24 35 7D F7 received)
         self.sent, self.links, self.gen, self.lock = [], [], 0, threading.Lock()
@@ -95,6 +96,10 @@ class FakeFM1:
             self.gen += 1
             self.identity, self.name, self.connected = identity, name, True
             self.waiting, self.queue = None, []
+
+    def identity_reply(self, text):
+        t = text.encode()
+        self.tx(b"\xF0" + I.pack7(bytes([0, 0x59, 0x11, 0, 0, 0]) + t + bytes(28 - len(t))) + b"\xF7")
 
     def input_names(self):
         return [self.name] if self.connected else []
@@ -133,8 +138,12 @@ class FakeFM1:
                 self.fast_on = True
                 self.tx(I.frame(I.FAST_CMD, [1, 0x00, 0x10]))
         elif d == I.HS_QUERY:
-            t = self.identity.encode()
-            self.tx(b"\xF0" + I.pack7(bytes([0, 0x59, 0x11, 0, 0, 0]) + t + bytes(28 - len(t))) + b"\xF7")
+            cut = self.answers_full and self.identity[:self.identity.index("_") + 4]   # M-UPGRADE 3.11's: NAME_ and 3 digits
+            self.identity_reply(cut or self.identity)
+        elif d == I.HS_FULL:
+            self.hs_full += 1
+            if self.answers_full:
+                self.identity_reply(self.identity)
         elif d == I.UPGRADE:
             self.upgrades += 1
             self.checked = 0
@@ -364,6 +373,17 @@ def installs():
     dev = FakeFM1(image, identity="ota-FM-1_900", name="Felucca Update")
     rc, out, err = cli(["--info"], dev)
     ok(rc == 0 and "update loader" in out, "--info: device in update mode")
+    # M-UPGRADE 3.11 takes NAME_ and 1-3 digits: fm1-base's firmware answers the plain query so, the query with 01 whole
+    dev = FakeFM1(image, identity="FM-1_7900", name="FM-1")
+    dev.answers_full = True
+    rc, out, err = cli(["--info"], dev)
+    ok(rc == 0 and "FM-1_7900" in out and dev.hs_full == 1, "--info: FM-1_790 to the plain query, the whole identity to 01")
+    dev = FakeFM1(image, identity="FM-1_700", name="FM-1")
+    rc, out, err = cli(["--info"], dev)
+    ok(rc == 0 and "FM-1_700" in out and dev.hs_full == 1, "--info: a firmware that doesn't answer 01: its plain answer")
+    dev = FakeFM1(image, identity="ota-FM-1_900", name="Felucca Update")
+    rc, out, err = cli(["--info"], dev)
+    ok(rc == 0 and dev.hs_full == 0, "--info: a loader is never asked with 01")
 
 
 def errors():
