@@ -33,7 +33,7 @@
  * not there: the part MISSING (bmiss), silent, never another set.
  * The DRUMS' card sounds (SD card mode: registry.h KITS_CARD, X909_CARD): the sampled kits' sounds the lanes play
  * (SST_KIT_WANT(): a mask of drums/kit_card.c KC_FILE, Optimist/Samples/Kits/Acoustic/<nn> - <name>.wav) and the 909's
- * hh, crash, ride (SST_X9_WANT(), Samples/X0X/909/), found by path as a set's zones, their heads at most SST_KIT_PRE_MS
+ * hh, crash, ride (SST_X9_WANT(), Samples/X0X/909/), found by path as a set's zones, their heads SST_KIT_HEAD_MS or the pre-buffer's if longer, at least SST_KIT_PRE_MS
  * (a hit starts at once from it, the ring follows), SST_KIT_RINGS rings (no room: fewer, down to SST_KIT_RINGS_MIN, then shorter) for the kit's hits and SST_X9_RINGS for the
  * 909's; sst_kit_src / sst_x9_src (sd_stream.h) point the drums at them. One not on the card: kmiss / x9miss (sd_mode.c
  * says MISSING once), that sound silent.
@@ -72,8 +72,15 @@
 #ifndef SST_X9_WANT
 #define SST_X9_WANT() 0u                             /* (drums/x0x/x0x_card.c: the 909's files its sounds play, a mask) */
 #endif
+#ifndef SST_KIT_HEAD_MS
+#define SST_KIT_HEAD_MS 100u                         /* a drum sound's head when there is room, the pre-buffer's if longer: a dense kit, 25 s
+                                                      * (2026-11-05): DRY 40 at 50 ms, 0 at 100 (the head rides out the card's 3 to 6 ms
+                                                      * pauses, and a hit cut before its head ends never reads the card) */
+#endif
 #ifndef SST_KIT_PRE_MS
-#define SST_KIT_PRE_MS 25u                           /* a drum sound's head at most: a hit starts from it */
+#define SST_KIT_PRE_MS 25u                           /* a drum sound's head at the least: the plan's last step down when there is no
+                                                      * room (sst_place_rings); else the pre-buffer's (the user, 2026-11-05: "changing the
+                                                      * buffer size has no effect": a 25 ms cap, DRY 350 on acoustic drums at 550 KB/s) */
 #endif
 #ifndef SST_KIT_RINGS
 #define SST_KIT_RINGS 6u                             /* the kit's hits at once: a ring a drum voice (drums.c NDRUM); no room for them,
@@ -96,6 +103,7 @@ enum { SSTP_IDLE = 0, SSTP_GATED, SSTP_PLACED, SSTP_REFUSED };
 enum { SSTB_RUNS = 1, SSTB_FORMAT, SSTB_LONG, SSTB_GONE };
 static const uint16_t SST_PRE_MS[4] = {25, 50, 100, 200};
 static uint16_t sst_pre_ms = 50;                     /* (the setting) */
+static uint16_t sst_kit_pre = 200;                   /* the kit's heads at most now: the most, less when the plan has no room */
 static uint64_t sst_part_hash[SST_NSLOT] IN_POOL;    /* each part's CARD sample, then each card lane's; 0 none */
 static uint8_t sst_part_bank[SST_NPART];             /* each part's card set + 1 (SST_PART_BANK), 0 none */
 /* GRAIN and STRETCH on a card set (SST_PART_RAND, sdcard.c): the part reads its zones in any order, through a CACHE of
@@ -157,7 +165,8 @@ static uint32_t sst_cache_bytes(uint32_t m)         /* the caches of mask m in t
 
 AINL uint32_t sst_use_pre(uint32_t use, uint32_t pre)   /* a source's head at pre-buffer pre, ms */
 {
-    return use & SSTU_STREAM ? pre : use & SSTU_KIT ? (pre < SST_KIT_PRE_MS ? pre : SST_KIT_PRE_MS) : 0u;
+    uint32_t k = pre > SST_KIT_HEAD_MS ? pre : SST_KIT_HEAD_MS;
+    return use & SSTU_STREAM ? pre : use & SSTU_KIT ? (k < sst_kit_pre ? k : sst_kit_pre) : 0u;
 }
 AINL uint32_t sst_src_pre(uint32_t use) { return sst_use_pre(use, sst_pre_ms); }
 #define SSTU_HEAD (SSTU_STREAM | SSTU_RAND | SSTU_KIT)   /* (a source loaded with its runs: streamed or cached) */
@@ -621,8 +630,9 @@ static void sst_free_pick(void)
     }
 }
 
-/* a sampled kit with no room for its rings: 6 down to SST_KIT_RINGS_MIN, then every ring shorter, 2 KB a step down to
- * SST_RING_MIN_K (a ring is a slot count for all: the streams share them). No room even then: refused, MEM FULL CARD */
+/* a sampled kit with no room for its rings and heads: 6 rings down to SST_KIT_RINGS_MIN, then every ring shorter, 2 KB a step
+ * down to SST_RING_MIN_K (a ring is a slot count for all: the streams share them), then its heads halved down to SST_KIT_PRE_MS
+ * (a head is what a hit lives on until its first run). No room even then: refused, MEM FULL CARD */
 static void sst_place_rings(void)
 {
     uint32_t low = sst_nring_kit(SST_KIT_RINGS_MIN);
@@ -634,6 +644,10 @@ static void sst_place_rings(void)
     }
     while (sst_k > SST_RING_MIN_K && !arn_fits(SST_ARN_K, sstp.need, 0)) {
         sst_k = sst_k - 4u < SST_RING_MIN_K ? SST_RING_MIN_K : sst_k - 4u;
+        sstp.need = sst_need(sst_pre_ms);
+    }
+    while (sst_kit_pre > SST_KIT_PRE_MS && !arn_fits(SST_ARN_K, sstp.need, 0)) {
+        sst_kit_pre = sst_kit_pre / 2u < SST_KIT_PRE_MS ? SST_KIT_PRE_MS : sst_kit_pre / 2u;
         sstp.need = sst_need(sst_pre_ms);
     }
 }
@@ -712,6 +726,7 @@ static void sst_plan_poll(void)
         sst_lookup();
         sstp.nring = sstp.nring_want = (uint8_t)sst_nring();
         sst_k = SST_K;
+        sst_kit_pre = SST_PRE_MS[3];
         sstp.rc = (uint8_t)sst_rcs_of();
         sst_free_pick();
         sstp.need = sst_need(sst_pre_ms);

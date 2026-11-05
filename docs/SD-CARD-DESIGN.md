@@ -687,7 +687,7 @@ presets for all devices".
   and root, the flash kit's map; the kit's treatment and the lane's TUNE / DECAY / CUT / LEVEL as before) through the
   lanes' card streams (`lane_card.c dlc_go`); the 909's hats, crash and ride play `Samples/X0X/909/` through a stream
   each voice (`drums/x0x/x0x_card.c`, read from drum909.c by integers only). The plan (`sd_stream_plan.c`) places only
-  the files the lanes play (`kc_want`, `x9c_want`), by path, their heads at most 25 ms (`SST_KIT_PRE_MS`), 6 rings (5 at the least) for
+  the files the lanes play (`kc_want`, `x9c_want`), by path, their heads 100 ms (`SST_KIT_HEAD_MS`), PRE-BUFFER's if longer (halved down to 25 ms, `SST_KIT_PRE_MS`, when there is no room, after the rings), 6 rings (5 at the least) for
   the kit's hits and 2 for the 909's (of the 8). A file not on the card: that hit silent, "KIT SAMPLES MISSING" /
   "909 SAMPLES MISSING" once (`sd_mode.c sdm_kit_tick`). Synthesised kits stay synthesised. sd-card-mots: 803,812 B of
   flash (817,688 before: 13,876 B less, the 909's 6-bit hats out of the flash), SRAM +2,192 B (the 32 sources).
