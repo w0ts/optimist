@@ -54,10 +54,10 @@ Four ready-made builds, in every release; the builder makes any other.
 
 | Flavour | What it is |
 | --- | --- |
-| **synths-USB-BTA-BTM** (the default) | ANALOG 2, DIGITAL, FM6 with five voice packs, PLAITS, JUNO, ACID, PHYS; the synthesised kits with KAWA and PLAITS, the X0X 909 and 808, your kits; USB audio, Bluetooth MIDI, Bluetooth audio. The web editor does backup, restore and the screen mirror. |
-| **synths** | ANALOG 2, DIGITAL, PHASE, FM6 with five voice packs, PLAITS, STRINGS, PROPHET, JUNO, ACID, PHYS; the synthesised kits with KAWA and PLAITS, the X0X 909 and 808, your kits; Bluetooth audio. The web editor does backup, restore and the screen mirror. |
-| **synths-2** | LOFI, VOICE, WHEEL, DRONE, VPS, TERRAIN, WSEQ, VECTOR, WAVE, SID, PROPHET; the synthesised kits; Bluetooth audio. The web editor does backup, restore and the screen mirror. |
-| **drum machine** | The synthesised kits with KAWA and PLAITS, the sampled kits, the X0X 909 and 808, the drum editor, your samples and kits, SAMPLE, GRAIN; USB audio, Bluetooth MIDI, Bluetooth audio. The web editor does backup, restore and the screen mirror. |
+| **mots-config** (the default) | ANALOG 2, DIGITAL, PHASE, FM6 with five voice packs, PLAITS, STRINGS, VPS, PROPHET, CS80, PHYS, ACID, CZ, JUNO, NOISE; the synthesised kits with KAWA and PLAITS, the X0X 909 and 808, your kits; the GRIDS generators; USB audio, USB host, Bluetooth MIDI, Bluetooth audio, Wi-Fi Link. The web editor does backup, restore and the screen mirror. |
+| **synths** | ANALOG 2, DIGITAL, PHASE, FM6 with five voice packs, PLAITS, STRINGS, PROPHET, PHYS, ACID, JUNO; the synthesised kits, your kits; Bluetooth audio. The web editor does backup, restore and the screen mirror. |
+| **synths-2** | ANALOG 2, DIGITAL, PLAITS, WSEQ, VECTOR, WAVE, SID; no drums: the drum track is a fourth synth track; Bluetooth audio. The web editor does backup, restore and the screen mirror. |
+| **drum machine** | The synthesised kits with KAWA and PLAITS, the sampled kits, the X0X 909 and 808, the drum editor, your kits, DIGITAL; the GRIDS generators; USB audio. The web editor does backup, restore and the screen mirror. |
 
 ## Your first install
 
