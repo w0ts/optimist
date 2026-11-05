@@ -1,10 +1,10 @@
 /* SPDX-License-Identifier: GPL-3.0-only */
-/* USB SERIAL (SLOOP 2.4, firmware/src/io/usb/usb.c usb_serial / usb_cdc_on): a build with the CDC console presents it only
- * when the setting is on, from the start after the setting changed. Built twice (tests/run_tests.sh):
+/* The USB serial console (firmware/src/io/usb/usb.c usb_cdc_on): a build with it (FELUCCA_CDC, the builder's USB_CONSOLE)
+ * presents the composite device from the first start (no device switch since 2026-11-05; SLOOP 2.4's USB SERIAL setting
+ * chose it until then). Built twice (tests/run_tests.sh):
  *   -DFELUCCA_CDC=0 US_DUMP=1  writes the descriptors of a build without the console to argv[1];
- *   -DFELUCCA_CDC=1            checks: the setting off (the default) presents exactly those bytes; on presents the
- *                              composite (the IAD, the CDC interfaces, EP2 / EP3); the setting changed while running
- *                              changes nothing until the next start (usb_start).
+ *   -DFELUCCA_CDC=1            checks: the composite (the IAD, the CDC interfaces, EP2 / EP3) from the start, and that the
+ *                              no-console build's descriptors are the same MIDI device without the IAD and the CDC block.
  * Exit status: the number of failed checks. */
 #include <stdint.h>
 #include <stdio.h>
@@ -70,22 +70,15 @@ int main(int argc, char **argv)
         fclose(f);
         rd = ref[0];
         rc = ref[1 + rd] | (uint32_t)ref[2 + rd] << 8;
-        check("the setting is off at power-on (no settings record)", !usb_serial);
-        usb_cdc_on = usb_serial;                         /* (usb_start's first line: the SIE is not modelled) */
+        usb_cdc_on = 1;                                  /* (usb_start's: the SIE is not modelled) */
         nd = desc(1, dev);
         nc = desc(2, cfg);
-        check("off: the device descriptor is a no-console build's, byte for byte",
-              rn >= 3u + rd + rc && nd == rd && !memcmp(dev, ref + 1, nd));
-        check("off: the configuration (MIDI only, 2 interfaces) is a no-console build's, byte for byte",
-              nc == rc && !memcmp(cfg, ref + 3 + rd, nc) && cfg[4] == 2u);
-        usb_serial = 1;                                  /* the menu: ON, while running */
-        nd = desc(1, dev);
-        check("the setting changed while running: the same device until the next start", nd == rd && !memcmp(dev, ref + 1, nd));
-        usb_cdc_on = usb_serial;                         /* the next start */
-        nd = desc(1, dev);
-        nc = desc(2, cfg);
-        check("on: the composite device (misc / IAD class), the console's 4 interfaces",
+        check("the composite device (misc / IAD class), the console's 4 interfaces, from the first start",
               nd == 18u && dev[4] == 0xEFu && nc == sizeof CFG_DESC && cfg[4] == 4u && !memcmp(cfg, CFG_DESC, nc));
+        check("a no-console build: class 0, 2 interfaces, 8 + 66 bytes fewer (no IAD, no CDC block)",
+              rn >= 3u + rd + rc && rd == 18u && ref[1 + 4] == 0u && rc + 8u + 66u == sizeof CFG_DESC && ref[3 + rd + 4] == 2u);
+        check("its MIDI interfaces are this build's, byte for byte (after the IAD)",
+              rc >= 9u && !memcmp(ref + 3 + rd + 9, CFG_DESC + 17, rc - 9u));
     }
     printf("usb_serial: %s\n", fails ? "FAILED" : "all checks ok");
     return fails;

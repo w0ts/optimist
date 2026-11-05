@@ -278,8 +278,6 @@ def build_app():
             flags += ["-DFELUCCA_WIFI_CON=1", "-DFELUCCA_WIFI_SWCCMP=1"]
         if os.environ.get("OPTIMIST_WIFI") in ("1", "3"):
             flags.append("-DFELUCCA_WIFI_AP=1")        # (MODE AP, wifi/wifi_apd.c; 1 = the dev build, 3 = the slim build with it)
-    if os.environ.get("OPTIMIST_CDC_FORCE") == "1":   # (a debug build: the CDC console presented without USB SERIAL ON)
-        flags.append("-DFELUCCA_CDC_FORCE=1")
     if os.environ.get("OPTIMIST_MEMBENCH") == "1":    # (a bench build: the console's membench, io/console_mem.c)
         flags.append("-DFELUCCA_MEMBENCH=1")
     if os.environ.get("OPTIMIST_MUL64_CLEAR") == "1":   # (not FELUCCA_*: the builder strips those) the asm loops with no

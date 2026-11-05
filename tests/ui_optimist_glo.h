@@ -65,7 +65,7 @@ static void glo_list_tests(void)
                                      "CPU TIMES",        /* (the dual render's times: DUAL_LOAD builds) */
 #endif
                                      "BT MIDI", "BT AUDIO", "WI-FI", "DEVICES",   /* (the user, 2026-11-03: General, then Top, after Bluetooth and Wi-Fi) */
-                                     "GENERAL", "USB", "METERS",   /* (METERS before the USB host page, 2026-11-03: USB SERIAL first, on General) */
+                                     "GENERAL", "METERS",   /* (METERS before the USB host page, 2026-11-03; USB SERIAL's row gone 2026-11-05) */
                                      "TOP",              /* (the CPU's jobs and the RAM's owners: SYS_TOP builds) */
                                      "USB AUDIO", "ABOUT", "CREDITS"};
     cell_t want[GL_MAXL], c;
@@ -115,7 +115,7 @@ static void glo_list_tests(void)
         }
     check(ok, "every line has a name and a value (no empty line)");
 #if FELUCCA_TFLT_RESO && FELUCCA_TRK_FILT
-    {   /* FILT RESO is the project's (2026-10-29): GLOBAL's FILTER section, not SYSTEM's General; General keeps its three and USB SERIAL joins */
+    {   /* FILT RESO is the project's (2026-10-29): GLOBAL's FILTER section, not SYSTEM's General; General keeps its three and METERS joins */
         uint32_t f = glo_find(SCR_GLOBAL, "TUNE") + 2u, m = glo_find(SCR_GLOBAL, "MIDI"), g = glo_find(SCR_SYSTEM, "GENERAL");
         ok = f < SCREENS[SCR_GLOBAL].rows() && f < m;
         if (ok) {
@@ -127,25 +127,23 @@ static void glo_list_tests(void)
             ok &= !(c.label && !strcmp(c.label, "FILT RESO"));
         }
         check(ok, "FILT RESO: a line of GLOBAL's first page (TUNE, QUANT, FILT RESO), none in SYSTEM");
-#if FELUCCA_CDC && !DBG_STATS
-        ok = g + 3u < SCREENS[SCR_SYSTEM].rows() && gl_end(1, g) - gl_first(1, g) == 4u;
+#if !DBG_STATS
+        ok = g + 2u < SCREENS[SCR_SYSTEM].rows() && gl_end(1, g) - gl_first(1, g) == 3u;
         SCREENS[SCR_SYSTEM].cell(g + 2u, gl_kn(SCR_SYSTEM, g + 2u), &c);
-        ok &= c.label && !strcmp(c.label, "SERIAL");
-        SCREENS[SCR_SYSTEM].cell(g + 3u, gl_kn(SCR_SYSTEM, g + 3u), &c);
-        check(ok && c.label && !strcmp(c.label, "METERS"), "SYSTEM > General: KNOB COLORS, HPHN BASS, USB SERIAL and METERS on one page (GL_JOIN: FILT RESO gone; METERS since 2026-11-03)");
+        check(ok && c.label && !strcmp(c.label, "METERS"), "SYSTEM > General: KNOB COLORS, HPHN BASS and METERS on one page (GL_JOIN: FILT RESO gone; METERS since 2026-11-03; USB SERIAL's row gone 2026-11-05)");
 #endif
     }
 #endif
 #if DBG_STATS
-    {   /* DEBUG STATS (the release, PLAT_STATS_APP) is General's last line (2026-10-29), no page of its own; USB SERIAL joins them (CDC builds) */
-        static const char *const GL[4] = {"KNOB COLORS", "HPHN BASS", "DEBUG STATS", "SERIAL"};
+    {   /* DEBUG STATS (the release, PLAT_STATS_APP) is General's last line (2026-10-29), no page of its own; METERS joins them (USB SERIAL did, until 2026-11-05) */
+        static const char *const GL[4] = {"KNOB COLORS", "HPHN BASS", "DEBUG STATS", "METERS"};
         uint32_t g = glo_find(SCR_SYSTEM, "GENERAL");
-        ok = g + 2u < SCREENS[SCR_SYSTEM].rows() && gl_end(1, g) - gl_first(1, g) == 3u + FELUCCA_CDC;
-        for (i = 0; ok && i < 3u + FELUCCA_CDC; i++) {
+        ok = g + 3u < SCREENS[SCR_SYSTEM].rows() && gl_end(1, g) - gl_first(1, g) == 4u;
+        for (i = 0; ok && i < 4u; i++) {
             SCREENS[SCR_SYSTEM].cell(g + i, gl_kn(SCR_SYSTEM, g + i), &c);
             ok &= c.label && !strcmp(c.label, GL[i]);
         }
-        check(ok, "SYSTEM > General (DEBUG STATS built): KNOB COLORS, HPHN BASS, DEBUG STATS (USB SERIAL in CDC builds) on one page");
+        check(ok, "SYSTEM > General (DEBUG STATS built): KNOB COLORS, HPHN BASS, DEBUG STATS and METERS on one page");
         for (i = 0, ok = 1; i < SCREENS[SCR_SYSTEM].rows(); i++) {
             char nm[24];
             SCREENS[SCR_SYSTEM].name(i, nm);

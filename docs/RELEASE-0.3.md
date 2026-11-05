@@ -46,6 +46,7 @@ each track keeps its mode until power-off.
 - The FM-1 is named FM1-XXXX on USB, MIDI, Bluetooth and Wi-Fi, so M-Flasher and other tools find it ([#138](https://github.com/w0ts/optimist/issues/138)). If the FM-1 refuses a package (M-VAVE's firmware over m-bootloader), the installer says nothing was written and switches to download mode.
 - With several FM-1s connected, the builder and `make flash` ask which one, or flash them all one after the other.
 - KNOB COLORS is on by default. SYSTEM lists Bluetooth and Wi-Fi first.
+- The USB serial console (builder option USB_CONSOLE) is on from the first start. The SERIAL switch in SYSTEM is gone.
 - Release packages carry GitHub build provenance.
 - The web builder shows measured sizes for every option.
 

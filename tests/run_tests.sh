@@ -1081,7 +1081,7 @@ job; ( jobin
 job; ( jobin
     $CC -DFELUCCA_CDC=0 -o "$OUT/usb_serial_dump" tests/usb_serial_test.c && "$OUT/usb_serial_dump" "$OUT/usb_plain.bin" >/dev/null
     $CC -DFELUCCA_CDC=1 -o "$OUT/usb_serial_test" tests/usb_serial_test.c
-    run "USB SERIAL (SLOOP 2.4): the console only when on, from the next start; off = a no-console build, byte for byte" "$OUT/usb_serial_test" "$OUT/usb_plain.bin"
+    run "USB serial console: presented from the first start in a console build; a no-console build is the same MIDI device without it" "$OUT/usb_serial_test" "$OUT/usb_plain.bin"
 ) >"$U.out" 2>&1 & jobbg
 job; ( jobin
     run "USB descriptors: MIDI, CDC and audio configurations" python3 tests/usb_audio_desc_test.py

@@ -274,7 +274,7 @@ engine from the fact sheet and stock V15's behaviour: it proves the software, no
 
 ## 11. On a real FM-1: the console and the breadcrumb
 
-Needs a console build (`USB_CONSOLE=1`; SYSTEM > USB > SERIAL ON, then a restart). The commands only read (flash over SPI, RAM); none
+Needs a console build (`USB_CONSOLE=1`: the console is presented from the first start). The commands only read (flash over SPI, RAM); none
 writes memory, flash or a register.
 
 | Command | Prints |

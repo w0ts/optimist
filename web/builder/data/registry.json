@@ -4201,7 +4201,7 @@
     "bit": 360,
     "default": 0,
     "parent": null,
-    "desc": "A read-only serial console on the USB port, next to USB MIDI: the logs and the diagnostic commands (with Bluetooth audio, its btinq / btpage traces). Not with USB audio: the USB port has three data endpoints, USB MIDI takes one and USB audio the other two.",
+    "desc": "A read-only serial console on the USB port, next to USB MIDI, presented from the first start (no switch on the device): the logs and the diagnostic commands (with Bluetooth audio, its btinq / btpage traces). Not with USB audio: the USB port has three data endpoints, USB MIDI takes one and USB audio the other two.",
     "experimental": false,
     "notice": "",
     "off_warning": "",

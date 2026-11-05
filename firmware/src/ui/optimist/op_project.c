@@ -416,7 +416,7 @@ static uint32_t pw_leds(uint32_t *d);
 #include "../../system/stackmark.h"                     /* INFO's RAM line: how deep the stacks went (painted at boot: stk_boot) */
 /* ---- SYSTEM: SLOOP's HOME-held menu as rows (ui/sloop/ui_menu.c) */
 enum { SI_NONE, SI_TUNE, SI_RECQ, SI_PUNCH, SI_OUT, SI_SYNC, SI_CH1, SI_CH2,
-       SI_CH3, SI_CHD, SI_USB, SI_CPU, SI_ABOUT, SI_BLE, SI_KCOL, SI_DBGST, SI_METERS, SI_CLKOUT, SI_CPU1, SI_INFO, SI_BUILD, SI_REPO,
+       SI_CH3, SI_CHD, SI_CPU, SI_ABOUT, SI_BLE, SI_KCOL, SI_DBGST, SI_METERS, SI_CLKOUT, SI_CPU1, SI_INFO, SI_BUILD, SI_REPO,
        SI_DROPS, SI_GUARD, SI_UAINFO, SI_XRUN, SI_DIAG, SI_CREDITS, SI_BLEST, SI_BLEPEER, SI_BLEMIDI, SI_BLELIST, SI_BLEAUTO,
        SI_BLEFGT, SI_FRESO, SI_HPBASS, SI_BTA, SI_BTAPEER, SI_BTAFMT, SI_BTAST, SI_CLKOFS, SI_BTOFS, SI_LINK, SI_LINKOFS,
 #if FELUCCA_SD_UI
@@ -544,14 +544,11 @@ static const struct { const char *name; uint8_t it[4]; } SYS[] = {
     /* the screen and the sound in one section (the user, 2026-10-25: KNOB COLORS was on a page read as "audio", "group and
      * make it logical"): KNOB COLORS (the knob caps' colours; COLOR gone 2026-10-18: the palette is MONO, panel.c),
      * SPK LOWCUT and HPHN BASS (the output's correction by the headphone jack: fx/outcorr.c); FILT RESO went to GLOBAL's TUNE page
-     * (the user, 2026-10-29: it is a project's, not the device's), so USB SERIAL joins this page (GL_JOIN) when it fits. DEBUG STATS is the last row, after HPHN BASS, where the platform keeps them
-     * (DBG_STATS: the release; it had a page alone, SYSTEM > DEBUG, until 2026-10-29): General is then 4 lines, full, and USB SERIAL
-     * keeps its own page (the join holds 4 lines at most) */
+     * (the user, 2026-10-29: it is a project's, not the device's), so METERS joins this page (GL_JOIN) when it fits (USB SERIAL did, until 2026-11-05: the console comes with the build, no switch). DEBUG STATS is the last row, after HPHN BASS, where the platform keeps them
+     * (DBG_STATS: the release; it had a page alone, SYSTEM > DEBUG, until 2026-10-29): General is then 3 lines and METERS
+     * makes 4 with it (the join holds 4 lines at most) */
     {"GENERAL", {SI_KCOL, SI_HPBASS, DBG_STATS ? SI_DBGST : SI_NONE, SI_NONE}},
-#if FELUCCA_CDC
-    {"USB", {SI_USB, SI_NONE, SI_NONE, SI_NONE}},       /* (USB SERIAL: on General's page when it fits, GL_JOIN) */
-#endif
-    {"METERS", {SI_METERS, SI_NONE, SI_NONE, SI_NONE}},   /* the load lines at the screen's foot: OFF CPUS MEMORY BOTH (core/meters.h, op_meters.c); on General's page when it fits (GL_JOIN): before the USB host's page (between them it kept METERS alone, the user, 2026-11-03); USB SERIAL keeps its place on General first */
+    {"METERS", {SI_METERS, SI_NONE, SI_NONE, SI_NONE}},   /* the load lines at the screen's foot: OFF CPUS MEMORY BOTH (core/meters.h, op_meters.c); on General's page when it fits (GL_JOIN): before the USB host's page (between them it kept METERS alone, the user, 2026-11-03) */
 #if USBH_UI
     {"USB", {SI_UHMODE, SI_UHDEV, SI_NONE, SI_NONE}},   /* the port as a MIDI host or the computer's device (USB_HOST: the trial's
                                                          * ui/opt_usbh.h on fm1-base's; after METERS since 2026-11-03) */
@@ -807,12 +804,6 @@ static void sys_it_cell(uint32_t it, cell_t *c)     /* the cell of setting it */
     case SI_HPBASS:
         cell_list(c, "HPHN BASS", HB[hp_bass % 3u], 2, (int32_t)(hp_bass % 3u));     /* (headphones in the jack) */
         break;
-#if FELUCCA_CDC
-    case SI_USB:
-        sys_onoff(c, "SERIAL", usb_serial);
-        c->col = usb_serial == usb_cdc_on ? 0 : C_WARN;  /* (amber: a restart applies it) */
-        break;
-#endif
 #if FELUCCA_BT_UI
     case SI_BLE:
         bt_mode_cell(BT_MIDI, c);
@@ -1686,11 +1677,6 @@ static void sys_set(uint32_t it, int32_t s)
     case SI_HPBASS:
         settings.lowcut = oc_set_word(oc_word(spk_lc, (uint32_t)sys_step((int32_t)(hp_bass % 3u), s, 2)));   /* OFF / +3 / +6 dB */
         break;
-#if FELUCCA_CDC
-    case SI_USB:
-        usb_serial = (uint8_t)(s > 0 ? 1u : s < 0 ? 0u : !usb_serial);
-        break;
-#endif
 #if FELUCCA_BT_UI
     case SI_BLE:                                        /* BT MIDI's MODE: OFF, MAN, AUTO, a detent a mode (YES: round; OFF:
                                                          * a connected central is let go) */
@@ -1742,11 +1728,6 @@ static int sys_factory(uint32_t it)
     case SI_HPBASS:
         settings.lowcut = oc_set_word(oc_word(spk_lc, 0u));
         break;
-#if FELUCCA_CDC
-    case SI_USB:
-        usb_serial = 0;
-        break;
-#endif
     case SI_KCOL:
         knob_colors = 1;                                /* (its default: ON, 2026-11-03) */
         ui.redraw = 1;

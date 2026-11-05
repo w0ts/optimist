@@ -175,9 +175,6 @@ static void t_word(void)
     check(((w >> 14) & 3u) == 1u, "settings word: bit 14 OUT = SEQ (as 2.4); bit 15 (2.4's IN = CLOCK) written 0");
     bp_set[BPS_MIN] = 0;
 #if FELUCCA_CDC
-    usb_serial = 1;
-    check(((bp23_word() >> 16) & 1u) == 1u, "settings word: bit 16 USB SERIAL (as 2.4)");
-    usb_serial = 0;
 #endif
     song.g[G_SYNC] = SYNC_TRS;
     proj_capture(&q, &tdl);

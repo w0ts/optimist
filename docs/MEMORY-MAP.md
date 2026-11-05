@@ -140,7 +140,7 @@ the same (felucca-bsp `chip/fm1_cache_ram.h`, `plat_cache_ram`, `fm1.toml` `cach
 
 The console's `membench` (`io/console_mem.c`, a bench build only: `OPTIMIST_MEMBENCH=1`) runs one ALU loop linked three
 times (RAMTEXT, RAM, XIP; byte-identical, 16-byte aligned) and reads and writes a 2 KiB scratch in each region. **Measured
-on one FM-1** (default profile with the console, `OPTIMIST_CDC_FORCE=1`, no USB audio, no JUNO; CPU0, interrupts on):
+on one FM-1** (default profile with the console, `USB_CONSOLE=1`, no USB audio, no JUNO; CPU0, interrupts on):
 
 | | RAMTEXT | RAM | POOL | XIP (cached) |
 |---|---|---|---|---|

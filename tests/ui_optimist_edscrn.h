@@ -6,7 +6,7 @@
  *   op 2   a turn (fine, a unit) moves the setting through the screen's own function; the reply is the line again
  *   op 3   YES on a destructive action asks (ask 1, the device's question) and does nothing until ok
  *   a bad screen or line: no reply
- * With -DEDSCRN_GOLDEN=1 (a build with the SYSTEM rows of LIGHTS, USB SERIAL) the lines as JSON are compared with
+ * With -DEDSCRN_GOLDEN=1 (a build with the SYSTEM rows of LIGHTS and the console) the lines as JSON are compared with
  * tests/scrn_table.json (EDSCRN_WRITE=1 rewrites it): the web editor's mock serves them (tools/gen_fxp_table.py). Included after
  * ui_optimist_glpages.h. */
 static uint8_t ed_out[900];
