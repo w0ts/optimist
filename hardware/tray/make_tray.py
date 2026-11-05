@@ -32,7 +32,7 @@ POLE, POLE_D, COLLAR_H = (75.0, 40.0), 6.9, 5.6 + UP   # the pole (75: 3 mm left
 COLLAR_IN = (POLE_D + 0.4) / 2
 COLLAR_OUT = COLLAR_IN + 1.0
 
-board = pcbnew.LoadBoard(os.path.join(HERE, "sd-board.kicad_pcb"))
+board = pcbnew.LoadBoard(os.path.join(HERE, "..", "archive-v6-tested", "sd-board.kicad_pcb"))
 outline = pcbnew.SHAPE_POLY_SET()
 board.GetBoardPolygonOutlines(outline, False)
 ring = outline.Outline(0)

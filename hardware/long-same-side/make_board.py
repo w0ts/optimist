@@ -203,7 +203,7 @@ J3_AT = {n: 11 - n for n in range(1, 11)}        # (turned, XUNPU's own pin 1 is
 # v7, VARIANT j2top (the user, 2026-11-04: "the bottom connector at the same place, but on the top, with the contact
 # facing away from the pcb"): J2 on the board's TOP at its old height (58.5 mm up, toward the card reader) and in J3's
 # alignment (x 88.0), the SAME part as J3 and turned the same way (not flipped): its contacts are on the top, facing away
-# from the board (gold UP). Wired by place as J3 (J2_AT = J3_AT). The other version (sd-board/) has it flipped to the bottom.
+# from the board (gold UP). Wired by place as J3 (J2_AT = J3_AT). The other version (long-both-sides/) has it flipped to the bottom.
 J2_V = 58.5
 J2 = P(LIB, FPC10_TOP, "J2", "FPC 10P 0.5mm top contact", 88.0, J2_V, 180, "C3446068")
 assert J2.GetLayer() == pcbnew.F_Cu, "J2 is not on the top"

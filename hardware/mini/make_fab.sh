@@ -1,7 +1,7 @@
 #!/bin/sh
 # The short SD board's fabrication files (DESIGN.md): the board from make_board.py, its design-rule check, the
 # Gerbers and drill files zipped for JLCPCB, the BOM and placement (make_board.py writes them), a top and bottom render.
-#   sh make_fab.sh        (from hardware/sd-board-short; needs KiCad 10: /Applications/KiCad)
+#   sh make_fab.sh        (from hardware/mini; needs KiCad 10: /Applications/KiCad)
 set -eu
 KP=/Applications/KiCad/KiCad.app/Contents/Frameworks/Python.framework/Versions/3.9/bin/python3.9
 "$KP" make_board.py 2>&1 | grep -v "wxApp\|stdpbase" || true

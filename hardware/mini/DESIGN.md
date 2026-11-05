@@ -1,7 +1,7 @@
 # The short FM-1 SD board
 
 > [!WARNING]
-> **Never built, never fitted, never tested.** Only v6 (`../sd-board/`) has run on an FM-1.
+> **Never built, never fitted, never tested.** Only v6 (`../archive-v6-tested/`) has run on an FM-1.
 
 m-card's place (Julius Vitkauskas, <https://github.com/jvitkauskas/m-card>, ec63784, CC0-1.0) and hinged socket, redrawn for
 short lines. 26 x 25.0 mm, u 84.5-110.5, v 51.7-76.7 in the FM-1 frame, inside m-card's outline. 1.0 mm board. "Top" is
@@ -115,4 +115,4 @@ resistors' upper pads, not their bodies, lie under the card's end by about 0.35 
 The bottom paste layer is in the zip. Check J1, J2, J3 and every bottom part's rotation in JLC's preview. Not quoted: expect about
 v7-j2-bottom's 115.45 USD for 15 (the same number of extended part types) and the difference in the socket's price (not found).
 
-`lib/` holds links to `../sd-board/lib`. Credit: see [`../../LICENSING.md`](../../LICENSING.md).
+`lib` is a link to `../lib`. Credit: see [`../../LICENSING.md`](../../LICENSING.md).
