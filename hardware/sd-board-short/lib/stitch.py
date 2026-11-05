@@ -1,1 +1,0 @@
-../../sd-board/lib/stitch.py

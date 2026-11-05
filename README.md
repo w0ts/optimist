@@ -21,7 +21,7 @@ FM-1 projects (see <a href="#credits">Credits</a>).</p>
 > modded FM-1 (2026-11-04: an SDHC card mounts and reads); writes, sample streaming, recording and a long run of the
 > screen with the card in are **not tested on hardware yet**.
 >
-> - **The SD board is a first prototype**: `hardware/sd-board/` (see its README); build one only if you are ready to
+> - **The SD board is a first prototype**: `hardware/archive-v6-tested/` (see its README); build one only if you are ready to
 >   rework it.
 > - **Do not install a build with the card on an FM-1 you depend on.**
 > - Anything here may change without notice.

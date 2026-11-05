@@ -22,15 +22,15 @@ Six wires, one inverter, two resistors, no pin of the main chip touched.
 
 ## 2. Parts
 
-> **Superseded (2026-10-25):** the SD board (`hardware/sd-board/`, v5: the board is the splitter, two 10-pin
+> **Superseded (2026-10-25):** the SD board (`hardware/archive-v6-tested/`, v5: the board is the splitter, two 10-pin
 > sockets, no soldering) replaces the hand-wired kit and the "v2" tap board below. The 1 kOhm figures below belong to
 > that kit; the board uses 220 Ohm (section 4). The board's README is the current parts list.
 
-**For everyone: the SD board (hardware/sd-board/, 2026-10-25).** One small board with the socket (push-push), the
-inverter, the resistors and the capacitors, ordered assembled from JLCPCB with the files in `hardware/sd-board/fab/` (or
+**For everyone: the SD board (hardware/archive-v6-tested/, 2026-10-25).** One small board with the socket (push-push), the
+inverter, the resistors and the capacitors, ordered assembled from JLCPCB with the files in `hardware/archive-v6-tested/fab/` (or
 from OSHWLab once published there). v2 (20 x 45.5 mm, the back of the board above the battery) takes a 6-pin 0.5 mm flat cable from a tap board at J12, so nothing is soldered; the tap board is still to design (J12's pin map is in section 3; pin 7's supply confirmed
-2026-10-28). The taps on the FM-1's board: `hardware/sd-board/j12-wiring-points.png`; the chip's pins 28-32, J12's numbering
-and the two 74HC595s' VCC / GND: `hardware/sd-board/j12-chip-pins.png`. See `hardware/sd-board/README.md`.
+2026-10-28). The taps on the FM-1's board: `hardware/fm1/j12-wiring-points.png`; the chip's pins 28-32, J12's numbering
+and the two 74HC595s' VCC / GND: `hardware/fm1/j12-chip-pins.png`. See `hardware/README.md`.
 
 
 **The kit (2026-10-25, for every user: off the shelf, through-hole, no board to order):**

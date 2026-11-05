@@ -1,11 +1,11 @@
 # The FM-1 SD board, v7: J2 on the bottom side
 
 > [!WARNING]
-> ## 🚧 UNTESTED: only v6 (`../sd-board/`) has been built and works 🚧
+> ## 🚧 UNTESTED: only v6 (`../archive-v6-tested/`) has been built and works 🚧
 >
 > This variant has **never been built or tested**. It is v6 with the flat-cable sockets moved (below). Every other
 > fact (the circuit, the J12 pin map, the card, the tray, the measurements, the bench tests) is v6's: read
-> [`../sd-board/DESIGN.md`](../sd-board/DESIGN.md) and `../sd-board/MEASUREMENTS.md`.
+> [`../archive-v6-tested/DESIGN.md`](../archive-v6-tested/DESIGN.md) and `../fm1/MEASUREMENTS.md`.
 
 ## Minor update (2026-11-04), all three boards, same folders, no new version
 
@@ -43,4 +43,4 @@ packaging 0.52). That is about 34 USD more than the top-side variant, all of it 
 ## Build
 
 `sh make_fab.sh` (KiCad 10 in /Applications/KiCad): the board and the schematic, DRC, the net check, the Gerbers, the
-BOM and placement, the renders. `lib/` is a link to `../sd-board/lib` (the footprints and 3D models are shared).
+BOM and placement, the renders. `lib/` is a link to `../lib` (the footprints and 3D models are shared).

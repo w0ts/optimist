@@ -24,7 +24,7 @@ import pcbnew
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.dont_write_bytecode = True                  # (no lib/__pycache__ in the repository)
 sys.path.insert(0, os.path.join(HERE, "lib"))
-from stitch import stitch   # (lib/stitch.py -> ../sd-board/lib: after m-card's stitch(), CC0-1.0)
+from stitch import stitch   # (lib/stitch.py -> ../lib: after m-card's stitch(), CC0-1.0)
 LIB = os.path.join(HERE, "lib", "sdboard.pretty")
 KICAD_FP = "/Applications/KiCad/KiCad.app/Contents/SharedSupport/footprints"
 RTUNE = os.path.join(KICAD_FP, "Resistor_SMD.pretty")

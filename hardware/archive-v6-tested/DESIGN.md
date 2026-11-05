@@ -4,8 +4,8 @@
 > ## This version (v6) is the one that has been built, tested and works
 >
 > v6 (the first order, 2026-10-28) ran an SD card in an FM-1 (the user, 2026-11-04). It is the **only tested version**.
-> The two v7 variants next to it, [`../sd-board-v7-j2-bottom/`](../sd-board-v7-j2-bottom/) and
-> [`../sd-board-v7-j2-top/`](../sd-board-v7-j2-top/), are **not built and not tested**: they only move the flat-cable
+> The two v7 variants next to it, [`../long-both-sides/`](../long-both-sides/) and
+> [`../long-same-side/`](../long-same-side/), are **not built and not tested**: they only move the flat-cable
 > socket J2 (and drop the swap jumpers and the J12 test pads). See "The versions" below. The bench tests under "Still
 > open" are still the list to run on any new board.
 
@@ -19,9 +19,9 @@
 
 | Folder | Status | J2 (the cable from J12) | Price, 15 boards assembled |
 |---|---|---|---|
-| `sd-board/` (v6, this one) | **built, tested, works** | top side, its own part (C2856798, bottom contact), 91.3 mm across, 58.5 up | 82.46 USD |
-| `sd-board-v7-j2-top/` | untested | top side, the same part as J3 (C3446068), in line with J3 (88.0 mm across), 58.5 up | 81.43 USD |
-| `sd-board-v7-j2-bottom/` | untested | bottom side, the same part as J3, in line with J3, 58.5 up, contacts facing away from the board | 115.45 USD |
+| `archive-v6-tested/` (v6, this one) | **built, tested, works** | top side, its own part (C2856798, bottom contact), 91.3 mm across, 58.5 up | 82.46 USD |
+| `long-same-side/` | untested | top side, the same part as J3 (C3446068), in line with J3 (88.0 mm across), 58.5 up | 81.43 USD |
+| `long-both-sides/` | untested | bottom side, the same part as J3, in line with J3, 58.5 up, contacts facing away from the board | 115.45 USD |
 
 The v7 variants are v6 with the connectors moved: J2 is the same part as J3 and in line with it, and J3 is 0.6 mm
 lower. Also gone, on the user's request: the five swap jumpers (each line is now plain copper, so a wrong J12 guess can
@@ -29,7 +29,7 @@ no longer be fixed by cutting a bridge) and the four J12 test pads (pins 6, 8 an
 same (68 pins on the board, 68 in the schematic, DRC 0); the outline, the card socket, the ESD, the resistors and the
 tray are v6's. Prices are JLCPCB's live quotes of 2026-11-04 (Standard assembly, before shipping
 and VAT; 10 boards: 69.81, 68.52 and 102.54 USD). The bottom variant is dearer because both sides are assembled
-(setup and stencil doubled, about 34 USD more whatever the quantity). This file and `MEASUREMENTS.md` describe v6.
+(setup and stencil doubled, about 34 USD more whatever the quantity). This file and `../fm1/MEASUREMENTS.md` describe v6.
 
 A board with everything the SD card mod needs (docs/SD-CARD-DESIGN.md), and the splitter too: a push-push microSD
 socket, the chip-select inverter, the 220 Ohm on the card's data out, the pull-ups, the decoupling, and two 10-pin
@@ -44,7 +44,7 @@ round the cover's pole there; a column goes up the right of the speaker plug to 
 The card goes in through the case's bottom wall, flush with the outside, 81.7 mm from the left wall. **No soldering.**
 Status (v6, 2026-10-27): **rerouted to J12's pin map as Julius probed it** (docs/SD-CARD-DESIGN.md section 3) and
 checked (KiCad: no design-rule error, the schematic's nets equal the board's, 82 pins); sizes measured with calipers
-(`MEASUREMENTS.md`). **Ready to order as a prototype** (2026-10-28): J12's pin 7 and the cable's face are settled; the
+(`../fm1/MEASUREMENTS.md`). **Ready to order as a prototype** (2026-10-28): J12's pin 7 and the cable's face are settled; the
 bench tests under "Still open" come with the first boards.
 
 ![top](render-top.png)
@@ -102,7 +102,7 @@ bench tests under "Still open" come with the first boards.
   before its first LCD command; other firmware does not.
 - **Hot insertion**: insert a card while the FM-1 runs and watch the screen.
 - Done: **J12 pin 7 = 3.3 V** (Julius, 2026-10-28): his working prototype powers the card from it.
-- Done: **the mirror check** (2026-10-28, from `MEASUREMENTS.md`): at J12 the cable's contacts face the FM-1 board, and
+- Done: **the mirror check** (2026-10-28, from `../fm1/MEASUREMENTS.md`): at J12 the cable's contacts face the FM-1 board, and
   round the board's edge they keep facing it, so at J2 they face our board (gold DOWN). With J12 counting from the
   right and J2's opening to the top edge, J12 pin 1 lands on J2's first contact from the left: no mirror with the type A
   cable. **J2 is now single-sided, bottom contact** (XUNPU FPC-05F-10PH20, C2856798, turned and wired by place as J3,
@@ -124,7 +124,7 @@ bench tests under "Still open" come with the first boards.
 2. **A 10-pin 0.5 mm cable, type A** (contacts on the same face at both ends), 80 mm, from J12 to J2, gold facing the
    FM-1 board at J12 and our board at J2. The listing the user ordered from:
    https://www.aliexpress.com/item/4000022050815.html (10 pin, 0.5 mm pitch, type A).
-3. **The tray** (`sd-tray.stl`, 3D print): the board slides in from the bottom end until it meets the collar.
+3. **The tray** (`../tray/sd-tray.stl`, 3D print): the board slides in from the bottom end until it meets the collar.
 4. **A slot in the bottom wall** for the card: about 15 x 2.5 mm, the card's left side 81.7 mm from the left wall's
    inside (the socket's 2 mm further left).
 
@@ -151,7 +151,7 @@ Check the fit first: `mockup-printable.stl` (3D print, one piece: the board and 
 
 As J12 (Julius, 2026-10-27): J12 pin n on J2's and J3's n-th contact from the left (both wired by place). **J12 counts from
 the right**: pin 1 is the leg by the FM-1 board's dot, the right end with the connector's opening up
-(`j12-wiring-points.png`). The LCD's flex turns over on its way to J3 (its contacts face the FM-1 board at J12, up at
+(`../fm1/j12-wiring-points.png`). The LCD's flex turns over on its way to J3 (its contacts face the FM-1 board at J12, up at
 J3), so J12's right end lands on J3's left end: line 1 on J3's first contact from the left, as wired. The printed
 mockup's check confirms it.
 
