@@ -2279,6 +2279,11 @@ static void sdu_dx7_tests(void)
  * file is another unit's */
 static void sdu_settings_tests(void)
 {
+    /* the pages after the card's are there (a line cap that left the SD lines out cut SYSTEM at SETTINGS, the user 2026-11-05) */
+    check(glo_find(SCR_SYSTEM, "SETTINGS") < SCREENS[SCR_SYSTEM].rows() && glo_find(SCR_SYSTEM, "GENERAL") < SCREENS[SCR_SYSTEM].rows() &&
+              glo_find(SCR_SYSTEM, "METERS") < SCREENS[SCR_SYSTEM].rows() && glo_find(SCR_SYSTEM, "ABOUT") < SCREENS[SCR_SYSTEM].rows(),
+          "SYSTEM in SD card mode: GENERAL, METERS and ABOUT after the card's pages");
+    check(gl_npg(1) <= GL_MAXP, "SYSTEM in SD card mode: its pages fit the page table");
     persist_t mine;
     sdu_card();
     memset(&persist_saved, 0, sizeof persist_saved);
