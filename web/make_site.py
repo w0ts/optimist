@@ -134,6 +134,20 @@ EDITOR_ICON = ('<svg class="o-ic" width="14" height="14" viewBox="0 0 14 14" fil
                '<rect x="0.5" y="8" width="4.5" height="2.5"/><rect x="4.7" y="3" width="4.5" height="2.5"/><rect x="9" y="6" width="4.5" height="2.5"/></svg>')
 
 
+APP_STORE = "https://apps.apple.com/app/id6826362906"   # (Optimist Mirror: one record, iPhone, iPad and Mac)
+BADGES_MARK = "<!--APP-BADGES-->"                  # where the editor's menu bar takes the App Store badges
+
+
+def app_badges():
+    """Apple's badges, as Apple gives them (web/style/badges/), inlined: no request to Apple from the pages"""
+    imgs = []
+    for f, alt, w in (("app-store.svg", "Download on the App Store", 78), ("mac-app-store.svg", "Download on the Mac App Store", 102)):
+        data = base64.b64encode((HERE / "style" / "badges" / f).read_bytes()).decode("ascii")
+        imgs.append(f'<a href="{APP_STORE}" target="_blank" rel="noopener" style="padding:0;background:none;display:inline-flex">'
+                    f'<img src="data:image/svg+xml;base64,{data}" alt="{alt}" height="26" width="{w}"></a>')
+    return f'<span class="o-badges" style="display:inline-flex;gap:6px;align-items:center;flex:none;margin-left:auto">{"".join(imgs)}</span>'
+
+
 def shared_css():
     """the shared tokens and components (web/style/optimist.css)"""
     css = (HERE / "style" / "optimist.css").read_text(encoding="utf-8")
@@ -150,8 +164,8 @@ def shared_header(app):
         f'<a href="{href}"' + (' aria-current="page"' if a == app else "") + f">{(EDITOR_ICON + ' ' if a == 'editor' else '')}{t}</a>"
         for href, a, t in items)
     return (f'<header class="o-head"><a class="o-brand" href="../../" title="Optimist">{logo_svg()}<b>Optimist</b></a>'
-            f'<nav class="o-nav" aria-label="Optimist apps"><span class="o-sep" role="separator" aria-orientation="vertical"></span>{links}'
-            f'<a class="o-gh" href="https://github.com/{REPO}" target="_blank" rel="noopener" title="Optimist on GitHub" aria-label="Optimist on GitHub">{GITHUB_ICON}</a></nav></header>')
+            f'<nav class="o-nav" aria-label="Optimist apps"><span class="o-sep" role="separator" aria-orientation="vertical"></span>{links}{app_badges()}'
+            f'<a class="o-gh" style="margin-left:8px" href="https://github.com/{REPO}" target="_blank" rel="noopener" title="Optimist on GitHub" aria-label="Optimist on GitHub">{GITHUB_ICON}</a></nav></header>')
 
 
 def styled(html, app, page):
@@ -164,7 +178,10 @@ def styled(html, app, page):
 
 def editor_page():
     """web/editor.html as it is: its Install and Build tabs load the modules from beside it (editor_modules)"""
-    return (HERE / "editor.html").read_text(encoding="utf-8")
+    html = (HERE / "editor.html").read_text(encoding="utf-8")
+    if html.count(BADGES_MARK) != 1:
+        raise SystemExit(f"web/editor.html must contain {BADGES_MARK} once; update make_site.py")
+    return html.replace(BADGES_MARK, app_badges())
 
 
 def site_commit():

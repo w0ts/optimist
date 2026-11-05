@@ -43,6 +43,11 @@ Use **Chrome or Edge** (they have Web MIDI) and a USB data cable, straight into 
 
 The firmware files are also on the [releases page](https://github.com/w0ts/optimist/releases).
 
+**Optimist Mirror**, the app: the FM-1's screen and panel on your iPhone, iPad or Mac, over USB or Bluetooth, and firmware installs.
+
+<a href="https://apps.apple.com/app/id6826362906"><img src="web/style/badges/app-store.svg" alt="Download on the App Store" height="40"></a>
+<a href="https://apps.apple.com/app/id6826362906"><img src="web/style/badges/mac-app-store.svg" alt="Download on the Mac App Store" height="40"></a>
+
 ## The flavours
 
 Four ready-made builds, in every release; the builder makes any other.
