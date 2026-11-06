@@ -1069,10 +1069,12 @@ _add("KNOB_ACCEL", "FELUCCA_KNOB_ACCEL", "knob acceleration by turn speed", U, 6
 _add("LCD_BAUD", "LCD_BAUD", "screen data speed (SPI clock)", U, 79, default=1,
      choices=((1, "30 MHz"), (4, "12 MHz (as before X0X)"), (0, "60 MHz")),
      desc="How fast data is sent to the display: 60 MHz / (n + 1). Faster redraws finish sooner (less tearing); the "
-          "ST7789V takes ~62 MHz, so 60 MHz is the limit. No flash cost; the faster settings are untested here on "
-          "hardware.", provenance=x0x("d179e03"),
-     notice="Ported from X0X by Charles Vestal (GPL-3.0): the faster LCD clock ran on X0X's FM-1; untested on "
-            "hardware here.")
+          "ST7789V takes ~62 MHz, so 60 MHz is the limit. No flash cost. With the SD card board (SDCARD) the card "
+          "shares the screen's lines through the board's resistors: at 60 MHz the panel stays black on the 240/91 "
+          "board, at 30 MHz it is fine (measured 2026-11-06 on an FM-1, cold boot), so SDCARD refuses 60 MHz.",
+     provenance=x0x("d179e03"),
+     notice="Ported from X0X by Charles Vestal (GPL-3.0): the faster LCD clock ran on X0X's FM-1; 30 MHz tested here on "
+            "an FM-1 with the SD card board (2026-11-06), 60 MHz on the stock FM-1 all along.")
 # (bit 68, LCD_DIRTY, retired 2026-10-31: its function cv_blit_dirty had no caller since f1ab07ed, so it changed nothing on the screen; RETIRED above;
 #  never reuse the bit)
 # bit 450 (2026-11-01, the next free after SEQ_RAM's 449): the release's decoded-glyph cache (fm1base/optimist/ui/opt_ui.c
