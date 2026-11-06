@@ -65,7 +65,7 @@ struct FlashPackage: Equatable {
         guard product.range(of: #"^[A-Za-z0-9_-]{1,20}$"#, options: .regularExpression) != nil else { throw Problem.notFM1 }   // (another file: its marker bytes are noise)
         if let want = expect?.product {
             guard product == want else { throw Problem.mismatch(product) }
-        } else if product.range(of: #"^FM-1_[79]\d\d$"#, options: .regularExpression) == nil {
+        } else if product.range(of: #"^FM-1_([79]\d\d|\d{4,})$"#, options: .regularExpression) == nil {   // (\d{4,}: fm1-base's, Optimist's release FM-1_79..: install_route.js)
             throw Problem.notOurs(product)
         }
         guard contains(fwsc, loaderMark) else { throw Problem.noLoader }

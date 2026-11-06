@@ -5,9 +5,10 @@
  *
  * A SOURCE (sst_src[]) is a sample on the card the project plays: its WAV data's place in the file, its format, the
  * file's contiguous runs on the card (from FatFs' fast-seek map, made once when the project loads), and its HEAD: the
- * first hlen bytes of its data kept in RAM (the pre-buffer, sst_pre_ms), so a note starts at once while the card's first
- * block comes. A STREAM (sst[]) is a playing voice's lookahead: a RING of SST_K slots of one 512-byte card sector each,
- * filled in play order by the main loop (sd_stream.c sst_service, short CMD18 runs between the screen's strips), read
+ * first hlen bytes of its data kept in RAM (the preload: one ring's bytes, sd_stream.c SST_HEAD_RING; a shorter sample
+ * whole), so a note starts at once while the card's first block comes and its ring fills before the head runs out; head
+ * is a pointer, so a later step may point it at another place (the plugins' flash region). A STREAM (sst[]) is a playing
+ * voice's lookahead: a RING of SST_K slots of one 512-byte card sector each, filled in play order by the main loop (sd_stream.c sst_service, short CMD18 runs between the screen's strips), read
  * by the audio. Each slot carries a TAG, gen << 24 | the file's sector + 1 (0: empty), written by the main loop after
  * the slot's data; the audio reads a slot only when its tag is the sector it wants under its own generation.
  *
@@ -40,9 +41,11 @@
 #define SST_NSRC 16u                                 /* the card samples a project plays at most */
 #endif
 _Static_assert(SST_K >= 2u && SST_K <= 64u, "sd_stream.h: a ring of 1 to 32 KB");
-static uint32_t sst_k = SST_K;                       /* a ring's slots now, all rings alike: SST_K, fewer when the plan has no room for
-                                                      * a sampled kit's rings (sd_stream_plan.c sst_place_rings; no voice reads a ring
-                                                      * while it changes) */
+#ifndef PLUG_BUILD
+static uint32_t sst_k = SST_K;                       /* a ring's slots, all rings alike: SST_K, the one setting (the user, 2026-11-06
+                                                      * evening: no shorter rings when there is no room); a host test may sweep it
+                                                      * while no voice reads a ring */
+#endif
 
 enum { SST_F8 = 0, SST_F16 = 1 };                    /* sst_src_t.bits: 8-bit unsigned, 16-bit signed (little-endian) */
 
@@ -104,6 +107,21 @@ typedef struct {
 #endif
 #define SST_NSLOT (SST_NPART + SST_NLANE)
 #define SST_PVS SST_NSRC                             /* the SAMPLES list's preview: its source, past the plan's (sd_preview.h) */
+#ifdef PLUG_BUILD
+/* a plugin (plugin/plug_api.h, INTERIM): the plan's data is the firmware's, through its API table */
+#define sst_src ((sst_src_t *)plugin_api->src)
+#define sst_part_src (plugin_api->part_src)
+#define sst_bank_src (plugin_api->bank_src)
+#define sst_bank_n (plugin_api->bank_n)
+#define sst_bank_free (*plugin_api->bank_free)
+#define sst ((sst_t *)plugin_api->sst)
+#define sst_dry (*plugin_api->dry)
+#define SST_PV SST_N
+#define SST_NALL (SST_N + 1u)
+#ifndef SST_BANK_Z
+#define SST_BANK_Z 8u
+#endif
+#else
 static sst_src_t sst_src[SST_NSRC + 1u] IN_POOL_AUDIO;
 static uint8_t sst_part_src[SST_NSLOT] = {[0 ... SST_NSLOT - 1u] = 0xFF};   /* the source each part's CARD (each card
                                                                              * lane) plays, 0xFF none (sd_stream_plan.c) */
@@ -145,11 +163,15 @@ static struct {
 static volatile uint32_t sst_dry;                    /* streams that ran dry (the console's sd stream) */
 static volatile uint32_t sst_nostream;               /* notes on a card sample with no ring free (silent) */
 static volatile uint32_t sst_cut;                    /* drum hits' tails cut for a newer hit's ring (drums/lane_card.c) */
+#endif
 
 AINL uint32_t sst_tag(uint32_t gen, uint32_t sec) { return gen << 24 | (sec + 1u); }
 
 /* the audio: data byte off (one sample: 1 byte at 8 bits, 2 at 16, never across a slot: the data's offset is even);
  * 0 = dry. Leaving the window gives its slot back. */
+#ifdef PLUG_BUILD
+static const uint8_t *sst_at_slow(sst_t *st, const sst_src_t *s, uint32_t off) { return plugin_api->sst_at_slow(st, s, off); }
+#else
 static HOT const uint8_t *sst_at_slow(sst_t *st, const sst_src_t *s, uint32_t off)
 {
     uint32_t sec, slot, lo, hi;
@@ -183,6 +205,7 @@ static HOT const uint8_t *sst_at_slow(sst_t *st, const sst_src_t *s, uint32_t of
     st->wn = hi - lo;
     return st->win + (off - lo);
 }
+#endif
 
 /* far: the caller runs from the flash (SAMPLE's render with FAST_RAM_sample 0), more than a direct call's 2 MB from
  * sst_at_slow in RAM in the release: called through its address, as drum909.c x9c_at_far, only when the window moves
@@ -253,6 +276,12 @@ AINL void sst_arm(sst_t *st, const sst_src_t *s, uint32_t si, uint32_t looped, u
     st->owner = owner;
     st->on = 1;                                      /* (last: the main loop fills it from here) */
 }
+#ifdef PLUG_BUILD
+static int32_t sst_start(uint32_t si, uint32_t looped, uint32_t ls, uint32_t le, uint32_t bpms, const volatile uint8_t *owner)
+{
+    return plugin_api->sst_start(si, looped, ls, le, bpms, owner);
+}
+#else
 static int32_t sst_start(uint32_t si, uint32_t looped, uint32_t ls, uint32_t le, uint32_t bpms,
                          const volatile uint8_t *owner)
 {
@@ -270,6 +299,7 @@ static int32_t sst_start(uint32_t si, uint32_t looped, uint32_t ls, uint32_t le,
     sst_nostream++;
     return -1;
 }
+#endif
 
 AINL void sst_stop(uint32_t i)                      /* the audio: the voice is over */
 {

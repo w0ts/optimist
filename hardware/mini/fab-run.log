@@ -1,0 +1,10 @@
+18 stitching vias added
+saved /Users/mots/GitHub/optimist/hardware/mini/sd-board.kicad_pcb
+wrote /Users/mots/GitHub/optimist/hardware/mini/fab/bom.csv /Users/mots/GitHub/optimist/hardware/mini/fab/cpl.csv
+saved /Users/mots/GitHub/optimist/hardware/mini/sd-board.kicad_sch
+Found 0 violations
+Found 0 unconnected items
+Saved DRC Report to fab/drc.rpt
+nets: 70 pins on the board, 70 in the schematic, 0 differ
+wrote /Users/mots/GitHub/optimist/hardware/mini/mockup-printable.scad /Users/mots/GitHub/optimist/hardware/mini/mockup-printable.stl
+fab/sd-board-gerbers.zip fab/bom.csv fab/cpl.csv render-top.png render-bottom.png mockup-printable.stl template-1to1.pdf

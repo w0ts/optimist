@@ -17,10 +17,16 @@ up on USB as "WL80UBOOT1.00" (4C4A:8057). macOS then takes it for a
 disk, upsets it, and it reboots into the crash a few seconds later; this script waits for it,
 takes it away from macOS (hence sudo) and keeps it.
 
+With --dongle the RP2040 recovery dongle (tools/dongle/README.md, tools/fm1_dongle.py) holds the USB bus
+instead of the Mac: it keys the chip into UBOOT when the FM-1 is switched on and is UBOOT's USB host, so
+nothing is replugged within the few seconds the ROM waits, and no sudo. The Mac talks to the dongle over its
+serial port. The checks, the backup and the write policy below are the same.
+
   python3 -m venv build/rescue/env && build/rescue/env/bin/pip install pyusb libusb-package
   sudo build/rescue/env/bin/python tools/fm1_rescue.py FM-1.fwsc            # check and back up, write nothing
   sudo build/rescue/env/bin/python tools/fm1_rescue.py FM-1.fwsc --write    # then write stock
   python3 tools/fm1_rescue.py ANY.fwsc --check                              # validate a package, no USB, no sudo
+  tools/builder/venv/bin/python tools/fm1_rescue.py FM-1.fwsc --dongle [--write]  # through the RP2040 dongle, no sudo
 
 FM-1.fwsc is M-VAVE's FM-1 V15 (m-vave.com/download, PC Firmware), the default. ANY other known-good
 .fwsc (an earlier Optimist or Melodee build that booted) can be written too, but only after it passes the
@@ -530,6 +536,9 @@ def parser():
     ap.add_argument("--backup-dir", help="where the flash backup goes (default: next to the package)")
     ap.add_argument("--wait", type=float, default=120, help="seconds to wait for the FM-1 (default 120)")
     ap.add_argument("--tries", type=int, default=5, help="attempts if it drops out mid-way (default 5)")
+    ap.add_argument("--dongle", action="store_true", help="through the RP2040 recovery dongle (tools/dongle/) instead "
+                    "of the Mac's own USB: no sudo; the FM-1 enters update mode when switched on while the dongle keys")
+    ap.add_argument("--port", help="the dongle's serial port (default: the /dev/cu.usbmodem* that answers its ping)")
     return ap
 
 
@@ -548,7 +557,11 @@ def main(argv=None, open_dev=None, is_root=None):
             raise Fail("this is not the stock V15 package: to write it, add --confirm-package "
                        f"{pkg.sha256[:8]} (or use --ask and type it). Nothing was done.")
         loader = get_loader(args.loader)
-        if open_dev is None:
+        if open_dev is None and args.dongle:
+            import fm1_dongle
+            errors = (Fail, OSError)
+            open_dev = lambda: fm1_dongle.open_dongle(args.port, args.wait, say=lambda *a: print(*a, flush=True))
+        elif open_dev is None:
             if (os.geteuid() if is_root is None else not is_root) != 0:
                 raise Fail("run it with sudo: macOS has to give the device up")
             try:
@@ -565,7 +578,7 @@ def main(argv=None, open_dev=None, is_root=None):
         for attempt in range(1, args.tries + 1):
             bot = open_dev()
             try:
-                rescue(Uboot(bot), pkg.flash, loader, args.write, backup_dir,
+                rescue(bot if args.dongle else Uboot(bot), pkg.flash, loader, args.write, backup_dir,
                        say=lambda *a, **k: print(*a, **k, flush=True),
                        confirm=make_ask(pkg) if args.ask else None, key=pkg.key, label=label)
                 return 0

@@ -9,7 +9,7 @@ factory content on it, user content never touched.
 The content is the SD card zip's of the configuration (tools/sd_zip.py, from its cache: every factory preset and kit,
 the samples and FM6 packs it ticks; --config, --profile, else build/builder.config, the builder menu's). The FACTORY trees are mirrored: a file there is added
 or replaced when its bytes differ, a factory file the zip no longer has is removed, only inside those trees (FACTORY:
-Optimist/Presets/Factory, Optimist/Kits/Factory, the factory sample folders under Optimist/Samples:
+Optimist/Presets/Factory, Optimist/Kits/Factory, Optimist/Plugins (the engines as plugin files), the factory sample folders under Optimist/Samples:
 tools/sd_samples.py factory_dirs), Optimist/readme.txt and MBOOT/MENU.BIN. Everything else is the user's and is never written or
 removed (Presets/User, Kits/User, Projects, Record, Renders, Backup, System, FIRMWARES, anything else under Samples or elsewhere);
 the FM-1's folders are only made when missing. Files are written plainly (no ._ AppleDouble twins: one the OS makes for a
@@ -34,7 +34,7 @@ import sd_zip  # noqa: E402
 
 ROOT = Path(__file__).resolve().parent.parent
 TOP = "Optimist"
-FACTORY = [f"{TOP}/Presets/Factory", f"{TOP}/Kits/Factory"] + [f"{TOP}/Samples/{d}" for d in sd_samples.factory_dirs()]
+FACTORY = [f"{TOP}/Presets/Factory", f"{TOP}/Kits/Factory", f"{TOP}/Plugins"] + [f"{TOP}/Samples/{d}" for d in sd_samples.factory_dirs()]   # (Plugins: the zip's engine files, mirrored like the presets)
 FACTORY_FILES = [f"{TOP}/readme.txt", sd_zip.STAGE2_REL]
 USER_DIRS = [f"{TOP}/{d}" for d in sd_zip.DIRS + sd_zip.SUBDIRS] + [sd_zip.FIRMWARES]
 
@@ -163,7 +163,7 @@ def run(argv=None, ask=input, say=print, tty=None, volumes=None, last_file=V.LAS
     c = None
     if not zpath:
         cfg, name, where = sd_zip.load_cfg(args.config, args.profile)
-        c = sd_zip.content_of(cfg)
+        c = sd_zip.content_of(cfg, name)
         say(f"the SD card of {name} ({where}): every factory preset and kit; {c.line()}")
     tty = sys.stdin.isatty() and sys.stdout.isatty() if tty is None else tty
     got = choose(args, ask, say, tty, volumes, last_file)

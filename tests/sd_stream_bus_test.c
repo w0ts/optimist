@@ -288,7 +288,8 @@ static void screen_row(const page_t *P, long *dried)
     *dried = r.dried;
 }
 
-/* rings shortened by the plan (sst_place_rings, a build's rings of more than 4 KB): 5 hits at once on a kit's 25 ms heads */
+/* rings of 4 KB, 6 KB and the build's (the plan shortened them until 2026-11-06 evening; now SD_RING's sizes, sst_k swept
+ * here): 5 hits at once on 25 ms heads */
 static void short_ring_tests(void)
 {
     static const page_t CHG = {"a page change a 300 ms", 16, 7170, 300, 0, PG_FIRST, 1, 115200, 0};
@@ -302,7 +303,8 @@ static void short_ring_tests(void)
     tick_ms = 1147u;
     for (i = 0; i < NV; i++) {
         snprintf(path, sizeof path, "b%u.wav", i);
-        CHECK(sst_src_load(i, path, 25, src_mem + at, sizeof src_mem - at, &used) == FR_OK, "%s: a 25 ms head", path);
+        CHECK(sst_src_load(i, path, 2204u, src_mem + at, sizeof src_mem - at, &used) == FR_OK, "%s: a 25 ms head", path);   /* (bytes:
+                                                                                     * 1102 frames of 44.1 kHz 16-bit mono) */
         at += (used + 3u) & ~3u;
     }
     for (k = 0; k < 3u; k++) {
@@ -371,7 +373,8 @@ static void screen_first_tests(void)
     /* the limits: a bus too slow for the voices, a card that stops */
     tick_ms = 300u;
     screen_row(&FULL, &d);
-    CHECK(d > 0 && paints >= 10u, "300 KB/s, over the bus: voices dry, counted, and the screen at its floor (%ld dry, %u paints)", d,
+    CHECK(d > 0 && paints >= 3u, "300 KB/s, over the bus: voices dry, counted, and the screen still comes (%ld dry, %u paints; the card "
+          "first since 2026-11-06: a strip waits up to SST_STRIP_MS, a frame up to SST_HOLD_MS, so fewer paints than its floor of 10)", d,
           paints);
     tick_ms = 1147u;
     quiet();
@@ -431,7 +434,7 @@ int main(int argc, char **argv)
     for (i = 0; i < NV; i++) {
         snprintf(path, sizeof path, "b%u.wav", i);
         CHECK(write_wav(path, i + 1u), "%s written", path);
-        CHECK(sst_src_load(i, path, 50, src_mem + at, sizeof src_mem - at, &used) == FR_OK, "%s loaded", path);
+        CHECK(sst_src_load(i, path, 4410u, src_mem + at, sizeof src_mem - at, &used) == FR_OK, "%s loaded", path);   /* (50 ms) */
         at += (used + 3u) & ~3u;
     }
     sst_rings(ring_mem, SST_N);
@@ -460,19 +463,21 @@ int main(int argc, char **argv)
     CHECK(fit[0] == NV, "1.9 MB/s: 8 voices at 44.1 kHz, none dry (%u)", fit[0]);
     CHECK(fit[2] >= 2u, "733 KB/s: two voices at least (%u)", fit[2]);
 
-    /* over the bus at 733 KB/s, then recovered */
-    tick_ms = 733u;
+    /* over the bus at 600 KB/s (8 voices of 44.1 kHz mono draw 705), then recovered. 733 until 2026-11-06: with the card first
+     * the screen yields the bus and 8 voices live at 733 */
+    tick_ms = 600u;
     r = play(NV, 1.0, 2500);
-    CHECK(r.dried > 0 && r.bad == 0 && (long)sst_dry == r.dried, "733 KB/s, 8 voices: underruns (%ld), counted (%u), "
+    CHECK(r.dried > 0 && r.bad == 0 && (long)sst_dry == r.dried, "600 KB/s, 8 voices: underruns (%ld), counted (%u), "
           "never garbage (%ld)", r.dried, sst_dry, r.bad);
     main_loop(800);                                  /* (the rest play to their ends: 3 s files) */
     for (i = 0, n = 0; i < SST_N; i++)
         n += sst[i].on;
     for (i = 0, r.ended = 0, r.bad = 0; i < NV; i++)
         r.ended += V[i].ended, r.bad += V[i].bad;
-    CHECK(n == 0 && r.ended + r.dried == (long)NV && r.bad == 0, "733 KB/s, 8 voices: the others played to their end "
+    CHECK(n == 0 && r.ended + r.dried == (long)NV && r.bad == 0, "600 KB/s, 8 voices: the others played to their end "
           "(%ld + %ld dry), every stream given back (%u still on)", r.ended, r.dried, n);
-    printf("  733 KB/s, 8 voices: %ld ran dry (faded out, counted), %ld played to their end\n", r.dried, r.ended);
+    printf("  600 KB/s, 8 voices: %ld ran dry (faded out, counted), %ld played to their end\n", r.dried, r.ended);
+    tick_ms = 733u;                                  /* (the bus back where fit[2] voices fit) */
     r = play(fit[2], 1.0, 3200);
     CHECK(r.dried == 0 && r.bad == 0 && r.ended == (long)fit[2], "733 KB/s, recovered: %u voices to their end (%ld), none "
           "dry (%ld)", fit[2], r.ended, r.dried);

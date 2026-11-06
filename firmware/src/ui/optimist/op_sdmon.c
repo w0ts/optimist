@@ -34,12 +34,14 @@ static uint32_t smn_ph(void)                            /* the DRY line's phase:
     smn_p.on = 0;
     return fm1_ms >> SMN_PH_SH;
 }
-static uint32_t smn_items(const ssm_view_t *v, uint8_t *it)   /* the DRY line's items: 0 DRY, 1 NO RING, 2 CRC FAILS, 3 STEPS DOWN */
+static uint32_t smn_items(const ssm_view_t *v, uint8_t *it)   /* the DRY line's items: 0 DRY, 1 NO RING, 4 CUT, 2 CRC FAILS, 3 STEPS DOWN */
 {
     uint32_t n = 0;
     it[n++] = 0;
     if (v->nos)
         it[n++] = 1;
+    if (v->cut)
+        it[n++] = 4;
     if (v->crc)
         it[n++] = 2;
     if (v->demo)
@@ -49,9 +51,9 @@ static uint32_t smn_items(const ssm_view_t *v, uint8_t *it)   /* the DRY line's 
 static void smn_dry(const ssm_view_t *v, cell_t *c)
 {
     static char u[16];
-    static const char *const NM[4] = {"DRY", "NO RING", "CRC FAILS", "STEPS DOWN"};
-    uint8_t it[4];
-    uint32_t n = smn_items(v, it), k = it[v->dry_hot && !smn_held() ? 0u : smn_ph() % n], x = k == 0u ? v->dry : k == 1u ? v->nos : k == 2u ? v->crc : v->demo;
+    static const char *const NM[5] = {"DRY", "NO RING", "CRC FAILS", "STEPS DOWN", "CUT"};
+    uint8_t it[5];
+    uint32_t n = smn_items(v, it), k = it[v->dry_hot && !smn_held() ? 0u : smn_ph() % n], x = k == 0u ? v->dry : k == 1u ? v->nos : k == 2u ? v->crc : k == 3u ? v->demo : v->cut;
     sys_ro(c, NM[k]);
     fmt_int(c->val, (int32_t)(x < 99999u ? x : 99999u));
     c->col = !x ? C_OK : k == 0u && v->dry_hot ? C_ERR : C_WARN;

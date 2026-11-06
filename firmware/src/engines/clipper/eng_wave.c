@@ -28,6 +28,47 @@
 #define WT_LEVELS 7u
 #define WT_PTS (1024u + 512u + 256u + 128u + 64u + 32u + 16u)   /* a frame's band-limited copies, 2032 points */
 static const uint16_t WT_OFF[WT_LEVELS] = {0, 1024, 1536, 1792, 1920, 1984, 2016};
+/* The state: the table's progress (wt_st: have, building, next), the copies (wt_mip) and the frame builder's scratch
+ * (wt_fr, wt_fi). One table for every WAVE track: shared, not per part. Built in: a static instance (wt_st), the copies
+ * and the scratch in the pool or, with FELUCCA_FX_ARENA, one block of the arena (core/arena_bufs.c ARB_WAVE). A plugin
+ * (plugin/plug_unit.c): all of it one block of the firmware's (wt_blk_t, engine_t .tab_kb; plugin_api->tab_mem, the
+ * arena's), the main loop's builder called through plugin_api->service (wave_block asks for it) */
+typedef struct {
+    volatile int16_t have;                       /* the table in wt_mip, complete (-1: none, or being built) */
+    int16_t building;                            /* the table being built, frame by frame */
+    uint8_t next;                                /* its next frame */
+    uint8_t init;                                /* (the plugin's block: 0 as placed, then have / building set) */
+} wt_st_t;
+#if FELUCCA_PLUGIN_UNIT
+typedef struct {
+    wt_st_t st;
+    int16_t mip[WT_NF][WT_PTS];
+    int32_t fr[1024], fi[1024];
+} wt_blk_t;
+#define WT_SLOT plugin_api->slot_of(ENG_UID_WAVE)   /* (the plugin slot the firmware gave it) */
+static wt_blk_t *wt_blk(void)                    /* its block, 0 while not placed */
+{
+    uint32_t s = WT_SLOT;
+    wt_blk_t *b = s == 0xFFu ? 0 : (wt_blk_t *)plugin_api->tab_mem(s);
+    if (b && !b->st.init) {                      /* (placed, zeroed: no table yet) */
+        b->st.have = b->st.building = -1;
+        b->st.next = 0;
+        b->st.init = 1;
+    }
+    return b;
+}
+#define WT_BP wt_blk_t *const wt_bp = wt_blk()
+#define WT_PLACED (wt_bp != 0)
+#define wt_mip (wt_bp->mip)
+#define wt_fr (wt_bp->fr)
+#define wt_fi (wt_bp->fi)
+#define wt_have (wt_bp->st.have)
+#define wt_building (wt_bp->st.building)
+#define wt_next (wt_bp->st.next)
+#define WT_TAB_KB ((sizeof(wt_blk_t) + 1023u) / 1024u)
+#else
+#define WT_SLOT ENG_SLOT_WAVE
+#define WT_BP
 #if FELUCCA_FX_ARENA
 /* in the arena (core/arena_bufs.c): the copies and the frame builder's scratch, one block held while a track plays WAVE;
  * 0 not placed: no table (the voices silent, as while one is built), placed by itself once there is room */
@@ -38,17 +79,18 @@ static int16_t (*wt_mip)[WT_PTS];
 #define WT_PLACED 1
 static int16_t wt_mip[WT_NF][WT_PTS] __attribute__((section(".pool")));   /* 64 KB */
 #endif
-static volatile int16_t wt_have = -1;            /* the table in wt_mip, complete (-1: none, or being built) */
-static int16_t wt_building = -1;                 /* the table being built, frame by frame */
-static uint8_t wt_next;                          /* its next frame */
-#define WT_NALL WT_NFACTORY
-static const int16_t (*wt_spec(uint32_t table, uint32_t f))[2] { return WT_SPEC[table % WT_NFACTORY][f]; }
-
+static wt_st_t wt_st = {-1, -1, 0, 1};
+#define wt_have wt_st.have
+#define wt_building wt_st.building
+#define wt_next wt_st.next
 #if FELUCCA_FX_ARENA
 static int32_t *wt_fr, *wt_fi;                   /* (after the copies, in their block) */
 #else
 static int32_t wt_fr[1024] __attribute__((section(".pool"))), wt_fi[1024] __attribute__((section(".pool")));
 #endif
+#endif
+#define WT_NALL WT_NFACTORY
+static const int16_t (*wt_spec(uint32_t table, uint32_t f))[2] { return WT_SPEC[table % WT_NFACTORY][f]; }
 static const int32_t WT_QSIN[257] = {   /* sin(pi / 2 x i / 256), Q30: the FFT's twiddles (Q15 ones add noise) */
     0, 6588356, 13176464, 19764076, 26350943, 32936819, 39521455, 46104602,
     52686014, 59265442, 65842639, 72417357, 78989349, 85558366, 92124163, 98686491,
@@ -91,6 +133,7 @@ static int32_t wt_sin30(uint32_t i)      /* sin(2 pi i / 1024), Q30 */
 }
 static void wt_ifft(uint32_t N)
 {
+    WT_BP;
     uint32_t i, j, k, len, bits = 0;
     while ((1u << bits) < N)
         bits++;
@@ -120,6 +163,7 @@ static void wt_ifft(uint32_t N)
 }
 static void wt_build_frame(uint32_t table, uint32_t f)
 {
+    WT_BP;
     const int16_t (*sp)[2] = wt_spec(table, f);
     uint32_t l;
     for (l = 0; l < WT_LEVELS; l++) {
@@ -152,7 +196,7 @@ static int32_t wt_wanted(void)
 {
     uint32_t k;
     for (k = 0; k < NTRK; k++)
-        if (trk[k].engine == (uint32_t)ENG_SLOT_WAVE)
+        if (trk[k].engine == (uint32_t)WT_SLOT)
             return (int32_t)((uint32_t)trk[k].p[P_E0] % WT_NALL);
     return -1;
 }
@@ -162,6 +206,7 @@ static void wt_service(void)
 {
     int32_t want = wt_wanted();
     uint32_t k;
+    WT_BP;
     if (want < 0 || !WT_PLACED)
         return;                                          /* (no WAVE track, or its table not placed: arena_bufs.c) */
     if (want != wt_have && want != wt_building) {        /* a new table: start over */
@@ -204,6 +249,7 @@ AINL uint32_t wt_level(uint32_t inc)
  * under the table's own band limit (linear interpolation's were ~-45 dB) */
 static void wave_osc(int32_t *acc, uint32_t n, uint32_t *php, uint32_t inc, const int32_t *pos, int32_t g)
 {
+    WT_BP;
     uint32_t l = wt_level(inc), N = 1024u >> l, sh = 22u + l, i, ph = *php;   /* index = ph >> (32 - log2 N) */
     uint32_t off = WT_OFF[l], mask = N - 1u;
     for (i = 0; i < n; i++, ph += inc) {
@@ -234,9 +280,11 @@ static void wave_render(track_t *t, voice_t *v, int32_t *out, uint32_t n, const 
                                                      * another engine's state reached: never a frame past the table) */
     int32_t sv[2] = {v->s[0], v->s[1]};
     tsvf_t flt;
+    WT_BP;
     if (n > CTL)
         return;
-    if (wt_have != (int32_t)want) {                  /* not built yet (TABL just turned): silent, phases run on */
+    if (!WT_PLACED || wt_have != (int32_t)want) {    /* not built yet (TABL just turned), or no room: silent, phases
+                                                      * run on */
         v->ph[0] += inc1 * n;
         v->ph[1] += inc1 * n;
         v->ph[2] += (inc1 >> 1) * n;
@@ -306,6 +354,12 @@ static const preset_t WAVE_PRESETS[] = {
     {"SYNC SCREAM", {4, 10, 0, 0, 110, 40, 40, 64}, {2, 70, 110, 40}, 0, 1, FX(10, 10, 26, 24), XP(P_ED_SHP + 1, 40, P_GLIDE + 1, 30)},
 };
 
+#if FELUCCA_PLUGIN_UNIT
+static void wave_block(track_t *t)               /* the plugin: the main loop builds its table (plugin_api->service) */
+{
+    plugin_api->service(t->engine, wt_service);
+}
+#endif
 static const engine_t ENG_WAVE = {
     .name = "WAVE",
     .page_title = {"WAVE", "FLT"},
@@ -326,4 +380,8 @@ static const engine_t ENG_WAVE = {
     .render = wave_render,
     .color = 0x5BB8,                             /* #5d74c4 (tools/colors.json) */
     .macro = {P_E1, P_E4, P_E5, P_E0},
+#if FELUCCA_PLUGIN_UNIT
+    .block = wave_block,
+    .tab_kb = WT_TAB_KB,
+#endif
 };

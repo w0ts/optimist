@@ -246,5 +246,6 @@ static const engine_t ENG_SID = {
     .macro = {P_E0, P_E1, P_E5, P_E6},
     .poly = SID_POLY,
     .fil_page = 1,
-    .color = 0x9C9F,                             /* #9e93fc (tools/colors.json) */
+    .color = 0x9C9F,                              /* #9e93fc (tools/colors.json) */
+    .keep = 0x33,   /* a retrigger keeps s0 s1 s4 s5: the filter and the external high-pass (voice.c) */
 };

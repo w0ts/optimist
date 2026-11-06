@@ -479,6 +479,14 @@ _add("EX_SQUARE", "FELUCCA_EX_SQUARE", "SQUARE: the example engine (a pulse, its
 # ---- drums: first the drum synths, the kits made by synthesis (any of them is a drum source on its own; the drum
 # track needs one of these or a sampled kit), then the sampled drums and the drum options (one group: the user,
 # 2026-10-20, "drum synths should be under drums")
+# an engine not built in (2026-11-06, the user: "instead of off ... load from sd"): with PLUGINS and the SD card, a project
+# that names it loads its plugin file from the card into the flash (core/plugin_card.c, the card zip's Optimist/Plugins);
+# without them its fallback engine plays (registry.h ENGINE_LIST). The off text of every engine item says so.
+for _it in _ITEMS:
+    if _it.group == E and _it.key.startswith("ENG_") and not _it.off_warning:
+        _it.off_warning = ("not built in: with PLUGINS and SDCARD on, a project that names this engine loads it from the SD "
+                           "card (Optimist/Plugins) into the flash the first time; without them its fallback engine plays")
+
 D = "Drums"
 # Three drum synths, independent of each other (the user, 2026-10-22): the 32 kits, KAWA, PLAITS. Tick any of them; the
 # code they share (drum_synth.c's voice, the sound table: registry.h DRUM_DS) is built with any one and counted once
@@ -1253,6 +1261,23 @@ _add("LAYOUT", "FELUCCA_LAYOUT", "flash layout: the MEMORY step (set by SD CARD 
           "ERASES what the two keep in different places (the projects in flash always; the update loader clears the "
           "other step's sectors first): back up with the web editor before. The first install of a step needs a normal "
           "build of this version first (an older updater refuses its size).")
+# bit 453 (2026-11-06): the next free one after CANVAS_STRIP's 452; the PLUGINS region (core/plugin.h, core/plugin.c,
+# docs/SD-MODE-DESIGN.md section 10): engines built as files (tools/plugin_build.py, the SD card zip's Optimist/Plugins)
+# and loaded from the card into the last KB of the app slot when a project names one the build misses. The KB come off
+# the code's room (tools/build.py plugin_region; core.py's fit cap). Two engine slots after the built-in ones.
+_add("PLUGINS", "FELUCCA_PLUGIN_KB", "engines as plugins: flash they are loaded into from the SD card", MEM, 453,
+     default=0, choices=((0, "off"), (64, "64 KB (one large engine, or several small)"), (128, "128 KB"), (192, "192 KB")),
+     experimental=True, target_only=True,
+     tested="host-tested (tests/plugin_test.c, plugin_card_test.c), the emulator plays SID from the region and loads it from "
+            "the card; on an FM-1 once (pink, 2026-11-06: SID placed in the region boots and renders)",
+     desc="A flash region of this size at the end of the code's room, into which the FM-1 writes an engine's plugin "
+          "file from the SD card (Optimist/Plugins/<ENGINE>.opl, every engine the card zip could build as one) the "
+          "first time a project asks for an engine this build does not have; the placed engines play from there like "
+          "built-in ones, and stay until the region is full (the oldest unused goes) or a firmware update rewrites the "
+          "code's room. A plugin is built for one configuration's structs: another build's file is refused and loaded "
+          "again from a card zip made for this build. Every engine but FM6 is a plugin (FM6 stays built in: its editor); "
+          "the sample engines (SAMPLE, GRAIN, SLICE, STRETCH) in SD card mode with the card's streams only. Needs "
+          "SDCARD to load from the card.")
 # bit 411 (2026-10-25): the next free one after LAYOUT's 410; the arena (core/arena.c, fx/fx_arena.c, docs/SD-MODE-DESIGN.md
 # 6b): KB, 0 the fixed memories as before. The core (every build it is set in): the parts' engine states placed by need,
 # the edit's one confirm for what to drop, a load's refusals on it one by one; the extras only in the SD card mode
@@ -1292,15 +1317,16 @@ _add("SD_RING", "FELUCCA_SD_RING_KB", "samples streamed from the SD card (SAMPLE
      experimental=True, target_only=True, tested="host-tested only (tests/sd_stream_test.c, sd_stream_plan_test.c: "
      "a card model with stalls, an interrupt-driven audio clock); no FM-1 has the card yet",
      desc="SAMPLE's SET gets a last value, CARD: the part plays its sample from the SD card (a WAV of 8 or 16 bits, mono "
-          "or stereo, up to 176 kHz), streamed, not loaded. Each sample's first moments are kept in memory (the "
-          "pre-buffer, one setting: 25, 50, 100 or 200 ms, 50 by default; 50 ms of 44.1 kHz 16-bit mono is 4.4 KB a "
-          "sample) so a note starts at once while the card's first block comes; each playing voice reads ahead "
-          "into a ring of this size, filled in short bursts of 4 KB between the screen's strips (the screen and the "
-          "card share a bus). A card that stalls longer than the ring holds makes the voice fade out at once (no "
-          "click; the console's sd stream counts it). 8 voices take 8 x this of the arena while the project plays "
-          "card samples, with the heads; a project whose samples do not fit is refused and the device proposes what "
-          "to drop (a part's engine, or a shorter pre-buffer). A card sample plays at most an octave up (each octave "
-          "doubles what it reads). Needs LAYOUT (full FatFs) and SDCARD, SAMPLE and ARENA.",
+          "or stereo, up to 176 kHz), streamed, not loaded. This is the one setting: every voice that streams owns a "
+          "ring of this size, always, and each sample's first bytes are preloaded in memory, exactly one ring's worth "
+          "(a sample shorter than that: whole; there is no device setting), so a note starts at once while the card's "
+          "first block comes and its ring fills before the preload runs out. The rings are filled in short bursts of "
+          "4 KB between the screen's strips (the screen and the card share a bus). A card that stalls longer than the "
+          "ring holds makes the voice fade out at once (no click; the console's sd stream counts it). The rings (a "
+          "voice each: up to 4 a part, 10 for a sampled kit, 10 at most) and the preloads take the arena while the "
+          "project plays card samples; a project whose rings and preloads do not fit is refused and the device "
+          "proposes a part's engine to drop (never fewer or shorter rings). A card sample plays at most an octave up "
+          "(each octave doubles what it reads). Needs LAYOUT (full FatFs) and SDCARD, SAMPLE and ARENA.",
      off_warning="no samples from the card")
 # bit 416 (2026-10-26): the next free one after SD_RING's 415; the master recorded to the SD card (storage/sd/sd_rec.c,
 # docs/SD-CARD-DESIGN.md 7): the ring's KB, 0 off (registry.h FELUCCA_SD_REC_KB -> SD_REC with full FatFs)
@@ -1317,6 +1343,21 @@ _add("SD_REC", "FELUCCA_SD_REC_KB", "record the master output to the SD card: th
           "does nothing else: samples from the card wait, the card's lists and saves say the card is busy. "
           "Needs LAYOUT (full FatFs) and SDCARD. The buffer is RAM of the pool for as long as the build has it.",
      off_warning="no recording to the card")
+# bit 454 (2026-11-06 evening, the next free after PLUGINS' 453; the user: "we move the pre buffer in flash, builder
+# setting"): the card samples' pre-buffer heads written into the PLUGINS region at kit load, read in place (XIP), the arena
+# kept for the rings (docs/SD-CARD-DESIGN.md section 7, the streaming buffers; core/plugin.c plug_install, one more KIND)
+_add("HEADS_FLASH", "FELUCCA_HEADS_FLASH", "card samples' pre-buffer in flash (the plugins' region), not in RAM", MEM, 454,
+     default=0, parent="SDCARD", shown_under="SD_MODE",
+     experimental=True, target_only=True,
+     tested="designed only (2026-11-06): the item, its rule and the planner's hook; the flash path is written when the "
+            "plugins' writer has run from the card on an FM-1",
+     desc="Each card sample's first moments (the PRE-BUFFER, 25 to 200 ms) are written into the plugins' flash region when "
+          "a kit or a project is placed, and read from there like a built-in table, instead of being kept in the arena: "
+          "the arena then holds the rings alone, so ten 8 KB rings and a 200 ms pre-buffer fit together (measured "
+          "2026-11-06: in RAM a 200 ms pre-buffer left room for five rings, and 25 ms let voices run dry). The heads of "
+          "one kit are one occupant of the region, rewritten when the kit changes (about a second of sliced erasing "
+          "while the audio keeps running); a region too full refuses and the heads stay in RAM as before. Needs "
+          "PLUGINS (the region) and SD_RING (the streams).")
 # (bit 412, OVERLAY, retired 2026-10-30: RETIRED; never reuse it)
 _add("CPU_GUARD", "FELUCCA_CPU_GUARD", "predictive CPU guard (ease back before shedding)", Y, 61, default=0,
      provenance=FLOWSTATE_GUARD,

@@ -161,7 +161,7 @@ AINL const smp_zone_t *gr_zone(uint32_t part, uint32_t src, uint32_t zl)
 {
 #if GR_CARD
     if (smp_cz_on(src))
-        return &smp_cz[part % SST_NPART][zl % SST_BANK_Z];
+        return smp_cz_zone(part, zl);
 #endif
     (void)part;
     return src < SMP_NSETS ? &SMP_ZONES[SMP_SETS[src].z0 + zl] : smp_usr_zone((src - SMP_NSETS) % SMP_USER_SLOTS, zl & 15u);
@@ -171,7 +171,7 @@ AINL uint32_t gr_stamp(uint32_t part, uint32_t src)
 #if GR_CARD
     if (smp_cz_on(src)) {
         (void)smp_cz_sync(part);
-        return smp_cz_stamp[part % SST_NPART];
+        return smp_cz_stamp_of(part);
     }
 #endif
     (void)part;
@@ -625,5 +625,5 @@ static const engine_t ENG_GRAIN = {
         PU("TONE", F_PCT, 0, 127, 127, 0),
     },
     PRESETS_OF(GRAIN_PRESETS), 1, grain_note_on, grain_render,
-    0x87F0, {P_E1, P_E2, P_E3, P_E5}, GR_POLY, 0, 0, grain_block,
+    0x87F0, {P_E1, P_E2, P_E3, P_E5}, GR_POLY, 0, 0, grain_block, .part_bytes = sizeof(gr_part_t),   /* (a plugin's part memory: core/plugin.c) */
 };

@@ -406,6 +406,9 @@ def validate(cfg):
     if cfg.get("SD_REC") and not (cfg.get("SDCARD") and cfg.get("LAYOUT") == 1):
         err.append(Issue("recording to the card (SD_REC) needs the card under full FatFs (SDCARD, LAYOUT 1)",
                          ["SD_REC", "SDCARD", "LAYOUT"]))
+    if cfg.get("HEADS_FLASH") and not (cfg.get("PLUGINS", 0) and cfg.get("SD_RING", 0)):
+        err.append(Issue("the pre-buffer in flash (HEADS_FLASH) needs the plugins' flash region (PLUGINS) and the card's streams "
+                         "(SD_RING)", ["HEADS_FLASH", "PLUGINS", "SD_RING"]))
     if cfg.get("SDCARD") and cfg.get("LCD_BAUD", 1) == 0:   # (the user, 2026-11-06: no 60 MHz screen with the card)
         err.append(Issue("the SD card board shares the screen's lines: its resistors (R5/R6 240 Ohm, R1 91, measured "
                          "2026-11-06 on an FM-1) leave the panel black at 60 MHz and fine at 30: LCD_BAUD 30 MHz "
@@ -1162,8 +1165,6 @@ ARN_UNDO_LEAST = 16 * 1024      # engines.c ARN_UNDO_LEAST: the undo's least in 
 ARN_UNDO_SRAM = 1024            # engines.c ARN_UNDO_SRAM: its SRAM part with the cache RAM, at least
 CACHE_RAM_BYTES = {2: 8192, 4: 16384, 7: 28672}   # hal/fm1_cache.h: the ways as RAM (4 KB each); the tested free part is a little less
 SD_GRAIN_CACHE, SD_STRETCH_CACHE = 33280, 16640   # a part's card cache, with its tags (docs/SD-CARD-DESIGN.md, sd_grain_test)
-SD_PRE_MS = 50                  # sd_stream_plan.c SST_PRE_MS default: the pre-buffer of a card sample
-SD_HEAD_B = SD_PRE_MS * 441 // 10 * 2   # (frames at 44.1 kHz, 16 bit mono: 2 B a frame; the sample's own rate and width decide)
 SD_RINGS_TYPICAL, SD_HEADS_TYPICAL = 4, 8   # a part's rings at most (SST_PART_RINGS); the card samples of a typical project
 ARENA_ESTIMATE_KB = 4           # the estimate's stated tolerance (KB) against a real build of a configuration the anchors know
 STG_RESERVE = 16600             # seq/undo.c, engines.c STG_MEM: the save / load staging buffers past the arena and its undo keep
@@ -1254,7 +1255,8 @@ def arena_fits(cfg):
             continue                                    # (held with FM6's engine state: a few KB, in the table's note)
         rows.append((k, v, 1, "a track each" if k.startswith("a track's") else "while the project uses it"))
     if sd_mode(cfg) and built(cfg, "SDCARD") and cfg.get("SD_RING", 0) > 0 and built(cfg, "ENG_SAMPLE"):
-        rows.append(("a card sample's head", SD_HEAD_B, SD_HEADS_TYPICAL, f"pre-buffer {SD_PRE_MS} ms, typical {SD_HEADS_TYPICAL} samples"))
+        rows.append(("a card sample's head", cfg["SD_RING"] * 1024, SD_HEADS_TYPICAL,
+                     f"its preload, one ring's (sd_stream.c SST_HEAD_RING), typical {SD_HEADS_TYPICAL} samples"))
         rows.append(("a card stream's ring", cfg["SD_RING"] * 1024, SD_RINGS_TYPICAL, "SD_RING a voice, typical one part"))
     if sd_mode(cfg) and built(cfg, "SDCARD") and cfg.get("SD_RING", 0) > 0:
         if built(cfg, "ENG_GRAIN"):
@@ -1543,6 +1545,8 @@ def fits(total, cfg=None):
             # a step the build system gives no slot (the release builds only 1 and 3; its other steps' end = the classic
             # end): the design table's room, not the normal slot, or 4 projects showed no more room than 16
             cap = layout_room(cfg["LAYOUT"]) - SPARE["flash"]
+        if b == "flash" and cfg and int(cfg.get("PLUGINS", 0) or 0) > 0:
+            cap -= int(cfg["PLUGINS"]) * 1024       # (the PLUGINS region: the slot's last KB, tools/build.py plugin_region)
         out[b] = (u, cap, u - cap)
     return out
 
