@@ -202,17 +202,17 @@ def normal_app_end():
 def limits(base_sizes=None):
     """-> the slots the release's budget counts against, as fm1-base's build computes them: {"flash": the normal
     layout's app slot (fm1pkg_make.py app_slot of fm1.toml's app_end), "flash_by_layout": {layout: app_slot of its
-    release_end()} (every MEMORY step but normal), "sram": the SRAM region (fm1base/device/app.ld)}. base_sizes: a real normal build's
+    release_end()} (every MEMORY step but normal), "sram": the SRAM region (fm1base/device/app_packed.ld)}. base_sizes: a real normal build's
     sizes.json (its app_slot, what that build checked against): FM1BaseError when the two disagree"""
     import flash_layout
     tool = _pkg_tool()
     flash = tool.app_slot(normal_app_end())
     if base_sizes is not None and int(base_sizes.get("app_slot", flash)) != flash:
         raise FM1BaseError(f"the build's app slot {base_sizes['app_slot']} B is not fm1pkg_make.app_slot(fm1.toml app_end) = {flash} B")
-    ld = (DIR / "device" / "app.ld").read_text()
+    ld = (DIR / "device" / "app_packed.ld").read_text()
     m = re.search(r"SRAM\s*\(rwx\)\s*:\s*ORIGIN = 0x[0-9A-Fa-f]+, LENGTH = (0x[0-9A-Fa-f]+)", ld)
     if not m:
-        raise FM1BaseError(f"{DIR / 'device' / 'app.ld'}: no SRAM region")
+        raise FM1BaseError(f"{DIR / 'device' / 'app_packed.ld'}: no SRAM region")
     sram = int(m.group(1), 0)
     import tomllib
     conf = tomllib.loads((APP / "fm1.toml").read_text())

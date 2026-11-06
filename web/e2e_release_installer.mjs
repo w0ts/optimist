@@ -35,7 +35,7 @@ try {
   execFileSync(PYTHON, ["web/make_site.py", "--release-site", "0.3", SITE, join(WORK, "fake.fwsc")], { cwd: ROOT, stdio: ["ignore", "ignore", "inherit"] });
 } catch (e) { console.log("e2e: the release's site did not build (Emscripten, fm1base/?)"); process.exit(1); }
 const read = (p) => readFileSync(join(SITE, p), "utf8");
-ok(existsSync(join(SITE, "firmware", "optimist-0.3.fwsc")) && existsSync(join(SITE, "firmware", "m-bootloader-1.4.fwsc")),
+ok(existsSync(join(SITE, "firmware", "optimist-0.3.fwsc")) && existsSync(join(SITE, "firmware", "m-bootloader-2.1.fwsc")),
   "the site has the release's package and m-bootloader");
 ok(/<title>Optimist · a modular firmware for the M-VAVE FM-1/.test(read("index.html")) && read("index.html").includes("w0ts/optimist"),
   "the front page: Optimist's name, tagline and source");

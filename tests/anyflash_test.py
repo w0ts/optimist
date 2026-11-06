@@ -94,7 +94,7 @@ def detection():
     v15 = (ROOT / "web" / "stock" / "FM-1_015.fwsc").read_bytes()
     info = R.package_kind(v15, FI.flash_size(FI.logical_image(v15)))
     ok(info.kind == R.P_V15 and info.flash_len == 0x93000, "package: M-VAVE's V15 by its SHA-256 (web/stock)")
-    mb = (ROOT / "web" / "fm1base" / "m-bootloader" / "fm1-uboot-1.4.fwsc").read_bytes()
+    mb = (ROOT / "web" / "fm1base" / "m-bootloader" / "fm1-uboot-2.1.fwsc").read_bytes()
     info = R.package_kind(mb, FI.flash_size(FI.logical_image(mb)))
     ok(info.kind == R.P_MBOOT and info.flash_len is None, "package: m-bootloader's installer FM-1_099 (no flash.bin)")
     kinds = {}
@@ -682,7 +682,7 @@ def boot_word():
     const = {n: bytes(int(x, 16) for x in _re.findall(r"0x([0-9a-f]{2})", body))
              for n, body in _re.findall(r"(BOOTID_\w+)\[16\] = \{([^}]*)\}", text)}
     _, _, v15 = AF.load(ROOT / "web" / "stock" / "FM-1_015.fwsc")
-    boot = (ROOT / "web" / "fm1base" / "m-bootloader" / "fm1-uboot-1.4.boot").read_bytes()
+    boot = (ROOT / "web" / "fm1base" / "m-bootloader" / "fm1-uboot-2.1.boot").read_bytes()
     ok(const["BOOTID_STOCK_HEAD"] == v15[0xA0:0xB0], "bootid.h: the stock head is V15's flash.bin at 0xA0, as stored")
     ok(const["BOOTID_MBOOT_TAG"] == enc_ffff(boot[16:16 + 0x50])[0x40:0x50] and boot[0x50:0x58] == b"AC79BLID",
        "bootid.h: m-bootloader's tag is its container's payload +0x40 ciphered from the payload's start")
