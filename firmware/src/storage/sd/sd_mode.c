@@ -13,7 +13,7 @@
  *                every id that is not device-wide); a card LOAD writes a file's records into project 0 (cleared first)
  *                and opens it; the project's name on the card is the folder's, its first 12 characters the flash
  *                project's name (the NAME page's prefill)
- *   the device record  the log's SEC_ID_SDCARD (device-wide, sec_log.c): VERSIONS (sdp_keep), SLACK (sda_scale), the
+ *   the device record  the log's SEC_ID_SDCARD (device-wide, sec_log.c): the
  *                pending save (sdp_hooks). A pending save whose flash copy is no longer that project's (another
  *                project's name now: NEW, a LOAD) is dropped, not finished with other work
  *   the samples  the project's SEC_ID_SDSMP: each synth part's sample by its XXH64 (the index's), size and a name hint
@@ -30,7 +30,7 @@ enum { SDM_OFF = 0, SDM_NONE, SDM_MOUNTED, SDM_INDEX, SDM_NAMES, SDM_READY };   
 
 typedef struct {
     uint8_t magic[2];                                /* "SD" */
-    uint8_t keep, scale;                             /* VERSIONS 0..SDM_KEEP_MAX; SLACK in steps of 25 % (0..16) */
+    uint8_t rsv[2];                                  /* (VERSIONS and SLACK until 2026-11-06: ignored) */
     uint8_t pend;                                    /* a card save pending: p */
     uint8_t pre;                                     /* the pre-buffer (SD_STREAM): SST_PRE_MS[pre - 1], 0 its default */
     uint8_t ids[2];                                  /* the user ids made so far (sdm_new_id), little-endian */
@@ -55,12 +55,10 @@ _Static_assert(sizeof(sdm_smp_t) == 64u && sizeof(sdm_smp_t) * SDM_NSMP <= SEC_R
 #define SDM_REBOOT() fm1_reboot()
 #endif
 static uint32_t sdm_reboot_at;                       /* (fm1_ms + 1 when a restore asked for the restart: sdm_poll) */
-#define SDM_KEEP_MAX 16u
 #if PRESETS_CARD
 static int sdm_factory_step(void);
 static void sdm_factory_poll(void);
 #endif
-#define SDM_SCALE_MAX 16u                            /* (x 25 %: 400 %, sd_alloc.c's cap) */
 static sdm_rec_t sdm_rec;
 static uint8_t sdm_st, sdm_smp_dirty;               /* (the samples' record written once the audio is quiet: sdm_poll) */
 static uint8_t sdm_dirty;                            /* the settings changed: 2 on SYSTEM, 1 SYSTEM left (written, quiet) */
@@ -147,8 +145,6 @@ static void sdm_slow_tick(void);
 /* ---- the device record */
 static void sdm_apply(void)
 {
-    sdp_keep = sdm_rec.keep;
-    sda_scale = (uint16_t)(sdm_rec.scale * 25u);
 #if FELUCCA_SD_STREAM
     sst_pre_set(SST_PRE_MS[sdm_rec.pre ? (sdm_rec.pre - 1u) & 3u : 1u]);
 #endif
@@ -157,17 +153,11 @@ static void sdm_rec_read(void)
 {
     if (slg_get(SDM_ID, sec_rbuf) == (int)sizeof sdm_rec && sec_rbuf[0] == 'S' && sec_rbuf[1] == 'D') {
         memcpy(&sdm_rec, sec_rbuf, sizeof sdm_rec);
-        if (sdm_rec.keep > SDM_KEEP_MAX)
-            sdm_rec.keep = 8;
-        if (sdm_rec.scale > SDM_SCALE_MAX)
-            sdm_rec.scale = 4;
         if (sdm_rec.pre > 4u)
             sdm_rec.pre = 0;
     } else {
         memset(&sdm_rec, 0, sizeof sdm_rec);
         sdm_rec.magic[0] = 'S', sdm_rec.magic[1] = 'D';
-        sdm_rec.keep = 8;                            /* (sd_save.c's default) */
-        sdm_rec.scale = 4;                           /* 100 % */
     }
     sdm_apply();
 }
@@ -2053,19 +2043,14 @@ static int sdm_save(uint32_t list, const char *name, const char *was)
 }
 
 /* ---- SYSTEM > SD CARD (op_project.c) */
-static uint32_t sdm_keep(void) { return sdm_rec.keep; }
-static uint32_t sdm_scale(void) { return sdm_rec.scale * 25u; }
-static void sdm_set(uint32_t what, int32_t s)        /* 0 VERSIONS, 1 SLACK, 2 PRE-BUFFER: a detent, stopping at the ends;
+static void sdm_set(int32_t s)                       /* PRE-BUFFER: a detent, stopping at the ends;
                                                       * s 0 the default */
 {
-    static const uint8_t MAX[3] = {SDM_KEEP_MAX, SDM_SCALE_MAX, 4}, DEF[3] = {8, 4, 2};
-    uint8_t *v = what == 2u ? &sdm_rec.pre : what ? &sdm_rec.scale : &sdm_rec.keep;
     int32_t x;
-    what %= 3u;
-    if (what == 2u && !*v)
-        *v = 2;                                      /* (0: the default, 50 ms) */
-    x = *v + (s > 0 ? 1 : s < 0 ? -1 : 0);
-    *v = (uint8_t)(!s ? DEF[what] : x < (what == 2u) ? (what == 2u) : x > MAX[what] ? MAX[what] : x);
+    if (!sdm_rec.pre)
+        sdm_rec.pre = 2;                                      /* (0: the default, 50 ms) */
+    x = sdm_rec.pre + (s > 0 ? 1 : s < 0 ? -1 : 0);
+    sdm_rec.pre = (uint8_t)(!s ? 2 : x < 1 ? 1 : x > 4 ? 4 : x);
     sdm_apply();
     sdm_dirty = 2;
 }

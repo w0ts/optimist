@@ -7,8 +7,7 @@
  * Full FatFs builds (FELUCCA_SD_FATFS); pure over FatFs, host-tested (tests/sd_layout_test.c: every such file,
  * on a card whose free room is fragmented, is one run).
  *   sda_guess(kind, need, hint)   the run's bytes before rounding: need (the bytes the file holds now) plus the kind's
- *                                 slack, the slack scaled by sda_scale (percent, the setting: 100 the guesses below,
- *                                 0 none, up to 400; less on a nearly full card):
+ *                                 slack:
  *       SDA_EXACT     presets, kits, the index, an edited or resampled sample: none (its length is known; a file of
  *                     a cluster or less cannot fragment anyway)
  *       SDA_RECORD    hint: the take's length in bytes if one was asked for, else the loop's at the tempo x 2 (a
@@ -20,7 +19,6 @@
  *                                 too fragmented: say so, never write it in pieces); the file is gone again then
  *   sda_rec_bytes(asked_ms, loop_ms, rate, bytes_frame)   SDA_RECORD's hint */
 enum { SDA_EXACT = 0, SDA_RECORD, SDA_RENDER };
-static uint16_t sda_scale = 100;                     /* (percent; the setting) */
 
 static uint32_t sda_rec_bytes(uint32_t asked_ms, uint32_t loop_ms, uint32_t rate, uint32_t bytes_frame)
 {
@@ -31,9 +29,6 @@ static uint32_t sda_rec_bytes(uint32_t asked_ms, uint32_t loop_ms, uint32_t rate
 static uint32_t sda_guess(uint32_t kind, uint32_t need, uint32_t hint)
 {
     uint64_t want = kind == SDA_EXACT ? need : hint;
-    uint64_t slack = want > need ? want - need : 0;
-    slack = slack * (sda_scale < 400u ? sda_scale : 400u) / 100u;
-    want = need + slack;
     return want > 0xFFFF0000u ? 0xFFFF0000u : want ? (uint32_t)want : 1u;   /* (FAT: under 4 GB; f_expand: not 0) */
 }
 

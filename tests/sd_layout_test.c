@@ -974,14 +974,8 @@ static void alloc_tests(const char *what)
     FIL f;
     FILINFO fi;
     uint32_t cl = (uint32_t)fs.csize * 512u;
-    sda_scale = 100;
     CHECK(sda_guess(SDA_EXACT, 1000, 0) == 1000 && sda_guess(SDA_RECORD, 1000, 9000) == 9000 && sda_guess(SDA_RECORD, 1000, 10) == 1000 &&
           sda_guess(SDA_RENDER, 5, 7) == 7, "guesses by kind");
-    sda_scale = 0;
-    CHECK(sda_guess(SDA_RECORD, 1000, 9000) == 1000, "the setting 0: none");
-    sda_scale = 200;
-    CHECK(sda_guess(SDA_RECORD, 1000, 9000) == 17000, "the setting 200 %%");
-    sda_scale = 100;
     CHECK(sda_rec_bytes(2000, 0, 48000, 2) == 192000 && sda_rec_bytes(0, 1000, 48000, 2) == 192000 &&
           sda_rec_bytes(0, 0, 44100, 2) == 5292000, "a recording's guess: asked, the loop x 2, a minute");
     CHECK(sda_create(&f, "Optimist/Record/take 1.wav", SDA_RECORD, 0, 70000) == FR_OK && f_close(&f) == FR_OK &&
@@ -993,7 +987,6 @@ static void alloc_tests(const char *what)
           "%s: no run that long free: the bytes it needs (%u)", what, (unsigned)fi.fsize);
     CHECK(sda_create(&f, "Optimist/Record/too big.wav", SDA_EXACT, 0x7FFFFFFFu, 0) == FR_DENIED &&
           f_stat("Optimist/Record/too big.wav", &fi) == FR_NO_FILE, "%s: no room at all: FR_DENIED, no file", what);
-    sda_scale = 100;
     CHECK(put_file("Optimist/Presets/pad.opr", stage, 1800) == FR_OK, "%s: a preset", what);
     f_unlink("Optimist/Presets/pad.opr");
     CHECK(sda_create(&f, "Optimist/Presets/pad.opr", SDA_EXACT, 1800, 0) == FR_OK, "%s: a preset by its run", what);

@@ -24,7 +24,7 @@
  *   Projects/<name>/<name>.opp      the project: a header sector (sdp_head: "OPPJ", the save number, the length, the
  *                                   payload's XXH64, the header's own), the payload from byte 512
  *   Projects/<name>/Versions/<name>-NNNN.opp   earlier saves (a number already there: -NNNN-2 .. -9)
- *   sdp_keep                        the versions kept (the setting; 0 none)
+ *   sdp_keep                        the versions kept (the user, 2026-11-06: "put it to 25 and basta"; 0 none: a test's)
  *   sdp_save(name, number, len, buf)   the save: the staged copy (len bytes, read by hooks.read) to the card; buf 512
  *                                   B. FR_OK; else the error, the pending record left for sdp_boot
  *   sdp_boot(buf)                   at boot after the mount: a pending record finished. FR_OK (nothing pending too)
@@ -56,7 +56,7 @@ typedef struct {                                     /* the flash side (the call
 } sdp_hooks_t;
 
 static sdp_hooks_t sdp_hooks;
-static uint8_t sdp_keep = 8;                         /* (the setting) */
+static uint8_t sdp_keep = 25;
 static struct {
     FIL f;
     char path[FF_LFN_BUF + 1], to[FF_LFN_BUF + 1];
