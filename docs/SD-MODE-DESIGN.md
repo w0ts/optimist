@@ -1264,3 +1264,31 @@ step), `plug_find(kind, key, &base, &len)` gives its bytes' XIP address, `plug_f
 sector (the sectors read free at the next walk: "the kit changed"), `plug_region_kb(&used, &free)` feeds the FLASH
 gauge of SYSTEM > INFO. The planner's side (the pre-buffer heads written when a kit is picked, read in place, the arena
 kept for the rings): docs/SD-CARD-DESIGN.md section 7. Host-tested in tests/plugin_test.c; never on hardware.
+
+### 10.10 The engine gaps closed (2026-11-06, late; emulator and host tests only)
+
+- **Traits in the descriptor** (`engine_t.traits`, +4 B a descriptor): `ENG_T_SAMPLED` (SAMPLE, SLICE: a retrigger
+  starts the sample again, voice.c `eng_sampled`) and `ENG_T_DRONE` (the HOLD latch on E7 in voice.c, the BEAT side in
+  fx.c), read for every engine instead of `ENG_IS`; a plugin DRONE's state is reached through `drone_mem_of` (engines.c:
+  the built-in engine's own, or the part's memory for a plugin slot; its shape in `engines/drone/drone_mem.h`, so a build
+  without DRONE still mixes a plugin DRONE's side). DRONE's host test and the 120 goldens unchanged.
+- **A plugin placed for another firmware** is told at boot: the header (now 64 bytes) carries the image offset of the
+  plugin's API word (`apiw`); `plug_whole` reads the word and compares it with this firmware's table address; a
+  mismatch leaves the occupant not whole, its sectors free, and the card path loads the engine again when a project
+  asks. Host-tested (tests/plugin_test.c: the table "moves", the plugin is gone, the old address back, it is whole again).
+- **A firmware update keeps the region** (`firmware/loader/ldr_core.c`): a sector the package leaves erased (it
+  decrypts to 0xFF: the app area is SFC-encrypted, so the loader makes the cipher's stream for that address and
+  compares the table's CRCs with it) whose device bytes begin an occupant ("OPLG", its length at byte 20) is kept, with
+  the occupant's sectors as long as the package leaves them erased too; a package with bytes there writes the sector,
+  and the broken occupant fails its CRC at the next boot. The firmware's own install erases plain, so a sector free
+  since the factory holds encrypted 0xFF and one freed by the firmware holds 0xFF: both read as free. Host-tested
+  (tests/ldr_test.c, the fast install: kept with nothing erased; overwritten where the package has bytes). The first
+  update after the plugin firmware itself runs the OLD loader, which does not know the rule: that one erases the region
+  once. Unmeasured: whether the SDK's boot checks app.bin's directory CRC at power-on, which a runtime install inside
+  the app slot's padding would break; the preloaded packages carry the plugin inside that CRC, a card install does not.
+- **The builder says what "off" means** (`tools/builder/registry.py`): every engine item's off text: with PLUGINS and
+  SDCARD a project that names the engine loads it from the card the first time; without them the fallback engine plays.
+  Web builder data regenerated.
+- **Left as it is, said:** STRETCH as a plugin keeps a full state per part (45 KB each; the built-in shares one: the
+  arena's shared block could restore it); the card entries' struct layouts are not in PLUG_ABI (an API bump covers a
+  change: PLUG_API); the FX stay built in (46 KB in all, the user's choice, section 10.8).

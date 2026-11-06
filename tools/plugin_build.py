@@ -30,9 +30,9 @@ FW = build.FW
 PLUG_MAGIC = 0x474C504F
 PLUG_API = 2                                    # core/plugin.h PLUG_API
 PLUG_KIND_ENGINE = 0
-PLUG_HDR_LEN = 48
+PLUG_HDR_LEN = 64
 XIP_BASE = 0x02000000 - 0x4000                  # hal/fm1_xip.h FM1_XIP: flash offset -> CPU address
-HDR = "<IHBB12sIIIIII"                          # magic api kind uid name len desc nrel crc base abi (44 B), then hcrc
+HDR = "<IHBB12sIIIIIIIIII"                      # magic api kind uid name len desc nrel crc base abi apiw res[3] (60 B), then hcrc
 REL_KINDS = {"R_PI32V2_ABS32": 0, "R_PI32V2_MOV_ABS32": 1}
 REL_API = 2                                     # core/plugin.h PLUG_REL_API: the word set to the API table's address
 API_SYM = "plugin_api"                          # plug_unit.c: that word
@@ -59,9 +59,9 @@ def engine_info(name: str) -> tuple[int, str, str]:
     return int(m.group(1)), m.group(2), "engines/" + f.group(1)
 
 
-def header(uid: int, name: str, image: bytes, nrel: int, desc: int, base: int = 0, abi: int = 0) -> bytes:
+def header(uid: int, name: str, image: bytes, nrel: int, desc: int, base: int = 0, abi: int = 0, apiw: int = 0xFFFFFFFF) -> bytes:
     h = struct.pack(HDR, PLUG_MAGIC, PLUG_API, PLUG_KIND_ENGINE, uid, name.encode()[:12].ljust(12, b"\0"),
-                    len(image), desc, nrel, zlib.crc32(image), base, abi)
+                    len(image), desc, nrel, zlib.crc32(image), base, abi, apiw, 0, 0, 0)
     return h + struct.pack("<I", zlib.crc32(h))
 
 
@@ -69,9 +69,9 @@ def parse(opl: bytes) -> tuple[dict, bytes, list[int]]:
     """(the header's fields, the image, the relocation words) of a plugin file"""
     if len(opl) < PLUG_HDR_LEN:
         raise PluginError("not a plugin file: too short")
-    fields = struct.unpack(HDR, opl[:44])
-    h = dict(zip(("magic", "api", "kind", "uid", "name", "len", "desc", "nrel", "crc", "base", "abi"), fields))
-    if h["magic"] != PLUG_MAGIC or struct.unpack("<I", opl[44:48])[0] != zlib.crc32(opl[:44]):
+    fields = struct.unpack(HDR, opl[:PLUG_HDR_LEN - 4])
+    h = dict(zip(("magic", "api", "kind", "uid", "name", "len", "desc", "nrel", "crc", "base", "abi", "apiw", "r0", "r1", "r2"), fields))
+    if h["magic"] != PLUG_MAGIC or struct.unpack("<I", opl[PLUG_HDR_LEN - 4:PLUG_HDR_LEN])[0] != zlib.crc32(opl[:PLUG_HDR_LEN - 4]):
         raise PluginError("not a plugin file: the magic or the header's CRC")
     if h["api"] != PLUG_API:
         raise PluginError(f"a plugin for API {h['api']}, this firmware's is {PLUG_API}")
@@ -114,7 +114,7 @@ def place(opl: bytes, flash_off: int, api: int = 0) -> bytes:
     img = bytearray(image)
     for r in rels:
         patch(img, r, base, api)
-    return header(h["uid"], h["name"].rstrip(b"\0").decode(), bytes(img), 0, h["desc"], base, h["abi"]) + bytes(img)
+    return header(h["uid"], h["name"].rstrip(b"\0").decode(), bytes(img), 0, h["desc"], base, h["abi"], h["apiw"]) + bytes(img)
 
 
 def firmware_flags() -> list[str]:
@@ -229,7 +229,7 @@ def build_plugin(name: str, out_dir: Path | None = None) -> Path:
     if desc + 4 > len(image) or abi_at + 4 > len(image):
         raise PluginError(f"{sym} at {desc:#x} or plugin_abi at {abi_at:#x}: outside the image")
     abi = struct.unpack_from("<I", image, abi_at)[0]
-    opl = header(uid, shown, image, len(rels), desc, 0, abi) + image + struct.pack(f"<{len(rels)}I", *rels)
+    opl = header(uid, shown, image, len(rels), desc, 0, abi, api_at) + image + struct.pack(f"<{len(rels)}I", *rels)
     out = out_dir / f"{name}.opl"
     out.write_bytes(opl)
     print(f"plugin   {out}  {len(opl)} B: UID {uid} {shown}, code {sizes.get('.text', 0)} B, constants "

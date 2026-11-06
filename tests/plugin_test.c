@@ -21,7 +21,8 @@
 #define FELUCCA_PLUGIN_SLOTS 2
 #define FELUCCA_LAYOUT 0
 #define PLUG_ABI 0x12345678u                  /* (no core.h here: a stand-in for the structs' shapes) */
-#define PLUG_API_ADDR 0x02ABCDE0u             /* (a stand-in for the firmware's API table: tests/plugin_build_test.py's) */
+static uint32_t test_api = 0x02ABCDE0u;       /* (a stand-in for the firmware's API table: tests/plugin_build_test.py's) */
+#define PLUG_API_ADDR test_api
 #define PLUG_DESC_OK(d) ((void)(d), 1)        /* (the test's descriptors are pattern words: no part memory to check) */
 #include "fm1_xip.h"
 #include "core/plugin.h"
@@ -122,6 +123,7 @@ static void mk_hdr(plug_hdr_t *h, uint8_t uid, uint32_t len, uint32_t nrel, uint
     h->desc = desc;
     h->nrel = nrel;
     h->abi = PLUG_ABI;
+    h->apiw = 0xFFFFFFFFu;
 }
 static void finish_hdr(plug_hdr_t *h, const uint8_t *img) { h->crc = plug_crc(img, h->len); h->hcrc = plug_crc(h, PLUG_HDR_LEN - 4u); }
 /* the image: word i = i * 0x01010101 + 7; the MOV32 pairs hold a 32-bit value split as the chip does */
@@ -336,6 +338,25 @@ int main(void)
         CHECK(used == 4u && fre == 60u, "the gauge after: %u used", used);
         CHECK(plug_free(PLUG_KIND_HEADS, 0xC0FFEE12u) == -1, "freeing what is not there: -1");
         CHECK(plug_uid[0] == 23u, "the engine untouched through it all");
+    }
+    {   /* ---- a plugin placed for another firmware: its API word differs from this table's address: not whole at boot */
+        uint32_t aw[1] = {(2u << 28) | 0x40u}, used = 0, fre = 0;
+        reset();
+        mk_file(23, 300u, aw, 1u, 0x20u);                /* the API word at 0x40 (its file value 0) */
+        memcpy(&h, filebuf, PLUG_HDR_LEN);
+        h.apiw = 0x40u;
+        h.hcrc = plug_crc(&h, PLUG_HDR_LEN - 4u);
+        memcpy(filebuf, &h, PLUG_HDR_LEN);
+        f.d = filebuf, f.len = file_len, f.fail_at = 0xFFFFFFFFu;
+        rc = plug_install(rd, &f);
+        CHECK(rc == 0 && plug_le32(flash + FL_PLUG_LO + PLUG_HDR_LEN + 0x40u) == test_api, "placed: the word holds this table's address");
+        test_api += 0x1000u;                              /* another firmware: its table elsewhere */
+        plug_init();
+        plug_region_kb(&used, &fre);
+        CHECK(plug_uid[0] == 0xFFu && used == 0u, "after an update: not whole, not registered, its sectors free (%u used)", used);
+        test_api -= 0x1000u;
+        plug_init();
+        CHECK(plug_uid[0] == 23u, "the old firmware back: whole again");
     }
     {   /* ---- the SFC cipher: the package tool's stream, an involution, the 32-byte blocks by address */
         uint8_t b[40] = {0}, c[40];

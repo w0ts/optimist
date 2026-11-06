@@ -47,11 +47,11 @@ static int plug_card_install(uint32_t uid);   /* core/plugin_card.c (after the c
 #define PLUG_KIND_HEADS 1u                /* a card kit's pre-buffer heads (storage/sd/sd_stream_plan.c, the sd card
                                            * reader session's client, 2026-11-06): plain bytes, no relocations, no API or
                                            * ABI check; the key = the kit's hash in desc, name[12] the kit's name */
-#define PLUG_HDR_LEN 48u
+#define PLUG_HDR_LEN 64u                 /* (48 until 2026-11-06 late: apiw and room came) */
 #define PLUG_NREL_MAX 4096u               /* relocation words a file may carry (SID: 73) */
 
-/* The header: the file's first 48 bytes, and the placed plugin's first 48 (then nrel 0, crc of the image as patched,
- * base set). hcrc covers the 44 bytes before it. */
+/* The header: the file's first 64 bytes, and the placed plugin's first 64 (then nrel 0, crc of the image as patched,
+ * base set). hcrc covers the 60 bytes before it. */
 typedef struct {
     uint32_t magic;
     uint16_t api;
@@ -64,6 +64,10 @@ typedef struct {
     uint32_t crc;                         /* CRC-32 of the image: the file's as linked at 0; placed: as patched */
     uint32_t base;                        /* the file: 0; placed: the XIP address of the image's first byte */
     uint32_t abi;                         /* PLUG_ABI of the build the plugin was compiled against */
+    uint32_t apiw;                        /* an engine's: the image offset of its plugin_api word (PLUG_REL_API), so boot
+                                           * tells a plugin placed for another firmware's table (the word differs: not
+                                           * whole, its sectors free, loaded again from the card); 0xFFFFFFFF none */
+    uint32_t res[3];                      /* (room: 0) */
     uint32_t hcrc;
 } plug_hdr_t;
 /* The API table: what a plugin may call in the firmware (docs/SD-MODE-DESIGN.md 10.2 "one versioned table"). The

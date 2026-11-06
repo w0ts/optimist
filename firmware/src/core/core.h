@@ -758,7 +758,12 @@ typedef struct {
                                   * a plugin's too (never ENG_IS anything) */
     uint8_t tab_kb;              /* KB of a block its parts share (a plugin's: plugin_api->tab_mem, the arena's; WAVE's
                                   * table), 0 = none: read for a plugin's slot (engines.c part_tab_k); in the padding */
+    uint8_t traits;              /* ENG_T_*: what the firmware did by the engine's identity (ENG_IS) and a plugin, never
+                                  * ENG_IS anything, says of itself (2026-11-06) */
 } engine_t;
+#define ENG_T_SAMPLED 1u             /* a retrigger or a steal does not keep the phases (SAMPLE, SLICE: voice.c eng_sampled) */
+#define ENG_T_DRONE 2u               /* DRONE's HOLD latch (E7, voice.c) and BEAT side (fx.c), in a drone_mem_t: its own when
+                                      * built in, the part's memory as a plugin (engines.c drone_mem_of) */
 
 /* ------------------------------------------------------------ track --- */
 #define T_SILENT(t) (PART_DROPS && (t)->silent)   /* a silent placeholder (track_t.silent; only with an ARENA) */

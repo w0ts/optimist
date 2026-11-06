@@ -366,6 +366,21 @@ AINL gr_part_t *gr_mem(uint32_t p)
 #if FELUCCA_ENG_PHYS
 AINL phys_slot_t *phys_mem(uint32_t p) { return (phys_slot_t *)PART_MEM_AT(p); }
 #endif
+#if FELUCCA_ENG_DRONE || FELUCCA_PLUGINS
+#if !FELUCCA_ENG_DRONE
+#include "drone/drone_mem.h"          /* (a plugin DRONE's state shape: voice.c's HOLD, fx.c's BEAT side) */
+#endif
+/* part k's DRONE state, the engine of slot e: the built-in engine's own, or a plugin's in the part's memory */
+static drone_mem_t *drone_mem_of(uint32_t k, uint32_t e)
+{
+#if FELUCCA_ENG_DRONE
+    if (e == (uint32_t)ENG_SLOT_DRONE)
+        return DRONE_MEM(k);
+#endif
+    (void)e;
+    return (drone_mem_t *)PART_MEM_AT(k);
+}
+#endif
 #if FELUCCA_ENG_ACID
 FAST(acid) void *acid_mem(int k) { return PART_MEM_AT((uint32_t)k % NPART); }
 #endif

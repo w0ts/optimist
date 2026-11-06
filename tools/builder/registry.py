@@ -479,6 +479,14 @@ _add("EX_SQUARE", "FELUCCA_EX_SQUARE", "SQUARE: the example engine (a pulse, its
 # ---- drums: first the drum synths, the kits made by synthesis (any of them is a drum source on its own; the drum
 # track needs one of these or a sampled kit), then the sampled drums and the drum options (one group: the user,
 # 2026-10-20, "drum synths should be under drums")
+# an engine not built in (2026-11-06, the user: "instead of off ... load from sd"): with PLUGINS and the SD card, a project
+# that names it loads its plugin file from the card into the flash (core/plugin_card.c, the card zip's Optimist/Plugins);
+# without them its fallback engine plays (registry.h ENGINE_LIST). The off text of every engine item says so.
+for _it in _ITEMS:
+    if _it.group == E and _it.key.startswith("ENG_") and not _it.off_warning:
+        _it.off_warning = ("not built in: with PLUGINS and SDCARD on, a project that names this engine loads it from the SD "
+                           "card (Optimist/Plugins) into the flash the first time; without them its fallback engine plays")
+
 D = "Drums"
 # Three drum synths, independent of each other (the user, 2026-10-22): the 32 kits, KAWA, PLAITS. Tick any of them; the
 # code they share (drum_synth.c's voice, the sound table: registry.h DRUM_DS) is built with any one and counted once

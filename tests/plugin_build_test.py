@@ -14,7 +14,7 @@ FL_PLUG_LO = 0x82000                    # the normal layout's 64 KB region (plug
 IMG_LEN = 10000
 REL = [0x10, 0x1000, (1 << 28) | 0x6E, (2 << 28) | 0x200, 0x1FCE, (1 << 28) | 0xFCA]
 API = 0x02ABCDE0                        # plugin_test.c PLUG_API_ADDR
-C_TEST_CRC = 0x690C1FFA                 # what plugin_test.c printed for its first vector (2026-11-06, with kind 2)
+C_TEST_CRC = 0xB84DAF86                 # what plugin_test.c printed for its first vector (2026-11-06, the 64-byte header)
 fails = 0
 
 
@@ -40,11 +40,11 @@ def vector1() -> bytes:
 def main() -> int:
     f = vector1()
     h, image, rels = pb.parse(f)
-    check(h["uid"] == 23 and h["len"] == IMG_LEN and h["desc"] == 0x100 and rels == REL and len(f) == 48 + IMG_LEN + 4 * len(REL), "parse")
+    check(h["uid"] == 23 and h["len"] == IMG_LEN and h["desc"] == 0x100 and rels == REL and len(f) == pb.PLUG_HDR_LEN + IMG_LEN + 4 * len(REL), "parse")
     placed = pb.place(f, FL_PLUG_LO, API)
-    base = pb.XIP_BASE + FL_PLUG_LO + 48
+    base = pb.XIP_BASE + FL_PLUG_LO + pb.PLUG_HDR_LEN
     ph, pimg, prels = pb.parse(placed)
-    check(ph["base"] == base and ph["nrel"] == 0 and prels == [] and len(placed) == 48 + IMG_LEN, "the placed header")
+    check(ph["base"] == base and ph["nrel"] == 0 and prels == [] and len(placed) == pb.PLUG_HDR_LEN + IMG_LEN, "the placed header")
     check(zlib.crc32(pimg) == C_TEST_CRC, f"the placed image's CRC {zlib.crc32(pimg):08x} = the loader's {C_TEST_CRC:08x}")
     check(struct.unpack_from("<I", pimg, 0x10)[0] == (0x10 * 0x01010101 + 7 + base) & 0xFFFFFFFF, "ABS32 patched")
     check(struct.unpack_from("<I", pimg, 0x200)[0] == API, "API word set")
