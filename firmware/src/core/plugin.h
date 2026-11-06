@@ -26,17 +26,27 @@
 #define PLUG_SECTOR 4096u
 #if FELUCCA_PLUGINS                       /* (the region's place needs the flash map: hal/; a host test without plugins
                                            * compiles with firmware/src alone) */
-#include "fm1_flash_map.h"
 #define PLUG_TAIL 0xF24u                  /* the app area's tail after app.bin (tools/flash_layout.py APP_TAIL) */
+#ifdef PLAT_PLUG_HI                       /* the release (Optimist on fm1-base, plat.h): its app end is fm1-base's
+                                           * (FM1B_APP_END, not this step's FL_APP_HI) and the region's size went to its
+                                           * build (FM1B_PLUGIN_KB: tools/fm1base.py env_for, gen_optimist.py plugin_check) */
+#if FM1B_PLUGIN_KB != FELUCCA_PLUGIN_KB
+#error "FELUCCA_PLUGIN_KB is not fm1-base's FM1B_PLUGIN_KB (tools/fm1base.py env_for sets it from the configuration)"
+#endif
+#define FL_PLUG_HI PLAT_PLUG_HI
+#define FL_PLUG_LO PLAT_PLUG_LO
+#else
+#include "../../hal/fm1_flash_map.h"      /* (Optimist's hal/, beside its src/: the step's app end) */
 #define FL_PLUG_HI ((FL_APP_HI - PLUG_TAIL) & ~(PLUG_SECTOR - 1u))
 #define FL_PLUG_LO (FL_PLUG_HI - (uint32_t)FELUCCA_PLUGIN_KB * 1024u)
+#endif
 #define PLUG_NSECT ((uint32_t)FELUCCA_PLUGIN_KB * 1024u / PLUG_SECTOR)
 #if FELUCCA_PLUGIN_KB > 256 || FELUCCA_PLUGIN_SLOTS < 1 || FELUCCA_PLUGIN_SLOTS > 4
 #error "FELUCCA_PLUGIN_KB at most 256, FELUCCA_PLUGIN_SLOTS 1..4"
 #endif
 #if FELUCCA_SDCARD
 static int plug_card_install(uint32_t uid);   /* core/plugin_card.c (after the card's code): the plugin of this UID from
-                                               * Optimist/Plugins/<NAME>.opl into the region: its slot, or PLUG_E_* */
+                                               * Optimist/Plugins/<name>.opl into the region: its slot, or PLUG_E_* */
 #endif
 #endif
 

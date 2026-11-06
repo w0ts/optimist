@@ -312,6 +312,11 @@ export function messagesOf(view, reg) {
     its notice, where it comes from, what turning it off loses) */
 export const hasInfo = (it) => !!(it.experimental || it.notice || it.provenance_line || it.off_warning);
 
+/** an engine left out of a build that loads engines from the SD card (PLUGINS, the region, and SDCARD): a plugin the card
+    zip writes, not a loss; FM6 stays built in (core.py engine_from_card, the menu's "from the SD card") */
+export const engineFromCard = (values, key) =>
+  key.startsWith("ENG_") && key !== "ENG_FM6" && !values[key] && (values.PLUGINS | 0) > 0 && !!values.SDCARD;
+
 /** a proposal's change as a short line (docs/WEB.md "What it does", Make it fit): "FM6 off", "Delay length: 64K -> 32K", "keep 200 KB flash free -> 0 KB" */
 export function changeText(c, byKey) {
   const it = byKey[c.key], name = (v) => (it && it.choices.length ? (it.choices.find((x) => x[0] === v) || [v, String(v)])[1] : v ? "on" : "off");

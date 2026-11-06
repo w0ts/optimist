@@ -23,7 +23,8 @@ from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
 ROOT = HERE.parent
-DIR = ROOT / "fm1base"
+DIR = Path(os.environ["OPTIMIST_FM1BASE"]).resolve() if os.environ.get("OPTIMIST_FM1BASE") else ROOT / "fm1base"   # (a
+# worktree of the submodule for a build of a change to it, outside the shared checkout: OPTIMIST_FM1BASE=<dir>)
 APP = DIR / "optimist"
 OUT = APP / "build"
 BUILD_PY = DIR / "tools" / "build.py"
@@ -133,10 +134,22 @@ def env_for(cfgfile, slot=None, measure=False):
         env["FM1B_JOBS"] = "2"       # (builds side by side: each one's compile pool small)
     env.pop("OPT_PROFILE", None)
     env.pop("FM1B_APP_END", None)
+    env.pop("FM1B_PLUGIN_KB", None)
     end = app_end(cfgfile)
     if end:
         env["FM1B_APP_END"] = end
-    return env
+    kb = plugin_kb(cfgfile)
+    if kb:
+        env["FM1B_PLUGIN_KB"] = str(kb)   # (the PLUGINS region: fm1-base's build.py plugin_kb, plat.h PLAT_PLUG_*, felucca-bsp's
+    return env                            # FL_PLUG_KB; gen_optimist.py plugin_check refuses a build without it)
+
+
+def plugin_kb(cfgfile):
+    """the configuration's PLUGINS region in KB (the builder item PLUGINS: FELUCCA_PLUGIN_KB, Optimist's core/plugin.h),
+    0 without one"""
+    import configure
+    cfg, _ = configure.parse(Path(cfgfile).read_text())
+    return int(configure.flags(cfg)[0].get("FELUCCA_PLUGIN_KB", 0) or 0)
 
 
 def _app_value(name):

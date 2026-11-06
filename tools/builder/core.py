@@ -31,6 +31,13 @@ NEEDS_AUTO = ()                 # (setup: the items the firmware switches off wi
 _UNSET = object()
 
 
+def engine_from_card(cfg, key):
+    """-> this engine item is left out of a build that loads engines from the SD card (PLUGINS, the region, and SDCARD):
+    a plugin the card zip writes (tools/sd_zip.py), not a loss; FM6 stays built in (the user's ruling, 2026-11-06)"""
+    return (key.startswith("ENG_") and key != "ENG_FM6" and not cfg.get(key, 0)
+            and int(cfg.get("PLUGINS", 0) or 0) > 0 and bool(cfg.get("SDCARD", 0)))
+
+
 def _release():
     """which firmware the rules are for: configure.py sets CLASSIC_HOOK to its classic() (Optimist's own firmware,
     OPTIMIST_CLASSIC=1); the default is the release (Optimist as an fm1-base app)"""
@@ -467,8 +474,8 @@ def validate(cfg):
                           f"memories; a new project needs about {need['kb']} KB of it together ({what}); a project "
                           "using more than there is is refused and offered what to drop", ["ARENA"]))
     for k, it in R.ITEMS.items():
-        if it.off_warning and not cfg[k] and (not it.parent or built(cfg, it.parent)):
-            warn.append(Issue(f"{it.label} off: {it.off_warning}", [k]))
+        if it.off_warning and not cfg[k] and (not it.parent or built(cfg, it.parent)) and not engine_from_card(cfg, k):
+            warn.append(Issue(f"{it.label} off: {it.off_warning}", [k]))   # (an engine the card supplies is not lost)
         if built(cfg, k):
             if it.experimental:
                 warn.append(Issue(f"{it.label}: EXPERIMENTAL ({it.tested})", [k]))

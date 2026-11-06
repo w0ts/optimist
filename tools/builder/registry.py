@@ -1271,7 +1271,7 @@ _add("PLUGINS", "FELUCCA_PLUGIN_KB", "engines as plugins: flash they are loaded 
      tested="host-tested (tests/plugin_test.c, plugin_card_test.c), the emulator plays SID from the region and loads it from "
             "the card; on an FM-1 once (pink, 2026-11-06: SID placed in the region boots and renders)",
      desc="A flash region of this size at the end of the code's room, into which the FM-1 writes an engine's plugin "
-          "file from the SD card (Optimist/Plugins/<ENGINE>.opl, every engine the card zip could build as one) the "
+          "file from the SD card (Optimist/Plugins/<engine>.opl (lower case), every engine the card zip could build as one) the "
           "first time a project asks for an engine this build does not have; the placed engines play from there like "
           "built-in ones, and stay until the region is full (the oldest unused goes) or a firmware update rewrites the "
           "code's room. A plugin is built for one configuration's structs: another build's file is refused and loaded "

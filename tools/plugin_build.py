@@ -119,19 +119,42 @@ def place(opl: bytes, flash_off: int, api: int = 0) -> bytes:
     return header(h["uid"], h["name"].rstrip(b"\0").decode(), bytes(img), 0, h["desc"], base, h["abi"], h["apiw"]) + bytes(img)
 
 
+def gen_dir() -> Path:
+    """the firmware build's generated headers (felucca_config.h: the configuration a plugin is built against, its structs,
+    PLUG_ABI): the release's (Optimist on fm1-base: fm1base/optimist/build/optgen, what make build / make package make),
+    or with OPTIMIST_CLASSIC=1 the classic build's OPTIMIST_BUILD_DIR/gen"""
+    sys.path.insert(0, str(SRC / "tools" / "builder"))
+    import configure
+    if configure.classic():
+        return build.GEN
+    import fm1base
+    return fm1base.OUT / "optgen"
+
+
 def firmware_flags() -> list[str]:
-    """the firmware's compile flags for this build directory (tools/build.py build_app's, without the environment's
-    FELUCCA_* switches: the configuration header carries the build's)"""
-    gen = build.GEN / "felucca_config.h"
+    """the firmware's compile flags for this build (tools/build.py build_app's, without the environment's FELUCCA_*
+    switches: the configuration header carries the build's; the release's plugin takes the same headers with its
+    configuration: the engines' code sees Optimist's sources alone, the structs follow the configuration)"""
+    gen = gen_dir() / "felucca_config.h"
     if not gen.exists():
-        raise PluginError(f"{gen}: no configuration; build the firmware first (the same OPTIMIST_BUILD_DIR)")
-    return [*build.CFLAGS, "-fdata-sections", "-Ifirmware/hal", "-Ifirmware/src", "-I" + build.GEN_REL,   # (-fdata-sections: the
-            "-include", f"{build.GEN_REL}/felucca_config.h"]                                          # prelude's unreferenced globals go)
+        raise PluginError(f"{gen}: no configuration; build the firmware first (make build / make package)")
+    rel = gen_dir().relative_to(SRC).as_posix()     # (the tools run with cwd SRC)
+    gens = [rel]
+    if gen_dir() != build.GEN:                      # the release: Optimist's generated headers it does not keep (the fonts
+        import subprocess                           # and icons: fm1-base draws with its own), made here for the plugin's
+        own = build.OUT / "plugins" / "gen"        # unit (display/gfx.c includes them; a plugin carries no drawing code)
+        own.mkdir(parents=True, exist_ok=True)
+        for g, h in (("gen_font.py", "felucca_font.h"), ("gen_icons.py", "felucca_icons.h")):
+            if not (own / h).exists():
+                subprocess.run([sys.executable, str(SRC / "tools" / g), str(own / h)], check=True, cwd=SRC)
+        gens = [own.relative_to(SRC).as_posix(), rel]
+    return [*build.CFLAGS, "-fdata-sections", "-Ifirmware/hal", "-Ifirmware/src", *("-I" + g for g in gens),   # (-fdata-sections:
+            "-include", f"{rel}/felucca_config.h"]                                              # the prelude's unreferenced globals go)
 
 
 def config_values() -> dict[str, str]:
-    """the build's `#define NAME VALUE` lines of build/gen/felucca_config.h (the values build.py's CFG_VALUES held)"""
-    text = (build.GEN / "felucca_config.h").read_text()
+    """the build's `#define NAME VALUE` lines of its felucca_config.h (gen_dir: the values the build held)"""
+    text = (gen_dir() / "felucca_config.h").read_text()
     return dict(re.findall(r"^#define (\w+) (\S+)\s*$", text, re.M))
 
 
