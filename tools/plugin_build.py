@@ -203,6 +203,11 @@ def build_plugin(name: str, out_dir: Path | None = None) -> Path:
         unit_objs.append(uo)
     build.tc("pi32v2/bin/ld", "--gc-sections", "-q", "-e", ENTRY, f"--undefined={API_SYM}", "-T", ld, obj, *unit_objs, "-o", elf)
     sizes = section_sizes(elf)
+    strange = {k: v for k, v in sizes.items() if v and k not in (".text", ".rodata") and
+               not k.startswith((".rela", ".symtab", ".strtab", ".shstrtab", ".comment", ".note"))}
+    if strange and set(strange) - {".data", ".bss"}:      # (a section the linker script does not know, e.g. .pool or
+        raise PluginError(f"{name}: sections a plugin cannot carry: {strange}: RAM of its own in a named section "   # .ram_hot: RAM in
+                          "(IN_POOL, FAST_RAM, CACHE_RAM): its state goes to the part's memory")   # the firmware, read-only flash here)
     if sizes.get(".data", 0) or sizes.get(".bss", 0):
         raise PluginError(f"{name}: {sizes.get('.data', 0)} B of .data and {sizes.get('.bss', 0)} B of .bss: a plugin has "
                           "no RAM of its own (its state is the voice's and the part's memory)")

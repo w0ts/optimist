@@ -80,5 +80,9 @@ AINL drw_mem_t *drw_mem(uint32_t p) { return (drw_mem_t *)PART_MEM_AT(p); }
 #if defined(PLUG_ENG_CZ)
 AINL cz_mem_t *cz_mem(uint32_t p) { return (cz_mem_t *)PART_MEM_AT(p); }
 #endif
+#if defined(PLUG_ENG_ACID)
+void *acid_mem(int k) { return PART_MEM_AT((uint32_t)k % NPART); }   /* (engines.c's; a real symbol: acid_dsp.c, the
+                                                                       * float unit linked into the plugin, calls it) */
+#endif
 const engine_t *const plugin_desc = &PLUG_ENGINE_SYM;
 const uint32_t plugin_abi = PLUG_ABI;              /* (the tool reads it into the header: the firmware checks it) */
