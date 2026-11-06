@@ -11,15 +11,24 @@
  * lines), the depth ENS, the speed RATE. Then a 12 dB low-pass.
  * EDIT 1  16'  8'  4'  ENS        EDIT 2  CUT  RATE  SHP  RES
  * Voice state: ph[0..2] the three taps (16' phase), s[0..1] the SVF. Part state: the ensemble LFOs (strings_block). */
-static uint32_t str_lfo[NPART][2];               /* the ensemble's slow and fast LFO, per part (strings_block) */
+/* the part's state: the ensemble's slow and fast LFO (strings_block). Built in: one static instance a part; a plugin
+ * (plugin/plug_unit.c): the part's engine memory through the firmware's API table (PART_MEM_AT, engine_t .part_bytes) */
+typedef struct { uint32_t lfo[2]; } str_mem_t;
+#if FELUCCA_PLUGIN_UNIT
+#define STR_MEM(part) ((str_mem_t *)PART_MEM_AT(part))
+#else
+static str_mem_t str_st[NPART];
+#define STR_MEM(part) (&str_st[part])
+#endif
 
 static FAST(strings) void strings_block(track_t *t)
 {
     uint32_t part = (uint32_t)(t - trk) % NPART;
     int32_t rate = t->p[P_E5];                       /* x 0.25 .. x 2 */
     uint32_t k = 8192u + (uint32_t)rate * 448u;      /* Q15 */
-    str_lfo[part][0] += (uint32_t)(((uint64_t)(58000u * CTL) * k) >> 15);      /* ~0.6 Hz at RATE 50 */
-    str_lfo[part][1] += (uint32_t)(((uint64_t)(584000u * CTL) * k) >> 15);     /* ~6 Hz */
+    str_mem_t *sm = STR_MEM(part);
+    sm->lfo[0] += (uint32_t)(((uint64_t)(58000u * CTL) * k) >> 15);      /* ~0.6 Hz at RATE 50 */
+    sm->lfo[1] += (uint32_t)(((uint64_t)(584000u * CTL) * k) >> 15);     /* ~6 Hz */
 }
 
 static void strings_note_on(track_t *t, voice_t *v)
@@ -51,13 +60,14 @@ static FAST(strings) void strings_render(track_t *t, voice_t *v, int32_t *__rest
     int32_t ic1 = v->s[0], ic2 = v->s[1];
     uint32_t inc16 = m->inc >> 1;
     tsvf_t flt;
+    const str_mem_t *sm = STR_MEM(part);
     if (n > CTL)
         return;
     for (i = 0; i < n; i++)
         acc[i] = 0;
     for (k = 0; k < 3u; k++) {
         /* the tap's pitch: the slow and the fast LFO, 120 degrees on; up to ~+-14 cents and ~+-4 cents at ENS 127 */
-        int32_t s1 = osc_sine(str_lfo[part][0] + k * 0x55555555u), s2 = osc_sine(str_lfo[part][1] + k * 0x55555555u);
+        int32_t s1 = osc_sine(sm->lfo[0] + k * 0x55555555u), s2 = osc_sine(sm->lfo[1] + k * 0x55555555u);
         int32_t dq = ((s1 * 14 + s2 * 4) >> 4) * ens;                   /* cents x 127 x 2048 */
         int32_t fq = dq * 38 / 260096;                                  /* the pitch factor - 1, Q16 (~38 a cent) */
         uint32_t inc = inc16 + (uint32_t)(((int64_t)(int32_t)inc16 * fq) >> 16), ph = v->ph[k];
@@ -126,4 +136,5 @@ static const engine_t ENG_STRINGS = {
     .color = 0xD50E,                             /* #d4a373 (tools/colors.json) */
     .macro = {P_E3, P_E4, P_E1, P_ATK},
     .block = strings_block,
+    .part_bytes = sizeof(str_mem_t),
 };
