@@ -38,7 +38,8 @@
  *  19  the first plugin slot (the one after the built-in engines, FELUCCA_PLUGINS; core/plugin.c) on the three
  *      parts, preset 0, 3 + 3 + 2 notes: the placed engine plays, or the empty slot's silence; without plugins
  *      the last engine
- *  20  scenario 19 after SID (FELUCCA_BENCH_PLUG_UID) installed from the card at boot (Optimist/Plugins/SID.opl, core/plugin_card.c; the
+ *  20  (FELUCCA_BENCH_PLUG_SAMPLE "Samples/x.wav": the plugin's parts on that card sample, system/bench_card.c)
+ *      scenario 19 after SID (FELUCCA_BENCH_PLUG_UID) installed from the card at boot (Optimist/Plugins/SID.opl, core/plugin_card.c; the
  *      result in bench.plug_rc: the slot, or PLUG_E_*): the card load path, in the emulator with its card image
  * (before the integration: the DX7 and SUPER engines, gone since: FM6 and ANALOG 2 take their places)
  * with a drum groove (1 to 4, 7) (kick, snare, hats in eighths at 120 BPM) and the presets' FX sends. The notes
@@ -50,6 +51,11 @@
 #define FELUCCA_BENCH_SWAP 0
 #endif
 #define BENCH_PLUG (FELUCCA_BENCH == 19 || FELUCCA_BENCH == 20)   /* (the parts on the first plugin slot) */
+#ifndef FELUCCA_BENCH_PLUG_PARTS
+#define FELUCCA_BENCH_PLUG_PARTS NPART      /* 19, 20: the parts on the plugin slot, from T1 (the rest on the second,
+                                             * empty: silent; three GRAIN parts on card sets ask the arena for three
+                                             * 32 KB caches, 101,100 B: refused on the SD card mode profile) */
+#endif
 #ifndef FELUCCA_BENCH_PLUG_UID
 #define FELUCCA_BENCH_PLUG_UID ENG_UID_SID  /* 20: the engine installed from the card (a UID, core/registry.h: GRAIN, SLICE,
                                              * STRETCH... as -DFELUCCA_BENCH_PLUG_UID=ENG_UID_GRAIN) */
@@ -261,7 +267,10 @@ static void bench_setup(void)                              /* boot, after felucc
     return;
 #endif
     for (p = 0; p < NPART; p++) {
-        set_engine_of(&trk[p], BENCH_PLUG ? (FELUCCA_PLUGINS ? (uint32_t)NBUILT : NENGINES - 1u) : BENCH_SETUP[s][p][0]);
+        /* (19, 20: the parts past FELUCCA_BENCH_PLUG_PARTS on the second plugin slot, empty: silent) */
+        uint32_t pe = FELUCCA_PLUGINS ? (uint32_t)NBUILT + (p >= (uint32_t)FELUCCA_BENCH_PLUG_PARTS && FELUCCA_PLUGIN_SLOTS > 1)
+                                      : NENGINES - 1u;
+        set_engine_of(&trk[p], BENCH_PLUG ? pe : BENCH_SETUP[s][p][0]);
         apply_preset_to(&trk[p], BENCH_PLUG ? 0u : BENCH_SETUP[s][p][1]);
         trk[p].engine = trk[p].eng_req;
     }
@@ -409,8 +418,16 @@ static HOT void bench_sig(uint32_t k, const int32_t *b, uint32_t n)   /* (HOT: t
     bench_sigs[blk][k] = h;
 }
 
+#if FELUCCA_BENCH == 20 && FELUCCA_PLUGINS && FELUCCA_SD_STREAM && defined(FELUCCA_BENCH_PLUG_SAMPLE)
+static int bench_card_sample(void);                        /* (system/bench_card.c) */
+static uint8_t bench_smp_done;
+#endif
 static void bench_frame(void)                              /* main loop */
 {
+#if FELUCCA_BENCH == 20 && FELUCCA_PLUGINS && FELUCCA_SD_STREAM && defined(FELUCCA_BENCH_PLUG_SAMPLE)
+    if (!bench_smp_done && bench.plug_rc >= 0)
+        bench_smp_done = (uint8_t)bench_card_sample();     /* (the plugin's parts: their CARD sample, once indexed) */
+#endif
 #if FELUCCA_BENCH == 18
     if (!bench_pl_done && bench.blk >= 64u)
         bpl_run();                                         /* (bench_plaits.c: once) */

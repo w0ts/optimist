@@ -51,9 +51,6 @@ _Static_assert(ST_HOP % CTL == 0 && ST_BLK > 8u, "a frame is whole blocks");
 #define ST_CARD 0
 #endif
 
-static int32_t pst_a[2u * ST_M] IN_POOL;          /* the analysis: re, im (16 KB) */
-static int32_t pst_b[2u * ST_M + 2u] IN_POOL;     /* the voices' spectrum, bins 0..M (16 KB) */
-static int16_t pst_buf[3][ST_HOP] IN_POOL;        /* playing, the next, the tail (12 KB) */
 
 enum { SP_IDLE, SP_DEC, SP_BREV_A, SP_FFT_A, SP_SPLIT, SP_MAP, SP_ISPLIT, SP_BREV_B, SP_FFT_B, SP_OLA, SP_DONE };
 typedef struct {
@@ -93,7 +90,37 @@ typedef struct {
     sst_rw_t rw;                         /* the reader's window */
 #endif
 } pst_state_t;
+#ifdef PLUG_BUILD
+/* a plugin (plugin/plug_unit.c): no RAM of its own, so the state is the part's engine memory (plug_api_t part_mem: 45 KB
+ * of the arena a part on STRETCH), reached through M, which every function that touches it takes from its hook
+ * (PST_M_DECL). Each part on the plugin has its own (the built-in's one instance passes between the parts: here a part
+ * never sees another's owner, so each stretches on its own) */
+typedef struct {
+    int32_t a[2u * ST_M];                /* pst_a */
+    int32_t b[2u * ST_M + 2u];           /* pst_b */
+    int16_t buf[3][ST_HOP];              /* pst_buf */
+    pst_state_t x;                       /* pstx */
+} pst_mem_t;
+#define PST_MP pst_mem_t *M,
+#define PST_MV pst_mem_t *M
+#define PST_MA M,
+#define PST_MAV M
+#define PST_M_DECL(t) pst_mem_t *const M = (pst_mem_t *)PART_MEM_AT(pst_part(t));
+#define pstx (M->x)
+#define pst_a (M->a)
+#define pst_b (M->b)
+#define pst_buf (M->buf)
+#else
+static int32_t pst_a[2u * ST_M] IN_POOL;          /* the analysis: re, im (16 KB) */
+static int32_t pst_b[2u * ST_M + 2u] IN_POOL;     /* the voices' spectrum, bins 0..M (16 KB) */
+static int16_t pst_buf[3][ST_HOP] IN_POOL;        /* playing, the next, the tail (12 KB) */
 static pst_state_t pstx;
+#define PST_MP                                    /* (the built-in: one instance, file-scope) */
+#define PST_MV void
+#define PST_MA
+#define PST_MAV
+#define PST_M_DECL(t)
+#endif
 
 /* one IMA ADPCM sample of the zone at pos (as GRAIN's gr_dec) */
 AINL int32_t pst_dec(const smp_zone_t *z, uint32_t pos, int32_t *pred, int32_t *idx)
@@ -166,7 +193,7 @@ AINL int32_t pst_mul14(int32_t a, int32_t w) { return (int32_t)(((int64_t)a * w)
 #define U_ISPLIT 4u                      /* a pair of bins */
 #define U_OLA 1u                         /* an output sample (two window points) */
 
-static uint32_t sp_dec(uint32_t budget, uint32_t adv)
+static uint32_t sp_dec(PST_MP uint32_t budget, uint32_t adv)
 {
     const smp_zone_t *z = pstx.z;
     uint32_t done = 0;
@@ -197,8 +224,8 @@ static uint32_t sp_dec(uint32_t budget, uint32_t adv)
 #if ST_CARD
 /* ---- SD card mode's sets: the window read from the owner part's cache (sd_stream_rc.h) ---- */
 static uint32_t pst_adv_q16(int32_t v);
-AINL sst_rc_t *pst_rc(void) { return &sst_rc[(pstx.owner - 1u) % SST_NPART]; }
-AINL const sst_src_t *pst_src(void) { return &sst_src[pstx.si % SST_NSRC]; }
+AINL sst_rc_t *pst_rc(PST_MV) { return &sst_rc[(pstx.owner - 1u) % SST_NPART]; }
+AINL const sst_src_t *pst_src(PST_MV) { return &sst_src[pstx.si % SST_NSRC]; }
 /* the window from frame pos: [a0, a1], then (wrapped into the loop, or the start) [b0, b1]; b1 < b0: none */
 static void pst_card_win(const smp_zone_t *z, uint32_t pos, uint32_t *r)
 {
@@ -209,27 +236,27 @@ static void pst_card_win(const smp_zone_t *z, uint32_t pos, uint32_t *r)
     if (!rem)
         r[2] = 1u;                                   /* (none) */
 }
-static void pst_card_pins(uint32_t k, const uint32_t *r)   /* pins k, k + 1: a window's ranges */
+static void pst_card_pins(PST_MP uint32_t k, const uint32_t *r)   /* pins k, k + 1: a window's ranges */
 {
-    sst_rc_t *c = pst_rc();
-    sst_rc_pin(c, k, pst_src(), pstx.si, r[0], r[1]);
+    sst_rc_t *c = pst_rc(PST_MAV);
+    sst_rc_pin(c, k, pst_src(PST_MAV), pstx.si, r[0], r[1]);
     if (r[3] >= r[2])
-        sst_rc_pin(c, k + 1u, pst_src(), pstx.si, r[2], r[3]);
+        sst_rc_pin(c, k + 1u, pst_src(PST_MAV), pstx.si, r[2], r[3]);
     else
         sst_rc_unpin(c, k + 1u);
 }
-static void pst_card_want(uint32_t k, uint32_t pos, uint32_t due)   /* wants k, k + 1: the window from pos */
+static void pst_card_want(PST_MP uint32_t k, uint32_t pos, uint32_t due)   /* wants k, k + 1: the window from pos */
 {
-    sst_rc_t *c = pst_rc();
+    sst_rc_t *c = pst_rc(PST_MAV);
     uint32_t r[4];
     pst_card_win(pstx.z, pos, r);
-    sst_rc_want(c, k, pst_src(), pstx.si, r[0], r[1], due);
+    sst_rc_want(c, k, pst_src(PST_MAV), pstx.si, r[0], r[1], due);
     if (r[3] >= r[2])
-        sst_rc_want(c, k + 1u, pst_src(), pstx.si, r[2], r[3], due);
+        sst_rc_want(c, k + 1u, pst_src(PST_MAV), pstx.si, r[2], r[3], due);
     else
         sst_rc_unwant(c, k + 1u);
 }
-static uint32_t pst_card_step(uint32_t pos, uint32_t k)   /* k frames on from pos, wrapped as the scan wraps */
+static uint32_t pst_card_step(PST_MP uint32_t pos, uint32_t k)   /* k frames on from pos, wrapped as the scan wraps */
 {
     const smp_zone_t *z = pstx.z;
     uint32_t i;
@@ -242,23 +269,23 @@ static uint32_t pst_card_step(uint32_t pos, uint32_t k)   /* k frames on from po
     return pos;
 }
 /* the next windows wanted: the next frame's (from the scan) by its start, the one after it a frame later */
-static void pst_card_ahead(const track_t *t)
+static void pst_card_ahead(PST_MP const track_t *t)
 {
-    uint32_t now = pst_rc()->now, due = now + (ST_BLK - (pstx.blk < ST_BLK ? pstx.blk : ST_BLK)) * CTL;
-    pst_card_want(0, pstx.scan, due);
-    pst_card_want(2, pst_card_step(pstx.scan, pst_adv_q16(t->p[P_E2]) >> 16), due + ST_HOP);
+    uint32_t now = pst_rc(PST_MAV)->now, due = now + (ST_BLK - (pstx.blk < ST_BLK ? pstx.blk : ST_BLK)) * CTL;
+    pst_card_want(PST_MA 0, pstx.scan, due);
+    pst_card_want(PST_MA 2, pst_card_step(PST_MA pstx.scan, pst_adv_q16(t->p[P_E2]) >> 16), due + ST_HOP);
 }
 
 /* the frame's window, at its reading's start: its own (there, pinned), else wait, else the last one or none */
-static int pst_card_decide(void)
+static int pst_card_decide(PST_MV)
 {
-    sst_rc_t *c = pst_rc();
-    const sst_src_t *s = pst_src();
+    sst_rc_t *c = pst_rc(PST_MAV);
+    const sst_src_t *s = pst_src(PST_MAV);
     uint32_t r[4], ok;
     if (!pstx.looked) {                              /* (the first look: the ranges pinned, the cursors set) */
         pstx.looked = 1;
         pst_card_win(pstx.z, pstx.scan, r);
-        pst_card_pins(0, r);
+        pst_card_pins(PST_MA 0, r);
         pstx.cc[0] = sst_rc_sec(s, r[0]), pstx.ce[0] = sst_rc_esec(s, r[1]);
         if (r[3] >= r[2])
             pstx.cc[1] = sst_rc_sec(s, r[2]), pstx.ce[1] = sst_rc_esec(s, r[3]);
@@ -277,7 +304,7 @@ static int pst_card_decide(void)
         return 1;
     }
     if (pstx.blk < ST_WAIT_BLK && sst_rc_live(c) && s->ready) {
-        pst_card_want(0, pstx.scan, c->now);         /* (now) */
+        pst_card_want(PST_MA 0, pstx.scan, c->now);         /* (now) */
         pstx.stall = 1;
         pstx.waited = 1;
         return 0;
@@ -291,11 +318,11 @@ static int pst_card_decide(void)
 }
 
 /* SP_DEC from the card: the skip as counted decodes (none made), the window from the cache */
-static uint32_t sp_dec_card(const track_t *t, uint32_t budget, uint32_t adv)
+static uint32_t sp_dec_card(PST_MP const track_t *t, uint32_t budget, uint32_t adv)
 {
     const smp_zone_t *z = pstx.z;
-    sst_rc_t *c = pst_rc();
-    const sst_src_t *s = pst_src();
+    sst_rc_t *c = pst_rc(PST_MAV);
+    const sst_src_t *s = pst_src(PST_MAV);
     uint32_t done = 0, k;
     int32_t x;
     while (pstx.skip && done < budget) {             /* the scan to POS: as the flash's, a unit a sample */
@@ -306,7 +333,7 @@ static uint32_t sp_dec_card(const track_t *t, uint32_t budget, uint32_t adv)
     }
     if (pstx.skip)
         return done;
-    if (!pstx.dmode && !pst_card_decide())
+    if (!pstx.dmode && !pst_card_decide(PST_MAV))
         return done;
     if (pstx.dp == 0)
         pstx.dpos = pstx.dmode == 2u ? pstx.lastpos : pstx.scan;
@@ -325,21 +352,21 @@ static uint32_t sp_dec_card(const track_t *t, uint32_t budget, uint32_t adv)
         if (pstx.dmode == 1u) {
             uint32_t r[4];
             pst_card_win(z, pstx.wstart, r);
-            pst_card_pins(2, r);
+            pst_card_pins(PST_MA 2, r);
             sst_rc_unpin(c, 0);
             sst_rc_unpin(c, 1);
             pstx.lastpos = pstx.wstart;
             pstx.haslast = 1;
         }
-        pst_card_ahead(t);
+        pst_card_ahead(PST_MA t);
     }
     return done;
 }
 
 /* the block (the owner's): the cache's clock, its placement followed (a new one or none: no last window) */
-static void pst_card_block(void)
+static void pst_card_block(PST_MV)
 {
-    sst_rc_t *c = pst_rc();
+    sst_rc_t *c = pst_rc(PST_MAV);
     c->now = c->now + CTL;
     if (!sst_rc_live(c) || pstx.rcg != c->gen) {
         pstx.haslast = 0;
@@ -355,7 +382,7 @@ static void pst_card_block(void)
 }
 #endif
 
-static uint32_t sp_brev(int32_t *x, uint32_t budget)
+static uint32_t sp_brev(PST_MP int32_t *x, uint32_t budget)
 {
     uint32_t done = 0;
     while (pstx.cur < ST_M && done < budget) {
@@ -374,7 +401,7 @@ static uint32_t sp_brev(int32_t *x, uint32_t budget)
 
 /* radix-2 stages over x; the forward one halves each stage (pst_a: the source's DFT / ST_N at the end, with the split's
  * half), the inverse one does not (its sum is the output) */
-static uint32_t sp_fft(int32_t *x, int inv, uint32_t budget)
+static uint32_t sp_fft(PST_MP int32_t *x, int inv, uint32_t budget)
 {
     uint32_t done = 0;
     while (pstx.stage < ST_LOG && done < budget) {
@@ -402,7 +429,7 @@ static uint32_t sp_fft(int32_t *x, int inv, uint32_t budget)
 
 /* the real spectrum X[k] of the window from the packed one (k and M - k together), each bin turned by a random phase
  * (SMEAR: 0 none .. 127 any); X[0] stays in pst_a[0], X[M] in pstx.nyq */
-AINL void pst_turn(int32_t *r, int32_t *i, uint32_t smear)
+AINL void pst_turn(PST_MP int32_t *r, int32_t *i, uint32_t smear)
 {
     uint32_t ph = (noise32(&pstx.rng) >> 7) * smear;   /* (25 bits x 127: up to a turn) */
     int32_t c = sine_i(ph + 0x40000000u) >> 1, s = sine_i(ph) >> 1, a = *r, b = *i;
@@ -419,7 +446,7 @@ AINL void pst_split1(int32_t ar, int32_t ai, int32_t br, int32_t bi, uint32_t k,
     *xr = er + pst_mul14(orr, wr) - pst_mul14(oi, wi);
     *xi = ei + pst_mul14(orr, wi) + pst_mul14(oi, wr);
 }
-static uint32_t sp_split(uint32_t budget, uint32_t smear)
+static uint32_t sp_split(PST_MP uint32_t budget, uint32_t smear)
 {
     uint32_t done = 0;
     if (pstx.cur == 0) {
@@ -433,10 +460,10 @@ static uint32_t sp_split(uint32_t budget, uint32_t smear)
         int32_t ar = pst_a[2u * k], ai = pst_a[2u * k + 1u], br = pst_a[2u * mk], bi = pst_a[2u * mk + 1u], xr, xi, yr, yi;
         pst_split1(ar, ai, br, bi, k, &xr, &xi);
         pst_split1(br, bi, ar, ai, mk, &yr, &yi);
-        pst_turn(&xr, &xi, smear);
+        pst_turn(PST_MA &xr, &xi, smear);
         pst_a[2u * k] = xr, pst_a[2u * k + 1u] = xi;
         if (mk != k) {
-            pst_turn(&yr, &yi, smear);
+            pst_turn(PST_MA &yr, &yi, smear);
             pst_a[2u * mk] = yr, pst_a[2u * mk + 1u] = yi;
         }
         pstx.cur++, done += U_SPLIT;
@@ -447,7 +474,7 @@ static uint32_t sp_split(uint32_t budget, uint32_t smear)
 /* the voices: each pass adds the spectrum, moved by a voice's ratio (SUB: half of it, SHIM: twice), at its level and
  * TONE's slope above the cutoff bin, into pst_b; BLUR jitters the bin it lands on */
 static uint32_t pst_passes(void) { return NVOICE * 3u; }
-static uint32_t sp_map(uint32_t budget, const int16_t *p, int32_t mcut)
+static uint32_t sp_map(PST_MP uint32_t budget, const int16_t *p, int32_t mcut)
 {
     uint32_t done = 0;
     int32_t tone = clamp((p[P_E4] << 8) + mcut, 0, 127 << 8), ecut = (tone * 11) >> 15;   /* 2^0 .. 2^11 bins */
@@ -508,7 +535,7 @@ AINL void pst_isplit1(int32_t ar, int32_t ai, int32_t br, int32_t bi, uint32_t k
     *zr = er - oi;                                    /* E + i O */
     *zi = ei + orr;
 }
-static uint32_t sp_isplit(uint32_t budget)
+static uint32_t sp_isplit(PST_MP uint32_t budget)
 {
     uint32_t done = 0;
     if (pstx.cur == 0) {
@@ -529,7 +556,7 @@ static uint32_t sp_isplit(uint32_t budget)
 }
 
 AINL int16_t pst_sat(int32_t x) { return (int16_t)clamp(x, -32767, 32767); }
-static uint32_t sp_ola(uint32_t budget)
+static uint32_t sp_ola(PST_MP uint32_t budget)
 {
     uint32_t done = 0;
     while (pstx.cur < ST_HOP && done < budget) {
@@ -545,7 +572,7 @@ static uint32_t sp_ola(uint32_t budget)
 }
 
 /* the frame's units, for the pacing (the map's passes counted for the voices sounding now) */
-static uint32_t pst_units(const int16_t *p)
+static uint32_t pst_units(PST_MP const int16_t *p)
 {
     uint32_t v, passes = 0;
     for (v = 0; v < NVOICE; v++)
@@ -566,7 +593,7 @@ static uint32_t pst_adv_q16(int32_t v)
 
 /* a frame's work for this block: the phases in order, up to the share of the frame this block is due (capped: a long
  * POS start spreads over more frames) */
-static void pst_work(const track_t *t)
+static void pst_work(PST_MP const track_t *t)
 {
     const int16_t *p = t->p;
     uint32_t want = (uint32_t)((uint64_t)pstx.total * (pstx.blk + 1u) / (ST_BLK - 4u)), budget, cap = pstx.total / (ST_BLK / 2u);
@@ -580,7 +607,7 @@ static void pst_work(const track_t *t)
         case SP_DEC:
 #if ST_CARD
             if (pstx.card) {
-                d = sp_dec_card(t, budget, adv);
+                d = sp_dec_card(PST_MA t, budget, adv);
                 if (pstx.stall) {                     /* (its sectors not there yet: this block's work ends) */
                     pstx.stall = 0;
                     pstx.work += d;
@@ -588,47 +615,47 @@ static void pst_work(const track_t *t)
                 }
             } else
 #endif
-            d = sp_dec(budget, adv);
+            d = sp_dec(PST_MA budget, adv);
             if (pstx.dp >= ST_N)
                 pstx.phase = SP_BREV_A, pstx.cur = 0, pstx.advq &= 0xFFFFu;
             break;
         case SP_BREV_A:
-            d = sp_brev(pst_a, budget);
+            d = sp_brev(PST_MA pst_a, budget);
             if (pstx.cur >= ST_M)
                 pstx.phase = SP_FFT_A, pstx.cur = 0, pstx.stage = 0;
             break;
         case SP_FFT_A:
-            d = sp_fft(pst_a, 0, budget);
+            d = sp_fft(PST_MA pst_a, 0, budget);
             if (pstx.stage >= ST_LOG)
                 pstx.phase = SP_SPLIT, pstx.cur = 0;
             break;
         case SP_SPLIT:
-            d = sp_split(budget, smear);
+            d = sp_split(PST_MA budget, smear);
             if (pstx.cur > ST_M / 2u)
                 pstx.phase = SP_MAP, pstx.cur = 0, pstx.pass = 0;
             break;
         case SP_MAP:
-            d = sp_map(budget, p, pstx.cut);
+            d = sp_map(PST_MA budget, p, pstx.cut);
             if (pstx.pass >= pst_passes())
                 pstx.phase = SP_ISPLIT, pstx.cur = 0;
             break;
         case SP_ISPLIT:
-            d = sp_isplit(budget);
+            d = sp_isplit(PST_MA budget);
             if (pstx.cur > ST_M / 2u)
                 pstx.phase = SP_BREV_B, pstx.cur = 0;
             break;
         case SP_BREV_B:
-            d = sp_brev(pst_b, budget);
+            d = sp_brev(PST_MA pst_b, budget);
             if (pstx.cur >= ST_M)
                 pstx.phase = SP_FFT_B, pstx.cur = 0, pstx.stage = 0;
             break;
         case SP_FFT_B:
-            d = sp_fft(pst_b, 1, budget);
+            d = sp_fft(PST_MA pst_b, 1, budget);
             if (pstx.stage >= ST_LOG)
                 pstx.phase = SP_OLA, pstx.cur = 0;
             break;
         case SP_OLA:
-            d = sp_ola(budget);
+            d = sp_ola(PST_MA budget);
             if (pstx.cur >= ST_HOP)
                 pstx.phase = SP_DONE;
             break;
@@ -643,18 +670,18 @@ static void pst_work(const track_t *t)
 }
 
 /* a new frame's work starts: the scan's advance and the frame's units */
-static void pst_frame(const track_t *t)
+static void pst_frame(PST_MP const track_t *t)
 {
     pstx.advq = (pstx.advq & 0xFFFFu) + pst_adv_q16(t->p[P_E2]);
     pstx.phase = SP_DEC, pstx.dp = 0, pstx.cur = 0, pstx.stage = 0, pstx.pass = 0, pstx.work = 0, pstx.blk = 0;
 #if ST_CARD
     pstx.dmode = 0, pstx.looked = 0, pstx.waited = 0;
 #endif
-    pstx.total = pst_units(t->p) + pstx.skip * U_DEC;
+    pstx.total = pst_units(PST_MA t->p) + pstx.skip * U_DEC;
 }
 
 /* the zone for the part's newest note, and a fresh start at POS when nothing sounds */
-static void pst_start(const track_t *t, uint32_t src, uint32_t zl)
+static void pst_start(PST_MP const track_t *t, uint32_t src, uint32_t zl)
 {
     uint32_t i;
     const smp_zone_t *z = pst_zone(pst_part(t), src, zl);
@@ -672,34 +699,36 @@ static void pst_start(const track_t *t, uint32_t src, uint32_t zl)
         pst_buf[0][i] = pst_buf[1][i] = pst_buf[2][i] = 0;
     pstx.play = pst_buf[0], pstx.next = pst_buf[1], pstx.tail = pst_buf[2];
     pstx.ready = 0, pstx.pp = 0;
-    pst_frame(t);
+    pst_frame(PST_MA t);
 #if ST_CARD
     pstx.card = (uint8_t)smp_cz_on(src);
     if (pstx.card) {                                  /* the first window wanted now; no last one */
         pstx.si = (uint8_t)smp_cz_src(pst_part(t), zl);
         pstx.haslast = 0;
         pstx.rw.wn = 0;
-        sst_rc_reset(pst_rc());
-        pstx.rcg = pst_rc()->gen;
-        pst_card_want(0, pst_card_step(pstx.scan, pstx.skip), pst_rc()->now);
+        sst_rc_reset(pst_rc(PST_MAV));
+        pstx.rcg = pst_rc(PST_MAV)->gen;
+        pst_card_want(PST_MA 0, pst_card_step(PST_MA pstx.scan, pstx.skip), pst_rc(PST_MAV)->now);
     }
 #endif
 }
 
 static void stretch_note_on(track_t *t, voice_t *v)
 {
+    PST_M_DECL(t)
     uint32_t src = (uint32_t)t->p[P_E0] % SMP_NSAMPLE, part = pst_part(t);
     int32_t zl = pst_find(part, src, v->note);
     v->s[0] = zl;
     if (zl < 0 || pstx.owner != part + 1u)
         return;
     if (pstx.phase == SP_IDLE || pstx.src != src || pstx.zl != (uint32_t)zl || !pstx.z)   /* nothing playing, or another zone */
-        pst_start(t, src, (uint32_t)zl);
+        pst_start(PST_MA t, src, (uint32_t)zl);
 }
 
 /* the block: ownership, nothing while no voice sounds, the frame boundary, this block's share of the work */
 static void stretch_block(track_t *t)
 {
+    PST_M_DECL(t)
     uint32_t part = pst_part(t), i, any = 0;
     if (pstx.owner != part + 1u) {                      /* another part's: take it when its owner has gone quiet */
         if (pstx.owner && pstx.seen[part] != pstx.beat) {
@@ -722,7 +751,7 @@ static void stretch_block(track_t *t)
     pstx.beat++;
 #if ST_CARD
     if (pstx.card && pstx.phase != SP_IDLE)
-        pst_card_block();
+        pst_card_block(PST_MAV);
 #endif
     if (pstx.phase == SP_IDLE) {                        /* voices from before the ownership: their newest note's zone */
         uint32_t src = (uint32_t)t->p[P_E0] % SMP_NSAMPLE, best = 0, age = 0;
@@ -733,30 +762,31 @@ static void stretch_block(track_t *t)
         zl = pst_find(part, src, t->v[best].note);
         if (zl < 0)
             return;
-        pst_start(t, src, (uint32_t)zl);
+        pst_start(PST_MA t, src, (uint32_t)zl);
     }
     if (pstx.blk >= ST_BLK) {                           /* the frame boundary */
         if (pstx.phase == SP_DONE) {
             int16_t *q = pstx.play;
             pstx.play = pstx.next, pstx.next = q, pstx.ready = 1;
-            pst_frame(t);
+            pst_frame(PST_MA t);
         } else {                                      /* not ready (a long POS start): silence meanwhile */
             for (i = 0; i < ST_HOP; i++)
                 pstx.play[i] = 0;
             pstx.ready = 0;
             pstx.blk = 0;
-            pstx.total += pst_units(t->p);
+            pstx.total += pst_units(PST_MA t->p);
             pstx.work = 0;
         }
         pstx.pp = 0;
     }
-    pst_work(t);
+    pst_work(PST_MA t);
     pstx.blk++;
 }
 
 /* a voice: its pitch (against the zone's root and rate) and level, taken by the next frame's map; no output here */
 static void stretch_render(track_t *t, voice_t *v, int32_t *out, uint32_t n, const vmod_t *m)
 {
+    PST_M_DECL(t)
     uint32_t vi = (uint32_t)(v - t->v);
     const smp_zone_t *z = pstx.z;
     (void)out, (void)n;
@@ -771,6 +801,7 @@ static void stretch_render(track_t *t, voice_t *v, int32_t *out, uint32_t n, con
 /* the part's output: this frame's buffer, as the voices' sum would be */
 static void stretch_post(track_t *t, int32_t *out, uint32_t n, uint32_t nr)
 {
+    PST_M_DECL(t)
     uint32_t i, vi;
     (void)nr;
     for (vi = 0; vi < NVOICE; vi++)                   /* (a voice that stopped rendering: off for the next map) */
@@ -817,4 +848,7 @@ static const engine_t ENG_STRETCH = {
     .macro = {P_E4, P_E3, P_E2, P_E7},
     .block = stretch_block,
     .post = stretch_post,
+#ifdef PLUG_BUILD
+    .part_bytes = sizeof(pst_mem_t),             /* (a plugin: its state in the part's memory) */
+#endif
 };

@@ -625,5 +625,5 @@ static const engine_t ENG_GRAIN = {
         PU("TONE", F_PCT, 0, 127, 127, 0),
     },
     PRESETS_OF(GRAIN_PRESETS), 1, grain_note_on, grain_render,
-    0x87F0, {P_E1, P_E2, P_E3, P_E5}, GR_POLY, 0, 0, grain_block, 0, 0, 0, 0, 0, sizeof(gr_part_t),
+    0x87F0, {P_E1, P_E2, P_E3, P_E5}, GR_POLY, 0, 0, grain_block, .part_bytes = sizeof(gr_part_t),   /* (a plugin's part memory: core/plugin.c) */
 };

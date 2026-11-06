@@ -19,6 +19,12 @@
 #if FELUCCA_SLICE
 #include "slice/eng_slice.c"
 #endif
+/* SLC_CARD_SVC: SLICE's card material read and encoded by the main loop (storage/sd/sd_slice.c): with SLICE built in, or
+ * for a SLICE plugin (core/plugin.c plug_api_t slc_crd: SLICE's table code alone, slice/slc_card.c) */
+#define SLC_CARD_SVC (FELUCCA_SD_STREAM && (FELUCCA_SLICE || FELUCCA_PLUGINS))
+#if SLC_CARD_SVC && !FELUCCA_SLICE
+#include "slice/slc_card.c"
+#endif
 #if (FELUCCA_ENG_PHYS || FELUCCA_ENG_ACID || FELUCCA_ENG_CZ || FELUCCA_ENG_JUNO) && !FELUCCA_ANALOG2
 #error "the backported engines take the engine numbers of the ANALOG 2 build (11, 12, 13, 14)"
 #endif
