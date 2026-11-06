@@ -123,10 +123,16 @@ def _all():
     return Content(tuple(gen_samples.CARD_SETS), True, tuple(sd_samples.X909_FILES), PACKS)
 
 
-def content_of(cfg):
-    """a builder configuration -> its Content (core.py card_content)"""
+_CFG = {"hash": None, "name": None}                  # the configuration the zip is for (content_of): the plugins' check
+
+
+def content_of(cfg, name="this configuration"):
+    """a builder configuration -> its Content (core.py card_content); remembers the configuration's hash so the plugins
+    are built only against a firmware build of the same configuration (write_plugins)"""
     sys.path.insert(0, str(ROOT / "tools" / "builder"))
     import core
+    import configure
+    _CFG["hash"], _CFG["name"] = configure.cfg_hash(cfg), name
     c = core.card_content(cfg)
     return Content(tuple(c["sets"]), bool(c["kits"]), tuple(c["x909"]), tuple(c["fm6_packs"]))
 
@@ -283,6 +289,17 @@ def write_plugins(work, tree):
     except (ImportError, SystemExit, Exception) as e:   # (toolchain.ToolchainError, PluginError: no toolchain, no build)
         print(f"sd zip: no plugins on the card: {e}")
         return 0
+    # a plugin is built against one configuration's structs (core/plugin.h PLUG_ABI): the firmware build in the build
+    # directory must be this configuration's, else the FM-1 refuses the files
+    cv = plugin_build.config_values()
+    built_for, built_hash = cv.get("FELUCCA_CFG_NAME", "?").strip('"'), int(cv.get("FELUCCA_CFG_HASH", "0").rstrip("u") or 0)
+    if _CFG["hash"] is None:
+        print("sd zip: no plugins on the card: no configuration (--all): a plugin is built for one")
+        return 0
+    if built_hash != _CFG["hash"]:
+        print(f"sd zip: no plugins on the card: the firmware in {BUILD} was built for {built_for} ({built_hash:08x}), not "
+              f"{_CFG['name']} ({_CFG['hash']:08x}): build this configuration first (make build / make package), then the card")
+        return 0
     out = tree / "Optimist" / "Plugins"
     out.mkdir(parents=True, exist_ok=True)
     n = 0
@@ -377,7 +394,7 @@ def main(argv):
         c, where = _all(), "every tick (--all)"
     else:
         cfg, name, where = load_cfg(a.config, a.profile)
-        c = content_of(cfg)
+        c = content_of(cfg, name)
         where = f"{name} ({where})"
         sys.path.insert(0, str(ROOT / "tools" / "builder"))
         import core
