@@ -211,9 +211,9 @@ J2_AT = {n: 11 - n for n in range(1, 11)}
 J3_C, J3_V = 90.0, 72.3
 J3 = P(FPC_BOT, "J3", "FPC 10P 0.5mm bottom contact", J3_C, J3_V, 180, "C2856798", bottom=True)
 assert J3.GetLayer() == B
-R1 = PH("R1", "150", 88.1, 59.7, 90, "C22808")           # (standing between J2's opening and the tails: pad 1, the bus, down)
-R5 = PH("R5", "330", 90.9, 59.7, 270, "C23138")          # (pad 2, the bus, down)
-R6 = PH("R6", "330", 93.6, 59.7, 270, "C23138")
+R1 = PH("R1", "91", 88.1, 59.7, 90, "to confirm")           # (standing between J2's opening and the tails: pad 1, the bus, down)
+R5 = PH("R5", "240", 90.9, 59.7, 270, "to confirm")          # (pad 2, the bus, down)
+R6 = PH("R6", "240", 93.6, 59.7, 270, "to confirm")
 # the bottom side, east of the through-lines: ESD, the inverter, the pull-ups, the decoupling
 U3 = P(SOT6, "U3", "USBLC6-2SC6", 94.2, 67.7, 0, "C7519", bottom=True)
 U2 = P(SOT6, "U2", "USBLC6-2SC6", 97.0, 63.1, 0, "C7519", bottom=True)

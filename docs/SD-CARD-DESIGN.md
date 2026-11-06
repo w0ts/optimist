@@ -156,18 +156,19 @@ code takes the bus between two screen transfers:
    its native mode (fresh, or hot-plugged) parses the LCD's traffic on CMD, may find a valid command in it and answer on
    CMD (open-drain) against PC10. The socket's card-detect reaches only a test pad (TP5), so a hot-plugged card is not seen; for
    streaming, a periodic CMD13 (status) checks the card and only a CMD13 with no answer sends CMD0 (CMD0 resets a card
-   in use). The board's MOSI branch gets 330 Ohm in series (R6; CLK the same, R5; v6 was built with 510), which bounds that fight (about
-   6 mA at 510, not recomputed at 330). Other firmware never sends the card to SPI mode: Julius's prototype (2026-10-28) lost the stock screen with a
-   card in from a cold boot with CLK wired direct, had it distorted at 150 Ohm and fine at 510. A full cold boot with the card in, stock M-VAVE V15 and SLOOP 2.8.5, was clean at 330 / 150 on a hand-tuned v6 (2026-11-06).
+   in use). The board's MOSI branch gets 240 Ohm in series for the next order (R6; CLK the same, R5; v6 was built with 510; 330 was the value
+   proven at the LCD's 60 MHz), which bounds that fight (about
+   6 mA at 510, not recomputed at 330 or 240). Other firmware never sends the card to SPI mode: Julius's prototype (2026-10-28) lost the stock screen with a
+   card in from a cold boot with CLK wired direct, had it distorted at 150 Ohm and fine at 510. A full cold boot with the card in, stock M-VAVE V15 and SLOOP 2.8.5, was clean at 330 / 150 on a hand-tuned v6 (2026-11-06). The next order is 240 / 91 with the LCD at 30 MHz: on a v6 bodged to 245 / 89 the card reached 15 MHz (20 refused, 0 CRC errors) but the panel stayed black at 60 MHz and worked at 30 MHz; stock V15 and SLOOP 2.8.5 cold-boot clean on it (2026-11-06 evening, measured).
 
 The card's start-up runs at 400 kHz (SPI1 BAUD 149: 60 MHz / 150), then the floor, 6 MHz (BAUD 9), then the clock the detection keeps (below). The screen runs at 60 MHz
-(`LCD_BAUD` 0 in every profile; 30 MHz, BAUD 1, is the fallback if the column's stub disturbs it). PC8 can be driven
+(`LCD_BAUD` 0 in every profile today; with R5/R6 240 and R1 91 the panel stays black at 60 MHz and 30 MHz, BAUD 1, is the decided clock, 2026-11-06 evening). PC8 can be driven
 by the FM-1 and the card at once for a few clocks inside a session (the card not yet let go when D/C goes high):
-R1 (150 Ohm on the board; v6 220, which gave about 15 mA) keeps that small.
+R1 (91 Ohm for the next order, 150 before; v6 220, which gave about 15 mA) keeps that small.
 
 **Measured since (2026-11-05, `hardware/NEXT-BOARD.md`):** 12 MHz on the tuned board, 15 fails, one bit late; the estimates below
 did not hold. Copper solves at about half the capacitance assumed, so the 35 pF below is likely high (about 20 pF, unmeasured).
-The card clock in service is 10-12 MHz (R5/R6 330, R1 150); 20 MHz was never reached on any real card, so the 20 MHz and "real cards
+The card clock in service is 10-12 MHz (R5/R6 330, R1 150; 15 MHz measured at 245 / 89 bodged, the next order's 240 / 91 with the LCD at 30 MHz); 20 MHz was never reached on any real card, so the 20 MHz and "real cards
 reach 20 MHz" below are first estimates, not results. The limit on streaming was the firmware's polled reader, not the card or the
 board: the interrupt reader plays the heavy kit with no dry voice where the polled one had 195 in 28 s (`NEXT-BOARD.md`, "Dense kits").
 

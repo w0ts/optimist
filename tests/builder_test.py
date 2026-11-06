@@ -256,6 +256,10 @@ check("the header: a switch off, the name, the hash, the bits",
       "#define FELUCCA_ENG_FM6 0" in h and 'FELUCCA_CFG_NAME "test"' in h and "FELUCCA_CFG_BITS {" in h)
 bad = dict(C.defaults(), **{k: 0 for k in items if items[k].group == "Synth engines" and not items[k].parent})
 check("no synth engine: an error", any("synth engine" in e for e in C.validate(bad)[0]))
+_sd60 = dict(C.defaults(), SDCARD=1, LCD_BAUD=0)         # (2026-11-06: the card board's resistors leave the panel black at 60 MHz)
+check("SDCARD with the screen at 60 MHz (LCD_BAUD 0): an error; at 30 MHz none from it",
+      any("LCD_BAUD" in e.keys for e in C.validate(_sd60)[0])
+      and not any("LCD_BAUD" in e.keys for e in C.validate(dict(_sd60, LCD_BAUD=1))[0]))
 check("FM6's modes are gone: MARK I / MODERN / OPL / MKI_FLASH, STORE, VOICES, ALL, ALGO are retired (their bits 10, 11, 12, 89, 16, 15, 80, 81 never reused), no item",
       all(k not in items and k in R.RETIRED for k in ("FM6_MARK1", "FM6_MODERN", "FM6_OPL", "FM6_MKI_FLASH", "FM6_STORE",
                                                     "FM6_VOICES", "FM6_ALL", "FM6_ALGO")) and
