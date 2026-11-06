@@ -1160,3 +1160,29 @@ region holds, not a fixed one or two.
   any-number inserts, 887 lines), the sends and the master chain in `fx.c` (3,406 lines). A hook table per effect
   type (run, set, clear, the line's units, the instance's bytes) is the refactor before any effect can be a file; the
   UI's effect lists then read the table. Several sessions of work; nothing of it is in this prototype.
+
+### 10.6 Built 2026-11-06, the evening: the sample engines as plugins in SD card mode (emulator only)
+
+- **What changes for a plugin:** SAMPLE, GRAIN, SLICE and STRETCH build as plugin files in SD card mode only
+  (`plugin/plug_unit.c PLUG_SAMPLES`, `tools/plugin_build.py SAMPLE_ENGINES`; outside SD card mode the build refuses with a
+  message). Their material is the card's, by hash, through the streaming plan: the flash's sample sets and the user slots
+  never reach a plugin (`eng_sample.c SMP_FLASH 0`: a set not on the card, BREAK and USR1..3 are silent; the flash's
+  `SMP_DATA` / `SMP_ZONES` are not linked in). `plug_api_t` gets the card's entries after `tab_mem`: the plan's data the
+  inner loops read (`sst_src`, `sst`, `sst_rc`, each part's source and card set), the slow paths as calls (`sst_start`,
+  the stream's and the cache's reads past their window, a card set's zones `cz`), and SLICE's material `slc_crd`
+  (`sd_stream.h`, `sd_stream_rc.h`, `eng_sample.c`, `slc_card.c` under `PLUG_BUILD`; the built-in code is unchanged).
+- **The firmware's side:** the plan finds a part's engine by UID (`sdcard.c SST_PART_RAND / BANK`, `sd_slice.c
+  SST_PART_SLICE`), so a plugin's part gets its cache, its card set and SLICE's whole sample as a built-in's does; SLICE's
+  card reader and encoder stay in the firmware when SLICE is a plugin (`engines/slice/slc_card.c`, `SLC_CARD_SVC`); the
+  sample picker's USE lists a placed sampler plugin (`sd_mode.c sdm_samplers`). A plugin's part memory: GRAIN's
+  `gr_part_t` (a 7,424 B block of the arena), SLICE's reverse windows, STRETCH's whole state (`pst_mem_t`, 45 KB: one instance a part, where
+  the built-in has one for all parts; its functions take it as `M`, `PST_MP`).
+- **Measured in the emulator** (the user's `sd-card-mots` profile, `OPTIMIST_PLUGIN_KB` 64, bench 20 with
+  `FELUCCA_BENCH_PLUG_UID`, `FELUCCA_BENCH_PLUG_PARTS=1`: T1 on the plugin, T2 / T3 on the empty second slot; the control
+  the same package with no plugin file, RMS 0.0515): GRAIN 10,876 B, slot 0, T1 "GRAIN LOFI CLOUD" on PIANO's card set,
+  RMS 0.0607, its cache 141 hits, 14 late, 10 missed; SLICE 4,056 B on a part's CARD sample (`FELUCCA_BENCH_PLUG_SAMPLE`,
+  a 97 KB WAV: 25,248 B placed), RMS 0.0533, peak 0.352 against 0.204; STRETCH 10,204 B, "STRETCH GLACIER" on PIANO,
+  RMS 0.0680. SAMPLE builds (3,416 B) and is not run: `FELUCCA_SD_STREAM` needs SAMPLE built in.
+- **Open:** three GRAIN parts on card sets ask the arena for 101,100 B and the plan is refused on that profile; the 96 KB
+  region no longer fits the profile's app slot with this branch (64 KB does); a plugin is never `ENG_IS` anything, so
+  SAMPLE and SLICE as plugins lose `voice.c eng_sampled` (their phases are kept on a retrigger, as a synth's).

@@ -425,7 +425,7 @@ static uint8_t bench_smp_done;
 static void bench_frame(void)                              /* main loop */
 {
 #if FELUCCA_BENCH == 20 && FELUCCA_PLUGINS && FELUCCA_SD_STREAM && defined(FELUCCA_BENCH_PLUG_SAMPLE)
-    if (!bench_smp_done && bench.plug_rc >= 0)
+    if (bench.plug_rc >= 0)
         bench_smp_done = (uint8_t)bench_card_sample();     /* (the plugin's parts: their CARD sample, once indexed) */
 #endif
 #if FELUCCA_BENCH == 18
