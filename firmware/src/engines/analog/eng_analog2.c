@@ -75,7 +75,16 @@
  * voice_t, so the drum track's voices carry none; in the pool (main RAM is the scarcer: synth was 296 B over with
  * them there, 2026-10-24; a2_fltb copies them into an 8-word local laid out as v->s for the kernels, once a block) */
 #define A2FB_N 6u
-static int32_t a2_fb[NPART][NVOICE][A2FB_N] IN_POOL;
+/* the part's state: those words for each of its voices. Built in: one static instance a part, in the pool (576 B, as
+ * the array before); a plugin (plugin/plug_unit.c): the part's engine memory through the API table (PART_MEM_AT,
+ * engine_t part_bytes), zeroed when the part comes to it (a fresh note sets its words, analog_note_on) */
+typedef struct { int32_t fb[NVOICE][A2FB_N]; } a2_mem_t;
+#if FELUCCA_PLUGIN_UNIT
+#define A2_FB(k) (((a2_mem_t *)PART_MEM_AT(k))->fb)
+#else
+static a2_mem_t a2_st[NPART] IN_POOL;
+#define A2_FB(k) (a2_st[k].fb)
+#endif
 /* f[0..5] of a2_fb <-> s[0] s[1] s[4] s[5] s[6] s[7] of the filter's layout (no table: nothing read from flash here) */
 #define A2FB_MOVE(f, s, TO) TO(f[0], s[0]); TO(f[1], s[1]); TO(f[2], s[4]); TO(f[3], s[5]); TO(f[4], s[6]); TO(f[5], s[7])
 #define A2FB_LD(a, b) (b) = (a)
@@ -85,7 +94,7 @@ static void analog_note_on(track_t *t, voice_t *v)
 {
     uint32_t k = (uint32_t)(t - trk);
     if (!v->env && !v->env_out && k < NPART) {        /* a fresh note: FLT B from rest (a retrigger keeps it, as FLT) */
-        int32_t *s = a2_fb[k][(uint32_t)(v - t->v) % NVOICE];
+        int32_t *s = A2_FB(k)[(uint32_t)(v - t->v) % NVOICE];
         s[0] = s[1] = s[2] = s[3] = 0;                /* (s[0..1], s[4..5] of the filter's layout) */
         s[4] = A2_NOCUT;                              /* (s[6]: no last cutoff) */
     }
@@ -443,7 +452,7 @@ static FAST(analog) __attribute__((noinline)) void a2_fltb(const track_t *t, con
 #endif
     if (k >= NPART)
         return;
-    f = a2_fb[k][(uint32_t)(v - t->v) % NVOICE];
+    f = A2_FB(k)[(uint32_t)(v - t->v) % NVOICE];
     A2FB_MOVE(f, s, A2FB_LD);                          /* the states in the filter's layout (v->s's), back at the end */
     c0 = s[6] == A2_NOCUT ? cut : s[6];
     s[6] = cut;

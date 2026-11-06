@@ -8,8 +8,8 @@
  *   ssl_need(path, &bytes)          the bytes of its block (FR_INVALID_OBJECT: not a WAV the streams play)
  *   ssl_load(path, mem, n, &used)   read, encode, scan into mem (n bytes); the table, or 0 (its error in ssl_err)
  *   ssl_set(part, tab)              the part's CARD material (0: none; sst_gate, before the block is given back) */
-#if FELUCCA_SLICE
-#define SST_PART_SLICE(p) (trk[p].engine == (uint8_t)ENG_SLOT_SLICE && trk[p].p[P_E0] == (int16_t)SLC_SRC_CARD)
+#if SLC_CARD_SVC                                     /* (SLICE built in, or a plugin's: engines.c) */
+#define SST_PART_SLICE(p) (eng_uid(trk[p].engine) == ENG_UID_SLICE && trk[p].p[P_E0] == (int16_t)SLC_SRC_CARD)
 #define SSL_SLACK 8u                                 /* (the block's place 4-byte aligned, the table's 8) */
 
 static FRESULT ssl_err;

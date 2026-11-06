@@ -1193,6 +1193,11 @@ job; ( jobin   # the arena's fragmentation (tests/arena_frag_test.c): the jam pr
     $CC -O2 -w -I"$HGEN" -Ifirmware/src -Ifirmware/hal $SEC4 $FRG -DARN_MV_STEP -DFRAG_STEPS=4000u "-DFELUCCA_ARENA_BYTES=(96u * 1024u)" -o "$OUT/arena_frag_step_test" tests/arena_frag_test.c -lm
     run "the same, a move's window a pass (the audio between two): the moving part skipped, no overlap" "$OUT/arena_frag_step_test"
 ) >"$U.out" 2>&1 & jobbg
+job; ( jobin   # plugins in flash (core/plugin.c, docs/SD-MODE-DESIGN.md section 10): the loader and the file tool
+    $CC -O2 -w -Ifirmware/src -Ifirmware/hal -o "$OUT/plugin_test" tests/plugin_test.c
+    run "the plugins' flash loader: a file placed at the region's first free sectors, both relocation kinds patched (two across a sector's end), the header last (base, the placed image's CRC), a second one after it, the same UID again nothing written, a boot finds them, a forget frees the room and keeps the other's slot, a flipped byte or a bad header skipped, refused: not a plugin, another API or ABI, a relocation past the image, FULL, SLOTS, the reader failing (no header, the room free); the SFC stream of the app area as the package tool's" "$OUT/plugin_test"
+    run "the plugin file tool (tools/plugin_build.py) without the toolchain: the header, parse, both relocation kinds, place() against the loader's CRC, the refusals" python3 tests/plugin_build_test.py
+) >"$U.out" 2>&1 & jobbg
 job; ( jobin   # the effects' lines in the arena (fx/fx_arena.c, docs/SD-MODE-DESIGN.md 6b phase 3b; FELUCCA_FX_ARENA)
     FXA="-DFELUCCA_ENG_FM6=1 -DFELUCCA_FM6_SYSEX=0 -DFELUCCA_FX_ARENA=1 -DFELUCCA_INS_DELAY=1 -DFELUCCA_INS_FLANGER=1 -DFELUCCA_DLY_LEN=16384u"   # (FLNG: the own room's other type since CHRS became the CHO insert, its copies arena blocks of their own, 2026-10-29; FM6_SYSEX 0: FM6's block its sine table alone, as these arenas are sized, ramlend: arena_bufs_test has the bank's room)
     $CC -w -I"$HGEN" -Ifirmware/src -Ifirmware/hal $SEC4 $FXA -DFELUCCA_FXI_LINE_BLOCKS=0 "-DFELUCCA_ARENA_BYTES=73984u" -o "$OUT/fx_arena_test" tests/fx_arena_test.c -lm   # (the own room: FELUCCA_FXI_LINE_BLOCKS 0, the builds before 2026-10-31)
@@ -1548,6 +1553,8 @@ job; ( jobin   # the SD card (SDCARD): ChaN's driver + Petit FatFs, then full Fa
     run "MENU.BIN's list on a FAT32 image a Mac wrote: /FIRMWARES found by its short name, long names shown, 8.3 names as they are, macOS's sidecar files left out" "$OUT/stage2_fat_test" "$OUT/stage2_lfn.img"
     $CC -O2 -Ifirmware/src -o "$OUT/sd_clock_test" tests/sd_clock_test.c
     run "SD card's clock detection (the steps 6 .. 30 MHz from the floor up, CRC-checked CSD / CID / CMD17 / CMD18 reads twice a step against the floor's fingerprint, the step below the first failure kept and checked again): every step reads, no high speed, wrong above each step in turn, timeouts, noise past the start-up, zeros with a right CRC, a block in 30 wrong, one step alone wrong, the card gone; at run time a CRC failure above the floor one step down and the read redone, by bytes and by DMA" "$OUT/sd_clock_test"
+    $CC -O2 -w -Ifirmware/src -Ifirmware/hal -o "$OUT/plugin_card_test" tests/plugin_card_test.c $FF
+    run "a plugin from the card into the flash (core/plugin_card.c): Optimist/Plugins/SID.opl placed in the region and its slot UID 23, asked again nothing written, the registry sees it built; no file READ, a UID past the registry BAD, a file holding another engine BAD and not kept, the card gone READ" "$OUT/plugin_card_test" "$OUT/sd_fat32.img"
     $CC -O2 -Ifirmware/src -o "$OUT/sd_fs_test" tests/sd_fs_test.c $FF
     run "SD card, full FatFs (the big layout): FAT16 + FAT32 start-ups, long names (UTF-8), files created / grown / renamed / moved / deleted, folders, read back after a mount, f_expand one run (fragmented room, never across the volume's end), the fast-seek map's runs by CMD18, DMA (aligned window, unaligned buffer by bytes), the card pulled: every call fails at once" "$OUT/sd_fs_test" "$OUT/sd_fat16.img" "$OUT/sd_fat32.img"
     $CC -O2 -Ifirmware/src -o "$OUT/sd_layout_test" tests/sd_layout_test.c $FF

@@ -125,7 +125,19 @@ static FAST(phys) void phys_reset(phys_slot_t *S, uint32_t md, uint32_t seed)
     }
 }
 
-#if DUAL_RENDER
+#if DUAL_RENDER && defined(PLUG_ENG_PHYS)
+/* (a plugin has no RAM of its own: the part's seed after its slots in the part's engine memory, PHYS_PART_BYTES;
+ * zeroed when the part comes to PHYS, so a zero seed takes the part's start value, as phys_rseed's below) */
+#define PHYS_PART_BYTES (sizeof(phys_slot_t) * PHYS_POLY + 4u)
+static FASTI(phys) uint32_t *phys_seed(const track_t *t)
+{
+    uint32_t p = (uint32_t)(t - trk), *s = (uint32_t *)(void *)(phys_mem(p) + PHYS_POLY);
+    if (!*s)
+        *s = 0x2545F491u ^ (p + 1u) * 0x9E3779B9u;
+    return s;
+}
+#define PHYS_RENDER_RNG(t) xorshift32(phys_seed(t))
+#elif DUAL_RENDER
 /* dual core (dual.c): the render draws no rng() (two cores render at once, voice.c dual_lfo_rnd); a reset in the
  * render takes the part's own generator (a different, equally random seed than the single-core build's) */
 static uint32_t phys_rseed[NPART] = {0x2545F491u, 0x9E3779B9u, 0x6A09E667u,
@@ -251,6 +263,9 @@ static const preset_t PHYS_PRESETS[] = {
     {"SYMP HARP", {PM_SYMP, 8, 62, 74, 60, 90, 0, 0}, {0, 100, 127, 80}, 0, 0, FX(0, 20, 20, 60), PAT(3)},
 };
 
+#ifndef PHYS_PART_BYTES
+#define PHYS_PART_BYTES (sizeof(phys_slot_t) * PHYS_POLY)
+#endif
 static const engine_t ENG_PHYS = {
     .name = "PHYS",
     .page_title = {"BODY", "EXCT"},
@@ -273,4 +288,5 @@ static const engine_t ENG_PHYS = {
     .macro = {P_E1, P_E2, P_E3, P_E4},
     .poly = PHYS_POLY,
     .desc = phys_desc,
+    .part_bytes = PHYS_PART_BYTES,
 };

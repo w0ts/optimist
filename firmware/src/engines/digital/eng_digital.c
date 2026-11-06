@@ -252,4 +252,5 @@ static const engine_t ENG_DIGITAL = {
 #if FELUCCA_DIG_TONE
     0, 0, digital_desc,
 #endif
+    .keep = 0xE0,   /* a retrigger keeps s5 s6 s7: op 4 phase; the modulator envelope restarts (voice.c) */
 };

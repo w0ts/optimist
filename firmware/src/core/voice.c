@@ -772,6 +772,7 @@ static FAST(seq) void voice_start(track_t *t, voice_t *v, uint32_t note, uint32_
     int sounding = v->active && v->stage != 0;
     uint32_t ph0 = v->ph[0], ph1 = v->ph[1], ph2 = v->ph[2];
     int32_t s0 = v->s[0], s1 = v->s[1], s4 = v->s[4], s5 = v->s[5], s6 = v->s[6], s7 = v->s[7];
+    uint32_t keep = e->keep;
     v->note = (uint8_t)note;
     v->vel = (uint8_t)vel;
     v->gate = 1;
@@ -793,62 +794,20 @@ static FAST(seq) void voice_start(track_t *t, voice_t *v, uint32_t note, uint32_
         v->ph[0] = ph0;                                 /* (resetting them clicks) */
         v->ph[1] = ph1;
         v->ph[2] = ph2;
-#if FELUCCA_ANALOG2
-        if (ENG_IS(e, ANALOG)) {                         /* ANALOG 2 (SUPER's states too): the filter, its */
-            v->s[0] = s0;                               /* second stage, the last block's cutoff */
-            v->s[1] = s1;
-            v->s[4] = s4;
-            v->s[5] = s5;
-            v->s[6] = s6;
-        } else if (ENG_IS(e, DIGITAL)) {
-#else
-        if (ENG_IS(e, ANALOG)) {
+        /* the voice state words the engine's descriptor names (engine_t keep: its filter states; a plugin's too, which
+         * is never ENG_IS anything). s[2] and s[3] are never kept (note_on's) */
+        if (keep & 0x01u)
             v->s[0] = s0;
+        if (keep & 0x02u)
             v->s[1] = s1;
-        } else if (ENG_IS(e, DIGITAL)) {
-#endif
-            v->s[5] = s5;
-            v->s[6] = s6;
-            v->s[7] = s7;                               /* op 4 phase; the modulator envelope restarts */
-        } else if (ENG_IS(e, LOFI)) {
-            v->s[0] = s0;
+        if (keep & 0x10u)
             v->s[4] = s4;
-        } else if (ENG_IS(e, TRIO)) {
-            v->s[0] = s0;                               /* filter */
-            v->s[1] = s1;
-            v->s[4] = s4;                               /* the sample waiting for its step corrections */
-#if FELUCCA_ENG_NOISE
-        } else if (ENG_IS(e, NOISE)) {
-            v->s[0] = s0;                               /* the filter, the pink poles and the brown pole (the */
-            v->s[1] = s1;                               /* original's keep 0xF3); the generator s[2], the drift */
-            v->s[4] = s4;                               /* s[3] as note_on left them */
+        if (keep & 0x20u)
             v->s[5] = s5;
+        if (keep & 0x40u)
             v->s[6] = s6;
+        if (keep & 0x80u)
             v->s[7] = s7;
-#endif
-#if FELUCCA_ENG_SID
-        } else if (ENG_IS(e, SID)) {
-            v->s[0] = s0;                               /* the filter's Vbp Vlp Vhp and the external high-pass (Mini-Tone's */
-            v->s[1] = s1;                               /* keep 0x33); the noise register s[2] and the DC level s[6] as */
-            v->s[4] = s4;                               /* note_on left them */
-            v->s[5] = s5;
-#endif
-#if !FELUCCA_ANALOG2
-        } else if (ENG_IS(e, SUPER)) {
-            v->s[0] = s0;                               /* filter, its second stage, the sub phase */
-            v->s[1] = s1;
-            v->s[4] = s4;
-            v->s[5] = s5;
-            v->s[6] = s6;
-#endif
-        } else if (ENG_IS(e, PHASE)) {
-            v->s[0] = s0;                               /* the WAVE / WAVE2 toggles go with the phases kept */
-            v->s[1] = s1;
-#if FELUCCA_PHASE_FOLD
-            v->s[4] = s4;                               /* FOLD's DC blocker (eng_phase.c; Felucca-Engines' .keep 0x30) */
-            v->s[5] = s5;
-#endif
-        }
     }
 }
 
@@ -930,8 +889,8 @@ static void drone_latch_off(const track_t *t, uint32_t note)
     uint32_t i;
     for (i = 0; i < NVOICE; i++)
         if (t->v[i].gate && t->v[i].note == note) {
-            drone_pt[(uint32_t)(t - trk) % NPART].latched |= 1u << i;
-            drone_pt[(uint32_t)(t - trk) % NPART].lnote[i] = (uint8_t)note;
+            DRONE_MEM((uint32_t)(t - trk) % NPART)->pt.latched |= 1u << i;
+            DRONE_MEM((uint32_t)(t - trk) % NPART)->pt.lnote[i] = (uint8_t)note;
         }
 }
 static int drone_unlatch(track_t *t, uint32_t note)
@@ -942,7 +901,7 @@ static int drone_unlatch(track_t *t, uint32_t note)
         if (t->v[i].gate && t->v[i].note == note) {
             t->v[i].gate = 0;
             t->v[i].stage = 3;
-            drone_pt[(uint32_t)(t - trk) % NPART].latched &= ~(1u << i);
+            DRONE_MEM((uint32_t)(t - trk) % NPART)->pt.latched &= ~(1u << i);
             hit = 1;
         }
     if (hit && t->mono_note == note) {                  /* (MONO / LEGATO / UNISON: the stack goes with it) */

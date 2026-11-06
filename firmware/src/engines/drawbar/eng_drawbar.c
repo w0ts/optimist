@@ -295,4 +295,5 @@ static const engine_t ENG_DRAWBAR = {
     },
     PRESETS_OF(DRAWBAR_PRESETS), -1, drawbar_note_on, drawbar_render,
     0xBC1F, {P_E0, P_E4, P_E6, P_E7}, 0, 0, 0, drawbar_block,
+    .part_bytes = sizeof(drw_mem_t),
 };

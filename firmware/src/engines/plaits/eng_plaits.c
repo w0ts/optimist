@@ -615,4 +615,5 @@ static const engine_t ENG_PLAITS = {
     .color = 0x2DD1,                             /* #2fba8c (tools/colors.json) */
     .macro = {P_E1, P_E2, P_E3, P_E5},           /* HARMONICS TIMBRE MORPH TONE (Plaits' three knobs) */
     .poly = PL_POLY,
+    .part_bytes = sizeof(pl_voice_t) * PL_POLY,
 };

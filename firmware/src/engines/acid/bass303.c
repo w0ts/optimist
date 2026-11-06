@@ -34,7 +34,14 @@ static FAST(acid) float c_db2lin(float db) { return c_exp2f(db * 0.166096405f); 
  * render does not reshuffle (and spill) the hot loops */
 #define BASS303_PASS __attribute__((noinline))
 
-static bass303_fixed_t bass303_k;     /* the coefficients every instance shares (bass303.h) */
+/* the coefficients every instance shares (bass303.h). A plugin (PLUG_ENG_ACID: tools/plugin_build.py) has no RAM of its
+ * own: each part's copy right after its bass303_t in the part's engine memory (acid_mem.h ACID_PLUG_BYTES), built by
+ * its first bass303_init (the memory zeroed when the part comes to the plugin: ready 0) */
+#if defined(PLUG_ENG_ACID)
+#define bass303_k (*(bass303_fixed_t *)((uint8_t *)(b) + ACID_MEM_BYTES))
+#else
+static bass303_fixed_t bass303_k;
+#endif
 
 /* ---- parameters ------------------------------------------------------------------------ */
 
@@ -255,7 +262,7 @@ static FAST(acid) BASS303_SETUP void clear_audio_state(bass303_t *b)
 }
 
 /* the shared coefficients (Open303 constructor + setSampleRate) */
-static FAST(acid) BASS303_SETUP void fixed_init(void)
+static FAST(acid) BASS303_SETUP void fixed_init(bass303_t *b)   /* (b: a plugin's copy is b's) */
 {
     float w, sn, cs, alpha, scale, x, F, O, ln_cosh_p, ln_cosh_m;
 
@@ -336,7 +343,7 @@ FAST(acid) BASS303_SETUP void bass303_init(bass303_t *b)
     for (k = 0; k < sizeof(*b); k++)
         p[k] = 0;
     if (!bass303_k.ready)
-        fixed_init();
+        fixed_init(b);
     b->drv_type = -1;
     for (i = 0; i < BASS303_NPARAMS; i++)
         bass303_set(b, i, params[i].def);
