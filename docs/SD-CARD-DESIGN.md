@@ -15,7 +15,7 @@ The LCD's SPI1 already has a clock (PC9) and data out (PC10), and SPI1's data **
 as the clock and data out), which the LCD uses as D/C. An ST7789 ignores D/C while its CS is high. So:
 
 - the card's CLK and CMD (DI) share the LCD's clock and data;
-- the card's DAT0 (DO) drives PC8 through a series resistor (R1, 220 Ohm on the SD board) while the LCD is deselected;
+- the card's DAT0 (DO) drives PC8 through a series resistor (R1: 150 Ohm on the SD board since 2026-11-06; v6 was built with 220) while the LCD is deselected;
 - the card's CS is the LCD's CS **inverted**: the card is selected exactly when the LCD is not.
 
 Six wires, one inverter, two resistors, no pin of the main chip touched.
@@ -24,7 +24,7 @@ Six wires, one inverter, two resistors, no pin of the main chip touched.
 
 > **Superseded (2026-10-25):** the SD board (`hardware/archive-v6-tested/`, v5: the board is the splitter, two 10-pin
 > sockets, no soldering) replaces the hand-wired kit and the "v2" tap board below. The 1 kOhm figures below belong to
-> that kit; the board uses 220 Ohm (section 4). The board's README is the current parts list.
+> that kit; the board uses 150 Ohm (v6: 220; section 4). The board's README is the current parts list.
 
 **For everyone: the SD board (hardware/archive-v6-tested/, 2026-10-25).** One small board with the socket (push-push), the
 inverter, the resistors and the capacitors, ordered assembled from JLCPCB with the files in `hardware/archive-v6-tested/fab/` (or
@@ -156,24 +156,28 @@ code takes the bus between two screen transfers:
    its native mode (fresh, or hot-plugged) parses the LCD's traffic on CMD, may find a valid command in it and answer on
    CMD (open-drain) against PC10. The socket's card-detect reaches only a test pad (TP5), so a hot-plugged card is not seen; for
    streaming, a periodic CMD13 (status) checks the card and only a CMD13 with no answer sends CMD0 (CMD0 resets a card
-   in use). The board's MOSI branch gets 510 Ohm in series (R6; CLK the same, R5), which bounds that fight to about
-   6 mA. Other firmware never sends the card to SPI mode: Julius's prototype (2026-10-28) lost the stock screen with a
-   card in from a cold boot with CLK wired direct, had it distorted at 150 Ohm and fine at 510.
+   in use). The board's MOSI branch gets 330 Ohm in series (R6; CLK the same, R5; v6 was built with 510), which bounds that fight (about
+   6 mA at 510, not recomputed at 330). Other firmware never sends the card to SPI mode: Julius's prototype (2026-10-28) lost the stock screen with a
+   card in from a cold boot with CLK wired direct, had it distorted at 150 Ohm and fine at 510. A full cold boot with the card in, stock M-VAVE V15 and SLOOP 2.8.5, was clean at 330 / 150 on a hand-tuned v6 (2026-11-06).
 
 The card's start-up runs at 400 kHz (SPI1 BAUD 149: 60 MHz / 150), then the floor, 6 MHz (BAUD 9), then the clock the detection keeps (below). The screen runs at 60 MHz
 (`LCD_BAUD` 0 in every profile; 30 MHz, BAUD 1, is the fallback if the column's stub disturbs it). PC8 can be driven
 by the FM-1 and the card at once for a few clocks inside a session (the card not yet let go when D/C goes high):
-R1 (220 Ohm on the board) keeps that to about 15 mA.
+R1 (150 Ohm on the board; v6 220, which gave about 15 mA) keeps that small.
 
-**Timing, estimates (the 2026-10-25 reviews):** the card runs at **20 MHz** (the user). The card's DO changes up to
+**Measured since (2026-11-05, `hardware/NEXT-BOARD.md`):** 12 MHz on the tuned board, 15 fails, one bit late; the estimates below
+did not hold. Copper solves at about half the capacitance assumed, so the 35 pF below is likely high (about 20 pF, unmeasured).
+The card clock in service is 10-12 MHz (R5/R6 330, R1 150); 20 MHz was never reached on any real card, so the 20 MHz and "real cards
+reach 20 MHz" below are first estimates, not results. The limit on streaming was the firmware's polled reader, not the card or the
+board: the interrupt reader plays the heavy kit with no dry voice where the polled one had 195 in 28 s (`NEXT-BOARD.md`, "Dense kits").
+
+**Timing, estimates (the 2026-10-25 reviews):** the first target was **20 MHz** (the user; never reached, see above). The card's DO changes up to
 14 ns (tODLY, SD default speed) after CLK's falling edge; the FM-1 samples on the rising edge, 25 ns later at 20 MHz.
 The DO / D/C net (the PC8 pad, the panel's D/C input through its flex, the 80 mm cable, the 55 mm column, the socket)
 is about 35 pF. R1 220 Ohm: a 7.7 ns time constant, about 15 ns to a clean level: 14 + 15 = 29 ns, past 25 before the
-host's (unknown) setup time. 100 Ohm: 14 + 7 = 21 ns, a marginal pass; 47 Ohm: 17 ns, comfortable. The board still
-takes **R1 220 Ohm** (Julius's review and the user, 2026-10-28): a card left in SPI mode by an earlier session drives DO
-against D/C whenever a firmware idles the LCD's CS high, up to 33 mA at 100 Ohm, 15 at 220. Real cards (5-8 ns)
-reach 20 MHz through 220; the spec's slowest does not, and the auto clock (below) steps down for it. `sd bench`'s
-20 MHz CRC rows decide. Julius's hand wiring (510 / 510 / 270 Ohm at the card end of a 10 cm stub) read clean CRCs up
+host's (unknown) setup time. 100 Ohm: 14 + 7 = 21 ns, a marginal pass; 47 Ohm: 17 ns, comfortable. The v6 board took
+**R1 220 Ohm** (Julius's review and the user, 2026-10-28; 150 since 2026-11-06): a card left in SPI mode by an earlier session drives DO
+against D/C whenever a firmware idles the LCD's CS high, up to 33 mA at 100 Ohm, 15 at 220. The auto clock (below) steps down for a card that cannot keep up. Julius's hand wiring (510 / 510 / 270 Ohm at the card end of a 10 cm stub) read clean CRCs up
 to 6 MHz and failed from 8; the board's short traces are expected to do better (unmeasured). 30 MHz is not expected.
 
 **The clock: detected at the mount** (the user, 2026-11-04: "this is sandisk ultra, it should go higher, we should
@@ -270,6 +274,9 @@ command). After the mount, `sd` reads sector 0 by bytes and by DMA, checks both 
 DMA on only when it read right (`dma ok` / `dma off` in its answer; `sd dma on|off` overrides). Writes (`sd write`)
 send a block by DMA the LCD's own way (transmit DMA, proven by the screen) when the DMA is on.
 
+**Measured since (2026-11-05):** 1,147 KB/s at 12 MHz on one long read. On a dense kit far less, and the card is not why: see
+"Dense kits" in `hardware/NEXT-BOARD.md`.
+
 **Estimates (not measured):** a block is 4,096 bits: 205 us of wire at 20 MHz, 137 us at 30 MHz. CMD18 by DMA: about
 2.2-2.4 MB/s at 20 MHz and 3.2-3.5 MB/s at 30 MHz, less the card's gap before each block (a few to tens of us); the CPU
 a block: the token poll, the DMA's start and end, the 2 CRC bytes, a few us. By bytes (`duplex`, `dirrx`): every byte
@@ -346,7 +353,7 @@ the probed J12 pins; SD reads, a FAT32 reader and a flash-slot loader in m-bootl
   stub; they fail from 8 MHz. That says nothing yet about the board's 20 MHz.
 - The stock screen went blank with a card in (cold boot: the card in native mode) with CLK direct and DI through
   510 Ohm, while the LCD traffic looked identical on a logic analyzer; 150 Ohm on CLK distorted the image, 510 fixed
-  it (the board: R5, R6 510, section 4). m-bootloader's own screen worked in every case.
+  it (v6: R5, R6 510, section 4; 330 since 2026-11-06). m-bootloader's own screen worked in every case.
 - The card stays in SPI mode across a warm reset until it loses power: after a bootloader-driven firmware switch (a
   chip reset) the next firmware starts with the card already in SPI mode.
 
@@ -676,7 +683,8 @@ presets for all devices".
   added (smpl, inst).
 - **The streams at 44.1 kHz** (`tests/sd_stream_bus_test.c`, the card model with the screen's strips, SD_RING 4: a
   4 KB ring is 46 ms of 44.1 kHz 16-bit mono, a 50 ms head 4,412 B): a voice reads 88.2 KB/s at its pitch, twice an
-  octave up. Voices with none dry: 8 at 1.9 MB/s (20 MHz by DMA), 7 at 937 KB/s, 6 at 733 KB/s (the measured 7.5 MHz).
+  octave up. Voices with none dry: 8 at 1.9 MB/s (20 MHz by DMA), 7 at 937 KB/s, 6 at 733 KB/s (the measured 7.5 MHz). These are
+  the card model's. On an FM-1, 8 voices read 653 KB/s with none dry at 12 MHz (2026-11-05, pink); what limits a dense kit: `hardware/NEXT-BOARD.md`.
   Over the bus a voice whose ring runs dry fades out over 1.5 ms and is counted (`sst_dry`, the console's `sd stream`),
   its stream given back: at 733 KB/s 8 voices at once lose 3 and the other 5 play to their end; the next notes play
   again (never garbage, never a hang). GRAIN on a 44.1 kHz set (PIANO, FLUTE) spreads its grains over twice the bytes,
