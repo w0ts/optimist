@@ -28,12 +28,15 @@ import toolchain as TC                          # noqa: E402
 SRC = build.SRC
 FW = build.FW
 PLUG_MAGIC = 0x474C504F
-PLUG_API = 1
+PLUG_API = 2                                    # core/plugin.h PLUG_API
 PLUG_KIND_ENGINE = 0
 PLUG_HDR_LEN = 48
 XIP_BASE = 0x02000000 - 0x4000                  # hal/fm1_xip.h FM1_XIP: flash offset -> CPU address
 HDR = "<IHBB12sIIIIII"                          # magic api kind uid name len desc nrel crc base abi (44 B), then hcrc
 REL_KINDS = {"R_PI32V2_ABS32": 0, "R_PI32V2_MOV_ABS32": 1}
+REL_API = 2                                     # core/plugin.h PLUG_REL_API: the word set to the API table's address
+API_SYM = "plugin_api"                          # plug_unit.c: that word
+API_TABLE = "plug_api_tab"                      # core/plugin.c: the firmware's table (felucca.elf)
 REL_PCREL = {"R_PI32V2_LONG_JUMP_23M2"}        # PC-relative: the same at every address (measured 2026-11-02)
 ENTRY = "plugin_desc"
 
@@ -78,10 +81,14 @@ def parse(opl: bytes) -> tuple[dict, bytes, list[int]]:
     return h, image, list(struct.unpack(f"<{h['nrel']}I", rel))
 
 
-def patch(image: bytearray, rel: int, base: int) -> None:
-    """one relocation applied in place (core/plugin.c plug_patch)"""
+def patch(image: bytearray, rel: int, base: int, api: int = 0) -> None:
+    """one relocation applied in place (core/plugin.c plug_patch); api: the firmware's API table's address (kind 2)"""
     kind, off = rel >> 28, rel & 0x0FFFFFFF
-    if kind == 0:
+    if kind == REL_API:
+        if off + 4 > len(image):
+            raise PluginError(f"relocation at {off:#x} past the image")
+        struct.pack_into("<I", image, off, api & 0xFFFFFFFF)
+    elif kind == 0:
         if off + 4 > len(image):
             raise PluginError(f"relocation at {off:#x} past the image")
         struct.pack_into("<I", image, off, (struct.unpack_from("<I", image, off)[0] + base) & 0xFFFFFFFF)
@@ -95,16 +102,17 @@ def patch(image: bytearray, rel: int, base: int) -> None:
         raise PluginError(f"relocation kind {kind}")
 
 
-def place(opl: bytes, flash_off: int) -> bytes:
+def place(opl: bytes, flash_off: int, api: int = 0) -> bytes:
     """the plugin file as the loader places it at flash offset flash_off (a sector boundary): the header with the
-    image's XIP address and the CRC of the patched image, then the image"""
+    image's XIP address and the CRC of the patched image, then the image. api: the firmware's API table's address
+    (its felucca.elf symbol plug_api_tab), written into the plugin's plugin_api word"""
     if flash_off & 0xFFF:
         raise PluginError(f"placing at {flash_off:#x}: not a sector boundary")
     h, image, rels = parse(opl)
     base = XIP_BASE + flash_off + PLUG_HDR_LEN
     img = bytearray(image)
     for r in rels:
-        patch(img, r, base)
+        patch(img, r, base, api)
     return header(h["uid"], h["name"].rstrip(b"\0").decode(), bytes(img), 0, h["desc"], base, h["abi"]) + bytes(img)
 
 
@@ -164,8 +172,8 @@ def build_plugin(name: str, out_dir: Path | None = None) -> Path:
                   ".data : { *(.data*) } .bss : { *(.bss*) *(COMMON) } /DISCARD/ : { *(.comment) *(.note*) } }\n")
     sym = f"ENG_{name}"
     build.tc("cc", *firmware_flags(), f"-DFELUCCA_ENG_{name}=1", f'-DPLUG_ENGINE_FILE="{rel_file}"',
-             f"-DPLUG_ENGINE_SYM={sym}", "-c", FW / "src" / "plugin" / "plug_unit.c", "-o", obj)
-    build.tc("pi32v2/bin/ld", "--gc-sections", "-q", "-e", ENTRY, "-T", ld, obj, "-o", elf)
+             f"-DPLUG_ENGINE_SYM={sym}", f"-DPLUG_ENG_{name}=1", "-c", FW / "src" / "plugin" / "plug_unit.c", "-o", obj)
+    build.tc("pi32v2/bin/ld", "--gc-sections", "-q", "-e", ENTRY, f"--undefined={API_SYM}", "-T", ld, obj, "-o", elf)
     sizes = section_sizes(elf)
     if sizes.get(".data", 0) or sizes.get(".bss", 0):
         raise PluginError(f"{name}: {sizes.get('.data', 0)} B of .data and {sizes.get('.bss', 0)} B of .bss: a plugin has "
@@ -175,6 +183,10 @@ def build_plugin(name: str, out_dir: Path | None = None) -> Path:
     image = img.read_bytes()
     image += b"\0" * (-len(image) % 4)
     rels = relocations(elf)
+    api_at = symbol(elf, API_SYM)               # (kept by --undefined: every plugin has the word, linked as 0)
+    if api_at + 4 > len(image) or any(r & 0x0FFFFFFF == api_at for r in rels):
+        raise PluginError(f"{API_SYM} at {api_at:#x}: outside the image, or relocated as an address")
+    rels = sorted(rels + [REL_API << 28 | api_at], key=lambda r: r & 0x0FFFFFFF)
     desc = symbol(elf, sym)
     abi_at = symbol(elf, "plugin_abi")
     if desc + 4 > len(image) or abi_at + 4 > len(image):
@@ -193,6 +205,7 @@ def main() -> int:
     ap.add_argument("engine", help="the engine's name in core/registry.h ENGINE_LIST (SID, PROPHET, ...), or a .opl file to place")
     ap.add_argument("--place", type=lambda s: int(s, 0), metavar="FLASH_OFF", help="write the file as placed at this flash offset")
     ap.add_argument("-o", "--out", type=Path, help="the placed file (with --place)")
+    ap.add_argument("--elf", type=Path, help="the firmware's felucca.elf (with --place: its API table's address; else 0)")
     a = ap.parse_args()
     try:
         if a.engine.endswith(".opl"):
@@ -201,7 +214,8 @@ def main() -> int:
             build.backend()                             # (the compiler alone: no Pillow, no SDK needed here)
             opl = build_plugin(a.engine)
         if a.place is not None:
-            placed = place(opl.read_bytes(), a.place)
+            api = symbol(a.elf, API_TABLE) if a.elf else 0
+            placed = place(opl.read_bytes(), a.place, api)
             out = a.out or opl.with_suffix(f".{a.place:x}.bin")
             out.write_bytes(placed)
             print(f"placed   {out}  {len(placed)} B at 0x{a.place:x} (image at 0x{XIP_BASE + a.place + PLUG_HDR_LEN:x})")

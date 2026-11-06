@@ -313,4 +313,5 @@ static const engine_t ENG_PHASE = {
     },
     PRESETS_OF(PHASE_PRESETS), 0, phase_note_on, phase_render,
     0x05DF, {P_E2, P_E3, P_E4, P_REL},
+    .keep = FELUCCA_PHASE_FOLD ? 0x33 : 0x03,   /* a retrigger keeps s0 s1 the WAVE toggles; FOLD: s4 s5 its DC blocker (voice.c) */
 };

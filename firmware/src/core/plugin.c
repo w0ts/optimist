@@ -28,6 +28,35 @@
 #ifndef PLUG_ENCRYPT
 #define PLUG_ENCRYPT 1                    /* the region is inside the app area: the SFC decrypts every read of it */
 #endif
+/* the API table (core/plugin.h plug_api_t): built once, const, in the image; its XIP address is what the loader
+ * writes into a plugin's plugin_api word (PLUG_REL_API). A host test names its own (PLUG_API_ADDR) */
+#ifndef PLUG_API_ADDR
+static void *plug_part_mem(uint32_t part) { return PART_MEM_AT(part % NPART); }
+static uint32_t plug_rng(void) { return rng(); }
+static const plug_api_t plug_api_tab = {
+    .version = PLUG_API,
+    .part_mem = plug_part_mem,
+    .tab = {[PLUG_TAB_SINE] = SINE, [PLUG_TAB_TANH] = TANH_Q15},
+    .trk = trk,
+    .rng = plug_rng,
+};
+#define PLUG_API_ADDR ((uint32_t)(uintptr_t)&plug_api_tab)
+#endif
+/* a placed plugin's descriptor the firmware can run: its part memory fits what a part can have (engines.c: the arena
+ * places any size by need, a change that does not fit is refused there; the fixed memories are the largest built
+ * engine's) */
+#ifndef PLUG_PART_MAX
+#if PART_DROPS
+#define PLUG_PART_MAX 0xFFFFu
+#elif PART_MEM_ANY
+#define PLUG_PART_MAX sizeof(part_mem_t)
+#else
+#define PLUG_PART_MAX 0u
+#endif
+#endif
+#ifndef PLUG_DESC_OK
+#define PLUG_DESC_OK(d) ((d)->part_bytes <= PLUG_PART_MAX)
+#endif
 #define PLUG_MARGIN 8u
 #define PLUG_RELCHUNK 64u                 /* relocation words read at a time */
 #define PLUG_SFC_KEY 0x980Fu              /* the chip key our packages set (tools/fm1pkg_make.py KEY) */
@@ -103,7 +132,7 @@ static uint64_t plug_scan(int reg)
             continue;
         n = plug_sectors(h.len);
         used |= plug_mask(n) << ((off - FL_PLUG_LO) / PLUG_SECTOR);
-        if (reg) {
+        if (reg && PLUG_DESC_OK((const engine_t *)(PLUG_XIP(off) + PLUG_HDR_LEN + h.desc))) {
             k = plug_slot_of(h.uid);
             if (k == 0xFFu)
                 for (k = 0; k < FELUCCA_PLUGIN_SLOTS && plug_uid[k] != 0xFFu; k++)
@@ -137,6 +166,8 @@ static void plug_patch(uint32_t w, uint32_t o, uint32_t b, uint32_t base)
     uint8_t *p = plug_win + (o - b);
     if (PLUG_REL_KIND(w) == PLUG_REL_ABS32)
         plug_st32(p, plug_le32(p) + base);
+    else if (PLUG_REL_KIND(w) == PLUG_REL_API)
+        plug_st32(p, PLUG_API_ADDR);
     else {
         uint32_t w0 = plug_le32(p), w1 = plug_le32(p + 4), v = (w0 >> 16) | (w1 & 0xFFFFu) << 16;
         v += base;
@@ -164,7 +195,7 @@ static int plug_window(plug_rd_t rd, void *ctx, const plug_hdr_t *h, uint32_t w,
         for (i = 0; i < n; i++) {
             uint32_t o = PLUG_REL_OFF(plug_rel[i]), span = PLUG_REL_SPAN(PLUG_REL_KIND(plug_rel[i]));
             uint32_t wlo = pw < PLUG_HDR_LEN ? 0u : pw - PLUG_HDR_LEN, whi = pw + PLUG_SECTOR - PLUG_HDR_LEN;
-            if (PLUG_REL_KIND(plug_rel[i]) > PLUG_REL_MOV32 || o + span > h->len)
+            if (PLUG_REL_KIND(plug_rel[i]) > PLUG_REL_KMAX || o + span > h->len)
                 return PLUG_E_BAD;
             if (o < whi && o + span > wlo)                                /* touches the window's image bytes */
                 plug_patch(plug_rel[i], o, (uint32_t)b, base);
@@ -224,6 +255,12 @@ static int plug_install(plug_rd_t rd, void *ctx)
         return PLUG_E_FLASH;
     fl_inval(off, n * PLUG_SECTOR);
     (void)plug_scan(1);
+    if (plug_slot_of(h.uid) == 0xFFu && !PLUG_DESC_OK((const engine_t *)(PLUG_XIP(off) + PLUG_HDR_LEN + h.desc))) {
+        if (fl_erase4k_quiet(off, &took))                 /* (its part memory larger than a part's: not kept) */
+            return PLUG_E_FLASH;
+        fl_inval(off, PLUG_SECTOR);
+        return PLUG_E_MEM;
+    }
     return plug_slot_of(h.uid) == 0xFFu ? PLUG_E_FLASH : (int)plug_slot_of(h.uid);
 }
 

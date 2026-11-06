@@ -275,4 +275,5 @@ static const engine_t ENG_NOISE = {
     .color = 0x83EE,                             /* #827d77 (tools/colors.json) */
     .macro = {P_E2, P_E3, P_E1, P_REL},
     .desc = noise_desc,
+    .keep = 0xF3,   /* a retrigger keeps s0 s1 s4..s7: the filter, the pink and brown poles (voice.c) */
 };

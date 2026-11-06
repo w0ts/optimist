@@ -18,6 +18,8 @@
 #define FELUCCA_PLUGIN_SLOTS 2
 #define FELUCCA_LAYOUT 0
 #define PLUG_ABI 0x12345678u
+#define PLUG_API_ADDR 0x02ABCDE0u                     /* (a stand-in for the firmware's API table) */
+#define PLUG_DESC_OK(d) ((void)(d), 1)                /* (a stand-in descriptor: no part memory to check) */
 #define FELUCCA_ANALOG2 1
 #define FELUCCA_SLICE 0                               /* (core.h sets it from ENG_SLICE before registry.h) */
 #include "sd_card_model.h"
