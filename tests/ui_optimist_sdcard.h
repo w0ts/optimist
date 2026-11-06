@@ -1896,7 +1896,7 @@ static void sdcard_tests(void)
     sdu_kit_row();
 #endif
     sdu_boot_clears();
-    /* ---- SYSTEM > SD CARD: VERSIONS, SLACK, kept in the log's device record */
+    /* ---- SYSTEM > SD CARD: the card and the index; 25 versions, no setting (the user, 2026-11-06) */
     op_enter(SCR_SYSTEM);
     for (r = 0; r < sys_rows(); r++) {
         char t[16];
@@ -1911,39 +1911,30 @@ static void sdcard_tests(void)
         sdu_frames(2);
         sys_cell(r, 0, &c);
         check(!strcmp(c.label, "CARD") && !strcmp(c.val, "READY"), "SD CARD: CARD READY");
-        sys_turn(r, 1, 1, 0);
-        sys_turn(r, 2, 1, 0);
-        check(sdp_keep == 9u && sda_scale == 125u, "VERSIONS +1: 9 kept; SLACK +1: 125 %");
-        op_enter(SCR_HOME);
-        check(sdm_dirty == 1u, "SYSTEM left: the settings due (written once quiet)");
-        sdu_frames(1);
-        memset(&sdm_rec, 0, sizeof sdm_rec);
-        sdm_rec_read();
-        check(sdm_keep() == 9u && sdm_scale() == 125u, "SYSTEM left: the settings in the log (read again)");
-        sdm_set(0, 0);
-        sdm_set(1, 0);
-        sdm_leave();
-        sdu_frames(1);
-        check(sdp_keep == 8u && sda_scale == 100u, "SHIFT + the knob: 8 versions, 100 %");
-        {   /* SD CARD page 2: CLOCK, read-only, the step the mount's detection kept (sd_mmc.c sd_clock_probe) */
-            const uint32_t k = FELUCCA_SD_STREAM ? 1u : 0u;
-            sys_cell(r + 1u, k, &c);
+        for (uint32_t k = 1; k < 4u; k++) {
+            sys_cell(r, k, &c);
+            check(strcmp(c.label, "SLACK") && strcmp(c.label, "VERSIONS"), "SD CARD: no SLACK, no VERSIONS");
+        }
+        check(sdp_keep == 25u, "25 versions kept");
+        {   /* SD CARD: CLOCK, read-only, the step the mount's detection kept (sd_mmc.c sd_clock_probe) */
+            const uint32_t k = FELUCCA_SD_STREAM ? 3u : 2u;
+            sys_cell(r, k, &c);
             check(!strcmp(c.label, "CLOCK") && !strcmp(c.val, "6") && c.unit && !strcmp(c.unit, "MHZ") && c.kind == CK_RO,
-                  "SD CARD page 2: CLOCK 6 MHZ, read-only (the floor: no probe in this test)");
+                  "SD CARD: CLOCK 6 MHZ, read-only (the floor: no probe in this test)");
             sd_step = 2;
-            sys_cell(r + 1u, k, &c);
+            sys_cell(r, k, &c);
             check(!strcmp(c.val, "15"), "CLOCK: 15 MHZ at step 2");
             sd_step = 5;
-            sys_cell(r + 1u, k, &c);
+            sys_cell(r, k, &c);
             check(!strcmp(c.val, "8.6"), "CLOCK: 8.6 MHZ at step 5 (8.57)");
             sd_step = SD_FLOOR;
         }
 #if FELUCCA_SD_STREAM
-        sys_cell(r + 1u, 0, &c);
-        check(!strcmp(c.label, "PRE-BUFFER") && !strcmp(c.val, "50") && strstr(c.unit, "KB"), "SD CARD page 2: PRE-BUFFER 50 ms, its KB");
-        sys_turn(r + 1u, 0, 1, 0);
-        sys_turn(r + 1u, 0, 1, 0);
-        sys_turn(r + 1u, 0, 1, 0);
+        sys_cell(r, 2, &c);
+        check(!strcmp(c.label, "PRE-BUFFER") && !strcmp(c.val, "50") && strstr(c.unit, "KB"), "SD CARD: PRE-BUFFER 50 ms, its KB");
+        sys_turn(r, 2, 1, 0);
+        sys_turn(r, 2, 1, 0);
+        sys_turn(r, 2, 1, 0);
         check(sst_pre_ms == 200u, "PRE-BUFFER knob: 100, 200, stops at 200");
         sdm_leave();                                    /* (SYSTEM left) */
         sdu_frames(1);
@@ -1951,7 +1942,7 @@ static void sdcard_tests(void)
         sst_pre_set(50);
         sdm_rec_read();
         check(sst_pre_ms == 200u, "... kept in the log's device record");
-        sdm_set(2, 0);
+        sdm_set(0);
         sdm_leave();
         sdu_frames(1);
         check(sst_pre_ms == 50u, "SHIFT + the knob: 50 ms");

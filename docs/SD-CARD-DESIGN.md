@@ -772,7 +772,7 @@ presets for all devices".
     - presets, kits, the index, small files: **none**: a file within one cluster (32 KB on a 16-32 GB card) cannot
       fragment, so it is written as it is;
     - bigger files: the run sized by a **best guess of the file's final size** (the user: "we can take best
-      guesses"), then rounded up to whole clusters, the setting scaling the guesses (less slack on a nearly full card):
+      guesses"), then rounded up to whole clusters:
       - a recording: the length asked for, else the song or pattern loop's length at the tempo (x 2 for a second
         take), else a minute; past the run, a new run of the same guess;
       - a sample the FM-1 edits or resamples: its new length exactly (it is known before writing);
@@ -786,8 +786,7 @@ presets for all devices".
     no run kept for the next save; a card full under it refuses the save with the old project untouched;
   - the card formatted with large clusters (the SD Association formatter's defaults: 32 KB on 16-32 GB SDHC, more
     on SDXC) so even files from a computer come in few runs; the fast-seek map covers the rest;
-  - the FM-1 says how much room the card has left counting the slack, and the setting can be lowered for a nearly
-    full card.
+  - the FM-1 says how much room the card has left counting the slack.
 - **Safe saves, with the FM-1's own flash as the staging copy** (the user, 2026-10-25: "we have flash for temp /
   buffer"): the working project is already whole in the internal flash (the autosave, and the 1-project store of the
   fake SD mode), so a save to the card is:
@@ -843,8 +842,7 @@ presets for all devices".
   `.opp`, the `.tmp` or a version, since `f_unlink` would free that file's clusters; `sdp_finish` deletes it once the
   new `.opp` is safe, before the pending record is cleared, so a cut there is finished at the boot. A project never
   saved again keeps its `.spr`, harmless.
-- **The runs** (`sd_alloc.c`): by kind as above, `sda_scale` the setting (SLACK: recordings and renders; a project
-  has none); no run free: the bytes it needs, else refused.
+- **The runs** (`sd_alloc.c`): by kind as above (recordings and renders; a project has none); no run free: the bytes it needs, else refused.
   A recording's continuation past its run (a new run) waits for the recorder.
 
 Open: the views beyond recent / name / folder.
@@ -873,7 +871,7 @@ checked: only the build time and the commit differ).
   not fit (MEM FULL) clears it again, never half a project. A save still pending (its only copy the flash one) is
   finished before any LOAD, else the LOAD is refused (*CARD SAVE PENDING*).
 - **The device record**: the log's id 22 (`SEC_ID_SDCARD`, device-wide as the names: `SLG_DEV`, `SLG_GLOBAL`): VERSIONS
-  (`sdp_keep`, 0..16, default 8), SLACK (`sda_scale`, 0..400 % by 25, default 100), the pending save (`sdp_hooks`). A
+  (25 versions kept, no setting: `sdp_keep`), the pending save (`sdp_hooks`). A
   pending save whose flash copy is now another project's (NEW, the project's name changed) is dropped, never finished
   with other work; one still the project's is finished with the copy as it is (saved again without the card: that
   newer copy). The settings are written when SYSTEM is left and the audio is quiet.
@@ -997,7 +995,7 @@ Unzipped at the card's root; its `readme.txt` says what is there.
 while a card is ready, else the flash slot with *No SD card: in flash*), PRESETS, KITS, SAMPLES; four cards (BANK,
 ITEM, ACTION, VIEW), two big ones at a time, the pair of the knob last turned, over the page: two columns of eight names, as the white keys sit. A page is read in slices of the main loop's, *LOADING* past 200 ms (the 1.5 s `DUAL_STARVE_MS` rule: one pass in a frame is the second core down on a big card). ALGORITHM on PRESETS and SAMPLES, the PRESETS
 knob's engine filter (ALL: every engine's banks in a row), a sample's sampler popup: UI-OPTIMIST-DESIGN.md 4.14. SYSTEM > SD card: CARD (READY and
-its size; YES mounts again), VERSIONS, SLACK, SAMPLES INDEX. SYSTEM > SETTINGS: BACKUP writes the device's settings record (`persist_t`, as
+its size; YES mounts again), SAMPLES INDEX. SYSTEM > SETTINGS: BACKUP writes the device's settings record (`persist_t`, as
 `settings_save` makes it) to `Optimist/Backup/settings.opd` ("OPST"); RESTORE (asked, red) writes it back into flash and
 restarts the FM-1 a second later (the settings are read at power-on). This unit's Bluetooth address and its copy of the
 radio's calibration always stay; its pairings too when the file comes from another FM-1 (another address).
