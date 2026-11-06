@@ -1925,8 +1925,9 @@ static void sdcard_tests(void)
         sdm_leave();
         sdu_frames(1);
         check(sdp_keep == 8u && sda_scale == 100u, "SHIFT + the knob: 8 versions, 100 %");
-        {   /* SD CARD page 2: CLOCK, read-only, the step the mount's detection kept (sd_mmc.c sd_clock_probe) */
-            const uint32_t k = FELUCCA_SD_STREAM ? 1u : 0u;
+        {   /* SD CARD page 2: CLOCK, read-only, the step the mount's detection kept (sd_mmc.c sd_clock_probe); alone on it
+             * (the pre-buffer beside it retired 2026-11-06 evening: a sample's preload is one ring's) */
+            const uint32_t k = 0u;
             sys_cell(r + 1u, k, &c);
             check(!strcmp(c.label, "CLOCK") && !strcmp(c.val, "6") && c.unit && !strcmp(c.unit, "MHZ") && c.kind == CK_RO,
                   "SD CARD page 2: CLOCK 6 MHZ, read-only (the floor: no probe in this test)");
@@ -1938,33 +1939,30 @@ static void sdcard_tests(void)
             check(!strcmp(c.val, "8.6"), "CLOCK: 8.6 MHZ at step 5 (8.57)");
             sd_step = SD_FLOOR;
         }
+        sys_cell(r + 1u, 1, &c);
+        check(c.kind == CK_NONE, "SD CARD page 2: CLOCK alone, no setting beside it");
+        {   /* an old device record with a pre-buffer (retired): loaded, its other settings kept, the byte ignored */
+            sdm_rec.keep = 7;
+            sdm_rec.pre = 4;
+            check(sdm_rec_put() == 0, "an old record with a pre-buffer written");
+            memset(&sdm_rec, 0, sizeof sdm_rec);
+            sdm_rec_read();
+            check(sdm_keep() == 7u && sdm_rec.pre == 0u, "... read back: VERSIONS 7 kept, the pre-buffer byte ignored");
+            sdm_set(0, 0);
+            sdm_leave();
+            sdu_frames(1);
+        }
 #if FELUCCA_SD_STREAM
-        sys_cell(r + 1u, 0, &c);
-        check(!strcmp(c.label, "PRE-BUFFER") && !strcmp(c.val, "50") && strstr(c.unit, "KB"), "SD CARD page 2: PRE-BUFFER 50 ms, its KB");
-        sys_turn(r + 1u, 0, 1, 0);
-        sys_turn(r + 1u, 0, 1, 0);
-        sys_turn(r + 1u, 0, 1, 0);
-        check(sst_pre_ms == 200u, "PRE-BUFFER knob: 100, 200, stops at 200");
-        sdm_leave();                                    /* (SYSTEM left) */
-        sdu_frames(1);
-        memset(&sdm_rec, 0, sizeof sdm_rec);
-        sst_pre_set(50);
-        sdm_rec_read();
-        check(sst_pre_ms == 200u, "... kept in the log's device record");
-        sdm_set(2, 0);
-        sdm_leave();
-        sdu_frames(1);
-        check(sst_pre_ms == 50u, "SHIFT + the knob: 50 ms");
-        /* the streams' memory short (sd_stream_plan.c refused): MEM FULL CARD, a part's drop asked, then the pre-buffer that fits */
+        /* the streams' memory short (sd_stream_plan.c refused: every voice's ring and preload do not fit): MEM FULL CARD, a
+         * part's drop asked, then MEM FULL CARD alone (no shorter buffer proposed: there is none) */
         sstp.state = SSTP_REFUSED;
         sstp.said = 0;
         sstp.drop = 1u << 2;
-        sstp.fit_ms = 25;
         sdu_frames(1);
         check(op_armed() && ui.arm_danger && !strncmp(ui.arm_q, "DROP T3", 7), "MEM FULL CARD: DROP T3 asked, red");
         tap(B_HOME);
         sdu_frames(1);
-        check(!op_armed() && sdu_msg("25 MS FITS"), "NO: no other part frees enough: the pre-buffer that fits said");
+        check(!op_armed() && sdu_msg("MEM FULL CARD") && !sdu_msg("FITS"), "NO: no other part frees enough: MEM FULL CARD, nothing else proposed");
         sdu_frames(3);
         check(!op_armed(), "... said once");
         sstp.state = SSTP_IDLE;

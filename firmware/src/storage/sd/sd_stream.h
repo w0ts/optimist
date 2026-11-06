@@ -5,9 +5,10 @@
  *
  * A SOURCE (sst_src[]) is a sample on the card the project plays: its WAV data's place in the file, its format, the
  * file's contiguous runs on the card (from FatFs' fast-seek map, made once when the project loads), and its HEAD: the
- * first hlen bytes of its data kept in RAM (the pre-buffer, sst_pre_ms), so a note starts at once while the card's first
- * block comes. A STREAM (sst[]) is a playing voice's lookahead: a RING of SST_K slots of one 512-byte card sector each,
- * filled in play order by the main loop (sd_stream.c sst_service, short CMD18 runs between the screen's strips), read
+ * first hlen bytes of its data kept in RAM (the preload: one ring's bytes, sd_stream.c SST_HEAD_RING; a shorter sample
+ * whole), so a note starts at once while the card's first block comes and its ring fills before the head runs out; head
+ * is a pointer, so a later step may point it at another place (the plugins' flash region). A STREAM (sst[]) is a playing
+ * voice's lookahead: a RING of SST_K slots of one 512-byte card sector each, filled in play order by the main loop (sd_stream.c sst_service, short CMD18 runs between the screen's strips), read
  * by the audio. Each slot carries a TAG, gen << 24 | the file's sector + 1 (0: empty), written by the main loop after
  * the slot's data; the audio reads a slot only when its tag is the sector it wants under its own generation.
  *
@@ -41,9 +42,9 @@
 #endif
 _Static_assert(SST_K >= 2u && SST_K <= 64u, "sd_stream.h: a ring of 1 to 32 KB");
 #ifndef PLUG_BUILD
-static uint32_t sst_k = SST_K;                       /* a ring's slots now, all rings alike: SST_K, fewer when the plan has no room for
-                                                      * a sampled kit's rings (sd_stream_plan.c sst_place_rings; no voice reads a ring
-                                                      * while it changes) */
+static uint32_t sst_k = SST_K;                       /* a ring's slots, all rings alike: SST_K, the one setting (the user, 2026-11-06
+                                                      * evening: no shorter rings when there is no room); a host test may sweep it
+                                                      * while no voice reads a ring */
 #endif
 
 enum { SST_F8 = 0, SST_F16 = 1 };                    /* sst_src_t.bits: 8-bit unsigned, 16-bit signed (little-endian) */

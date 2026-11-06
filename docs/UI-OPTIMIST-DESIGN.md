@@ -474,10 +474,10 @@ popup, and picking moves it to SAMPLE or SLICE. The drum track: the picked lane'
 
 SYSTEM > SD card (4.7): CARD (READY, PREPARING, NOT FAT or NONE, the card's size; YES mounts it again, its folders and
 the samples' index), VERSIONS (0..16, 8), SLACK (0..400 %, 100: the room a file's run gets past its size, SD-CARD-DESIGN
-8), SAMPLES INDEX (YES: the pass again); with streaming (SD_RING) a second page, PRE-BUFFER (25 / 50 / 100 / 200 ms, 50;
-the KB the project's card samples' heads take beside it). Written when SYSTEM is left. The streams' memory short: *MEM
-FULL CARD*, a part's drop asked with the one confirm (*Drop T2 FM6?*, one at a time), then the longest pre-buffer that
-fits said (*MEM FULL CARD: 25 MS FITS*). Tests: `tests/ui_optimist_sdcard.h`.
+8), SAMPLES INDEX (YES: the pass again); a second page, CLOCK (the card's SPI clock,
+read-only). Written when SYSTEM is left. Streaming (SD_RING) has no setting here: a sample's preload is one ring's (the
+user, 2026-11-06 evening; the PRE-BUFFER cell is gone). The streams' memory short: *MEM FULL CARD*, a part's drop asked
+with the one confirm (*Drop T2 FM6?*, one at a time), then *MEM FULL CARD* once. Tests: `tests/ui_optimist_sdcard.h`.
 
 ### 4.13 The Wi-Fi password entry
 

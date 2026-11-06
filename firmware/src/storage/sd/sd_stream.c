@@ -3,14 +3,15 @@
  * the audio's reads: sd_stream.h). Full FatFs builds with the builder's SD_RING (FELUCCA_SD_STREAM); included by
  * sdcard.c after sd_diskio.c, and by tests/sd_stream_test.c on the card model. Main loop only, never in an interrupt.
  *
- *   sst_src_load(si, path, pre_ms, mem, n, &used)   source si from a WAV on the card (path from the card's root): its
+ *   sst_src_load(si, path, head, mem, n, &used)   source si from a WAV on the card (path from the card's root): its
  *                         format, its data's place, its runs on the card (FatFs' fast-seek map, once), its head (the
- *                         first pre_ms of its data) into mem (n bytes; mem 0: only the bytes it needs, in *used).
+ *                         first head bytes of its data: the plan's preload is one ring's, SST_HEAD_RING) into mem (n
+ *                         bytes; mem 0: only the bytes it needs, in *used).
  *                         FR_OK; FR_INVALID_OBJECT a file the streams cannot play (not a PCM WAV of 8 or 16 bits, mono
  *                         or stereo, up to 4 x 44.1 kHz); FR_DENIED more runs than SST_MAP_N / 2 - 1 (a computer's
  *                         file on a card formatted with small clusters); FR_NOT_ENOUGH_CORE n too small
- *   sst_src_need(path, pre_ms, &bytes)   the same, the bytes only (sst_probe: its data's bytes, its frame's log2)
- *                         pre_ms SST_PRE_WHOLE: the head is the whole data (whole 4-byte words: its last 1..3 bytes
+ *   sst_src_need(path, head, &bytes)   the same, the bytes only (sst_probe: its data's bytes, its frame's log2)
+ *                         head SST_PRE_WHOLE: the head is the whole data (whole 4-byte words: its last 1..3 bytes
  *                         dropped), so no read of it ever goes to the card (GRAIN, STRETCH on a file that fits)
  *   sst_rings(mem, n)     the first n streams' rings: n x sst_k x 512 B from mem (4-byte aligned); the others have
  *                         none (mem 0: every stream off)
@@ -451,21 +452,20 @@ static FRESULT sst_wav(FIL *fp, sst_src_t *s, uint8_t *buf)
     return FR_OK;
 }
 
-#define SST_PRE_WHOLE 0xFFFFFFFFu                    /* (sst_src_load's pre_ms: the whole data) */
+#define SST_PRE_WHOLE 0xFFFFFFFFu                    /* (sst_src_load's head: the whole data) */
+#define SST_HEAD_RING (sst_k * 512u)                 /* a sample's preload: one ring's bytes, whatever its rate (the user, 2026-11-06
+                                                      * evening: "we preload one ring"); a sample shorter than that: all of it */
 static struct {
     uint32_t dlen;
     uint8_t fsh;
 } sst_probe;                                         /* (the last sst_src_load's file: the plan's choice) */
-static uint32_t sst_head_bytes(const sst_src_t *s, uint32_t pre_ms)   /* pre_ms of the data at its own rate */
+static uint32_t sst_head_bytes(const sst_src_t *s, uint32_t head)   /* the data's first head bytes: whole words, the data at most */
 {
-    if (pre_ms == SST_PRE_WHOLE)
-        return s->dlen & ~3u;
-    uint64_t b = (uint64_t)pre_ms * s->rate * 441u / (10u * 65536u);   /* (frames) */
-    uint32_t h = (uint32_t)((b << s->fsh) + 3u) & ~3u;
+    uint32_t h = head == SST_PRE_WHOLE ? s->dlen : (head + 3u) & ~3u;
     return h <= s->dlen ? h : s->dlen & ~3u;
 }
 
-static FRESULT sst_src_load(uint32_t si, const char *path, uint32_t pre_ms, uint8_t *mem, uint32_t n, uint32_t *used)
+static FRESULT sst_src_load(uint32_t si, const char *path, uint32_t head, uint8_t *mem, uint32_t n, uint32_t *used)
 {
     static FIL f IN_POOL;
     static uint8_t hd[96] __attribute__((aligned(4)));   /* (sst_wav: a chunk header and 60 bytes of smpl) */
@@ -494,8 +494,8 @@ static FRESULT sst_src_load(uint32_t si, const char *path, uint32_t pre_ms, uint
     nrun = (sst_map[0] - 2u) / 2u;
     sst_probe.dlen = s.dlen;
     sst_probe.fsh = s.fsh;
-    s.hlen = sst_head_bytes(&s, pre_ms);
-    if (pre_ms == SST_PRE_WHOLE && s.hlen >> s.fsh) {
+    s.hlen = sst_head_bytes(&s, head);
+    if (head == SST_PRE_WHOLE && s.hlen >> s.fsh) {
         s.dlen = s.hlen;                             /* (its whole frames in the head: nothing past it to read) */
         s.frames = s.dlen >> s.fsh;
         s.lpe = s.lpe < s.frames ? s.lpe : s.frames - 1u;
@@ -537,7 +537,7 @@ out:
     return r;
 }
 
-static FRESULT sst_src_need(const char *path, uint32_t pre_ms, uint32_t *bytes)
+static FRESULT sst_src_need(const char *path, uint32_t head, uint32_t *bytes)
 {
-    return sst_src_load(0, path, pre_ms, 0, 0, bytes);
+    return sst_src_load(0, path, head, 0, 0, bytes);
 }

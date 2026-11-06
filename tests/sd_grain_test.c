@@ -106,7 +106,8 @@ static void load_set(uint32_t k, const char *dir, uint32_t si0, uint32_t pre_ms)
         snprintf(to, sizeof to, "%.1s%uZ%u.WAV", SETS[k], pre_ms, z);
         CHECK(put_file(from, to), "%s written", to);
         src_used = (src_used + 3u) & ~3u;
-        CHECK(sst_src_load(si0 + z, to, pre_ms, src_mem + src_used, sizeof src_mem - src_used, &used) == FR_OK,
+        CHECK(sst_src_load(si0 + z, to, pre_ms * 4410u / 50u, src_mem + src_used, sizeof src_mem - src_used, &used) == FR_OK,   /* (the
+                                                                                     * head in bytes: pre_ms at 44.1 kHz 16-bit mono) */
               "%s loaded", to);
         src_used += used;
         {
@@ -130,7 +131,8 @@ static void load_whole(uint32_t k)
     uint32_t z, used, at = 0;
     for (z = 0; z < set_nz[k]; z++) {
         snprintf(to, sizeof to, "%.1s%uZ%u.WAV", SETS[k], 0u, z);
-        CHECK(sst_src_load(set_src[k] + z, to, 60000u, whole_mem + at, sizeof whole_mem - at, &used) == FR_OK &&
+        CHECK(sst_src_load(set_src[k] + z, to, 0x7FFFFFFFu, whole_mem + at, sizeof whole_mem - at, &used) == FR_OK &&   /* (a head
+                                                                                     * longer than any file: all its data) */
                   sst_src[set_src[k] + z].hlen + 4u > sst_src[set_src[k] + z].dlen, "%s whole", to);
         at += (used + 3u) & ~3u;
     }
