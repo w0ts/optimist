@@ -28,7 +28,7 @@ static uint32_t sda_rec_bytes(uint32_t asked_ms, uint32_t loop_ms, uint32_t rate
 
 static uint32_t sda_guess(uint32_t kind, uint32_t need, uint32_t hint)
 {
-    uint64_t want = kind == SDA_EXACT ? need : hint;
+    uint64_t want = kind == SDA_EXACT || hint < need ? need : hint;
     return want > 0xFFFF0000u ? 0xFFFF0000u : want ? (uint32_t)want : 1u;   /* (FAT: under 4 GB; f_expand: not 0) */
 }
 
