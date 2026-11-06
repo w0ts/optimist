@@ -489,6 +489,26 @@ static void pages_keys_tests(void)
         frames(MX_FLASH);
         keys_lit(&f, &d, &h);
         check(!(f & kl) && (d & kl), "... MX_FLASH frames later: dim again");
+        {   /* the selected lane hit: its key inverts, dark a moment (the user, 2026-11-06), on every page and on STEP */
+            uint32_t p, ks = 1u << key_of_lane(lane_selected());
+            for (p = 0; p < 2u; p++) {
+                song.sel = TRK_DRUM;
+                if (p)
+                    op_enter(SCR_STEP);
+                frames(MX_FLASH);
+                keys_lit(&f, &d, &h);
+                check((f & ks) != 0u, "the selected lane's key full between hits");
+                drums.hits = (uint16_t)(1u << lane_selected());
+                frames(1);
+                keys_lit(&f, &d, &h);
+                check(!(f & ks) && !(d & ks), "the selected lane hit: its key dark");
+                frames(MX_FLASH);
+                keys_lit(&f, &d, &h);
+                check((f & ks) != 0u, "... MX_FLASH frames later: full again");
+            }
+            reset_ui();
+            frames(2);
+        }
         song.sel = TRK_DRUM;
         op_enter(SCR_STEP);
         smute_lhits = 1u << l;                          /* (STEP, the lane muted: would hit) */

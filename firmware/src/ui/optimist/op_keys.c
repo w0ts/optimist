@@ -22,7 +22,8 @@
  *                         2/3, full ~50 ms on each note, the returns' inputs (E F G) full open, dim muted; SHIFT2: the selected full; every page
  *                         but a layer's (STEP: its white keys stay its steps)
  *   the drum track        the lanes' black keys and the last upper key (ACCENT) dim, the selected one full, a lane hit
- *                         (or muted, would be) full ~50 ms (every page)
+ *                         (or muted, would be) full ~50 ms, the selected one dark for it (the user, 2026-11-06: "should
+ *                         also flash (invert, dark when triggering)") (every page)
  *   chord mode (CHORD+)   a synth track with SCL > CHORD on: the 5 modifier black keys dim, the latched ones full
  *   STEP, SEQ held        the fill view (op_step.c step_fillview): the selected track's / lane's steps full, the empty ones inside LEN dim (SEQ + a step edits its fill)
  * Main loop only (ui_leds); nothing here runs in the audio interrupt. After op_input.c (op_t0, pick_mod). */
@@ -171,6 +172,17 @@ static void keys_shift_lit(uint32_t *f, uint32_t *d, uint32_t *h)
     }
 }
 /* the keys' full (*f), half (*h: the mute mode's heard tracks) and dim (*d) lights now: a bit per key, 0 = F3 .. 26 = G5 */
+static void lanes_keys(uint32_t *f, uint32_t *d)        /* the lanes' black keys: dim, the selected one full; a hit: its key
+                                                         * full a moment, the selected one's dark (a lit key shows nothing
+                                                         * by going fuller) */
+{
+    uint32_t k, hit = lanes_flashing(), sel = 1u << key_of_lane(lane_selected());
+    for (k = 0; k < 27u; k++)
+        *d |= lane_key(k) ? 1u << k : 0u;
+    *f |= sel | hit;
+    if (hit & sel)
+        *f &= ~sel, *d &= ~sel;
+}
 static void keys_lit(uint32_t *f, uint32_t *d, uint32_t *h)
 {
     uint32_t blink = (fm1_ms / 250u) & 1u, k;
@@ -241,10 +253,7 @@ static void keys_lit(uint32_t *f, uint32_t *d, uint32_t *h)
         *f = step_leds(blink);
         *d = step_keys(fm1_in.buttons) && !se_on() ? step_dim() : 0u;   /* (STEP ENTRY: the keys a keyboard, no step dim) */
         if (is_drum(TSEL))
-            for (k = 0; k < 27u; k++)                   /* (the lanes' black keys: dim, the selected one full) */
-                *d |= lane_key(k) ? 1u << k : 0u, *f |= lane_key(k) && lane_of(k) == lane_selected() ? 1u << k : 0u;
-        if (is_drum(TSEL))
-            *f |= lanes_flashing();                     /* (a hit: its key full a moment) */
+            lanes_keys(f, d);
         return;
     }
 #if FELUCCA_PATTERNS
@@ -261,9 +270,8 @@ static void keys_lit(uint32_t *f, uint32_t *d, uint32_t *h)
         return;                                         /* (PROJECT, SONG: the keys have their own job: dark here) */
     if (is_drum(TSEL) && !master_sel()) {               /* the drum track: the lanes' black keys dim, the selected one full; */
         uint32_t in, on = step_win(blink, &in);         /* the white keys its steps, as on STEP (they are steps on every page) */
-        for (k = 0; k < 27u; k++)
-            *d |= lane_key(k) ? 1u << k : 0u;
-        *f |= 1u << key_of_lane(lane_selected()) | keys_of(on) | lanes_flashing();   /* (a hit: its key full a moment) */
+        lanes_keys(f, d);
+        *f |= keys_of(on);
         *d |= keys_of(in & ~on);
     }
 #if FELUCCA_CHORDPLUS
