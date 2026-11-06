@@ -473,9 +473,8 @@ popup, and picking moves it to SAMPLE or SLICE. The drum track: the picked lane'
   part's CARD sample when streaming is built (SAMPLE's SET CARD plays it).
 
 SYSTEM > SD card (4.7): CARD (READY, PREPARING, NOT FAT or NONE, the card's size; YES mounts it again, its folders and
-the samples' index), VERSIONS (0..16, 8), SLACK (0..400 %, 100: the room a file's run gets past its size, SD-CARD-DESIGN
-8), SAMPLES INDEX (YES: the pass again); a second page, CLOCK (the card's SPI clock,
-read-only). Written when SYSTEM is left. Streaming (SD_RING) has no setting here: a sample's preload is one ring's (the
+the samples' index), SAMPLES INDEX (YES: the pass again), CLOCK (the card's SPI clock, read-only). A project keeps 25
+versions, no setting (the user, 2026-11-06). Streaming (SD_RING) has no setting here: a sample's preload is one ring's (the
 user, 2026-11-06 evening; the PRE-BUFFER cell is gone). The streams' memory short: *MEM FULL CARD*, a part's drop asked
 with the one confirm (*Drop T2 FM6?*, one at a time), then *MEM FULL CARD* once. Tests: `tests/ui_optimist_sdcard.h`.
 

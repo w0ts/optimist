@@ -13,7 +13,7 @@
  *                every id that is not device-wide); a card LOAD writes a file's records into project 0 (cleared first)
  *                and opens it; the project's name on the card is the folder's, its first 12 characters the flash
  *                project's name (the NAME page's prefill)
- *   the device record  the log's SEC_ID_SDCARD (device-wide, sec_log.c): VERSIONS (sdp_keep), SLACK (sda_scale), the
+ *   the device record  the log's SEC_ID_SDCARD (device-wide, sec_log.c): the
  *                pending save (sdp_hooks). A pending save whose flash copy is no longer that project's (another
  *                project's name now: NEW, a LOAD) is dropped, not finished with other work
  *   the samples  the project's SEC_ID_SDSMP: each synth part's sample by its XXH64 (the index's), size and a name hint
@@ -30,11 +30,11 @@ enum { SDM_OFF = 0, SDM_NONE, SDM_MOUNTED, SDM_INDEX, SDM_NAMES, SDM_READY };   
 
 typedef struct {
     uint8_t magic[2];                                /* "SD" */
-    uint8_t keep, scale;                             /* VERSIONS 0..SDM_KEEP_MAX; SLACK in steps of 25 % (0..16) */
+    uint8_t rsv[2];                                  /* (VERSIONS and SLACK until 2026-11-06: ignored) */
     uint8_t pend;                                    /* a card save pending: p */
-    uint8_t pre;                                     /* (the pre-buffer, retired 2026-11-06 evening: a sample's preload is one ring's,
-                                                      * no setting; kept so the record keeps its size and an old one loads, read
-                                                      * and ignored, written as 0) */
+    uint8_t rsv2;                                    /* (the pre-buffer until 2026-11-06 evening: a sample's preload is one ring's, no
+                                                      * setting; these bytes keep the record's size so an old one loads: read, ignored,
+                                                      * written as 0) */
     uint8_t ids[2];                                  /* the user ids made so far (sdm_new_id), little-endian */
     sdp_pending p;
 } sdm_rec_t;
@@ -57,15 +57,13 @@ _Static_assert(sizeof(sdm_smp_t) == 64u && sizeof(sdm_smp_t) * SDM_NSMP <= SEC_R
 #define SDM_REBOOT() fm1_reboot()
 #endif
 static uint32_t sdm_reboot_at;                       /* (fm1_ms + 1 when a restore asked for the restart: sdm_poll) */
-#define SDM_KEEP_MAX 16u
 #if PRESETS_CARD
 static int sdm_factory_step(void);
 static void sdm_factory_poll(void);
 #endif
-#define SDM_SCALE_MAX 16u                            /* (x 25 %: 400 %, sd_alloc.c's cap) */
 static sdm_rec_t sdm_rec;
 static uint8_t sdm_st, sdm_smp_dirty;               /* (the samples' record written once the audio is quiet: sdm_poll) */
-static uint8_t sdm_dirty;                            /* the settings changed: 2 on SYSTEM, 1 SYSTEM left (written, quiet) */
+static uint8_t sdm_dirty;                            /* the record changed: 2 on SYSTEM, 1 SYSTEM left (written, quiet) */
 /* the index's pass, in slices (sd_index.c): SDM_IX_SLICE_MS of each main loop pass, at most every SDM_IX_EVERY_MS. One unit
  * (an f_open, a 512-byte chunk) past the slice's end at most: ~20 ms a pass, under half the bus left to the streams and
  * the screen. Whoever needs the whole index waits for it: a project's presets and kit are looked up at SDM_READY, the
@@ -147,27 +145,16 @@ static void sdm_slow_tick(void);
 #endif
 
 /* ---- the device record */
-static void sdm_apply(void)
-{
-    sdp_keep = sdm_rec.keep;
-    sda_scale = (uint16_t)(sdm_rec.scale * 25u);
-}
 static void sdm_rec_read(void)
 {
     if (slg_get(SDM_ID, sec_rbuf) == (int)sizeof sdm_rec && sec_rbuf[0] == 'S' && sec_rbuf[1] == 'D') {
         memcpy(&sdm_rec, sec_rbuf, sizeof sdm_rec);
-        if (sdm_rec.keep > SDM_KEEP_MAX)
-            sdm_rec.keep = 8;
-        if (sdm_rec.scale > SDM_SCALE_MAX)
-            sdm_rec.scale = 4;
-        sdm_rec.pre = 0;                             /* (retired: an old record's pre-buffer ignored) */
+        memset(sdm_rec.rsv, 0, sizeof sdm_rec.rsv);       /* (old settings: ignored, written as 0) */
+        sdm_rec.rsv2 = 0;
     } else {
         memset(&sdm_rec, 0, sizeof sdm_rec);
         sdm_rec.magic[0] = 'S', sdm_rec.magic[1] = 'D';
-        sdm_rec.keep = 8;                            /* (sd_save.c's default) */
-        sdm_rec.scale = 4;                           /* 100 % */
     }
-    sdm_apply();
 }
 static int sdm_rec_put(void)                         /* 0 written (a small device-wide record: never refused for the reserve) */
 {
@@ -2062,20 +2049,6 @@ static int sdm_save(uint32_t list, const char *name, const char *was)
 }
 
 /* ---- SYSTEM > SD CARD (op_project.c) */
-static uint32_t sdm_keep(void) { return sdm_rec.keep; }
-static uint32_t sdm_scale(void) { return sdm_rec.scale * 25u; }
-static void sdm_set(uint32_t what, int32_t s)        /* 0 VERSIONS, 1 SLACK: a detent, stopping at the ends; s 0 the default */
-{
-    static const uint8_t MAX[2] = {SDM_KEEP_MAX, SDM_SCALE_MAX}, DEF[2] = {8, 4};
-    uint8_t *v;
-    int32_t x;
-    what &= 1u;
-    v = what ? &sdm_rec.scale : &sdm_rec.keep;
-    x = *v + (s > 0 ? 1 : s < 0 ? -1 : 0);
-    *v = (uint8_t)(!s ? DEF[what] : x < 0 ? 0 : x > MAX[what] ? MAX[what] : x);
-    sdm_apply();
-    sdm_dirty = 2;
-}
 static void sdm_leave(void)                          /* SYSTEM left: the settings into the log (sdm_poll, once quiet) */
 {
     if (sdm_dirty)

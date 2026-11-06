@@ -3,7 +3,7 @@
  * (ui/optimist/op_sdmon.c, storage/sd/sd_mon.c; the user, 2026-11-05: "we should totally monitor how we are doing on the SD
  * read rate and sample playback somehow"). The monitor sampled at ticks of the test's own (the model's clock: 1000 a ms)
  * over the streams' real state, the caches' and the card driver's counters, the page's four lines read as the screen does:
- *   the page: right after SD CARD's two, READ / STREAMS / BUFFER / DRY
+ *   the page: right after SD CARD, READ / STREAMS / BUFFER / DRY
  *   READ: KB/s from the blocks read over a period; the bar against the kept clock (8.57 MHz: 839 KB/s); the peak held 10 s,
  *         then the period's own; the colours by the share of the clock's rate
  *   STREAMS: sounding now / the most in 10 s;  BUFFER: the least ring fill of the streams the card feeds, now / the least of 10 s ("42/0"),
@@ -54,12 +54,10 @@ static void sdmon_tests(void)
         if (!strcmp(t, "SD CARD"))
             break;
     }
-    smt_ck(r + 2u < sys_rows(), "SD STREAM: SD CARD has its pages");
+    smt_ck(r + 1u < sys_rows(), "SD STREAM: a page past SD CARD's");
     sys_name(r + 1u, t);
-    smt_ck(!strcmp(t, "SD CARD"), "SD STREAM: SD CARD's second page");
-    sys_name(r + 2u, t);
-    smt_ck(!strcmp(t, "SD STREAM"), "SYSTEM: a SD STREAM page right after SD CARD's two");
-    r += 2u;
+    smt_ck(!strcmp(t, "SD STREAM"), "SYSTEM: a SD STREAM page right after SD CARD");
+    r += 1u;
     memset(&ssm, 0, sizeof ssm);
     for (i = 0; i < SST_NALL; i++)
         sst[i].on = 0;
