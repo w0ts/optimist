@@ -110,19 +110,26 @@ AINL int32_t mc_fall(int32_t y, int32_t to, int32_t k)
 
 /* n samples (a multiple of MC_SUB) of l, r through compressor c, its level taken from the key kl, kr (the master: the
  * same buffers, read before they are written: no copy). Each sub-block: the key's peak -> log2 -> the curve -> the
- * ballistics -> make-up -> 2^x, ramped linearly over the sub-block */
+ * ballistics -> make-up -> 2^x, ramped linearly over the sub-block. r 0: l alone (a mono insert); kr == kl: a mono key */
 static HOT2 __attribute__((noinline)) void mc_run(mc_t *c, const mc_set_t *s, const int32_t *kl, const int32_t *kr,
                                                  int32_t *l, int32_t *r, uint32_t n)
 {
     uint32_t i, j;
-    int32_t gr = c->gr16, slow = c->slow16, g0 = c->g13, pk = c->gr_pk;
+    int32_t gr = c->gr16, slow = c->slow16, g0 = c->g13, pk = c->gr_pk, oq = 0x7FFFFFFF, gq = 0;   /* (oq, gq: the last 2^x, again when o holds) */
     for (i = 0; i < n; i += MC_SUB) {
         uint32_t a = 0;
         int32_t want, o, g1, dg;
-        for (j = i; j < i + MC_SUB; j++) {               /* the key's peak, both sides */
-            uint32_t x = (uint32_t)(kl[j] < 0 ? -kl[j] : kl[j]), y = (uint32_t)(kr[j] < 0 ? -kr[j] : kr[j]);
-            x = x > y ? x : y;
-            a = x > a ? x : a;
+        if (kr == kl) {                                  /* a mono key (a part's, a drum sound's insert): one side */
+            for (j = i; j < i + MC_SUB; j++) {
+                uint32_t x = (uint32_t)(kl[j] < 0 ? -kl[j] : kl[j]);
+                a = x > a ? x : a;
+            }
+        } else {
+            for (j = i; j < i + MC_SUB; j++) {           /* the key's peak, both sides */
+                uint32_t x = (uint32_t)(kl[j] < 0 ? -kl[j] : kl[j]), y = (uint32_t)(kr[j] < 0 ? -kr[j] : kr[j]);
+                x = x > y ? x : y;
+                a = x > a ? x : a;
+            }
         }
         want = s->on ? mc_curve(s, mc_log2(a < 0xFFFFFu ? a : 0xFFFFFu)) : 0;   /* (+30 dB: the products fit) */
         if (want > gr)                                  /* the ballistics on the reduction (log domain) */
@@ -141,13 +148,20 @@ static HOT2 __attribute__((noinline)) void mc_run(mc_t *c, const mc_set_t *s, co
         }
         if (o > pk)
             pk = o;
-        g1 = mc_exp2(s->gain16 - o);
+        if (o != oq)
+            oq = o, gq = mc_exp2(s->gain16 - o);   /* (o mostly holds over sub-blocks: the same 2^x, not worked out again) */
+        g1 = gq;
         dg = (g1 - g0) / (int32_t)MC_SUB;
-        if (g0 != 8192 || g1 != 8192)                   /* (unity: the samples as they are) */
+        if ((g0 != 8192 || g1 != 8192) && r)            /* (unity: the samples as they are) */
             for (j = 0; j < MC_SUB; j++) {
                 int32_t g = j + 1u == MC_SUB ? g1 : g0 + dg * (int32_t)(j + 1u);
                 l[i + j] = mc_mul13(l[i + j], g);
                 r[i + j] = mc_mul13(r[i + j], g);
+            }
+        else if (g0 != 8192 || g1 != 8192)              /* (r 0: one side, a mono insert) */
+            for (j = 0; j < MC_SUB; j++) {
+                int32_t g = j + 1u == MC_SUB ? g1 : g0 + dg * (int32_t)(j + 1u);
+                l[i + j] = mc_mul13(l[i + j], g);
             }
         g0 = g1;
     }

@@ -16,6 +16,8 @@ import subprocess
 import sys
 from pathlib import Path
 
+import core as K  # (card_drums: the drum kits a configuration serves from the card)
+
 HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE))
 import configure as C  # noqa: E402
@@ -151,6 +153,8 @@ def kits_sound(cfg, samples=None, tag="kits"):
     hdr.parent.mkdir(parents=True, exist_ok=True)
     hdr.write_text(C.header(cfg, "kits"))
     inc = [f"-I{samples}"] if samples else []
+    if K.card_drums(cfg):                       # SD card mode with the streams: the sampled kits play from the card on the
+        inc.append("-DKITS_SOUND_CARD_KITS=1")  # device (registry.h KITS_CARD); the host has no card and no PCM for them
     p = subprocess.run(["cc", "-O2", "-w", "-include", str(hdr), *inc, "-Ibuild/gen", "-Ifirmware/src", "-o", str(exe),
                         "tests/kits_sound_test.c", "-lm"], cwd=ROOT, capture_output=True, text=True)
     if p.returncode:

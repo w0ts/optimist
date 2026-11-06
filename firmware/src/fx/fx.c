@@ -2145,7 +2145,6 @@ static HOT2 __attribute__((noinline)) void tflt_part(const track_t *t, int32_t v
  * then costs one compare a block */
 static mc_t tcomp[NPART] = {{0, 0, 8192, 0}, {0, 0, 8192, 0}, {0, 0, 8192, 0}};   /* (the parts'; the drum bus's:
                                                         * dbus_comp below) */
-static int32_t tcomp_sink[CTL];                         /* (a mono insert: mc_run's right side, written, never read) */
 /* the settings of a COMP insert at amount amt (1..127), track k's RATIO ATK REL */
 AINL void tcomp_settings(mc_set_t *s, int32_t amt, uint32_t k)
 {
@@ -2168,7 +2167,7 @@ static HOT2 __attribute__((noinline)) void tcomp_run(mc_t *c, int32_t amt, int32
     if (!amt && tcomp_rest(c))
         return;                                         /* (off and at rest) */
     tcomp_settings(&s, amt, k);
-    mc_run(c, &s, l, r, l, r != l ? r : tcomp_sink, n);   /* (mono: the key both sides, the gain once) */
+    mc_run(c, &s, l, r, l, r != l ? r : 0, n);          /* (mono: the key one side, the gain once) */
     if (tlim[k % NTRK].on)
         tlim_block(&tlim[k % NTRK], 0, l, 0, n);         /* (a part: mono) */
 }
@@ -2312,7 +2311,7 @@ AINL int32_t mix_lg(int32_t b, int32_t lv, int32_t g)
  * voice (NDRUM states a slot, not per lane: two hits of a sound may overlap), the types and amounts of the voice's lane
  * (fx_slots.c lin_slot, drum_sends.c dins_amt), S1 then S2, each state restarted when the voice is triggered
  * (dins_restart, drums.c drum_on). A voice whose lane has a slot with an amount and the drums' FX on (or whose state still
- * lets go: DYN's reduction, a fading insert) skips its own mix in drums_mix: its block (dsend_buf, the samples after its
+ * lets go: DYN's reduction, a fading insert) skips its own mix in drums_mix: its block (its sink's buf, the samples after its
  * level, its lane's CUT and DECAY) runs its slots here, then its pan, mix and sends, as drums_mix would have mixed it. So a
  * DYN's threshold is against the level heard (G_DRLVL, the velocity). DYN on a voice: its compressor, the drum track's
  * RATIO ATK REL, no CEIL. The X0X kits' channels mix apart (drum_x0x.c): no per-sound insert there */
@@ -2435,7 +2434,7 @@ static HOT2 __attribute__((noinline)) void dins_one(uint32_t k, uint32_t s, uint
     case FXT_DYN: {
         mc_set_t c;
         tcomp_settings(&c, a, TRK_DRUM);
-        mc_run(&st->c, &c, b, b, b, tcomp_sink, n);
+        mc_run(&st->c, &c, b, b, b, 0, n);              /* (mono: the key one side, the gain once) */
         break;
     }
 #endif
@@ -2477,7 +2476,8 @@ static HOT2 __attribute__((noinline)) void dins_post(uint32_t k, uint32_t note, 
                                                     const dins_mix_t *x)
 {
     uint32_t l = dnote_lane(note), i, s;
-    int32_t *b = dsend_buf;
+    dsink_t *H = x->h;                                  /* (the drum half's: its block, its sends, its stem) */
+    int32_t *b = H->buf;
     for (i = 0; i < i0; i++)
         b[i] = 0;                                       /* (the block outside the voice: silence) */
     for (i = i1; i < n; i++)
@@ -2487,25 +2487,29 @@ static HOT2 __attribute__((noinline)) void dins_post(uint32_t k, uint32_t note, 
 #if FELUCCA_USB_AUDIO
     dlt_add(l, b, 0, n);                                /* its lane's USB tap after the inserts (ua_tap.h) */
 #endif
+    /* the mix's pointers and gains in locals: read through x, every store into the mix (an int32_t) would read them
+     * again, a sample at a time (each sum as it was: the same products, the same order) */
+    int32_t *ml = x->ml, *mr = x->mr, *rev = x->rev, *mono = x->mono, *sr = H->sr, *sd = H->sd, *sc = H->sc;
+    int32_t gl0 = x->gl0, gld = x->gld, gr0 = x->gr0, grd = x->grd, r = x->r, d = x->d, c = x->c, rs = mono ? (x->pre ? r : 0) : r;
     for (i = 0; i < n; i++) {
         int32_t y = b[i], ys = clamp(y, -65535, 65535);   /* (the sends: mulq15 fits) */
-        if (x->mono) {
-            x->mono[i] += y;
-            if (x->pre && x->r)
-                send_r[i] += mulq15(ys, x->r);
+        if (mono) {
+            mono[i] += y;
+            if (rs)
+                sr[i] += mulq15(ys, rs);
         } else {
-            x->ml[i] += (y * (x->gl0 + ((x->gld * (int32_t)i) >> CTL_LOG2))) >> 12;
-            x->mr[i] += (y * (x->gr0 + ((x->grd * (int32_t)i) >> CTL_LOG2))) >> 12;
+            ml[i] += (y * (gl0 + ((gld * (int32_t)i) >> CTL_LOG2))) >> 12;
+            mr[i] += (y * (gr0 + ((grd * (int32_t)i) >> CTL_LOG2))) >> 12;
 #if FELUCCA_USB_AUDIO
-            track_capture[i * NTRK + TRK_DRUM] += y;
+            DCAP(H, i) += y;
 #endif
-            if (x->r)
-                x->rev[i] += mulq15(ys, x->r);
+            if (rs)
+                rev[i] += mulq15(ys, rs);
         }
-        if (x->d)
-            send_d[i] += mulq15(ys, x->d);
-        if (x->c)
-            send_c[i] += mulq15(ys, x->c);
+        if (d)
+            sd[i] += mulq15(ys, d);
+        if (c)
+            sc[i] += mulq15(ys, c);
     }
 }
 #if DINS_X0X
@@ -2591,7 +2595,7 @@ static HOT2 __attribute__((noinline)) void dbus_comp_run(int32_t amt, uint32_t n
     for (i = 0; i < n; i++)
         dbus_g[i] = 8192;                               /* (mc_mul13(8192, g) = g: mc_run writes the gain itself) */
     tcomp_settings(&s, amt, TRK_DRUM);
-    mc_run(&dbus_comp, &s, mix_l, mix_r, dbus_g, tcomp_sink, n);
+    mc_run(&dbus_comp, &s, mix_l, mix_r, dbus_g, 0, n);   /* (the gain alone, into dbus_g) */
     for (c = 0; c < nc; c++) {
         int32_t *b = DBUS_CH[c];
         for (i = 0; i < n; i++)

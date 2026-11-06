@@ -83,7 +83,7 @@
                                                       * buffer size has no effect": a 25 ms cap, DRY 350 on acoustic drums at 550 KB/s) */
 #endif
 #ifndef SST_KIT_RINGS
-#define SST_KIT_RINGS 6u                             /* the kit's hits at once: a ring a drum voice (drums.c NDRUM); no room for them,
+#define SST_KIT_RINGS 10u                            /* the kit's hits at once: a ring a drum voice (drums.c NDRUM, a lane each since 2026-11-05); no room for them,
                                                       * down to SST_KIT_RINGS_MIN, then shorter (sst_place_rings). More hits: the oldest tail's
                                                       * ring (drums/lane_card.c dlc_ring_free) */
 #endif

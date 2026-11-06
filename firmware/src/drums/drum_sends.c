@@ -157,26 +157,30 @@ static __attribute__((noinline)) int32_t dsend_one(int32_t on)
 
 /* fx.c's bus inputs, written by drums_mix (tentative definitions: fx.c, included after drums.c, defines them) */
 static int32_t send_c[CTL], send_d[CTL], send_r[CTL];
-static int32_t dsend_buf[CTL];                 /* a voice's samples in this block (drums_mix: DSEND_KEEP) */
-/* after a voice's block, its samples [i0, i1): its delay and chorus sends; pre (the SLICER's mono path, the lanes
- * not all alike): its reverb send too, before the SLICER (drums_mix sends the reverb itself otherwise). One loop
- * per bus, apart from the voices' loops; only for a lane with a delay or chorus send, so it runs from XIP (no
- * RAMTEXT; drums_mix calls it through FAR) */
-static __attribute__((noinline)) void dsend_post(uint32_t i0, uint32_t i1, int32_t r, int32_t d, int32_t c, int32_t pre)
+static int32_t dsend_buf[CTL];                 /* a voice's samples in this block (drums_mix: DSEND_KEEP; the one-job sink's,
+                                                * drums.c dsink_bus; a drum half of its own has its own) */
+/* after a voice's block, its samples [i0, i1) (its sink's buf): its delay and chorus sends; pre (the SLICER's mono path,
+ * the lanes not all alike): its reverb send too, before the SLICER (drums_mix sends the reverb itself otherwise). Into
+ * the sink's sends. One loop per bus, apart from the voices' loops; only for a lane with a delay or chorus send, so it
+ * runs from XIP (no RAMTEXT; drums_mix calls it through FAR) */
+static __attribute__((noinline)) void dsend_post(const dsink_t *H, uint32_t i0, uint32_t i1, int32_t r, int32_t d, int32_t c,
+                                                 int32_t pre)
 {
     uint32_t i;
+    const int32_t *b = H->buf;
+    int32_t *sr = H->sr, *sd = H->sd, *sc = H->sc;
     if (pre && r)
         for (i = i0; i < i1; i++)
-            send_r[i] += mulq15(dsend_buf[i], r);
+            sr[i] += mulq15(b[i], r);
     if (d)
         for (i = i0; i < i1; i++)
-            send_d[i] += mulq15(dsend_buf[i], d);
+            sd[i] += mulq15(b[i], d);
     if (c)
         for (i = i0; i < i1; i++)
-            send_c[i] += mulq15(dsend_buf[i], c);
+            sc[i] += mulq15(b[i], c);
 }
-#define DSEND_KEEP(i, s) (dsend_buf[i] = (s))
-#define DSEND_POST(i0, i1, r, d, c, pre) do { if ((d) | (c) | ((pre) & ((r) != 0))) FAR(dsend_post)(i0, i1, r, d, c, pre); } while (0)
+#define DSEND_KEEP(H, i, s) ((H)->buf[i] = (s))
+#define DSEND_POST(H, i0, i1, r, d, c, pre) do { if ((d) | (c) | ((pre) & ((r) != 0))) FAR(dsend_post)(H, i0, i1, r, d, c, pre); } while (0)
 
 /* ---- the drum record <-> the working lanes and sends */
 static void dlrec_capture(dlrec_t *d)

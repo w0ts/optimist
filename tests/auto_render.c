@@ -21,7 +21,8 @@
 #define AUTO_CPU_STEP 6000u                    /* (a 1/32 step at 300 BPM on four tracks: 160 steps a second, ~1 M
                                                 * instructions a second at most: 0.4 % of 240 MHz) */
 
-#define AUTO_RENDER_HASH 0x09D78F2Cu           /* (2026-10-31 MIX_FINE and MIX_EXACT always on, from 0x4065B625, verified: the mix's 64-bit products; before that the rounded voice and mix products, always (fadefix, issue 132; MIX_ROUND retired): 0xB31B644A before, verified: the tree with the fadefix change reverted renders 0xB31B644A; 2026-10-29 this branch's always-on items (CHO_EXACT, JUNO_FINE, VOICE_OWN, DLY_DOT; 0x509C7B0C before), the cause not isolated per item;
+#define AUTO_RENDER_HASH 0x384BD512u           /* (2026-11-06 NDRUM 10, a voice a lane: fewer stolen hits in the mix, from 0x09D78F2C; with
+                                                * NDRUM 6 the old hash comes back, verified on the farm; 2026-10-31 MIX_FINE and MIX_EXACT always on, from 0x4065B625, verified: the mix's 64-bit products; before that the rounded voice and mix products, always (fadefix, issue 132; MIX_ROUND retired): 0xB31B644A before, verified: the tree with the fadefix change reverted renders 0xB31B644A; 2026-10-29 this branch's always-on items (CHO_EXACT, JUNO_FINE, VOICE_OWN, DLY_DOT; 0x509C7B0C before), the cause not isolated per item;
                                                 * 2907501's render of this program, 2026-10-08; again 2026-10-16: lanes 1..8 are other instruments;
                                                 * 2026-10-18 the delay's filter (FREQ 107, LP 12 dB; 0xB556F1CE before): with the delay
                                                 * left out both render 0xB29A415B, the delay alone moved; 2026-10-18 again the delay's

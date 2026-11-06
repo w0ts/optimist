@@ -6,7 +6,7 @@
  *                         starts from the top
  *   rec on | off          the REC key's arm (as op_rec / rec_toggle: playing: record now; stopped: armed)
  *   proj load N           project_load(N): the slot the UI's LOAD reads (0..3; refused while playing, as the UI)
- *   heavy [NOTES]         the stress project, built through the model's own setters while stopped (below)
+ *   heavy [NOTES]         the stress project, built through the model's own setters while stopped (below); heavy 0: the drums alone
  *   wdtreset              `reboot`, but through the watchdog (p3_rst bit 2 instead of the soft reset's bit 6)
  * Every one only sets the flags and fields the UI sets, from the main loop: nothing runs in an interrupt and the audio
  * engine is untouched. The reply carries the state read back (`playing`, `rec`) so a script can check it. */
@@ -88,12 +88,17 @@ static void con_run_amt(uint32_t trkn, uint32_t id)
 static void con_run_heavy(uint32_t notes)
 {
     static const uint8_t SCALE[8] = {0, 3, 7, 10, 12, 15, 19, 22};
-    uint32_t k, i, n, l;
+    uint32_t k, i, n, l, light = notes == 0u;      /* (heavy 0: the drums alone on every step, no inserts, no sends, the synth
+                                                     * tracks silent: the sampler's own cost, 2026-11-06) */
     uint8_t ins[INS_N], lane[INS_N];
-    ins[0] = FXT_DIST;
-    ins[1] = (FXT_BUILT >> FXT_COMP & 1u) ? FXT_COMP : FXT_FILT;
-    lane[0] = FXT_DIST;
-    lane[1] = FXT_DYN;
+    for (i = 0; i < INS_N; i++)
+        ins[i] = lane[i] = FXT_NONE;
+    if (!light) {
+        ins[0] = FXT_DIST;
+        ins[1] = (FXT_BUILT >> FXT_COMP & 1u) ? FXT_COMP : FXT_FILT;
+        lane[0] = FXT_DIST;
+        lane[1] = FXT_DYN;
+    }
     if (song.playing || transport_req) {
         con_puts("refused: playing (stop first)\r\n");
         return;
@@ -104,9 +109,9 @@ static void con_run_heavy(uint32_t notes)
         t->p[P_SLEN] = NSTEP;
         t->p[P_FXOFF] = 0;
         t->p[P_MUTE] = 0;
-        t->p[P_CHOR] = t->p[P_DLY] = t->p[P_REV] = 90;
+        t->p[P_CHOR] = t->p[P_DLY] = t->p[P_REV] = light ? 0 : 90;
         ins_put(k, ins);
-        for (i = 0; i < INS_N; i++)
+        for (i = 0; i < INS_N && !light; i++)
             con_run_amt(k, ins_amt(k, i));
         if (IS_DRUMK(k)) {
             for (i = 0; i < NSTEP; i++) {
@@ -122,7 +127,7 @@ static void con_run_heavy(uint32_t notes)
             memset(s, 0, sizeof *s);
             for (n = 0; n < notes; n++)
                 s->note[n] = (uint8_t)(36u + 12u * k + SCALE[(i + 3u * n) & 7u]);
-            s->n = (uint8_t)notes;
+            s->n = (uint8_t)notes;                  /* (light: 0 notes, the track silent) */
             s->time = ST_NOTE;
             s->flags = (i & 3u) == 0u ? SF_ACCENT : 0u;
             s->vel = 100;
@@ -130,9 +135,11 @@ static void con_run_heavy(uint32_t notes)
     }
     for (l = 0; l < DRUM_LANES; l++) {
         lin_put(l, lane);
-        lin_set(l, 0, 96);
-        lin_set(l, 1, 96);
-        dsend[l] = dsend_word(31, 31, 31);
+        if (!light) {
+            lin_set(l, 0, 96);
+            lin_set(l, 1, 96);
+        }
+        dsend[l] = light ? dsend_word(0, 0, 0) : dsend_word(31, 31, 31);
     }
     fm1_irq_on();
     ui.force = 1;
@@ -149,7 +156,7 @@ static int con_run(const char *p)
     case CR_NONE:
         return 0;
     case CR_BAD:
-        con_puts("usage: play | pause | stop | rec on|off | proj load 0..3 | heavy [1..4] | wdtreset\r\n");
+        con_puts("usage: play | pause | stop | rec on|off | proj load 0..3 | heavy [0..4] | wdtreset\r\n");
         break;
     case CR_PLAY:
         con_run_play();

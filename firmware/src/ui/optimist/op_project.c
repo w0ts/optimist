@@ -1363,9 +1363,11 @@ static void sys_c1_cell(uint32_t i, cell_t *c)
 #ifdef DUAL_JOBS
 #define DT_NJ DUAL_JOBS                                 /* the jobs' rows: the parts, DR, REV, BT (the SBC frame; dual.c) */
 #define DT_SBC DUAL_JOB_SBC
+#define DT_DR2 DUAL_IX_DR2                              /* the drums' half B (drum_halves.c) */
 #else
 #define DT_NJ (NPART + 2u)                              /* (a host test without dual.c: the parts, DR, REV) */
 #define DT_SBC 0u
+#define DT_DR2 0xFFu
 #endif
 #define INFO_DTN (1u + DT_NJ + 8u + (DT_SBC ? 1u : 0u))   /* the names' row, the jobs, PRE EVT NOTE JOBS WAIT POST CPU0 CPU1,
                                                                 * SBC */
@@ -1428,7 +1430,7 @@ static void sys_dt_cell(uint32_t i, cell_t *c)
     if (jobrow) {
         j = i - 1u;
         q = DTQ_J0 + j;
-        c->label = j < NPART ? JN[j % 4u] : j == NPART ? "DR" : j < DT_NJ - 1u || !DT_SBC ? "REV" : "BT";
+        c->label = j < NPART ? JN[j % 4u] : j == NPART ? "DR" : j == DT_DR2 ? "DR2" : j < DT_NJ - 1u || !DT_SBC ? "REV" : "BT";
         core = dual_tm.lastc[j] ? (char)('0' + dual_tm.lastc[j] - 1u) : '-';   /* (the core of the last block it ran in) */
         (void)ran;
     } else {

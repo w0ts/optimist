@@ -30,7 +30,8 @@
 #include "storage/sd/sd_index.c"
 #include "storage/sd/sd_stream.c"
 #define ARN_PARTS 4u                                 /* three parts, then the streams' block */
-#define ARN_BYTES (72u * 1024u)
+#define ARN_BYTES (88u * 1024u)                     /* 72 KB when the kit had 6 rings; 10 rings of 8 slots (2026-11-05) are 16 KB more,
+                                                      * so every room scenario below keeps the slack it was written with */
 #define ARN_TOPS 8u
 static void fm1_irq_off(void);                       /* (below: core/arena.c calls them) */
 static void fm1_irq_on(void);
@@ -272,13 +273,16 @@ static void run_card(const char *img_path)
     sst_plan_poll();
     settle();
     CHECK(sstp.state == SSTP_PLACED && sstp.nring == 4u, "%s: one 8-voice part: 4 rings (%u)", what, sstp.nring);
-    /* a sampled kit's hits: a ring a drum voice; no room for them: fewer, down to 3, placed all the same, and it stays so */
+    /* a sampled kit's hits: a ring a drum voice; no room for them: fewer, one at a time down to SST_KIT_RINGS_MIN, placed all the
+     * same, and it stays so. The part's ring and the kit's together never pass SST_N (sst_nring_kit): with SST_KIT_RINGS at
+     * SST_N the kit's full set is SST_N - 1 beside a one-voice part */
+    const uint32_t kit_full = 1u + SST_KIT_RINGS <= SST_N ? 1u + SST_KIT_RINGS : SST_N;
     part_voices[0] = 1u;
     kit_want = 1u;
     sst_plan_poll();
     settle();
-    CHECK(sstp.state == SSTP_PLACED && sstp.nring == 1u + SST_KIT_RINGS, "%s: a one-voice part and the kit: 1 + %u rings (%u)", what,
-          SST_KIT_RINGS, sstp.nring);
+    CHECK(sstp.state == SSTP_PLACED && sstp.nring == kit_full, "%s: a one-voice part and the kit: %u rings, SST_N at most (%u)", what,
+          kit_full, sstp.nring);
     {
         uint32_t room, tight = 0;
         kit_want = 0u;
@@ -289,7 +293,7 @@ static void run_card(const char *img_path)
             kit_want = 1u;
             sst_plan_poll();
             settle();
-            if (sstp.state == SSTP_PLACED && sstp.nring < 1u + SST_KIT_RINGS)
+            if (sstp.state == SSTP_PLACED && sstp.nring < kit_full)
                 tight = sstp.nring;
             else if (sstp.state != SSTP_PLACED)
                 break;
@@ -300,7 +304,7 @@ static void run_card(const char *img_path)
                 arn_give(1);
             }
         }
-        CHECK(sstp.state == SSTP_PLACED && tight == 1u + SST_KIT_RINGS_MIN && sst_k == SST_K,
+        CHECK(sstp.state == SSTP_PLACED && tight == kit_full - 1u && tight >= 1u + SST_KIT_RINGS_MIN && sst_k == SST_K,
               "%s: no room for all the kit's rings: one less, placed (%u rings of %u slots, state %u, part 1 %u B)", what, tight, sst_k,
               sstp.state, room);
         sst_plan_poll();
