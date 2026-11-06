@@ -37,6 +37,26 @@
 #ifndef PLUG_API_ADDR
 static void *plug_part_mem(uint32_t part) { return PART_MEM_AT(part % NPART); }
 static uint32_t plug_rng(void) { return rng(); }
+#if FELUCCA_SD_STREAM
+/* the card's services (plug_api_t's last entries): sd_stream.h, sd_stream_rc.h, eng_sample.c (engines.c, before) */
+static const uint8_t *plug_at_slow(void *st, const void *s, uint32_t off)
+{
+    return FAR(sst_at_slow)((sst_t *)st, (const sst_src_t *)s, off);   /* (RAM code: through its address) */
+}
+static const uint8_t *plug_rc_slow(void *c, const void *s, uint32_t si, void *w, uint32_t off)
+{
+    return sst_rc_slow((sst_rc_t *)c, (const sst_src_t *)s, si, (sst_rw_t *)w, off);
+}
+static const void *plug_cz(uint32_t part, uint32_t *n, uint32_t *stamp)
+{
+    uint32_t k = smp_cz_sync(part % SST_NPART);
+    if (n)
+        *n = k;
+    if (stamp)
+        *stamp = smp_cz_stamp_of(part);
+    return smp_cz_zone(part, 0);
+}
+#endif
 static void (*plug_svc[FELUCCA_PLUGIN_SLOTS])(void);   /* each slot's main-loop hook (plug_api_service), 0 none */
 static uint32_t plug_api_slot_of(uint32_t uid) { return eng_slot_of(uid); }
 static void plug_api_service(uint32_t slot, void (*fn)(void))
@@ -63,6 +83,23 @@ static const plug_api_t plug_api_tab __attribute__((used, retain)) = {   /* (kep
     .slot_of = plug_api_slot_of,
     .service = plug_api_service,
     .tab_mem = plug_api_tab_mem,
+#if FELUCCA_SD_STREAM
+    .src = sst_src,
+    .sst = sst,
+    .rc = sst_rc,
+    .part_src = sst_part_src,
+    .bank_src = sst_bank_src,
+    .bank_n = sst_bank_n,
+    .bank_free = &sst_bank_free,
+    .dry = &sst_dry,
+    .sst_start = sst_start,
+    .sst_at_slow = plug_at_slow,
+    .sst_rc_slow = plug_rc_slow,
+    .cz = plug_cz,
+#if SLC_CARD_SVC
+    .slc_crd = (const void *const volatile *)slc_crd,
+#endif
+#endif
 };
 #define PLUG_API_ADDR ((uint32_t)(uintptr_t)&plug_api_tab)
 #endif

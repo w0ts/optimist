@@ -1810,6 +1810,16 @@ static uint32_t sdm_samplers(uint8_t *e)
 #if FELUCCA_ENG_STRETCH
     e[n++] = (uint8_t)ENG_SLOT_STRETCH;
 #endif
+#if FELUCCA_PLUGINS
+    {   /* a sampler placed as a plugin (core/plugin.c; an engine is built in or a plugin, never both: n stays <= 4) */
+        uint32_t k, u;
+        for (k = NBUILT; k < NENGINES && n < SDM_NSAMPLERS; k++) {
+            u = eng_uid(k);
+            if (u == ENG_UID_SAMPLE || u == ENG_UID_SLICE || u == ENG_UID_GRAIN || u == ENG_UID_STRETCH)
+                e[n++] = (uint8_t)k;
+        }
+    }
+#endif
 #endif
     (void)e;
     return n;
@@ -1950,8 +1960,8 @@ static void sdm_do(uint32_t op, uint32_t k)
                 if (trk[part].eng_req != (uint8_t)e)
                     return;                          /* (refused: memory short, the drop is proposed: model.c) */
             }
-#if FELUCCA_SLICE
-            if (e == (uint32_t)ENG_SLOT_SLICE)
+#if SLC_CARD_SVC
+            if (eng_uid(e) == ENG_UID_SLICE)
                 trk[part].p[P_E0] = (int16_t)SLC_SRC_CARD;   /* (SLICE: its SRC on CARD, the sample whole: sd_slice.c) */
             else
 #endif

@@ -39,6 +39,7 @@ API_SYM = "plugin_api"                          # plug_unit.c: that word
 API_TABLE = "plug_api_tab"                      # core/plugin.c: the firmware's table (felucca.elf)
 REL_PCREL = {"R_PI32V2_LONG_JUMP_23M2"}        # PC-relative: the same at every address (measured 2026-11-02)
 ENTRY = "plugin_desc"
+SAMPLE_ENGINES = {"SAMPLE", "GRAIN", "SLICE", "STRETCH"}   # SD card mode: the card's material (plug_unit.c PLUG_SAMPLES)
 
 
 class PluginError(Exception):
@@ -197,7 +198,8 @@ def build_plugin(name: str, out_dir: Path | None = None) -> Path:
                   ".data : { *(.data*) } .bss : { *(.bss*) *(COMMON) } /DISCARD/ : { *(.comment) *(.note*) } }\n")
     sym = f"ENG_{name}"
     build.tc("cc", *firmware_flags(), f"-DFELUCCA_ENG_{name}=1", f'-DPLUG_ENGINE_FILE="{rel_file}"',
-             f"-DPLUG_ENGINE_SYM={sym}", f"-DPLUG_ENG_{name}=1", "-c", FW / "src" / "plugin" / "plug_unit.c", "-o", obj)
+             f"-DPLUG_ENGINE_SYM={sym}", f"-DPLUG_ENG_{name}=1",
+             *(["-DPLUG_SAMPLES=1"] if name in SAMPLE_ENGINES else []), "-c", FW / "src" / "plugin" / "plug_unit.c", "-o", obj)
     unit_objs = []
     for src, flags in extra_units(name, config_values()):   # (the engine's float unit, as build.py compiles it)
         uo = out_dir / f"{name}_{src.stem}.o"

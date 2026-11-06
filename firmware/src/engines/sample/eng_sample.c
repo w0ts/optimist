@@ -1,6 +1,15 @@
 /* SPDX-License-Identifier: GPL-3.0-only
  * Copyright (C) 2026 Leo Kuroshita (@kurogedelic), Hügelton Instruments */
 /* SAMPLE: IMA ADPCM sample sets. */
+#ifndef ENG_SAMPLE_C
+#define ENG_SAMPLE_C                                /* (a plugin of GRAIN, SLICE, STRETCH includes it first: plugin/plug_unit.c) */
+/* SMP_FLASH: the flash's sample sets and user slots played (else, a plugin, plugin/plug_unit.c: SD card mode's material
+ * is the card's alone, the flash's sets and slots never reach it: a set not on the card and every USR slot silent) */
+#ifdef PLUG_BUILD
+#define SMP_FLASH 0
+#else
+#define SMP_FLASH 1
+#endif
 static const char *const N_ONOFF_E[] = {"OFF", "ON"};
 /* IMA ADPCM sample sets (tools/gen_samples.py), native rates, zones across
  * the keyboard, loops with the ADPCM state stored at the loop start.
@@ -16,7 +25,20 @@ typedef struct {
     const char *name;
     uint16_t z0, nz;
 } smp_set_t;
+#if !SMP_FLASH                                      /* (their names, numbers and presets kept; their data out of reach) */
+#define SMP_DATA smp_data_flash_
+#define SMP_ZONES smp_zones_flash_
+#define SMP_SETS smp_sets_flash_
+#endif
 #include "felucca_samples.h"
+#if !SMP_FLASH
+#undef SMP_DATA
+#undef SMP_ZONES
+#undef SMP_SETS
+#define SMP_DATA ((const uint8_t *)0)
+#define SMP_ZONES ((const smp_zone_t *)0)
+static const smp_set_t SMP_SETS[SMP_NSETS];         /* (every set empty: nz 0) */
+#endif
 /* SD card mode's sets (gen_samples.py FELUCCA_SAMPLES_CARD): empty in the flash, their numbers and presets kept, played
  * from the card's Optimist/Samples/<Set>/ (smp_bank_on); a host test sets its own */
 #ifndef SMP_CARD_SET
@@ -99,7 +121,7 @@ typedef struct {
 } smp_user_hdr_t;                                   /* 32 + 16 x 28 = 480 B, data at +512 */
 /* the user slots' zones play only through SAMPLE, GRAIN, SLICE and the drum lanes' USR sounds (and 2.4's USR kit
  * import, under DRUM_USR): a build with none of them keeps no RAM copy (usr_nz stays: the slots' state is shown) */
-#define SMP_USR_ZONES (FELUCCA_ENG_SAMPLE || FELUCCA_ENG_GRAIN || FELUCCA_ENG_SLICE || FELUCCA_DRUM_USR)
+#define SMP_USR_ZONES (SMP_FLASH && (FELUCCA_ENG_SAMPLE || FELUCCA_ENG_GRAIN || FELUCCA_ENG_SLICE || FELUCCA_DRUM_USR))
 #if SMP_USR_ZONES
 static smp_zone_t usr_zone[SMP_USER_SLOTS][16];     /* RAM copy, off rebased onto SMP_DATA */
 #define smp_usr_zone(k, z) (&usr_zone[k][z])
@@ -107,13 +129,18 @@ static smp_zone_t usr_zone[SMP_USER_SLOTS][16];     /* RAM copy, off rebased ont
 static const smp_zone_t SMP_ZONE_NONE;              /* (n 0: a voice given it ends) */
 #define smp_usr_zone(k, z) ((void)(k), (void)(z), &SMP_ZONE_NONE)
 #endif
+#if SMP_FLASH
 static uint8_t usr_nz[SMP_USER_SLOTS];
+#else
+static const uint8_t usr_nz[SMP_USER_SLOTS];        /* (a plugin: no slot) */
+#endif
 static const char *const SMP_ALL_NAMES[SMP_NSAMPLE] = {SMP_SET_NAMES_INIT, "USR1", "USR2", "USR3",
 #if FELUCCA_SD_STREAM
                                                         "CARD"
 #endif
 };
 
+#if SMP_FLASH
 #ifndef SMP_USER_XIP                                /* host tests: a RAM image of the slots */
 #define SMP_USER_XIP(k) fm1_xip_ptr(SMP_USER_BASE + (k) * SMP_USER_SIZE)
 #endif
@@ -164,11 +191,18 @@ static void smp_user_scan(uint32_t k)
     slc_user_scan(k, 1);
 }
 
+#else
+#define smp_user_gen 0u                             /* (a plugin: no slot) */
+#endif
+
 /* zone index in a voice: < 0x8000 built-in, else 0x8000 | slot << 5 | zone */
 AINL const smp_zone_t *smp_zone(uint32_t zi)
 {
 #if SMP_USR_ZONES
     return zi < 0x8000u ? &SMP_ZONES[zi] : &usr_zone[(zi >> 5) & 3u][zi & 31u];
+#elif !SMP_FLASH
+    (void)zi;
+    return &SMP_ZONE_NONE;                          /* (a plugin: no flash zone) */
 #else
     return zi < 0x8000u ? &SMP_ZONES[zi] : &SMP_ZONE_NONE;
 #endif
@@ -250,6 +284,25 @@ static void smp_bank_on(track_t *t, voice_t *v)
  * part's cache, sd_stream_rc.h): zone k is source sst_bank_src[part] + k, its frames, rate, root, keys and loop (the
  * card's loop is ls - 1 .. le - 1: gen_samples.py card_wav), off unused. Made again when the plan's sources change
  * (sst_bank_gen); smp_cz_stamp + 1 each time it holds zones (a gate leaves the last ones: their grains fade). Audio */
+#ifdef PLUG_BUILD
+/* a plugin (plugin/plug_api.h, INTERIM): the firmware's, through its API table */
+static uint32_t smp_cz_sync(uint32_t part)
+{
+    uint32_t n = 0;
+    (void)plugin_api->cz(part, &n, 0);
+    return n;
+}
+AINL const smp_zone_t *smp_cz_zone(uint32_t part, uint32_t zl)
+{
+    return (const smp_zone_t *)plugin_api->cz(part, 0, 0) + zl % SST_BANK_Z;
+}
+AINL uint32_t smp_cz_stamp_of(uint32_t part)
+{
+    uint32_t st = 0;
+    (void)plugin_api->cz(part, 0, &st);
+    return st;
+}
+#else
 static smp_zone_t smp_cz[SST_NPART][SST_BANK_Z];
 static uint8_t smp_cz_n[SST_NPART];
 static uint32_t smp_cz_gen[SST_NPART], smp_cz_stamp[SST_NPART];
@@ -284,6 +337,9 @@ static uint32_t smp_cz_sync(uint32_t part)          /* the part's card zones now
         smp_cz_stamp[part]++;
     return k;
 }
+AINL const smp_zone_t *smp_cz_zone(uint32_t part, uint32_t zl) { return &smp_cz[part % SST_NPART][zl % SST_BANK_Z]; }
+AINL uint32_t smp_cz_stamp_of(uint32_t part) { return smp_cz_stamp[part % SST_NPART]; }
+#endif
 /* SRC s of part `part` a card set (SD card mode): its zones are the card's */
 AINL int smp_cz_on(uint32_t s) { return s == SMP_CARD || (s < SMP_NSETS && SMP_CARD_SET(s)); }   /* (CARD: GRAIN's, STRETCH's) */
 AINL uint32_t smp_cz_src(uint32_t part, uint32_t zl) { return (sst_bank_src[part % SST_NPART] + zl) % SST_NSRC; }
@@ -371,7 +427,9 @@ static void sample_note_on(track_t *t, voice_t *v)
         return;
     }
 #endif
-    if (si < SMP_NSETS) {
+    if (si < SMP_NSETS && !SMP_FLASH) {
+        v->s[4] = 0;                                /* (a plugin: a set not on the card is silent) */
+    } else if (si < SMP_NSETS) {
         const smp_set_t *set = &SMP_SETS[si];
         for (i = 0; i < set->nz; i++)
             if (v->note >= SMP_ZONES[set->z0 + i].lo && v->note <= SMP_ZONES[set->z0 + i].hi)
@@ -459,3 +517,4 @@ static const engine_t ENG_SAMPLE = {
     SMP_PRESET_TABLE, sizeof(SMP_PRESET_TABLE) / sizeof(SMP_PRESET_TABLE[0]), -1, sample_note_on, sample_render,
     0xFFFF, {P_E0, P_E4, P_ATK, P_REL},
 };
+#endif /* ENG_SAMPLE_C */
