@@ -1,11 +1,11 @@
 /* SPDX-License-Identifier: GPL-3.0-only */
 /* Host test of a plugin loaded from the SD card into the flash (firmware/src/core/plugin_card.c over core/plugin.c,
  * docs/SD-MODE-DESIGN.md section 10) on the card model (tests/sd_card_model.h, full FatFs) and a simulated NOR flash:
- *   - Optimist/Plugins/SID.opl written on the card (the loader test's synthetic file with SID's UID): asked for UID 23,
+ *   - Optimist/Plugins/sid.opl written on the card (the loader test's synthetic file with SID's UID): asked for UID 23,
  *     placed in the region's first sectors, slot 0 holds UID 23, its header whole; asked again: the slot, nothing read
  *     or written;
  *   - an engine with no file on the card (PROPHET): READ, nothing placed; a UID past the registry: BAD;
- *   - a file named for one engine holding another's UID (CS80.opl with UID 23 inside): BAD and not kept;
+ *   - a file named for one engine holding another's UID (cs80.opl with UID 23 inside): BAD and not kept;
  *   - the card gone (not ready): READ.
  *   build/host/plugin_card_test FAT32.img   Exit status: the number of failed checks. */
 #include <stdint.h>
@@ -164,7 +164,7 @@ int main(int argc, char **argv)
     CHECK(ENG_UID_N > 23u && strcmp(ENG_UID_NAME[23], "SID") == 0, "UID 23 is SID in the registry");
 
     n = mk_file(23);
-    CHECK(put_file("Optimist/Plugins/SID.opl", filebuf, n) == FR_OK, "SID.opl written on the card");
+    CHECK(put_file("Optimist/Plugins/sid.opl", filebuf, n) == FR_OK, "sid.opl written on the card");
     rc = plug_card_install(23);
     CHECK(rc == 0 && plug_uid[0] == 23u, "SID from the card: slot 0, UID 23 (%d)", rc);
     memcpy(&h, flash + FL_PLUG_LO, PLUG_HDR_LEN);
@@ -179,8 +179,8 @@ int main(int argc, char **argv)
     CHECK(rc == PLUG_E_READ && plug_uid[1] == 0xFFu, "no file for PROPHET: READ (%d), nothing placed", rc);
     CHECK(plug_card_install(ENG_UID_N + 5u) == PLUG_E_BAD, "a UID past the registry: BAD");
 
-    n = mk_file(23);                                       /* CS80.opl holding SID's UID */
-    CHECK(put_file("Optimist/Plugins/CS80.opl", filebuf, n) == FR_OK, "CS80.opl (SID inside) written");
+    n = mk_file(23);                                       /* cs80.opl holding SID's UID */
+    CHECK(put_file("Optimist/Plugins/cs80.opl", filebuf, n) == FR_OK, "cs80.opl (SID inside) written");
     plug_forget(0);
     rc = plug_card_install(26);
     CHECK(rc == PLUG_E_BAD && plug_uid[0] == 0xFFu && plug_uid[1] == 0xFFu, "another engine inside: BAD (%d), not kept", rc);

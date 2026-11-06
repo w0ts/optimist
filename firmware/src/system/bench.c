@@ -39,7 +39,7 @@
  *      parts, preset 0, 3 + 3 + 2 notes: the placed engine plays, or the empty slot's silence; without plugins
  *      the last engine
  *  20  (FELUCCA_BENCH_PLUG_SAMPLE "Samples/x.wav": the plugin's parts on that card sample, system/bench_card.c)
- *      scenario 19 after SID (FELUCCA_BENCH_PLUG_UID) installed from the card at boot (Optimist/Plugins/SID.opl, core/plugin_card.c; the
+ *      scenario 19 after SID (FELUCCA_BENCH_PLUG_UID) installed from the card at boot (Optimist/Plugins/sid.opl, core/plugin_card.c; the
  *      result in bench.plug_rc: the slot, or PLUG_E_*): the card load path, in the emulator with its card image
  * (before the integration: the DX7 and SUPER engines, gone since: FM6 and ANALOG 2 take their places)
  * with a drum groove (1 to 4, 7) (kick, snare, hats in eighths at 120 BPM) and the presets' FX sends. The notes
@@ -175,7 +175,7 @@ static void bench_setup(void)                              /* boot, after felucc
     TDRUM->p[P_E0] = (int16_t)FELUCCA_BENCH_KIT;
 #if FELUCCA_BENCH == 20 && FELUCCA_PLUGINS && FELUCCA_SDCARD
     bench.plug_rc = plug_card_install(FELUCCA_BENCH_PLUG_UID);   /* 20: the engine of that UID from the card's
-                                                                  * Optimist/Plugins/<NAME>.opl (plugin_card.c) */
+                                                                  * Optimist/Plugins/<name>.opl (plugin_card.c) */
 #endif
 #if FELUCCA_BENCH_COMP && FELUCCA_MASTER_COMP
     song.g[G_CTHR] = -10, song.g[G_CRAT] = 1, song.g[G_CATK] = 4, song.g[G_CREL] = 6;

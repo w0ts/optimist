@@ -1,6 +1,6 @@
 /* SPDX-License-Identifier: GPL-3.0-only */
 /* A plugin from the SD card into the PLUGINS region (core/plugin.c, docs/SD-MODE-DESIGN.md section 10): the file
- * Optimist/Plugins/<NAME>.opl, NAME the engine's name as the lists show it (core/registry.h ENGINE_LIST; the card
+ * Optimist/Plugins/<name>.opl, NAME the engine's name as the lists show it (core/registry.h ENGINE_LIST; the card
  * zip writes one per engine: tools/sd_zip.py). Included after the card (sdcard.c sd_open / sd_seek / sd_read: the
  * one open file). A project that names an engine neither built in nor placed asks for it here (project.c
  * proj_apply); the card not ready, no such file, or a file for another build: the project plays the fallback as
@@ -32,8 +32,9 @@ static int plug_card_install(uint32_t uid)
     for (i = 0; i < sizeof PLUG_CARD_DIR - 1u; i++)
         path[n++] = PLUG_CARD_DIR[i];
     path[n++] = '/';
-    for (i = 0; name[i] && i < 12u; i++)
-        path[n++] = name[i];
+    for (i = 0; name[i] && i < 12u; i++)             /* the file's name is the engine's in lower case (the card's files
+                                                      * lower case, its folders capitalised: tools/sd_zip.py) */
+        path[n++] = (char)(name[i] >= 'A' && name[i] <= 'Z' ? name[i] + ('a' - 'A') : name[i]);
     for (i = 0; i < 5u; i++)
         path[n++] = ".opl"[i];                       /* (its 0 too) */
     if (sd_open(path) != FR_OK)

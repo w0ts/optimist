@@ -125,6 +125,17 @@ static const plug_api_t plug_api_tab __attribute__((used, retain)) = {   /* (kep
 #define PLUG_RELCHUNK 64u                 /* relocation words read at a time */
 #define PLUG_SFC_KEY 0x980Fu              /* the chip key our packages set (tools/fm1pkg_make.py KEY) */
 #define PLUG_SFC_BASE 0x4000u             /* the app area's start: the cipher's block addresses count from it */
+#include "../../hal/fm1_xip.h"            /* FM1_XIP: the region read in place (the release's app has no other XIP macro) */
+#ifndef FL_XIP
+#define FL_XIP(off) FM1_XIP(off)          /* (hal/fm1_flash.h's name for it; the release's app does not include that) */
+#endif
+#ifndef PLUG_FL_ERASE                     /* the region's erase and program: Optimist's own flash driver (hal/fm1_flash.h,
+                                           * FL_RANGE_OK widened in felucca.c); the release (Optimist on fm1-base) defines
+                                           * both over plat.h's plat_plug_erase / plat_plug_write before including this
+                                           * (fm1base/optimist/ui/opt_ui.c) */
+#define PLUG_FL_ERASE(off, took) fl_erase4k_quiet((off), (took))
+#define PLUG_FL_WRITE(off, p, n) fl_write((off), (p), (n))
+#endif
 
 typedef int (*plug_rd_t)(void *ctx, uint32_t off, void *dst, uint32_t n);   /* the file's bytes [off, off + n): 0 ok */
 
@@ -312,7 +323,7 @@ static int plug_window(plug_rd_t rd, void *ctx, const plug_hdr_t *h, uint32_t w,
         return 0;
     *crc = st_crc_upd(*crc, plug_win + PLUG_MARGIN + (start - pw), end - start);
     plug_sfc(plug_win + PLUG_MARGIN + (start - pw), off + start, end - start);
-    return fl_write(off + start, plug_win + PLUG_MARGIN + (start - pw), end - start) ? PLUG_E_FLASH : 0;
+    return PLUG_FL_WRITE(off + start, plug_win + PLUG_MARGIN + (start - pw), end - start) ? PLUG_E_FLASH : 0;
 }
 
 /* a plugin file written into the region: its slot, or PLUG_E_* (the file's bytes through rd). An engine already
@@ -348,7 +359,7 @@ static int plug_install(plug_rd_t rd, void *ctx)
     off = FL_PLUG_LO + s * PLUG_SECTOR;
     base = FM1_XIP(off) + PLUG_HDR_LEN;
     for (w = 0; w < n; w++)
-        if (fl_erase4k_quiet(off + w * PLUG_SECTOR, &took))
+        if (PLUG_FL_ERASE(off + w * PLUG_SECTOR, &took))
             return PLUG_E_FLASH;
     for (w = 0; w < n; w++)
         if ((rc = plug_window(rd, ctx, &h, w, off, base, &crc)) != 0) {
@@ -361,14 +372,14 @@ static int plug_install(plug_rd_t rd, void *ctx)
     h.hcrc = plug_crc(&h, PLUG_HDR_LEN - 4u);
     memcpy(plug_win, &h, PLUG_HDR_LEN);
     plug_sfc(plug_win, off, PLUG_HDR_LEN);
-    if (fl_write(off, plug_win, PLUG_HDR_LEN))
+    if (PLUG_FL_WRITE(off, plug_win, PLUG_HDR_LEN))
         return PLUG_E_FLASH;
     fl_inval(off, n * PLUG_SECTOR);
     (void)plug_scan(1);
     if (h.kind == PLUG_KIND_HEADS)
         return plug_find(PLUG_KIND_HEADS, h.desc, 0, 0) ? 0 : PLUG_E_FLASH;
     if (plug_slot_of(h.uid) == 0xFFu && !PLUG_DESC_OK((const engine_t *)(PLUG_XIP(off) + PLUG_HDR_LEN + h.desc))) {
-        if (fl_erase4k_quiet(off, &took))                 /* (its part memory larger than a part's: not kept) */
+        if (PLUG_FL_ERASE(off, &took))                 /* (its part memory larger than a part's: not kept) */
             return PLUG_E_FLASH;
         fl_inval(off, PLUG_SECTOR);
         return PLUG_E_MEM;
@@ -382,7 +393,7 @@ static int plug_forget(uint32_t k)
     uint32_t took, off = k < FELUCCA_PLUGIN_SLOTS ? plug_off_[k] : 0u;
     if (!off)
         return -1;
-    if (fl_erase4k_quiet(off, &took))
+    if (PLUG_FL_ERASE(off, &took))
         return PLUG_E_FLASH;
     fl_inval(off, PLUG_SECTOR);
     (void)plug_scan(1);
@@ -398,7 +409,7 @@ static int plug_free(uint32_t kind, uint32_t key)
         if (!plug_whole(off, &h))
             continue;
         if (h.kind == kind && plug_key(&h) == key) {
-            if (fl_erase4k_quiet(off, &took))
+            if (PLUG_FL_ERASE(off, &took))
                 return PLUG_E_FLASH;
             fl_inval(off, PLUG_SECTOR);
             (void)plug_scan(1);

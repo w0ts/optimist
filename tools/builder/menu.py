@@ -264,6 +264,8 @@ class Builder(App):
         if n:
             box += f" ({n})"
         t = Text(f"{box} {it.label}", style="" if live and not it.fixed else "dim")
+        if C.K.engine_from_card(self.cfg, key):            # (an engine left out of a build that loads engines from the
+            t.append("  from the SD card", style="cyan")   # card: a plugin, said where "[ ]" alone reads as lost)
         if it.experimental:
             t.append("  EXPERIMENTAL", style="bold magenta")
         if it.notice and v:

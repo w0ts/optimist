@@ -1130,7 +1130,7 @@ region holds, not a fixed one or two.
   windows, open until written, a fetch outside them the vector 1 exception with DBG_MSG bit 12. The package that
   crashed pink faults in `play_check` at the plugin's first instruction; the fixed one plays. The user's ruling: test
   plugins in the emulator at will, no unit at stake.
-- **The card load path** (`core/plugin_card.c`, `plug_card_install`): `Optimist/Plugins/<NAME>.opl` by the registry's
+- **The card load path** (`core/plugin_card.c`, `plug_card_install`): `Optimist/Plugins/<name>.opl` by the registry's
   name, through the card's one open file (`sd_open` / `sd_seek` / `sd_read`) into `plug_install`; a file holding another
   engine's UID is forgotten again (BAD). `project.c proj_apply` asks for it for every part whose engine is neither built
   in nor placed, before the fallback; the card not ready or no file: the fallback as before. `Plugins` is one of the
@@ -1292,3 +1292,49 @@ kept for the rings): docs/SD-CARD-DESIGN.md section 7. Host-tested in tests/plug
 - **Left as it is, said:** STRETCH as a plugin keeps a full state per part (45 KB each; the built-in shares one: the
   arena's shared block could restore it); the card entries' struct layouts are not in PLUG_ABI (an API bump covers a
   change: PLUG_API); the FX stay built in (46 KB in all, the user's choice, section 10.8).
+
+### 10.11 The release: the region on fm1-base (2026-11-06, the night; emulator only)
+
+Everything above was built and proven on Optimist's own firmware (`tools/build.py`, `firmware/loader`: `CLASSIC=1`).
+The firmware `make build` makes and the user flashes is the release, Optimist as an app on fm1-base (the submodule
+`fm1base/`, since 3ff182dc), which had none of it: its linker script reserved no region, its update loader kept nothing,
+its PC guard would have faulted a plugin's code, and the card zip's plugin step read the classic build directory. The user's
+ruling: *"we are fm1-base now. dev, 0.3 and beyond"*. So the region moved to fm1-base's side, the same bytes in the
+same place (the app slot's last whole sectors, below the app area's tail), fm1-base branch `plugins/region`
+(worktree `worktrees/plug-fm1base`, its bsp the same branch):
+
+- **felucca-bsp** `chip/fm1_plug.h`: `FL_PLUG_KB` (the build's `-D`), `FL_PLUG_HI = (FL_APP_END - 0xF24) & ~0xFFF`,
+  `FL_PLUG_LO`, `FL_PLUG_OK`; `fm1_flash.h`'s default `FL_RANGE_OK` lets the RAM driver erase and program the region;
+  `fm1_guard.h`'s XIP window reaches `FM1_XIP(FL_PLUG_HI)` instead of `_etext`; `loader/ldr_core.c` keeps the region's
+  occupants in both installs (`ldr_keep_occupant`: a sector the package leaves erased, i.e. that decrypts to 0xFF, whose
+  device bytes begin "OPLG" with its length at 20, and the occupant's sectors after it; the classic install sees the
+  package's bytes and decrypts them in place and back, the fast one compares the keystream sector's CRCs with the host's
+  table, as `firmware/loader/ldr_core.c` does). `tests/ldr_test.c` has the two occupant cases in both modes.
+- **fm1-base** `tools/build.py`: `plugin_kb()` (`FM1B_PLUGIN_KB` in the environment, else `fm1.toml plugin_kb`),
+  `plugin_region()`, `code_slot()` = the slot less the region; the linker script's XIP that long; the slot check and
+  `sizes.json`'s `app_slot` against the code's room; `slot_flags()` adds `-DFM1B_PLUGIN_KB` and `-DFL_PLUG_KB` to every
+  unit; `FM1B_PLUGIN_PRELOAD=FILE@OFF` places a plugin file in the package (`fm1pkg_make.py flash_image(extra)`: the
+  emulator proofs). `include/plat.h`: `PLAT_PLUG_LO / HI / OK`, `plat_plug_erase`, `plat_plug_write` (the device:
+  `plat_fm1.c` on `data_erase` / `fl_write`, a static assert that plat.h's region is felucca-bsp's; the host: its own
+  bytes). `optimist/ui/opt_ui.c` includes `core/plugin.c` after the storage with `PLUG_FL_ERASE` / `PLUG_FL_WRITE`
+  over the plat calls, `core/plugin_card.c` after the card, `plug_init()` after `persist_boot`, `plug_service()` in the
+  loop; `gen_optimist.py plugin_check` refuses a build whose `FELUCCA_PLUGIN_KB` is not the environment's
+  `FM1B_PLUGIN_KB`.
+- **Optimist**: `core/plugin.h` takes `FL_PLUG_*` from `PLAT_PLUG_*` under the release (its app end is fm1-base's,
+  `FM1B_APP_END`, not the step's `FL_APP_HI`; a `#error` when the two sizes differ) and includes `hal/fm1_flash_map.h`
+  by its path otherwise; `core/plugin.c` erases and programs through `PLUG_FL_ERASE` / `PLUG_FL_WRITE` (the classic
+  defaults: `fl_erase4k_quiet` / `fl_write`) and includes `hal/fm1_xip.h` by its path. `tools/fm1base.py env_for` sets
+  `FM1B_PLUGIN_KB` from the configuration (`plugin_kb`); `OPTIMIST_FM1BASE=<dir>` builds from a worktree of the
+  submodule. `tools/plugin_build.py gen_dir()`: the release's `fm1base/optimist/build/optgen` (with `OPTIMIST_CLASSIC=1`
+  the classic `build/gen`), the fonts and icons it lacks generated into `build/plugins/gen` for the unit; `sd_zip.py`
+  checks the zip's configuration against that build's hash and names the files in lower case
+  (`Optimist/Plugins/sid.opl`; `plugin_card.c` opens them so); the builder item PLUGINS is allowed on the release.
+- **Proven in the emulator** (`play_check`, the integ configuration with PLUGINS 64, LAYOUT 1: flash 656,912 of
+  757,692 B, the slot less 64 KB): SID built as a plugin against the release's headers (45,264 B, ABI 2459db0c),
+  placed at 0xBD000 in the package; the firmware boots, `plug_uid[0]` reads 23, SHIFT + PRESETS reaches SID as the
+  last engine, a held key renders (rms 0.032). The control build with SID built in renders the same preset
+  (section 10.11's golden: the same WAV). Not on an FM-1.
+- **Open**: the user's SD card profile is 1,984 B under the slot without the region; a 64 KB region needs that much of
+  it freed first (the fit report says). The host trial (`optimist/run.sh`) has no plugin case (the region's
+  `plat_plug_*` on the host hold bytes nobody reads). The two build directories (`build/gen` and `optgen`) hold
+  different configurations until `make build` runs again: the zip says which it found.
