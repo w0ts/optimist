@@ -34,7 +34,7 @@ int main(void)
     chk("proj 2", CR_BAD, 0);
     chk("heavy", CR_HEAVY, 1);
     chk("heavy 3", CR_HEAVY, 3);
-    chk("heavy 0", CR_BAD, 0);
+    chk("heavy 0", CR_HEAVY, 0);                     /* (0: the drums alone, no inserts) */
     chk("heavy 5", CR_BAD, 0);
     chk("heavy x", CR_BAD, 0);
     chk("wdtreset", CR_WDTRESET, 0);

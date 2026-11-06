@@ -108,7 +108,7 @@ static con_run_t con_run_parse(const char *p)
         r.op = CR_HEAVY, r.arg = 1;
         if (!con_end(p)) {
             v = con_num(&p, &ok);
-            if (!ok || v < 1u || v > CR_NOTES_MAX)
+            if (!ok || v > CR_NOTES_MAX)             /* (0: the drums alone, no inserts: console_run.c) */
                 return (con_run_t){CR_BAD, 0};
             r.arg = (uint8_t)v;
         }
