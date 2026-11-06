@@ -24,7 +24,7 @@ enum FlashProtocol {
         var isLoader: Bool { model.lowercased().hasPrefix("ota-") }
         /// the update loader of Optimist ("ota-FM-1_7XX") and of SLOOP / Felucca ("ota-FM-1_9XX"): the same loader and
         /// protocol. A device left in another firmware's update mode (the stock loader, "ota-FM-1_0XX") is never written.
-        var isOurLoader: Bool { text.range(of: #"^ota-FM-1_[79]\d\d$"#, options: [.regularExpression, .caseInsensitive]) != nil }
+        var isOurLoader: Bool { text.range(of: #"^ota-FM-1_([79]\d\d|\d{4,})$"#, options: [.regularExpression, .caseInsensitive]) != nil }
     }
 
     struct Request: Equatable {
