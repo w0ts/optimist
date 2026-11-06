@@ -4,8 +4,10 @@
  *   READ     KB/s the card gave in the last half second; the bar against what the kept clock can carry (SMN_PM: 840 KB/s
  *            at 8.57 MHz), the tick the peak of the last 10 s; green, amber from 60 %, red from 85 % of it (INFO's CPU colours)
  *   STREAMS  voices streaming now / the most in the last 10 s (the bar: of the SST_N rings, the tick the most)
- *   BUFFER   the least a ring holds of the streams the card feeds in the last 10 s, percent of the ring: the early warning
- *            before a dropout; amber under 25, red at 0; "-" while no stream is fed
+ *   BUFFER   the least a ring holds of the streams the card feeds, percent of the ring, now / the least of the last 10 s
+ *            ("42/0", STREAMS' style; the tick the 10 s least): the early warning before a dropout; the colour follows the
+ *            10 s least (amber under 25, red at 0: a drum kit's rings start empty, so its "now" is the live reading);
+ *            "-" while no stream is fed
  *   DRY      streams that ran dry (green 0, red for 10 s after one, amber after), GRAIN's and STRETCH's late and missed
  *            reads beside it; the line takes turns, as WI-FI's STATE, with NO RING (notes with no ring free), CRC FAILS and
  *            STEPS DOWN (the clock walk's run-time steps) once any of them is not 0; a dry stream keeps the line on DRY
@@ -96,10 +98,14 @@ static void smn_cell(uint32_t it, cell_t *c)
             cell_gauge(c, 0, 0, 100, 0);
             break;
         }
-        fmt_int(c->val, (int32_t)p);
+        fmt_int(c->val, (int32_t)(v.fill == SSM_NO ? p : v.fill));
+        str_app(c->val, "/", sizeof c->val);
+        fmt_app(c->val, (int32_t)p);
         c->unit = "%";
         c->col = !p ? C_ERR : p < 25u ? C_WARN : C_OK;
-        cell_gauge(c, 0, 0, 100, (int32_t)p);
+        cell_gauge(c, 0, 0, 100, (int32_t)(v.fill == SSM_NO ? p : v.fill));
+        c->pkbar = 1;
+        c->hold[0] = (int16_t)p;
         break;
     default:
         smn_dry(&v, c);

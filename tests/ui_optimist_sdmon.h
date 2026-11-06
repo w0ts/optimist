@@ -6,8 +6,8 @@
  *   the page: right after SD CARD's two, READ / STREAMS / BUFFER / DRY
  *   READ: KB/s from the blocks read over a period; the bar against the kept clock (8.57 MHz: 839 KB/s); the peak held 10 s,
  *         then the period's own; the colours by the share of the clock's rate
- *   STREAMS: sounding now / the most in 10 s;  BUFFER: the least ring fill of the streams the card feeds, amber under 25,
- *         red at 0, "-" with none, held 10 s
+ *   STREAMS: sounding now / the most in 10 s;  BUFFER: the least ring fill of the streams the card feeds, now / the least of 10 s ("42/0"),
+ *         amber under 25, red at 0 (of the 10 s least), "-" with none
  *   DRY: a stream that ran dry counted (sst_ran_dry) and red, amber after 10 s; late / missed reads beside it; CRC FAILS and
  *         STEPS DOWN (and NO RING) taking turns on the line, the knob stepping them; the clear: YES, SAVE, a knob on another
  *         line; the counters themselves go on
@@ -110,11 +110,11 @@ static void sdmon_tests(void)
     sys_cell(r, 1, &c);
     smt_ck(!strcmp(c.val, "3/3") && c.gv == 3 * 100 / (int)SST_N && c.pkbar && c.hold[0] == c.gv, "STREAMS: 3 sounding of the most 3 (%s)", c.val);
     sys_cell(r, 2, &c);
-    smt_ck(!strcmp(c.val, "50") && !strcmp(c.unit, "%") && c.col == C_OK && c.gv == 50, "BUFFER: the least ring half full: 50 %% green (%s)", c.val);
+    smt_ck(!strcmp(c.val, "50/50") && !strcmp(c.unit, "%") && c.col == C_OK && c.gv == 50 && c.pkbar && c.hold[0] == 50, "BUFFER: the least ring half full: 50 now / 50 least, green (%s)", c.val);
     sst[1].wr = SST_K / 4u;                             /* two slots of eight: 25 % */
     smt_run(500, 0);
     sys_cell(r, 2, &c);
-    smt_ck(!strcmp(c.val, "25") && c.col == C_OK, "BUFFER: 25 %% is not yet amber (%s)", c.val);
+    smt_ck(!strcmp(c.val, "25/25") && c.col == C_OK, "BUFFER: 25 %% is not yet amber (%s)", c.val);
     sst[1].wr = SST_K / 4u - 1u;
     smt_run(500, 0);
     sys_cell(r, 2, &c);
@@ -122,12 +122,12 @@ static void sdmon_tests(void)
     sst[1].wr = 0;
     smt_run(500, 0);
     sys_cell(r, 2, &c);
-    smt_ck(!strcmp(c.val, "0") && c.col == C_ERR, "BUFFER: 0 red (%s)", c.val);
+    smt_ck(!strcmp(c.val, "0/0") && c.col == C_ERR, "BUFFER: 0 red (%s)", c.val);
     sst[1].wr = SST_K;
     smt_stream(2, 0, 0, 0);
     smt_run(500, 0);
     sys_cell(r, 2, &c);
-    smt_ck(!strcmp(c.val, "0") && c.col == C_ERR, "BUFFER: the least of the last 10 s: still 0 after the ring refilled");
+    smt_ck(!strcmp(c.val, "50/0") && c.col == C_ERR && c.gv == 50 && c.hold[0] == 0, "BUFFER: now 50 (stream 0 half full), the least of the last 10 s still 0 after the ring refilled (%s)", c.val);
     smt_stream(0, 0, 0, 0);
     smt_stream(1, 0, 0, 0);
     smt_run(500, 0);

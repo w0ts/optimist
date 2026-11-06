@@ -290,16 +290,17 @@ static void x0x_all_off(void)
 
 /* n samples of a path (a channel, or the channels summed) into the mix as drums_mix mixes a voice: the track's
  * mute / solo fade, the meter, pan, the USB stem, the sends (r d c, pre: drums_mix's); -> the meter's peak */
-static int32_t x0x_out(const int32_t *b, uint32_t n, int32_t *ml, int32_t *mr, int32_t *rev, int32_t *mono,
-                       int32_t r, int32_t d, int32_t c, int32_t pre, int32_t gl, int32_t gr, int32_t pk, int32_t *last)
+static int32_t x0x_out(dsink_t *H, const int32_t *b, uint32_t n, int32_t r, int32_t d, int32_t c, int32_t pre,
+                       int32_t gl, int32_t gr, int32_t pk, int32_t *last)
 {
     uint32_t i;
+    int32_t *ml = H->ml, *mr = H->mr, *rev = H->rev, *mono = H->mono;
     int32_t a0 = drums.a0, da = drums.a1 - drums.a0, s = 0;
     for (i = 0; i < n; i++) {
         s = b[i];
         if (a0 | da)                                /* (muted or fading: the track's attenuation) */
             s = mulq15(s, 32767 - a0 - ((da * (int32_t)i) >> CTL_LOG2));
-        DSEND_KEEP(i, s);
+        DSEND_KEEP(H, i, s);
         if (s > pk || -s > pk)
             pk = s < 0 ? -s : s;
         if (mono) {
@@ -309,13 +310,13 @@ static int32_t x0x_out(const int32_t *b, uint32_t n, int32_t *ml, int32_t *mr, i
         ml[i] += (s * gl) >> 12;
         mr[i] += (s * gr) >> 12;
 #if FELUCCA_USB_AUDIO
-        track_capture[i * NTRK + TRK_DRUM] += s;
+        DCAP(H, i) += s;
 #endif
         if (r)
             rev[i] += mulq15(s, r);
     }
     *last = s;
-    DSEND_POST(0u, n, r, d, c, pre);
+    DSEND_POST(H, 0u, n, r, d, c, pre);
     return pk;
 }
 
@@ -326,7 +327,7 @@ static int32_t x0x_buf[CTL], x0x_sum[CTL];
 #if FELUCCA_USB_AUDIO
 /* a lane of the shared sum on a USB channel (ua_tap.h): its block (x0x_buf) with the drum track's mute / solo fade, as
  * x0x_out applies it to the sum */
-static void x0x_tap(uint32_t ln, uint32_t n)
+static void x0x_tap(const dsink_t *H, uint32_t ln, uint32_t n)
 {
     uint32_t i;
     int32_t a0 = drums.a0, da = drums.a1 - drums.a0;
@@ -334,17 +335,16 @@ static void x0x_tap(uint32_t ln, uint32_t n)
         dlt_add(ln, x0x_buf, 0u, n);
         return;
     }
-    for (i = 0; i < n; i++)                         /* (dsend_buf as scratch: x0x_out fills it again) */
-        dsend_buf[i] = mulq15(x0x_buf[i], 32767 - a0 - ((da * (int32_t)i) >> CTL_LOG2));
-    dlt_add(ln, dsend_buf, 0u, n);
+    for (i = 0; i < n; i++)                         /* (the sink's buf as scratch: x0x_out fills it again) */
+        H->buf[i] = mulq15(x0x_buf[i], 32767 - a0 - ((da * (int32_t)i) >> CTL_LOG2));
+    dlt_add(ln, H->buf, 0u, n);
 }
 #endif
 #if DINS_X0X
 static uint32_t dins_x0x(uint32_t l, int32_t on, int32_t *b, uint32_t n);   /* fx.c: an X0X lane's inserts */
 #endif
-static __attribute__((noinline)) int32_t drums_x0x(int32_t *ml, int32_t *mr, int32_t *rev, int32_t *mono, uint32_t n,
-                                                   int32_t on, int32_t lvl, int32_t pre, int32_t gl,
-                                                   int32_t gr, int32_t pk)
+static __attribute__((noinline)) int32_t drums_x0x(dsink_t *H, uint32_t n, int32_t on, int32_t lvl, int32_t pre,
+                                                   int32_t gl, int32_t gr, int32_t pk)   /* (H: drums.c dsink_t, its half's) */
 {
     uint32_t mask, ch, i, summed = 0, ln, sl = 0, ins = 0;
     int32_t r, d, c, cl, cr, z0, z1, cp;
@@ -375,7 +375,7 @@ static __attribute__((noinline)) int32_t drums_x0x(int32_t *ml, int32_t *mr, int
                 for (i = 0; i < n; i++)
                     x0x_sum[i] = summed ? x0x_sum[i] + x0x_buf[i] : x0x_buf[i];
                 summed++;
-                x0x_tap(ln, n);
+                x0x_tap(H, ln, n);
                 xc.last[ch] = 0;
                 sl |= 1u << ln;
                 continue;
@@ -398,9 +398,9 @@ static __attribute__((noinline)) int32_t drums_x0x(int32_t *ml, int32_t *mr, int
 #endif
         cl = gl, cr = gr, z0 = 0, z1 = 0;
         dlm_gains(ln, &cl, &z0, &cr, &z1);
-        cp = x0x_out(x0x_buf, n, ml, mr, rev, mono, r, d, c, pre, cl, cr, 0, &xc.last[ch]);
+        cp = x0x_out(H, x0x_buf, n, r, d, c, pre, cl, cr, 0, &xc.last[ch]);
 #if FELUCCA_USB_AUDIO
-        dlt_add(ln, dsend_buf, 0u, n);              /* its lane's USB tap (x0x_out kept its samples there) */
+        dlt_add(ln, H->buf, 0u, n);              /* its lane's USB tap (x0x_out kept its samples there) */
 #endif
         dlm_peak(ln, cp);
         pk = cp > pk ? cp : pk;
@@ -408,7 +408,7 @@ static __attribute__((noinline)) int32_t drums_x0x(int32_t *ml, int32_t *mr, int
     for (; ch < X0X_NCH; ch++)
         xc.last[ch] = 0;
     if (summed) {                                   /* (each lane in the sum: the sum's peak) */
-        cp = x0x_out(x0x_sum, n, ml, mr, rev, mono, r0, 0, 0, pre, gl, gr, 0, &xc.last[X0X_NCH]);
+        cp = x0x_out(H, x0x_sum, n, r0, 0, 0, pre, gl, gr, 0, &xc.last[X0X_NCH]);
         for (ln = 0; sl >> ln; ln++)
             if ((sl >> ln) & 1u)
                 dlm_peak(ln, cp);

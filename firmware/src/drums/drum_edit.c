@@ -333,6 +333,37 @@ AINL int32_t dl_smp_apply(uint32_t k, int32_t s, voice_t *v)
         s = (s * dv.lg[k]) >> 12;
     return s;
 }
+/* the same over a block (drums_mix's sampled loop): voice k's values in locals (dl_smp_get), each sample through
+ * dl_smp_run (dl_smp_apply's arithmetic, sample for sample), the envelope and the filter back after the loop
+ * (dl_smp_put): no dv[k] address worked out and read again for every sample */
+typedef struct {
+    int32_t cut, lg, env, flt;
+    uint32_t dec;
+} dl_smp_t;
+AINL void dl_smp_get(uint32_t k, dl_smp_t *x)
+{
+    x->cut = dv.cut[k], x->lg = dv.lg[k], x->env = dv.env[k], x->flt = dv.flt[k], x->dec = dv.dec[k];
+}
+AINL void dl_smp_put(uint32_t k, const dl_smp_t *x)
+{
+    dv.env[k] = x->env, dv.flt[k] = x->flt;
+}
+AINL int32_t dl_smp_run(dl_smp_t *x, int32_t s, voice_t *v)
+{
+    if (x->cut) {
+        x->flt += mulq15(s - x->flt, x->cut);
+        s = x->flt;
+    }
+    if (x->dec) {
+        s = mulq15(s, x->env);
+        x->env = decay_q16(x->env, x->dec);
+        if (!x->env)
+            v->active = 0;
+    }
+    if (x->lg)
+        s = (s * x->lg) >> 12;
+    return s;
+}
 
 /* ---- user samples on a lane: the ADPCM state where a hit starts (decoded in the main loop, dl_tick) */
 #if FELUCCA_DRUM_USR

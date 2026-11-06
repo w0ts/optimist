@@ -6,7 +6,7 @@
  * (outside the parts' voice budget). One-shots: note-offs are ignored; a closed or
  * pedal hi-hat chokes the open one. LEVEL: GLO > DRUMS (G_DRLVL); the sends: each lane's (drum_sends.c);
  * PAN and MUTE: the drum track's P_PAN / P_MUTE. Rendered from the audio ISR. */
-#define NDRUM 6
+#define NDRUM 10                /* a voice a lane (DRUM_LANES): 6 for 10 lanes cut 341 hits and ran 53 dry in 13 s on black, 2026-11-05 */
 #include "synth/drum_synth.c"       /* synthesised kits (DS_KITS) */
 /* P_E0 was unused on the drum track: it holds the kit. 0..4: the GM sample kit and its four
  * treatments (as before: old projects keep their kit), 5..36: the synthesised kits, 37 / 38: X0X's 909 and 808
@@ -379,6 +379,23 @@ static FAST(seq) voice_t *drum_voice(uint32_t note, uint32_t vel, uint32_t lane)
     return v;
 }
 
+/* where the drum voices of a block mix (drums_mix): one sink for the whole drum track (drums_render: the buses
+ * themselves), or one a half when the voices are split over the two cores by lane (drum_halves.c: half A onto the
+ * buses, half B into its own buffers, added at the join). Every buffer a voice writes or uses as scratch is its sink's,
+ * so two halves on two cores share none; what a half adds to the declick tail, its peak and its times are its own too,
+ * folded in after (drums_fold) */
+typedef struct {
+    int32_t *ml, *mr, *rev, *mono;               /* the dry mix L R and the reverb send, or the SLICER's mono (mono != 0) */
+    int32_t *sr, *sd, *sc;                       /* the sends REV DLY CHO (sr: rev's bus, the inserts' and the pre sends) */
+    int32_t *buf;                                /* a voice's block (DSEND_KEEP: its delay / chorus sends, its inserts) */
+    int32_t *dsb;                                /* a synthesised voice's render */
+    int32_t *cap;                                /* the drum stem (USB audio): word i * cs */
+    uint32_t cs;
+    int32_t tail;                                /* the last values of the voices it ended or cut (drums.tail, after) */
+    int32_t pk;                                  /* its largest |output| (drums.peak, after) */
+    uint32_t prof[3];                            /* drums_prof's ticks of this block: loops, inserts, sends */
+} dsink_t;
+#define DCAP(H, i) ((H)->cap[(i) * (H)->cs])
 #include "drum_edit.c"        /* the lanes' own sounds: edits, user samples, other kits' sounds */
 #include "drum_sends.c"       /* the lanes' REV / DLY / CHO sends */
 #include "drum_mix.c"         /* the lanes' PAN, MUTE, SOLO and peak meters */
@@ -390,7 +407,8 @@ static FAST(seq) voice_t *drum_voice(uint32_t note, uint32_t vel, uint32_t lane)
 /* each sound's inserts (fx.c, after: dins_*): the voice's block after its loop, then its pan, mix and sends */
 typedef struct {
     int32_t *ml, *mr, *rev, *mono;
-    int32_t gl0, gld, gr0, grd;                  /* the pan gains at the block's start and their change over it */
+    dsink_t *h;                                  /* the half's sink: its block (buf), its sends, its stem */
+    int32_t gl0, gld, gr0, grd;                 /* the pan gains at the block's start and their change over it */
     int32_t r, d, c, pre, on;                    /* the voice's sends; pre: the reverb send before the SLICER; FX on */
 } dins_mix_t;
 static uint32_t dins_of(uint32_t k, uint32_t note, int32_t on);
@@ -532,47 +550,86 @@ AINL int32_t drlvl_q15(int32_t v)
 
 /* adds the drums into the dry mix and the reverb send; mono != 0: into mono instead, before the
  * pan and the send (the SLICER, slicer.c slicer_drums, does those after it) */
-static HOT __attribute__((noinline)) void drums_mix(int32_t *ml, int32_t *mr, int32_t *rev, int32_t *mono, uint32_t n)   /* (one copy for both callers: drums_render, drums_render_mono; tests/target_budget.py measures it) */
-{
-    uint32_t k, i;
-    int32_t on = fx_on(TDRUM), lvl = drlvl_q15(song.g[G_DRLVL]), pk = drums.peak;   /* (core.h: up to 2.0) */
-    FAR(dsend_table)(on);                           /* the lanes' send levels this block (drum_sends.c) */
-    int32_t pre = mono && FAR(dsend_one)(on) < 0;   /* the SLICER on, the lanes not alike: sends before it */
-    int32_t gl, gr;
-    pan_gains(trk[TRK_DRUM].p[P_PAN], &gl, &gr);      /* (dsp.c) */
-    int32_t ga, gb;
-    if (!FAR(dgl_block)(lvl, gl, gr))
-        return;
-    gl = dgl.pl, gr = dgl.pr;
-    ga = mulq15(dgl.lv0, 32767 - drums.a0), gb = mulq15(dgl.lv, 32767 - drums.a1);   /* level x mute, over the block */
-#if DINS
-    dins_mix_t dx;
-    dx.ml = ml, dx.mr = mr, dx.rev = rev, dx.mono = mono, dx.pre = pre, dx.on = on;
-    dx.gl0 = gl, dx.gld = 0, dx.gr0 = gr, dx.grd = 0;
+static uint32_t drums_prof[4];                  /* ticks x 8, smoothed over ~8 blocks (as dual_cost): the sampled voices' loops, their
+                                                 * inserts (dins_post), their sends (dsend_post), the X0X voices; the console's cpu1 */
+#ifdef OPT_DRUMS_PROF                           /* (fm1-base's port, opt_core.c: the counters read by its console's cpu1) */
+#ifdef PLAT_HOST
+#define DPROF_T() fm1_ticks()
+#else
+#define DPROF_T() FAR(plat_ticks24)()           /* (RAM code: a call through a pointer, as opt_dual.c's dual_ticks) */
 #endif
-    for (i = 0; i < n && drums.tail; i++) {         /* declick tail, ~0.4 ms */
+#else
+#define DPROF_T() 0u                            /* (the classic build, the host's generators: no clock, the counters stay 0) */
+#endif
+#define DPROF(k, t0) do { uint32_t t_ = DPROF_T() - (t0); drums_prof[k] += t_ - (drums_prof[k] >> 3); } while (0)
+/* the block's values every voice reads, worked out once before them (drums_pre): both halves read them, neither writes */
+static struct {
+    int32_t on, lvl, pre;                        /* the drums' FX on; LEVEL (Q15); the SLICER on, the lanes not alike */
+    int32_t gl, gr, ga, gb;                      /* the pan gains; level x mute at the block's start and end */
+} dblk;
+/* before the voices (CPU0, before the fork when they are split): the lanes' send levels, the glides, the gains;
+ * 0: nothing sounds (no voice, no tail: nothing to mix) */
+static HOT int drums_pre(int32_t mono)
+{
+    int32_t gl, gr;
+    dblk.on = fx_on(TDRUM), dblk.lvl = drlvl_q15(song.g[G_DRLVL]);   /* (core.h: up to 2.0) */
+    FAR(dsend_table)(dblk.on);                      /* the lanes' send levels this block (drum_sends.c) */
+    dblk.pre = mono && FAR(dsend_one)(dblk.on) < 0; /* the SLICER on, the lanes not alike: sends before it */
+    pan_gains(trk[TRK_DRUM].p[P_PAN], &gl, &gr);    /* (dsp.c) */
+    if (!FAR(dgl_block)(dblk.lvl, gl, gr))
+        return 0;
+    dblk.gl = dgl.pl, dblk.gr = dgl.pr;
+    dblk.ga = mulq15(dgl.lv0, 32767 - drums.a0), dblk.gb = mulq15(dgl.lv, 32767 - drums.a1);   /* level x mute, over the block */
+    return 1;
+}
+/* the declick tail (~0.4 ms) of the voices cut before this block, into H: before the voices add to it (drums_fold) */
+static HOT void drums_tail(const dsink_t *H, uint32_t n)
+{
+    uint32_t i;
+    int32_t *ml = H->ml, *mr = H->mr, *mono = H->mono;
+    for (i = 0; i < n && drums.tail; i++) {
         if (mono) {
             mono[i] += drums.tail;
         } else {
             ml[i] += drums.tail;
             mr[i] += drums.tail;
 #if FELUCCA_USB_AUDIO
-            track_capture[i * NTRK + TRK_DRUM] += drums.tail;
+            DCAP(H, i) += drums.tail;
 #endif
         }
         drums.tail -= drums.tail / 16 + (drums.tail > 0 ? 1 : drums.tail < 0 ? -1 : 0);
     }
+}
+/* the voices whose lane is in lm (bit l: lane l; bit DRUM_LANES: the click's and plain notes'), and the X0X channels
+ * when x0x, into H. Per-voice state (drums.v[k], dv, the inserts' dins_st[k], filter[k], env[k]) and per-lane state
+ * (the meters, the USB lane taps) are touched only for those: two calls with disjoint lanes may run at once, one a core
+ * (drum_halves.c). A voice's samples are the same whichever call renders it; the buses are integer sums */
+static HOT __attribute__((noinline)) void drums_mix(dsink_t *H, uint32_t lm, int x0x, uint32_t n)   /* (tests/target_budget.py measures it) */
+{
+    uint32_t k, i;
+    int32_t *ml = H->ml, *mr = H->mr, *rev = H->rev, *mono = H->mono, *kb = H->buf;   /* (in locals: a store into the mix
+                                                     * reads H again otherwise) */
+    int32_t on = dblk.on, lvl = dblk.lvl, pre = dblk.pre, pk = 0, tl = 0;
+    int32_t gl = dblk.gl, gr = dblk.gr, ga = dblk.ga, gb = dblk.gb;
+#if DINS
+    dins_mix_t dx;
+    dx.ml = ml, dx.mr = mr, dx.rev = rev, dx.mono = mono, dx.h = H, dx.pre = pre, dx.on = on;
+    dx.gl0 = gl, dx.gld = 0, dx.gr0 = gr, dx.grd = 0;
+#endif
+    (void)lvl, (void)x0x;
     for (k = 0; k < NDRUM; k++) {               /* synthesised voices: render, then as below */
         voice_t *v = &drums.v[k];
         uint32_t m = n < CTL ? n : CTL, o;          /* (the mix runs in blocks of CTL) */
         int32_t r, d, c;                            /* its lane's sends (drum_sends.c) */
+        uint32_t ln = drums.lane[k];            /* its lane: heard, its pan, its meter (drum_mix.c) */
+        if (!((lm >> ln) & 1u))
+            continue;                               /* (the other half's lane: its voice not even read, drum_halves.c) */
         if (!v->active || !drums.synth[k])
             continue;
-        uint32_t ln = drums.lane[k];            /* its lane: heard, its pan, its meter (drum_mix.c) */
-        int32_t vpk = 0;
+        int32_t vpk = 0, *db = H->dsb;
         if (!((dlm_heard >> ln) & 1u)) {            /* muted meanwhile: it stops, declicked */
             v->active = 0;
-            drums.tail += v->s[7];
+            tl += v->s[7];
             v->s[7] = 0;
             continue;
         }
@@ -584,16 +641,16 @@ static HOT __attribute__((noinline)) void drums_mix(int32_t *ml, int32_t *mr, in
 #endif
         o = v->ofs < m ? v->ofs : 0u;               /* a hit inside the block: from its sample */
         v->ofs = 0;
-        if (!ds_render(&drums.ds[k], ds_buf + o, m - o))
+        if (!ds_render(&drums.ds[k], db + o, m - o))
             v->active = 0;
         for (i = o; i < m; i++) {
-            int32_t s = (int32_t)(((int64_t)ds_buf[i] * (ga + (((gb - ga) * (int32_t)i) >> CTL_LOG2))) >> 15);   /* (64 bits: LEVEL > 1.0) */
+            int32_t s = (int32_t)(((int64_t)db[i] * (ga + (((gb - ga) * (int32_t)i) >> CTL_LOG2))) >> 15);   /* (64 bits: LEVEL > 1.0) */
 #if FELUCCA_DRUM_EDIT
             if (dv.on[k])                              /* the lane's CUT - */
                 s = dl_smp_apply(k, s, v);
 #endif
             v->s[7] = s;
-            DSEND_KEEP(i, s);                       /* (its delay / chorus sends: after its loop) */
+            kb[i] = s;                              /* (DSEND_KEEP: its delay / chorus sends, after its loop) */
             if (s > vpk || -s > vpk)
                 vpk = s < 0 ? -s : s;
 #if DINS
@@ -607,7 +664,7 @@ static HOT __attribute__((noinline)) void drums_mix(int32_t *ml, int32_t *mr, in
             ml[i] += (s * pl0) >> 12;
             mr[i] += (s * pr0) >> 12;
 #if FELUCCA_USB_AUDIO
-            track_capture[i * NTRK + TRK_DRUM] += s;
+            DCAP(H, i) += s;
 #endif
             if (r)
                 rev[i] += mulq15(s, r);
@@ -619,7 +676,7 @@ static HOT __attribute__((noinline)) void drums_mix(int32_t *ml, int32_t *mr, in
 #if DINS
         if (!ins)                                   /* (with inserts: dins_post taps their output) */
 #endif
-            dlt_add(ln, dsend_buf, o, m);           /* its lane's USB tap, when a channel takes it (ua_tap.h) */
+            dlt_add(ln, kb, o, m);                  /* its lane's USB tap, when a channel takes it (ua_tap.h) */
 #endif
 #if DINS
         if (ins) {
@@ -627,26 +684,27 @@ static HOT __attribute__((noinline)) void drums_mix(int32_t *ml, int32_t *mr, in
             dins_post(k, DLANE_NOTE(drums.lane[k]), o, m, m, &dx);
         } else
 #endif
-        DSEND_POST(o, m, r, d, c, pre);
+        DSEND_POST(H, o, m, r, d, c, pre);
         if (!v->active) {
-            drums.tail += v->s[7];                  /* ended: no step at the end */
+            tl += v->s[7];                          /* ended: no step at the end */
             v->s[7] = 0;
         }
     }
+    uint32_t tp = DPROF_T(), tp_loop = 0, tp_ins = 0, tp_snd = 0, tq;   /* (drums_prof: the sampled voices) */
     for (k = 0; k < NDRUM; k++) {
         voice_t *v = &drums.v[k];
+        uint32_t ln = drums.lane[k];            /* its lane: heard, its pan, its meter (drum_mix.c) */
+        if (!((lm >> ln) & 1u) || drums.synth[k])
+            continue;                               /* (the other half's lane: its voice not even read, drum_halves.c) */
         const smp_zone_t *z = smp_zone((uint32_t)v->s[4]);   /* (a user sample on a lane: its slot) */
-        if (drums.synth[k])
-            continue;
         uint32_t frac = v->ph[1], stepq = (uint32_t)v->s[5], i0;   /* Q16 source samples per output (drum_on) */
         int32_t g, r, d, c;
         if (!v->active)
             continue;
-        uint32_t ln = drums.lane[k];            /* its lane: heard, its pan, its meter (drum_mix.c) */
         int32_t vpk = 0;
         if (!((dlm_heard >> ln) & 1u)) {            /* muted meanwhile: it stops, declicked */
             v->active = 0;
-            drums.tail += v->s[7];
+            tl += v->s[7];
             v->s[7] = 0;
             continue;
         }
@@ -664,6 +722,22 @@ static HOT __attribute__((noinline)) void drums_mix(int32_t *ml, int32_t *mr, in
         i = v->ofs < n ? v->ofs : 0u;              /* a hit inside the block: from its sample */
         v->ofs = 0;
         i0 = i;
+        /* the block's invariants, read once (uint8_t: a char is read again after every store into the mix otherwise) */
+        uint32_t kit = drums.kit[k], dvon = FELUCCA_DRUM_EDIT && dv.on[k];
+#if FELUCCA_DRUM_EDIT
+        dl_smp_t de;
+        if (dvon)
+            dl_smp_get(k, &de);                     /* (its DECAY, CUT, LEVEL in locals: drum_edit.c) */
+#endif
+#if FELUCCA_SD_LANES
+        dlc_blk_t cb;
+        uint32_t card = (uint32_t)dlc_is(v);
+        if (card) {
+            dlc_open(v, &cb);                       /* (its stream once a block: lane_card.c) */
+            cb.tail = &tl;                          /* (its end declicked: this half's tail) */
+        }
+#endif
+        tq = DPROF_T();
         for (; i < n; i++) {
             int32_t s;
             frac += stepq;
@@ -671,8 +745,8 @@ static HOT __attribute__((noinline)) void drums_mix(int32_t *ml, int32_t *mr, in
                 frac -= 65536u;
                 v->s[2] = v->s[3];
 #if FELUCCA_SD_LANES
-                if (dlc_is(v)) {                    /* a card sample (lane_card.c): its next frame, else it ended */
-                    if (!dlc_next(v))
+                if (card) {                         /* a card sample (lane_card.c): its next frame, else it ended */
+                    if (!dlc_step(v, &cb))
                         break;
                     continue;
                 }
@@ -680,7 +754,7 @@ static HOT __attribute__((noinline)) void drums_mix(int32_t *ml, int32_t *mr, in
                 if (v->ph[0] >= z->n || v->ph[0] >= v->ph[2]) {   /* (ph[2]: a lane's hit ends there) */
                     v->active = 0;
                     if (v->s[4] >= 0x8000)
-                        drums.tail += v->s[7];      /* (cut short: declicked) */
+                        tl += v->s[7];              /* (cut short: declicked) */
                     break;
                 }
                 v->s[3] = sample_next(z, v, 0);
@@ -689,21 +763,21 @@ static HOT __attribute__((noinline)) void drums_mix(int32_t *ml, int32_t *mr, in
                 break;
             s = lerp16(v->s[2], v->s[3], frac);         /* (dsp.c) */
             s = (int32_t)(((int64_t)s * (g + ((dg * (int32_t)i) >> CTL_LOG2))) >> 15);   /* (64 bits: g up to ~3.5) */
-            if (drums.kit[k] == 1u || drums.kit[k] == 4u) {
-                drums.filter[k] += (s - drums.filter[k]) >> (drums.kit[k] == 1u ? 2 : 1);
+            if (kit == 1u || kit == 4u) {
+                drums.filter[k] += (s - drums.filter[k]) >> (kit == 1u ? 2 : 1);
                 s = drums.filter[k];
-                if (drums.kit[k] == 4u) s = (s >> 8) * 256;
-            } else if (drums.kit[k] == 2u) {
+                if (kit == 4u) s = (s >> 8) * 256;
+            } else if (kit == 2u) {
                 s = mulq15(s, drums.env[k]);
                 drums.env[k] = decay_to0(drums.env[k]);   /* (dsp.c) */
                 if (drums.env[k] <= 0) v->active = 0;
             }
 #if FELUCCA_DRUM_EDIT
-            if (dv.on[k])                          /* the lane's DECAY, CUT, LEVEL */
-                s = dl_smp_apply(k, s, v);
+            if (dvon)                              /* the lane's DECAY, CUT, LEVEL */
+                s = dl_smp_run(&de, s, v);
 #endif
             v->s[7] = s;
-            DSEND_KEEP(i, s);                       /* (its delay / chorus sends: after its loop) */
+            kb[i] = s;                              /* (DSEND_KEEP: its delay / chorus sends, after its loop) */
             if (s > vpk || -s > vpk)
                 vpk = s < 0 ? -s : s;
 #if DINS
@@ -717,11 +791,16 @@ static HOT __attribute__((noinline)) void drums_mix(int32_t *ml, int32_t *mr, in
             ml[i] += (s * pl0) >> 12;
             mr[i] += (s * pr0) >> 12;
 #if FELUCCA_USB_AUDIO
-            track_capture[i * NTRK + TRK_DRUM] += s;
+            DCAP(H, i) += s;
 #endif
             if (r)
                 rev[i] += mulq15(s, r);
         }
+        tp_loop += DPROF_T() - tq;
+#if FELUCCA_DRUM_EDIT
+        if (dvon)
+            dl_smp_put(k, &de);                     /* (its envelope and filter on to the next block) */
+#endif
         dlm_peak(ln, vpk);
         if (vpk > pk)
             pk = vpk;
@@ -729,21 +808,72 @@ static HOT __attribute__((noinline)) void drums_mix(int32_t *ml, int32_t *mr, in
 #if DINS
         if (!ins)
 #endif
-            dlt_add(ln, dsend_buf, i0, i);          /* (i: where it ended) */
+            dlt_add(ln, kb, i0, i);                 /* (i: where it ended) */
 #endif
+        tq = DPROF_T();
 #if DINS
         if (ins) {
             dx.r = r, dx.d = d, dx.c = c, dx.gl0 = pl0, dx.gld = pld, dx.gr0 = pr0, dx.grd = prd;
             dins_post(k, DLANE_NOTE(drums.lane[k]), i0, i, n, &dx);
+            tp_ins += DPROF_T() - tq;
         } else
 #endif
-        DSEND_POST(i0, i, r, d, c, pre);           /* (i: where it ended) */
+        {
+            DSEND_POST(H, i0, i, r, d, c, pre);    /* (i: where it ended) */
+            tp_snd += DPROF_T() - tq;
+        }
         v->ph[1] = frac;
     }
+    H->prof[0] += tp_loop, H->prof[1] += tp_ins, H->prof[2] += tp_snd;
+    H->tail += tl;
+    if (x0x) {                                      /* the X0X kits' voices (one call of a block: their shared sum) */
+        tp = DPROF_T();
 #if DRUM_X0X
-    pk = FAR(drums_x0x)(ml, mr, rev, mono, n, on, lvl, pre, gl, gr, pk);   /* the X0X kits' voices */
+        pk = FAR(drums_x0x)(H, n, on, lvl, pre, gl, gr, pk);
 #endif
-    drums.peak = pk;
+        DPROF(3, tp);
+    }
+    if (pk > H->pk)
+        H->pk = pk;
 }
-static HOT void drums_render(int32_t *ml, int32_t *mr, int32_t *rev, uint32_t n) { drums_mix(ml, mr, rev, 0, n); }
-static HOT void drums_render_mono(int32_t *mono, uint32_t n) { drums_mix(0, 0, 0, mono, n); }
+/* after the voices (CPU0, after the join when they are split): what each sink added to the declick tail, its peak,
+ * its times (b: 0 for one sink) */
+static HOT void drums_fold(const dsink_t *a, const dsink_t *b)
+{
+    uint32_t k;
+    int32_t pk = drums.peak;
+    drums.tail += a->tail + (b ? b->tail : 0);
+    if (a->pk > pk)
+        pk = a->pk;
+    if (b && b->pk > pk)
+        pk = b->pk;
+    drums.peak = pk;
+    for (k = 0; k < 3u; k++)
+        drums_prof[k] += (a->prof[k] + (b ? b->prof[k] : 0u)) - (drums_prof[k] >> 3);
+}
+/* a sink onto these buses (ml mr rev, or mono) and the global sends, scratch and stem (the drum track as one job) */
+static HOT void dsink_bus(dsink_t *H, int32_t *ml, int32_t *mr, int32_t *rev, int32_t *mono)
+{
+    H->ml = ml, H->mr = mr, H->rev = rev, H->mono = mono;
+    H->sr = send_r, H->sd = send_d, H->sc = send_c;
+    H->buf = dsend_buf, H->dsb = ds_buf;
+#if FELUCCA_USB_AUDIO
+    H->cap = track_capture + TRK_DRUM, H->cs = NTRK;
+#else
+    H->cap = 0, H->cs = 0;
+#endif
+    H->tail = 0, H->pk = 0, H->prof[0] = H->prof[1] = H->prof[2] = 0;
+}
+/* the drum track as one job: every voice, in the order they always ran (synthesised, sampled, X0X) */
+static HOT void drums_one(int32_t *ml, int32_t *mr, int32_t *rev, int32_t *mono, uint32_t n)
+{
+    dsink_t H;
+    if (!drums_pre(mono != 0))
+        return;
+    dsink_bus(&H, ml, mr, rev, mono);
+    drums_tail(&H, n);
+    drums_mix(&H, ~0u, 1, n);
+    drums_fold(&H, 0);
+}
+static HOT void drums_render(int32_t *ml, int32_t *mr, int32_t *rev, uint32_t n) { drums_one(ml, mr, rev, 0, n); }
+static HOT void drums_render_mono(int32_t *mono, uint32_t n) { drums_one(0, 0, 0, mono, n); }

@@ -31,7 +31,7 @@
 #define IN_POOL_AUDIO                                /* (core.h: the audio reads it, in the pool) */
 #endif
 #ifndef SST_N
-#define SST_N 8u                                     /* streams (rings): one a sounding voice (core.h NVOICE) */
+#define SST_N 10u                                    /* streams (rings): one a sounding voice (core.h NVOICE 8; a kit's 10 lanes, SST_KIT_RINGS) */
 #endif
 #ifndef SST_K
 #define SST_K ((uint32_t)FELUCCA_SD_RING_KB * 2u)    /* a ring's slots (512 B each): the builder's SD_RING, KB a voice */
