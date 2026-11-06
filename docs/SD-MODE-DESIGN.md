@@ -1218,3 +1218,39 @@ region holds, not a fixed one or two.
 - **Open:** three GRAIN parts on card sets ask the arena for 101,100 B and the plan is refused on that profile; the 96 KB
   region no longer fits the profile's app slot with this branch (64 KB does); a plugin is never `ENG_IS` anything, so
   SAMPLE and SLICE as plugins lose `voice.c eng_sampled` (their phases are kept on a retrigger, as a synth's).
+
+### 10.8 Integrated 2026-11-06, the night: 27 of 28 engines as plugin files (emulator only; FM6 stays built in)
+
+Four agents, one a kind, each on its own branch from the base commit; merged on `plugins/integ` (worktree
+`worktrees/plug-integ`): `plugins/units` (the float units linked in: ACID, ANALOG's models, PROPHET), `plugins/api` (the
+API table, section 10.6), `plugins/state` (the engines' own state into structs: DRONE, FORMANT, STRINGS, PHASE, WAVE;
+then ACID and ANALOG on `plugins/acid`, `plugins/analog`), `plugins/samples` (section 10.7). FM6 stays built in by the
+user's ruling (its editor).
+
+- **Every engine but FM6 builds as a plugin file against the dev profile** (24: the sample engines are SD card mode
+  only, section 10.7, where all four build): ACID 13,604 B, ANALOG 11,652, CS80 4,392, CZ 7,224, DIGITAL 2,792,
+  DRAWBAR 2,784, DRONE 3,868, FORMANT 3,528, JUNO 6,260, LOFI 3,644, NOISE 3,864, PHASE 3,840, PHYS 11,404, PLAITS
+  11,556, PROPHET 11,756, SID 45,244, STRINGS 2,904, SUPER 2,616, TERRAIN 18,564, TRIO 4,960, VECTOR 24,864, VPS
+  2,328, WAVE 70,396, WSEQ 6,420; in SD card mode GRAIN 10,876, SLICE 4,056, STRETCH 10,204, SAMPLE 3,416.
+- **Proofs on the integrated firmware** (dev, LAYOUT 1, PLUGINS 128, ARENA 1, bench 19, `play_check` RMS against
+  the empty slot's 0.0516): PROPHET 0.1301, PHYS 0.1064, WAVE 0.1361, SID 0.1278, CZ 0.1187, ACID 0.0618, PHASE 0.0956,
+  each with its name on T1..T3, no guard fault; SD card mode (sd-card-mots, PLUGINS 64, bench 20): GRAIN installed from
+  the card at boot into slot 0 (0.0609). The other engines were proven on their branches (sections 10.6, 10.7 and the
+  agents' reports), not again after the merge.
+- **The tool, after the merge** (`tools/plugin_build.py`): links an engine's float unit; maps `.ram_text` / `.ram_hot`
+  into the plugin's text (hot code runs from flash in a plugin); compiles with `-fdata-sections` so the prelude's globals
+  go, keeps `plugin_abi` and `plugin_api`; refuses any named RAM section (`.pool`, `.ram_hot` data: IN_POOL state) with
+  the section's name, besides `.data` / `.bss`. One `.pool` input section shared by a referenced object and the
+  prelude's CPU1 stack kept the stack: the object moved, the section goes.
+- **The built-in engines unchanged:** 120 golden renders identical on every branch; with the converted engines built in,
+  their renders identical (DRONE, FORMANT, STRINGS, WAVE: 158; ACID: 124; ANALOG with every FLT B model). The dev image
+  +108 B over the base (the descriptors' four extra bytes each), SRAM the same.
+- **What a plugin costs the firmware now:** `engine_t` +4 B a descriptor (`part_bytes`, `keep`, `tab_kb`); the API table
+  (version, part memory, the decoded sine and tanh, the track array, the random generator, the slot lookup, a main-loop
+  service hook, a shared block from the arena, the card streaming's data and calls); `ENGINES[]` in RAM; a main-loop pass
+  over the placed plugins' hooks.
+- **Open** (from the agents' reports): a plugin DRONE has no HOLD latch and no BEAT side, and a plugin SAMPLE or SLICE
+  keeps its phases on a retrigger, because voice.c and fx.c gate those on `ENG_IS`: a descriptor flag each; a plugin
+  STRETCH keeps its whole state per part (45 KB each) where the built-in shares one instance (the arena's shared block
+  can restore that); the placed plugins' API word goes stale under a firmware update that keeps the region; the card
+  entries' struct layouts are not in `PLUG_ABI`; costs.json for `PLUGINS` is unmeasured; nothing of this ran on an FM-1.
