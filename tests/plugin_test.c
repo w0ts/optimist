@@ -302,6 +302,41 @@ int main(void)
         CHECK(h.crc == plug_crc(flash + FL_PLUG_LO + PLUG_HDR_LEN, 60000u) && flash[FL_PLUG_LO + PLUG_HDR_LEN + 59999u] == 0x5Au,
               "15 sectors written whole");
     }
+    {   /* ---- kit heads (PLUG_KIND_HEADS): plain bytes keyed by the kit's hash, beside the engines, no slot */
+        plug_hdr_t hh;
+        uint32_t base = 0, len = 0, used = 0, fre = 0;
+        reset();
+        mk_file(23, 300u, REL, 1u, 0x20u);
+        f.d = filebuf, f.len = file_len, f.fail_at = 0xFFFFFFFFu;
+        CHECK(plug_install(rd, &f) == 0, "an engine first");
+        mk_hdr(&hh, 0, 5000u, 0u, 0xC0FFEE12u);           /* the key in desc, the name the kit's */
+        hh.kind = PLUG_KIND_HEADS;
+        hh.api = 0xFFFFu, hh.abi = 0xDEADBEEFu;           /* (neither checked for heads) */
+        memcpy(hh.name, "KIT 808", 8);
+        memset(filebuf + PLUG_HDR_LEN, 0x5A, 5000u);
+        finish_hdr(&hh, filebuf + PLUG_HDR_LEN);
+        memcpy(filebuf, &hh, PLUG_HDR_LEN);
+        f.d = filebuf, f.len = PLUG_HDR_LEN + 5000u;
+        rc = plug_install(rd, &f);
+        CHECK(rc == 0 && plug_uid[1] == 0xFFu, "heads placed (%d), no engine slot taken", rc);
+        CHECK(plug_find(PLUG_KIND_HEADS, 0xC0FFEE12u, &base, &len) && base == FM1_XIP(FL_PLUG_LO + PLUG_SECTOR) + PLUG_HDR_LEN && len == 5000u,
+              "found by key after the engine's sector: base 0x%x len %u", base, len);
+        CHECK(flash[FL_PLUG_LO + PLUG_SECTOR + PLUG_HDR_LEN + 4999u] == 0x5Au, "its bytes whole");
+        n_prog = 0;
+        CHECK(plug_install(rd, &f) == 0 && n_prog == 0u, "the same key again: nothing written");
+        plug_region_kb(&used, &fre);
+        CHECK(used == 12u && fre == 52u, "the gauge: %u KB used, %u free", used, fre);
+        CHECK(!plug_find(PLUG_KIND_ENGINE, 0xC0FFEE12u, 0, 0) && plug_find(PLUG_KIND_ENGINE, 23u, 0, 0), "kinds apart: the engine by UID");
+        hh.nrel = 1;
+        finish_hdr(&hh, filebuf + PLUG_HDR_LEN);
+        memcpy(filebuf, &hh, PLUG_HDR_LEN);
+        CHECK(plug_install(rd, &f) == PLUG_E_BAD, "heads with relocations: BAD (the header's shape is judged first)");
+        CHECK(plug_free(PLUG_KIND_HEADS, 0xC0FFEE12u) == 0 && !plug_find(PLUG_KIND_HEADS, 0xC0FFEE12u, 0, 0), "freed: gone");
+        plug_region_kb(&used, &fre);
+        CHECK(used == 4u && fre == 60u, "the gauge after: %u used", used);
+        CHECK(plug_free(PLUG_KIND_HEADS, 0xC0FFEE12u) == -1, "freeing what is not there: -1");
+        CHECK(plug_uid[0] == 23u, "the engine untouched through it all");
+    }
     {   /* ---- the SFC cipher: the package tool's stream, an involution, the 32-byte blocks by address */
         uint8_t b[40] = {0}, c[40];
         char hex[81];

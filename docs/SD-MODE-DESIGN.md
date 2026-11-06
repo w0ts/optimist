@@ -1254,3 +1254,13 @@ user's ruling (its editor).
   STRETCH keeps its whole state per part (45 KB each) where the built-in shares one instance (the arena's shared block
   can restore that); the placed plugins' API word goes stale under a firmware update that keeps the region; the card
   entries' struct layouts are not in `PLUG_ABI`; costs.json for `PLUGINS` is unmeasured; nothing of this ran on an FM-1.
+
+### 10.9 A second occupant kind: a card kit's heads (2026-11-06, for the sd card reader session's client)
+
+The region has no directory, so a second kind of occupant is one more KIND byte: `PLUG_KIND_HEADS` (1), plain bytes
+keyed by the kit's hash in `desc`, `name[12]` the kit's name, no relocations, no API or ABI check, no engine slot.
+`plug_install` places it first fit beside the plugins (the same reader callback, the same sliced erase, the same SFC
+step), `plug_find(kind, key, &base, &len)` gives its bytes' XIP address, `plug_free(kind, key)` erases its header's
+sector (the sectors read free at the next walk: "the kit changed"), `plug_region_kb(&used, &free)` feeds the FLASH
+gauge of SYSTEM > INFO. The planner's side (the pre-buffer heads written when a kit is picked, read in place, the arena
+kept for the rings): docs/SD-CARD-DESIGN.md section 7. Host-tested in tests/plugin_test.c; never on hardware.
