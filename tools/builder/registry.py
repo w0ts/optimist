@@ -1253,6 +1253,23 @@ _add("LAYOUT", "FELUCCA_LAYOUT", "flash layout: the MEMORY step (set by SD CARD 
           "ERASES what the two keep in different places (the projects in flash always; the update loader clears the "
           "other step's sectors first): back up with the web editor before. The first install of a step needs a normal "
           "build of this version first (an older updater refuses its size).")
+# bit 453 (2026-11-06): the next free one after CANVAS_STRIP's 452; the PLUGINS region (core/plugin.h, core/plugin.c,
+# docs/SD-MODE-DESIGN.md section 10): engines built as files (tools/plugin_build.py, the SD card zip's Optimist/Plugins)
+# and loaded from the card into the last KB of the app slot when a project names one the build misses. The KB come off
+# the code's room (tools/build.py plugin_region; core.py's fit cap). Two engine slots after the built-in ones.
+_add("PLUGINS", "FELUCCA_PLUGIN_KB", "engines as plugins: flash they are loaded into from the SD card", MEM, 453,
+     default=0, choices=((0, "off"), (64, "64 KB (one large engine, or several small)"), (128, "128 KB"), (192, "192 KB")),
+     experimental=True, target_only=True,
+     tested="host-tested (tests/plugin_test.c, plugin_card_test.c), the emulator plays SID from the region and loads it from "
+            "the card; on an FM-1 once (pink, 2026-11-06: SID placed in the region boots and renders)",
+     desc="A flash region of this size at the end of the code's room, into which the FM-1 writes an engine's plugin "
+          "file from the SD card (Optimist/Plugins/<ENGINE>.opl, every engine the card zip could build as one) the "
+          "first time a project asks for an engine this build does not have; the placed engines play from there like "
+          "built-in ones, and stay until the region is full (the oldest unused goes) or a firmware update rewrites the "
+          "code's room. A plugin is built for one configuration's structs: another build's file is refused and loaded "
+          "again from a card zip made for this build. Engines whose code keeps RAM of its own (FM6, PHYS, PLAITS, "
+          "CZ, JUNO, GRAIN, SLICE, STRETCH, DRONE, FORMANT, PHASE, STRINGS, WAVE, ACID, ANALOG, PROPHET, 2026-11-06) "
+          "are not plugins yet. Needs SDCARD to load from the card.")
 # bit 411 (2026-10-25): the next free one after LAYOUT's 410; the arena (core/arena.c, fx/fx_arena.c, docs/SD-MODE-DESIGN.md
 # 6b): KB, 0 the fixed memories as before. The core (every build it is set in): the parts' engine states placed by need,
 # the edit's one confirm for what to drop, a load's refusals on it one by one; the extras only in the SD card mode

@@ -12,7 +12,7 @@ Phases 1 and 2 are built and host-tested (section 8); nothing has run on an FM-1
   editor's project command answers 1 for another, a backup's PJ02..PJ16 are not restored), **no user samples**, about
   **4 presets and 4 kits**.
 - **The built-in samples stay in flash** for now (no RAM spent on sample streaming yet).
-- **Plugins** (code loaded into RAM from the card): later, maybe.
+- **Plugins** (code loaded from the card into flash): section 10 (rulings 2026-11-02 and 2026-11-06).
 
 ## 2. Why flash and not RAM
 
@@ -462,7 +462,7 @@ borrows more, measured as the third row of each size and left off: more bytes hi
 | 2 (built) | The **fake SD mode** (`sd-mode-probe` profile): the 816 KiB slot, the squeezed store (a 7-sector project log at 0xD0000: about 5 dense scenes a project; autosave A 0xD7000; FM6 voices 0xD8000; kits and presets unchanged), no user samples / snapshots / CZ collection, the update loader and the rescue tool clearing the other layout's sectors on a switch, the far probe | the user's install: the user data in the overlap is lost; the far probe answers the SPL question |
 | 3 | The arena (section 6b, built), then the RAMTEXT overlays (section 6, built, retired 2026-10-30) | none beyond a normal build |
 | 4 | Real SD mode: the user data on the card (`SDCARD`), flash keeps settings + one project | needs the SD mod |
-| 5 | Plugins (code from the card into RAM), if ever needed | |
+| 5 | Plugins (code from the card into flash, engines and effects: section 10) | none until the first load on Claude's test FM-1 |
 
 Who does what: Claude writes and host-tests every phase and hands over packages; the user installs them and runs the
 checks. Claude never writes to the FM-1.
@@ -997,3 +997,166 @@ built-in sets with SLOTS 0? the firmware's own notice only, or a refusal without
   its `ownSlots` list is updated, checked by `tests/flash_layout_test.py`).
 - **Fix on the way:** `ed_user.c` never erases a sample slot with no room (`SMP_USER_CAP` 0): a BEGIN to such a slot
   erased its first sector, which in the new steps is the project log's or the app's.
+
+## 10. Plugins in flash (rulings 2026-11-02 and 2026-11-06; design, nothing built)
+
+**Rulings (the user):** every engine and every effect can be a **plugin**: a file on the card that the firmware writes
+into its own flash on demand, so a user whose build lacks one or two of them **loads them instead of rebuilding**. The
+loaded plugins live **in flash, not in RAM** ("i think flash is best", 2026-11-06; the pool stays the projects' arena).
+Hash-checked, verified or rewritten at restart like a firmware update. A Java-style interface: a version and a table
+of functions. A plugin that does not fit cannot be chosen in the editor. How many are loaded at once is what the
+region holds, not a fixed one or two.
+
+### 10.1 What is measured
+
+- **Speed:** code runs as fast from cached XIP flash as from RAM (`membench` 2026-10-25: 161.5 vs 161.7 ns a step of
+  the same loop), so a plugin in flash costs no speed and needs no RAMTEXT copy of its hot loop. A cold cache is
+  unmeasured.
+- **The flash part:** Puya P25Q80H, 100k erase cycles a sector, erase 8 ms typ / 12 max per 4 KB (17.2 ms measured);
+  program time unmeasured. A 48 KB plugin is 12 sectors, about 0.2 s to write (*estimate*). Wear is no concern at
+  project-load rates.
+- **Sizes** (`costs.json` 2026-11-05, the flash each item adds): WAVE 70,008 B (and 73 KB of pool), SID 44,420,
+  SLICE 26,668, FM6 25,688, VECTOR 24,608, TERRAIN 18,448, GRAIN 5,192, ANALOG 5,080, the other synths 1.4-6 KB each;
+  the effects 1.6-6 KB each (MASTER_COMP 6,044, FDN8 3,644, DELAY 3,596, AIRWIN 3,428, JCHORUS 2,380, PLATE 2,200,
+  XDLY 2,076, GATER 1,848, PUNCH 1,744, ROOM 1,656). All synth engines together: about 257 KB of flash.
+- **Position independence:** pi32v2-llvm (the default `COMPILER`) accepts `-fPIC` and ignores it (absolute addresses).
+  JieLi's FDPIC costs +12 % bytes and about +35 % instructions in a call-heavy loop and reserves r15 (counted, not
+  timed). A toy engine linked at two bases differed in exactly its `MOV_ABS32` words; calls are PC-relative
+  (`worktrees/pic-test/pic/RESULTS.md`, 2026-11-02; branch `pic-test`).
+
+### 10.2 The design
+
+- **The plugin region:** a run of flash sectors reserved by a builder item `PLUGINS` (its size the user's choice: 0,
+  64, 128, 192 KB, say), taken from the app slot so the budget shows it: a profile with `PLUGINS` 128 KB has 128 KB
+  less for built-in items. `tools/flash_layout.py` places it at the app slot's end (below 0x93000 in the normal
+  layout). Its first sector is the **directory**: a header (magic, the API version) and an entry per plugin (name,
+  UID, kind, address, size, hash, state).
+- **A plugin file** (`/Optimist/Plugins/<name>-<api>.opl`; the same bytes install over USB from the web editor, the
+  installer and the Mirror app, so a user without the card mod loads plugins too): a header (magic, the firmware API
+  version it was built for, kind: engine / insert / send / master, UID, name, code size, state size for the arena,
+  the hash), the image, the relocation list.
+- **Placement and relocation:** plugins are packed in the region at 4 KB granularity, first fit. The image is linked at
+  0 with its relocations kept (`ld -q`); the loader adds the placement address to each listed word (`MOV_ABS32` in
+  code, `ABS32` in data) while writing. One image per plugin at any address: effects of 2-6 KB and engines of 70 KB
+  share the region without slots. Risk: relocation kinds a real engine brings beyond the two seen (the first plugin
+  build tells). Fallback if a kind cannot be patched: fixed slots, the plugin file carrying one image per slot (twice
+  the file, no patching).
+- **The interface:** the plugin exports its descriptor (an engine: `engine_t` as today, `core.h`: name, params,
+  presets, hooks; an effect: a new hook table, since the insert types are a switch in `fxi_kern.c` today: process,
+  set, clear, memory needs). It imports the firmware through one versioned table, `plugin_api_t`, handed over at
+  load: the math helpers (sine, exp, div), the voice and track accessors, the arena, the preset services, the
+  console. Anything an engine takes from a firmware header by inlining (macros, static inline helpers, table
+  addresses) comes through the table or is compiled into the plugin. The API version changes when the table or a
+  shared struct layout (`voice_t`, `track`, `param_desc_t`) changes; the firmware refuses older plugins and shows
+  them as "needs an update" with its version.
+- **The registry:** `ENGINES[NENGINES]` (`engines.c`, UID order) becomes the built-in list plus the loaded plugins.
+  The editor's INFO already names each slot's UID, so the editor keys plugins by UID; a project's engine byte must
+  be the UID too (or the loader maps slots). A plugin engine's state goes to the arena like a built-in one, by the
+  size in its header.
+- **Loading:** a project, or the user from a PLUGINS page (SYSTEM, and the editor), names a plugin. Present in the
+  directory with a good hash: used as is. Absent: the main loop reads the file from the card, checks the hash, places
+  it, erases and programs with the sound stopped (as a project save: stop, then write), patches, writes the directory
+  entry; then the engine or effect appears. Region full: the oldest plugin no loaded project uses is evicted, else
+  the load is refused with a message naming the size.
+- **Restart and updates:** at boot the directory is read and each entry's hash verified; a bad entry is dropped and
+  reloaded from the card at its next use. A firmware update keeps the region's bytes and bumps the API version when it
+  must; every entry whose API differs is dropped, and the site lists each release's plugin files beside its packages.
+- **The builder:** every engine and effect item gets a third state beside on and off: PLUGIN (the same compile, linked
+  as a plugin file, not into the image). The release's build page offers the plugin files; `costs.json` gets each
+  plugin's file size, so the editor and the builder say what fits a `PLUGINS` region.
+- **The second core:** a plugin's render runs on CPU1 like a built-in's; the flash write waits for both cores' render
+  to stop.
+
+### 10.3 Open, in order
+
+1. The first plugin: SID (44 KB, no pool, no samples). Link at 0 with `-q`, list the relocation kinds a real engine
+   brings, write the loader, run it on the emulator, then on Claude's test FM-1 (never the user's).
+2. `plugin_api_t`: inventory what the engines take from `core.h` and the helpers; the inlined tables are the work.
+3. The effects' hook table (`fxi_kern.c`'s switch becomes a table).
+4. The `PLUGINS` item, `flash_layout.py`, the directory, the PLUGINS page, the site's plugin files.
+
+### 10.4 Built 2026-11-06: the SID prototype (host-tested, plays in the emulator; not yet on an FM-1)
+
+- **The file** (`core/plugin.h`, `tools/plugin_build.py`, `firmware/src/plugin/plug_unit.c`): a 48-byte header (magic
+  OPLG, API 1, kind, UID, name, image length, the descriptor's offset, the relocation count, the image's CRC-32, the
+  base, an ABI word, the header's CRC), the image (`.text` + `.rodata`, nothing writable: a plugin has no RAM of its
+  own), one word per relocation (kind in the top 4 bits: 0 a 32-bit address word, 1 a `MOV_ABS32` instruction pair
+  whose low 16 bits sit in the first word's top half and high 16 in the second's bottom half; measured on SID). The
+  unit is felucca.c's prelude up to core.h, dsp.c and the engine's file, linked at 0 with `ld -q`. **SID:** 45,140 B
+  (code 1,594, tables 43,204), 73 relocations, no symbol taken from the firmware. The **ABI word** is the sizes of
+  track_t, voice_t, vmod_t, engine_t, preset_t and param_desc_t folded into one (`PLUG_ABI`): a plugin built against
+  another configuration's structs is refused, API number or not.
+- **No directory** (`core/plugin.c`): a placed plugin is its header at a sector's start and its image after it; boot
+  (`plug_init`, main.c after `persist_boot`) walks the region sector by sector, a header whole (both CRCs, the base
+  where it sits) starts a plugin and its sectors are skipped, every other sector is free. The header is written last,
+  so a write cut short leaves free sectors. **Stable slots:** a UID keeps its slot across installs and forgets (a part
+  playing slot k goes on playing the same engine), a new one takes the first free slot.
+- **The loader** (`plug_install`, a reader callback for the file's bytes: the card, USB, the editor): the header
+  checked, the room found first fit over the used map, the sectors erased, then the image in windows of one sector
+  with 8 bytes of margin either side, every relocation touching the window patched from the file's bytes (a straddling
+  one is patched whole in both windows), the window programmed, the CRC continued; the header last. RAM: the window
+  (4,112 B, pool) and a 256 B relocation chunk. `plug_forget` erases the header's sector.
+- **The region is SFC-encrypted:** the app area [0x4000, app end) is stored through JieLi's ENC stream per 32-byte
+  block (key 0x980F mixed with the block address, `tools/fm1pkg_make.py sfc`) and the SFC decrypts every XIP read of
+  it; the plain window starts at the app's end. So the loader encrypts what it programs (`plug_sfc`, the same stream:
+  checked against the package tool's bytes), and the package tool places a preloaded plugin inside app.bin before the
+  encryption pass (`OPTIMIST_PLUGIN_PRELOAD`). The region: the last `FELUCCA_PLUGIN_KB` whole sectors of the app slot
+  below its tail (`FL_PLUG_LO` / `FL_PLUG_HI`; layout 3: 0xA4000..0xB4000 for 64 KB), app.ld's XIP shortened to it.
+- **The registry:** `NBUILT` built-in engines, `NENGINES = NBUILT + FELUCCA_PLUGIN_SLOTS`; `ENGINES[]` in RAM with
+  the plugin slots on `ENG_PLUG_NONE` (silent, "PLUGIN / NO PLUGIN") until a plugin takes one; `eng_uid`,
+  `eng_slot_of`, `eng_built`, `eng_slot`, `eng_slot_built` see the plugin slots (`plug_uid[]`), `ENG_DENSE` and
+  `ENG_ALL` off with plugins. The plugin slots' colour is a grey for now.
+- **Measured in the emulator** (dev profile, `OPTIMIST_PLUGIN_KB=64`, bench 19 = the three parts on the first
+  plugin slot; `play_check`): the control package (the slot empty) plays the drum groove alone, RMS 0.0516; the package
+  with SID preloaded shows T1..T3 "SID PULSE LEAD" (the name and the presets read through the relocated pointers) and
+  its audio holds exactly the three mono notes the bench sends (G3, G4, E5 at 196 / 392 / 659 Hz, nothing at the
+  off-note bins), RMS 0.122. Host tests: `tests/plugin_test.c` (the loader on a simulated NOR through the cipher),
+  `tests/plugin_build_test.py` (the tool's place() against the loader's CRC).
+- **Open:** the colour from the descriptor; voice.c's retrigger special cases (`ENG_IS(e, SID)` keeps the filter
+  state: a plugin is never `ENG_IS` anything: a descriptor field for it); a firmware update rewrites the app slot and
+  takes the region with it (the loader should skip it); the USB load path (the editor, the installer) and a PLUGINS
+  page; the site's plugin files per release.
+
+### 10.5 Built 2026-11-06, the afternoon: on the FM-1 once, the card load path, the card zip, the builder item
+
+- **On pink (Claude's test unit):** the first package fell into OPTIMIST USB RESCUE: the PC-limit guard
+  (`hal/fm1_guard.h`) allows instruction fetches up to `_etext` only and the plugin's code sits past it (read from the
+  sources: `_etext` 0x02090090, the plugin at 0x020BB030; the crash record was not read). With plugins felucca.c sets
+  `FM1_XIP_CODE_END` to the region's end, and that package booted and rendered SID on three parts for minutes (no
+  screen: the dev profile has no mirror). Lesson: Optimist's own updater refuses fm1-base packages, so a test build
+  over an fm1-base firmware comes back only through download mode; dry-run the way back from the state the test
+  leaves, before the first write.
+- **The emulator models the guard** (fm1-emulator fork, `guards.rs`, `cpu.rs`, `player.rs`): CPU0's two PC-limit
+  windows, open until written, a fetch outside them the vector 1 exception with DBG_MSG bit 12. The package that
+  crashed pink faults in `play_check` at the plugin's first instruction; the fixed one plays. The user's ruling: test
+  plugins in the emulator at will, no unit at stake.
+- **The card load path** (`core/plugin_card.c`, `plug_card_install`): `Optimist/Plugins/<NAME>.opl` by the registry's
+  name, through the card's one open file (`sd_open` / `sd_seek` / `sd_read`) into `plug_install`; a file holding another
+  engine's UID is forgotten again (BAD). `project.c proj_apply` asks for it for every part whose engine is neither built
+  in nor placed, before the fallback; the card not ready or no file: the fallback as before. `Plugins` is one of the
+  card's folders (`sd_layout.c SDL_DIR`, `tools/sd_zip.py DIRS`). Host test `tests/plugin_card_test.c` (the card model
+  with full FatFs, a simulated NOR). **Emulator, bench 20** (the SD card mode profile, `FM1_SD` = the card image with
+  SID.opl in Optimist/Plugins): at boot the firmware reads the file from the card, erases, patches and writes it,
+  slot 0 holds UID 23, the parts play SID (RMS 0.139). Found on the way: `fm1_dual.h` includes the flash driver before
+  felucca.c's own include, so the widened `FL_RANGE_OK` must be defined at the top of felucca.c (the first run came
+  back PLUG_E_FLASH: the erase refused).
+- **The card zip** (`tools/sd_zip.py write_plugins`): every engine `tools/plugin_build.py` builds as a plugin goes to
+  `Optimist/Plugins/`, built against OPTIMIST_BUILD_DIR's configuration (the one `make package` just built: the same
+  structs); without the toolchain or that build the zip says so and carries none. The build's configuration header is
+  part of the zip cache's key.
+- **The builder item** `PLUGINS` (`tools/builder/registry.py` bit 453, `FELUCCA_PLUGIN_KB` 0 / 64 / 128 / 192 KB,
+  experimental, target only; `core.py fits` takes the KB off the flash cap; `tools/build.py plugin_kb` reads it from the
+  configuration, else the dev switch `OPTIMIST_PLUGIN_KB`; `core/plugin.h` derives `FELUCCA_PLUGINS` from the KB).
+  Web builder data regenerated. Its costs.json delta is unmeasured (costs-all before a push).
+- **Which engines are plugins as they are** (`plugin_build.py` against the dev profile, 2026-11-06): CS80 3,888 B,
+  DIGITAL 1,684, LOFI 3,528, NOISE 3,708, SAMPLE 3,652, SID 45,140, SUPER 2,516, TERRAIN 18,076, TRIO 4,804, VECTOR
+  24,516, VPS 1,528, WSEQ 5,708: twelve. Not yet, and why: their part memory accessor lives in engines.c (FM6 `fm6_mem`,
+  PHYS, PLAITS, CZ, JUNO, DRAWBAR: the API table's first entries); file-scope state of their own (DRONE 9.8 KB of
+  .bss, FORMANT 8.9 KB, STRINGS 8.9 KB, PHASE 448 B, WAVE 6 B of .data: into the part memory or the arena through the
+  API); a second compile unit (ACID `acid_start`, ANALOG `a2m_block`, PROPHET `p5_render`: the tool links it in);
+  SAMPLE's material (GRAIN, SLICE, STRETCH).
+- **The effects as plugins: not started.** The insert types are instances with lines in the effects memory
+  (`fxi_kern.c`: seven types in tables by index, each under its own `#if`, their state in pool arrays; `insfx.c`: the
+  any-number inserts, 887 lines), the sends and the master chain in `fx.c` (3,406 lines). A hook table per effect
+  type (run, set, clear, the line's units, the instance's bytes) is the refactor before any effect can be a file; the
+  UI's effect lists then read the table. Several sessions of work; nothing of it is in this prototype.

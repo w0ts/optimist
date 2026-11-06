@@ -379,7 +379,32 @@ AINL slc_rbuf_t *slc_mem(uint32_t p) { return (slc_rbuf_t *)PART_MEM_AT(p); }
 /* the engines built, in UID order (registry.h ENGINE_LIST): the slots */
 #define ENG_PTR_(u, N, fb, s) FIF(FELUCCA_ENG_##N)(&ENG_##N,)
 #define ENG_IX_FM6 ((uint32_t)ENG_SLOT_FM6)   /* FM6's slot (bench.c, the tests), 0xFF when not built */
+#if FELUCCA_PLUGINS
+/* an empty plugin slot (core/plugin.c sets a placed plugin's descriptor in its place): silent, one preset, no page */
+static void plug_none_render(track_t *t, voice_t *v, int32_t *out, uint32_t n, const vmod_t *m) { (void)t; (void)v; (void)out; (void)n; (void)m; }
+static void plug_none_note_on(track_t *t, voice_t *v) { (void)t; (void)v; }
+static const preset_t PLUG_NONE_PRESETS[] = {{"NO PLUGIN", {0, 0, 0, 0, 0, 0, 0, 0}, {0, 60, 100, 40}, 0, 0, FX(0, 0, 0, 0)}};
+static const engine_t ENG_PLUG_NONE = {
+    .name = "PLUGIN",
+    .page_title = {"EMPTY", "EMPTY"},
+    .edit = {PU("-", F_PCT, 0, 0, 0, 0), PU("-", F_PCT, 0, 0, 0, 0), PU("-", F_PCT, 0, 0, 0, 0), PU("-", F_PCT, 0, 0, 0, 0),
+             PU("-", F_PCT, 0, 0, 0, 0), PU("-", F_PCT, 0, 0, 0, 0), PU("-", F_PCT, 0, 0, 0, 0), PU("-", F_PCT, 0, 0, 0, 0)},
+    .presets = PRESETS_PTR(PLUG_NONE_PRESETS),
+    .npresets = 1,
+    .note_on = plug_none_note_on,
+    .render = plug_none_render,
+    .poly = 1,
+    .fil_page = -1,
+    .color = 0x8410,
+};
+#define PLUG_INIT_1 &ENG_PLUG_NONE,
+#define PLUG_INIT_2 PLUG_INIT_1 PLUG_INIT_1
+#define PLUG_INIT_3 PLUG_INIT_2 PLUG_INIT_1
+#define PLUG_INIT_4 PLUG_INIT_3 PLUG_INIT_1
+static const engine_t *ENGINES[NENGINES] = {ENGINE_LIST(ENG_PTR_) FCAT(PLUG_INIT_, FELUCCA_PLUGIN_SLOTS)};   /* (RAM: the plugin slots change) */
+#else
 static const engine_t *const ENGINES[NENGINES] = {ENGINE_LIST(ENG_PTR_)};
+#endif
 #define ENG_IX_NOISE ((uint32_t)ENG_SLOT_NOISE)
 #define ENG_IX_DRONE ((uint32_t)ENG_SLOT_DRONE)
 #define ENG_IX_PLAITS ((uint32_t)ENG_SLOT_PLAITS)
