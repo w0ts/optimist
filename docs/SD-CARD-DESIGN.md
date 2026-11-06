@@ -382,6 +382,21 @@ the probed J12 pins; SD reads, a FAT32 reader and a flash-slot loader in m-bootl
   when they do not fit); a per-sample override later if wanted; (2) the RING per playing voice, the stream's lookahead
   filled in runs between screen strips: a builder value (2-3 runs, about 12 KB a voice at most); (3) a voice whose
   stream runs dry fades out at once (no click) and the console counts it, so the setting is chosen by measurement.
+  **Measured 2026-11-06** (pink, the user's ten-lane card kit, SD_RING 4 KB, the card at 15 MHz, the LCD at 30 MHz): the heads
+  and the rings share the arena, so at 200 ms the planner placed five rings and a sixth hit cut the oldest tail, and at 25 to
+  100 ms all ten rings but about 12 voices a second ran dry at hits on every lane; with the card given priority over the
+  screen (sd_stream.c SST_STRIP_MS 64, SST_HOLD_MS 1000) and 200 ms, five minutes with no dry voice. **Next design step, the
+  user's ("just like we load engines from flash"): the heads in flash.** A kit's heads (or only each sample's first 20-30 ms)
+  written into a flash region when the kit is picked, read in place, the arena kept for the rings alone: 8 KB rings for ten
+  voices and a 200 ms pre-buffer without a ring lost. The plugins' writer takes it as it is (the plugins session, 2026-11-06:
+  `core/plugin.c plug_install(reader, ctx)`, docs/SD-MODE-DESIGN.md 10.4-10.8): the region (builder item PLUGINS, 64 / 128 /
+  192 KB off the app slot) has no directory, an occupant is a 48-byte header at a sector start with a KIND byte, packed first
+  fit beside the plugins, so kit heads are one more KIND, no layout change; the writer streams any bytes through a reader
+  callback in one-sector windows, header last (a cut write leaves free sectors), the erase sliced so the audio keeps running,
+  and it SFC-encrypts what it programs because the region sits in the app area and XIP decrypts every read: the heads read in
+  place like a constant. Heads need no relocation patch. Open for both clients: a firmware update rewrites the app slot and
+  the region with it; eviction is not built (full = refused). After that writer is proven on an FM-1 (the integrated build
+  has not run on hardware yet).
 - **Streaming, built (2026-10-26, host-tested only; builder `SD_RING`, `FELUCCA_SD_STREAM`: full FatFs, SAMPLE and
   ARENA too).** `src/storage/sd/sd_stream.h` (the audio's side), `sd_stream.c` (the main loop's runs, the sources),
   `sd_stream_plan.c` (the memory per project), SAMPLE's CARD set (`engines/sample/eng_sample.c` `smp_card_*`):

@@ -15,7 +15,7 @@
 #define SSM_MS 500u                                  /* a period */
 #endif
 typedef struct { uint32_t last, tot; } ssm_ctr_t;    /* a counter as last seen, and the changes added since the clear */
-enum { SSM_DRY, SSM_NOS, SSM_LATE, SSM_MISS, SSM_CRC, SSM_DEMO, SSM_NCTR };
+enum { SSM_DRY, SSM_NOS, SSM_CUT, SSM_LATE, SSM_MISS, SSM_CRC, SSM_DEMO, SSM_NCTR };
 static struct {
     uint32_t t, blocks;                              /* the last sample's tick, the blocks read by then */
     uint32_t kbs, kbs_pk, kbs_t;                     /* KB/s in the last period, its peak held, since when (tick) */
@@ -90,6 +90,7 @@ static void ssm_sample(uint32_t now)                 /* one period ended at tick
     dry = ssm.c[SSM_DRY].tot;
     ssm_add(&ssm.c[SSM_DRY], sst_dry);
     ssm_add(&ssm.c[SSM_NOS], sst_nostream);
+    ssm_add(&ssm.c[SSM_CUT], sst_cut);
     ssm_add(&ssm.c[SSM_CRC], crc);
     ssm_add(&ssm.c[SSM_DEMO], demo);
     {
@@ -123,6 +124,7 @@ static void ssm_view(ssm_view_t *v)
     v->fill_lo = ssm.live ? ssm.fill_lo : SSM_NO;
     v->dry = ssm.c[SSM_DRY].tot;
     v->nos = ssm.c[SSM_NOS].tot;
+    v->cut = ssm.c[SSM_CUT].tot;
     v->late = ssm.c[SSM_LATE].tot;
     v->miss = ssm.c[SSM_MISS].tot;
     v->crc = ssm.c[SSM_CRC].tot;

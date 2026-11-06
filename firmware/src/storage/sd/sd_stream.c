@@ -55,14 +55,18 @@
                                                       * run on a dense kit (measured 2026-11-05: 330,604 blocks in 150,702 runs, 400 KB/s, DRY 459) */
 #endif
 #ifndef SST_STRIP_MS
-#define SST_STRIP_MS 8u                              /* the card's turn before a strip at most: the screen's floor */
+#define SST_STRIP_MS 64u                             /* the card's turn before a strip at most. 8 until 2026-11-06 ("the screen's floor"):
+                                                      * with the LCD at 30 MHz and ten long voices that floor starved the streams (about
+                                                      * 12 dry voices a second on the user's kit, the screen smooth); audio first: a strip
+                                                      * waits until no stream is short, up to this */
 #endif
 #ifndef SST_HOLD_LEAD_MS
 #define SST_HOLD_LEAD_MS SST_TOPUP_MS                /* a whole frame waits only for a stream with less than this left; the card still goes
                                                       * before each strip under SST_URGENT_MS (rings kept half full live below that) */
 #endif
 #ifndef SST_HOLD_MS
-#define SST_HOLD_MS 100u                             /* a frame held back for the card this long at most */
+#define SST_HOLD_MS 1000u                            /* a frame held back for the card this long at most (100 until 2026-11-06: audio first,
+                                                      * the screen may freeze for up to a second rather than a voice run dry) */
 #endif
 #define SST_DEAD_MS 50u                              /* a voice not rendered this long: its stream taken back */
 #define SST_DEAD_ERRS 3u                             /* runs failing in a row: the card is gone */
