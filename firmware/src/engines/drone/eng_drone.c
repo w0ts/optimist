@@ -41,7 +41,6 @@ static const param_desc_t DRONE_BEAT_OFF = PN("BEAT", F_INT, 0, 127, 0, N_DRONE_
 /* BEAT's increment: LFO_HZ_X100 (Hz x 100) x 2^32 / (100 FS), rounded */
 #define DRONE_BEAT_K ((uint32_t)((4294967296ull + 50ull * FS) / (100ull * FS)))
 #define DRONE_MAXINC 0x60000000                 /* (a generator's increment at most: 0.375 of FS) */
-enum { DR_CPL, DR_TOPO, DR_CHR, DR_DRF, DR_TONE, DR_NC };
 
 #include "drone_mem.h"
 #if FELUCCA_PLUGIN_UNIT

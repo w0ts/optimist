@@ -2,6 +2,7 @@
 /* DRONE's per-part state (eng_drone.c): its shape alone, so voice.c's HOLD and fx.c's BEAT side read a plugin DRONE's
  * state in the part's memory (engines.c drone_mem_of) in a build without the engine (core/plugin.h) */
 #pragma once
+enum { DR_CPL, DR_TOPO, DR_CHR, DR_DRF, DR_TONE, DR_NC };   /* the controls (eng_drone.c) */
 /* each part's network: the ears' phases and last outputs, their DC blocks and low-passes; the shared drift phases,
  * smoothed increments and controls; its latched voices (HOLD) */
 typedef struct {
