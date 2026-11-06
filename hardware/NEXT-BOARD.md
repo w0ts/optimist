@@ -172,11 +172,20 @@ on the two cores, no shedding (the day before, 9 samples: 75 % on core 0, nothin
 project (two inserts on every lane and three chord tracks) core 0 saturates at 78 % and sheds, 62 dry voices in 25 s: that is CPU,
 the stream itself stayed clean (202 KB/s, 0 stalls). The board is out of the streaming question for good.
 
+**Decision 2026-11-06 evening: R5/R6 240, R1 91, LCD at 30 MHz.** Measured on pink with a stock v6 bodged to 510 || 470 = 245 Ohm on R5 and R6
+and 220 || 150 = 89 Ohm on R1: the card clock reaches 15 MHz (10, 12 and 15 pass, 20 is refused, 0 CRC errors), one step above the 330/150
+board (12 MHz, marginal). At the firmware's normal LCD clock (60 MHz, `device/lcd.c` `LCD_BAUD` 0) the panel stays black on that board,
+card in or out; with the LCD clock halved (`LCD_BAUD` 1, 30 MHz) the screen works, and the user ruled 30 MHz fine for the screen. Stock V15
+and SLOOP 2.8.5 cold-boot with clean screens on that board with the card in (their own LCD clocks). So the next order uses R5 = R6 = 240 and
+R1 = 91 (E24 single parts for 245 and 89) and Optimist drives the LCD at 30 MHz. The chip's own path caps the card at 15 MHz (loopback: 20
+fails with no board resistor in the loop), so there is no clock gate, ever. 330/150 stays the value proven at the LCD's 60 MHz.
+
 ## Findings to fix whatever is decided
 
 - **The long boards ordered 510/220.** Done 2026-11-06 after test 4 passed: both now order R5/R6 330 and R1 150, as the mini.
 - Done 2026-11-06: `archive-v6-tested/DESIGN.md` and `docs/SD-CARD-DESIGN.md` now say 10-12 MHz at 330/150 and the polled reader, not 20 MHz.
 - Done: `mini/DESIGN.md` uses the 33-42 ns loop and 0.05-0.06 pF/mm.
+- **The BOM moved again, 2026-11-06 evening: R5/R6 240, R1 91** on the long boards and the mini (`make_board.py`, `make_schematic.py`, `fab/bom.csv`, `fab/sd-board.net.xml`, `.kicad_pcb`, `.kicad_sch` edited by hand, KiCad generators not re-run). The condition: the LCD at 30 MHz (`LCD_BAUD` 1), because the panel stays black at 60 MHz on 245 / 89. The LCSC codes for 240 and 91 are to confirm (the 330/150 codes C23138 and C22808 are removed from the files); gerbers, CPL and the DRC/ERC reports to regenerate with KiCad.
 - The mini's other open fit items stand on their own: the height under J3, the cable across the socket, the lid.
 
 ## Still to clean up

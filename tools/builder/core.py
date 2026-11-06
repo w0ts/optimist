@@ -406,6 +406,10 @@ def validate(cfg):
     if cfg.get("SD_REC") and not (cfg.get("SDCARD") and cfg.get("LAYOUT") == 1):
         err.append(Issue("recording to the card (SD_REC) needs the card under full FatFs (SDCARD, LAYOUT 1)",
                          ["SD_REC", "SDCARD", "LAYOUT"]))
+    if cfg.get("SDCARD") and cfg.get("LCD_BAUD", 1) == 0:   # (the user, 2026-11-06: no 60 MHz screen with the card)
+        err.append(Issue("the SD card board shares the screen's lines: its resistors (R5/R6 240 Ohm, R1 91, measured "
+                         "2026-11-06 on an FM-1) leave the panel black at 60 MHz and fine at 30: LCD_BAUD 30 MHz "
+                         "(or 12) with SDCARD", ["LCD_BAUD", "SDCARD"]))
     revs = [k for k in R.REV_ALGOS if k in R.ITEMS]
     if built(cfg, "FX_REVERB") and not any(cfg[k] for k in revs):
         err.append(Issue("the reverb bus needs an algorithm: tick ROOM, PLATE, FDN8, SPRING or VTINY "

@@ -79,7 +79,7 @@ does not repeat that. What it may also help, and this estimate does not count, i
 
 ## Values
 
-R1 150 Ohm, R5 and R6 330 Ohm, hand-size 0603, nearest E24 to the parallel values measured on v6: 12 MHz, 20 of 20 runs, CRC 0,
+**Next order, decided 2026-11-06 evening: R1 91 Ohm, R5 and R6 240 Ohm (E24 for 89 and 245), with the LCD clock at 30 MHz; LCSC codes to confirm. 15 MHz passed on a v6 bodged to 245 / 89, the panel black at 60 MHz (`NEXT-BOARD.md`).** The text below is the 330 / 150 reasoning: R1 150 Ohm, R5 and R6 330 Ohm, hand-size 0603, nearest E24 to the parallel values measured on v6: 12 MHz, 20 of 20 runs, CRC 0,
 793 KB/s, with SCK HD on; 15 MHz fails. **The screen at a cold boot with a card in passed at 330 / 150 (stock M-VAVE V15 and SLOOP 2.8.5, clean after a minute, 2026-11-06, on a hand-tuned v6: 338 / 150 Ohm).**
 Julius's test failed lower on CLK (150 Ohm distorted, stock firmware); not seen at 330. R7 stays (DO's pull-up, removing it
 lost a step). R8, the CS pull-down, the inverter, the 100 nF by the card's VDD, 10 uF and the ferrite are as v7.
