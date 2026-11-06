@@ -159,10 +159,16 @@ static uint64_t plug_mask(uint32_t n) { return n >= 64u ? ~(uint64_t)0 : ((uint6
 /* a header's own fields: the file's or a placed one's */
 static int plug_hdr_ok(const plug_hdr_t *h)
 {
-    return h->magic == PLUG_MAGIC && plug_crc(h, PLUG_HDR_LEN - 4u) == h->hcrc && h->api == PLUG_API &&
-           h->abi == PLUG_ABI && h->kind == PLUG_KIND_ENGINE && h->len >= 4u && (h->len & 3u) == 0u &&
-           h->len <= PLUG_NSECT * PLUG_SECTOR - PLUG_HDR_LEN && h->desc <= h->len - 4u && h->nrel <= PLUG_NREL_MAX;
+    if (h->magic != PLUG_MAGIC || plug_crc(h, PLUG_HDR_LEN - 4u) != h->hcrc || h->len < 4u || (h->len & 3u) != 0u ||
+        h->len > PLUG_NSECT * PLUG_SECTOR - PLUG_HDR_LEN)
+        return 0;
+    if (h->kind == PLUG_KIND_HEADS)                     /* plain bytes keyed by desc: no API, ABI or descriptor */
+        return h->nrel == 0u;
+    return h->kind == PLUG_KIND_ENGINE && h->api == PLUG_API && h->abi == PLUG_ABI && h->desc <= h->len - 4u &&
+           h->nrel <= PLUG_NREL_MAX;
 }
+/* the occupant's key: an engine its UID, kit heads the kit's hash */
+static uint32_t plug_key(const plug_hdr_t *h) { return h->kind == PLUG_KIND_HEADS ? h->desc : h->uid; }
 
 /* the plugin placed at flash offset off, whole: its header (nrel 0, base where it sits), its image's CRC */
 static int plug_whole(uint32_t off, plug_hdr_t *h)
@@ -197,7 +203,7 @@ static uint64_t plug_scan(int reg)
             continue;
         n = plug_sectors(h.len);
         used |= plug_mask(n) << ((off - FL_PLUG_LO) / PLUG_SECTOR);
-        if (reg && PLUG_DESC_OK((const engine_t *)(PLUG_XIP(off) + PLUG_HDR_LEN + h.desc))) {
+        if (reg && h.kind == PLUG_KIND_ENGINE && PLUG_DESC_OK((const engine_t *)(PLUG_XIP(off) + PLUG_HDR_LEN + h.desc))) {
             k = plug_slot_of(h.uid);
             if (k == 0xFFu)
                 for (k = 0; k < FELUCCA_PLUGIN_SLOTS && plug_uid[k] != 0xFFu; k++)
@@ -216,6 +222,38 @@ static uint64_t plug_scan(int reg)
             if (!seen[k])
                 plug_slot_clear(k);
     return used;
+}
+/* the occupant of this kind and key (an engine: its UID; kit heads: the kit's hash): 1 and its bytes' XIP address and
+ * length (either pointer may be 0), 0 none */
+static int plug_find(uint32_t kind, uint32_t key, uint32_t *base, uint32_t *len)
+{
+    uint32_t off;
+    for (off = FL_PLUG_LO; off < FL_PLUG_HI; off += PLUG_SECTOR) {
+        plug_hdr_t h;
+        if (!plug_whole(off, &h))
+            continue;
+        if (h.kind == kind && plug_key(&h) == key) {
+            if (base)
+                *base = h.base;
+            if (len)
+                *len = h.len;
+            return 1;
+        }
+        off += (plug_sectors(h.len) - 1u) * PLUG_SECTOR;
+    }
+    return 0;
+}
+/* the region's use for the gauge (SYSTEM > INFO): KB in use by whole occupants, KB free */
+static void plug_region_kb(uint32_t *used, uint32_t *free)
+{
+    uint64_t m = plug_scan(0);
+    uint32_t n = 0;
+    while (m) {
+        n += (uint32_t)(m & 1u);
+        m >>= 1;
+    }
+    *used = n * (PLUG_SECTOR / 1024u);
+    *free = (PLUG_NSECT - n) * (PLUG_SECTOR / 1024u);
 }
 static void plug_init(void)                           /* boot, once the flash reads (main.c): the slots in region order */
 {
@@ -287,12 +325,17 @@ static int plug_install(plug_rd_t rd, void *ctx)
         return PLUG_E_READ;
     if (!plug_hdr_ok(&h) || h.base != 0u)
         return PLUG_E_BAD;
-    if (plug_slot_of(h.uid) != 0xFFu)
-        return (int)plug_slot_of(h.uid);
-    for (k = 0; k < FELUCCA_PLUGIN_SLOTS && plug_uid[k] != 0xFFu; k++)
-        ;
-    if (k == FELUCCA_PLUGIN_SLOTS)
-        return PLUG_E_SLOTS;
+    if (h.kind == PLUG_KIND_HEADS) {                    /* kit heads: placed once by key, no engine slot */
+        if (plug_find(PLUG_KIND_HEADS, h.desc, 0, 0))
+            return 0;
+    } else {
+        if (plug_slot_of(h.uid) != 0xFFu)
+            return (int)plug_slot_of(h.uid);
+        for (k = 0; k < FELUCCA_PLUGIN_SLOTS && plug_uid[k] != 0xFFu; k++)
+            ;
+        if (k == FELUCCA_PLUGIN_SLOTS)
+            return PLUG_E_SLOTS;
+    }
     used = plug_scan(0);
     n = plug_sectors(h.len);
     for (s = 0; s + n <= PLUG_NSECT; s++)
@@ -320,6 +363,8 @@ static int plug_install(plug_rd_t rd, void *ctx)
         return PLUG_E_FLASH;
     fl_inval(off, n * PLUG_SECTOR);
     (void)plug_scan(1);
+    if (h.kind == PLUG_KIND_HEADS)
+        return plug_find(PLUG_KIND_HEADS, h.desc, 0, 0) ? 0 : PLUG_E_FLASH;
     if (plug_slot_of(h.uid) == 0xFFu && !PLUG_DESC_OK((const engine_t *)(PLUG_XIP(off) + PLUG_HDR_LEN + h.desc))) {
         if (fl_erase4k_quiet(off, &took))                 /* (its part memory larger than a part's: not kept) */
             return PLUG_E_FLASH;
@@ -340,5 +385,25 @@ static int plug_forget(uint32_t k)
     fl_inval(off, PLUG_SECTOR);
     (void)plug_scan(1);
     return 0;
+}
+/* the occupant of this kind and key removed (kit heads whose kit changed: the header's sector erased, its sectors read
+ * free at the next walk): 0, -1 none, PLUG_E_FLASH */
+static int plug_free(uint32_t kind, uint32_t key)
+{
+    uint32_t off, took;
+    for (off = FL_PLUG_LO; off < FL_PLUG_HI; off += PLUG_SECTOR) {
+        plug_hdr_t h;
+        if (!plug_whole(off, &h))
+            continue;
+        if (h.kind == kind && plug_key(&h) == key) {
+            if (fl_erase4k_quiet(off, &took))
+                return PLUG_E_FLASH;
+            fl_inval(off, PLUG_SECTOR);
+            (void)plug_scan(1);
+            return 0;
+        }
+        off += (plug_sectors(h.len) - 1u) * PLUG_SECTOR;
+    }
+    return -1;
 }
 #endif

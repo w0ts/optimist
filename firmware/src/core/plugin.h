@@ -44,6 +44,9 @@ static int plug_card_install(uint32_t uid);   /* core/plugin_card.c (after the c
 #define PLUG_API 2u                       /* bumped when engine_t, voice_t, track_t, vmod_t or plug_api_t change shape
                                            * (2: the API table and relocation kind 2, 2026-11-06) */
 #define PLUG_KIND_ENGINE 0u
+#define PLUG_KIND_HEADS 1u                /* a card kit's pre-buffer heads (storage/sd/sd_stream_plan.c, the sd card
+                                           * reader session's client, 2026-11-06): plain bytes, no relocations, no API or
+                                           * ABI check; the key = the kit's hash in desc, name[12] the kit's name */
 #define PLUG_HDR_LEN 48u
 #define PLUG_NREL_MAX 4096u               /* relocation words a file may carry (SID: 73) */
 
