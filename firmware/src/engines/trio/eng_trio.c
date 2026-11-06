@@ -375,4 +375,5 @@ static const engine_t ENG_TRIO = {
     },
     PRESETS_OF(TRIO_PRESETS), 1, trio_note_on, trio_render,
     0xFFE0, {P_E5, P_E6, P_E7, P_E1},
+    .keep = 0x13,   /* a retrigger keeps s0 s1 the filter, s4 the sample waiting for its step corrections (voice.c) */
 };

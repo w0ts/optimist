@@ -481,6 +481,11 @@ static FASTI(seqev) uint32_t part_mem_bytes(uint32_t e)
     if (e == (uint32_t)ENG_SLOT_SLICE)
         return sizeof(slc_rbuf_t);
 #endif
+#if FELUCCA_PLUGINS
+    if (e >= NBUILT)
+        return ENGINES[e]->part_bytes;                   /* (a plugin's, from its descriptor; core/plugin.c refuses one
+                                                          * larger than a part's memory can be: PLUG_PART_MAX) */
+#endif
     return 0;
 }
 
