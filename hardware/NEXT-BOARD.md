@@ -180,6 +180,8 @@ and SLOOP 2.8.5 cold-boot with clean screens on that board with the card in (the
 R1 = 91 (E24 single parts for 245 and 89) and Optimist drives the LCD at 30 MHz. The chip's own path caps the card at 15 MHz (loopback: 20
 fails with no board resistor in the loop), so there is no clock gate, ever. 330/150 stays the value proven at the LCD's 60 MHz.
 
+**The order (the user, 2026-11-06 evening): `long-both-sides`** (J2 on the bottom, one socket on each side), at 240/91; the mini is out; printable mockups of both long boards were made for the fit (`mockup-printable*.stl`).
+
 ## Findings to fix whatever is decided
 
 - **The long boards ordered 510/220.** Done 2026-11-06 after test 4 passed: both now order R5/R6 330 and R1 150, as the mini.
