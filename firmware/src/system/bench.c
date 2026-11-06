@@ -35,6 +35,11 @@
  *      127, damping low; three-note chords at velocity 127 anywhere from note 24 to 100, struck again every 2 s and
  *      at random in between, the parameters swept at random every 32 blocks (a fixed LCG: the same run every time).
  *      phys_dsp.c records the largest |line value| (px_line_max)
+ *  19  the first plugin slot (the one after the built-in engines, FELUCCA_PLUGINS; core/plugin.c) on the three
+ *      parts, preset 0, 3 + 3 + 2 notes: the placed engine plays, or the empty slot's silence; without plugins
+ *      the last engine
+ *  20  scenario 19 after SID installed from the card at boot (Optimist/Plugins/SID.opl, core/plugin_card.c; the
+ *      result in bench.plug_rc: the slot, or PLUG_E_*): the card load path, in the emulator with its card image
  * (before the integration: the DX7 and SUPER engines, gone since: FM6 and ANALOG 2 take their places)
  * with a drum groove (1 to 4, 7) (kick, snare, hats in eighths at 120 BPM) and the presets' FX sends. The notes
  * start again every 2 s. FELUCCA_BENCH_SAVE=1: a project save (flash erase + program) from the main
@@ -44,6 +49,7 @@
 #ifndef FELUCCA_BENCH_SWAP
 #define FELUCCA_BENCH_SWAP 0
 #endif
+#define BENCH_PLUG (FELUCCA_BENCH == 19 || FELUCCA_BENCH == 20)   /* (the parts on the first plugin slot) */
 #ifndef FELUCCA_BENCH_COMP
 #define FELUCCA_BENCH_COMP 0
 #endif
@@ -71,6 +77,7 @@ static struct {
     uint8_t swap_from[NPART];                              /* (FELUCCA_BENCH_SWAP: the engine slot + 1 a part swaps back to) */
     uint32_t saves;
     uint32_t decoded;                                      /* (scenario 4: the record's length + decodes done) */
+    int plug_rc;                                           /* (scenario 20: the card's SID installed: its slot, or PLUG_E_*) */
 } bench;
 
 #ifndef FELUCCA_BENCH_KIT
@@ -156,6 +163,9 @@ static void bench_setup(void)                              /* boot, after felucc
                     : FELUCCA_BENCH == 13 ? 2u
                                           : (FELUCCA_BENCH - 1u) % 3u;
     TDRUM->p[P_E0] = (int16_t)FELUCCA_BENCH_KIT;
+#if FELUCCA_BENCH == 20 && FELUCCA_PLUGINS && FELUCCA_SDCARD
+    bench.plug_rc = plug_card_install(ENG_UID_SID);       /* 20: SID from the card's Optimist/Plugins/SID.opl (plugin_card.c) */
+#endif
 #if FELUCCA_BENCH_COMP && FELUCCA_MASTER_COMP
     song.g[G_CTHR] = -10, song.g[G_CRAT] = 1, song.g[G_CATK] = 4, song.g[G_CREL] = 6;
     song.g[G_CGAIN] = 4, song.g[G_CCEIL] = 2;
@@ -246,8 +256,8 @@ static void bench_setup(void)                              /* boot, after felucc
     return;
 #endif
     for (p = 0; p < NPART; p++) {
-        set_engine_of(&trk[p], BENCH_SETUP[s][p][0]);
-        apply_preset_to(&trk[p], BENCH_SETUP[s][p][1]);
+        set_engine_of(&trk[p], BENCH_PLUG ? (FELUCCA_PLUGINS ? (uint32_t)NBUILT : NENGINES - 1u) : BENCH_SETUP[s][p][0]);
+        apply_preset_to(&trk[p], BENCH_PLUG ? 0u : BENCH_SETUP[s][p][1]);
         trk[p].engine = trk[p].eng_req;
     }
     song.g[G_BPM] = 120;

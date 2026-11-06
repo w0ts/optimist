@@ -23,6 +23,15 @@ static uint8_t live_save_off;            /* an erase held the audio (no suspend)
 #include "fm1_clock.h"
 #include "fm1_sys.h"
 #include "fm1_irq.h"
+#if FELUCCA_PLUGINS
+#include "fm1_xip.h"
+#include "core/plugin.h"             /* the PC guard's XIP window reaches the PLUGINS region: the engines placed there run
+                                      * from flash past .text (pink, 2026-11-06: SID's first render hit the PC limit, rescue) */
+#define FM1_XIP_CODE_END ((char *)(uintptr_t)FM1_XIP(FL_PLUG_HI))
+/* the RAM flash driver may erase and program the PLUGINS region too (core/plugin.c): said before the first include of
+ * fm1_flash.h (fm1_dual.h brings it in early) */
+#define FL_RANGE_OK(off, n) (FL_STORE_OK(off, n) || FL_IN(off, n, FL_OTA_LO, FL_OTA_HI) || FL_IN(off, n, FL_PLUG_LO, FL_PLUG_HI))
+#endif
 #include "fm1_guard.h"
 #include "fm1_cache.h"               /* EXPERIMENTAL cache RAM (FELUCCA_CACHE_RAM): 7 data-cache ways as 28 KiB of RAM */
 #include "core/backports.h"          /* (before the HAL) */
@@ -213,6 +222,7 @@ static int st_prog(uint32_t off, const void *src, uint32_t n)
     return fl_write(off, src, n);
 }
 #include "storage/storage.c"
+#include "core/plugin.c"              /* the PLUGINS region: the engines placed there, the loader (FELUCCA_PLUGINS) */
 #endif
 #include "storage/upreset.c"          /* user presets (RAM mirror; flash with FELUCCA_FLASH) */
 #if FELUCCA_WIFI
@@ -236,6 +246,7 @@ static int st_prog(uint32_t off, const void *src, uint32_t n)
 #if FELUCCA_SD_UI
 #include "storage/sd/sd_mode.c"        /* SD card mode: the boot's card, the projects, presets, kits and samples by name */
 #endif
+#include "core/plugin_card.c"          /* a plugin from the card's Optimist/Plugins into the flash (FELUCCA_PLUGINS + SDCARD) */
 #if FELUCCA_OTA
 static uint8_t recovery_active;
 #define OTA_IDENTITY (recovery_active ? "FM-1_000" : FELUCCA_ID)

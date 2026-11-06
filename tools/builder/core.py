@@ -1543,6 +1543,8 @@ def fits(total, cfg=None):
             # a step the build system gives no slot (the release builds only 1 and 3; its other steps' end = the classic
             # end): the design table's room, not the normal slot, or 4 projects showed no more room than 16
             cap = layout_room(cfg["LAYOUT"]) - SPARE["flash"]
+        if b == "flash" and cfg and int(cfg.get("PLUGINS", 0) or 0) > 0:
+            cap -= int(cfg["PLUGINS"]) * 1024       # (the PLUGINS region: the slot's last KB, tools/build.py plugin_region)
         out[b] = (u, cap, u - cap)
     return out
 

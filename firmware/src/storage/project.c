@@ -1221,6 +1221,11 @@ static void proj_apply(const project_t *p, const dlrec_t *d, int all)
     for (k = 0; k < NTRK; k++) {
         track_t *t = &trk[k];
         const proj_trk_t *s = &p->t[k];
+#if FELUCCA_PLUGINS && FELUCCA_SDCARD
+        if (k < NPART && s->engine != ENG_UID_SILENT && !eng_built(s->engine))
+            (void)plug_card_install(s->engine);     /* an engine this build misses: the card's plugin of it, placed in the
+                                                     * flash now (core/plugin_card.c); none: the fallback below */
+#endif
 #if PART_DROPS
         uint32_t e = k < NPART ? (s->engine == ENG_UID_SILENT ? eng_silent_slot() : eng_slot(s->engine)) : 0u;
         uint32_t no = k < NPART && part_mem_load(k, e); /* (UID -> slot, not built: its fallback; a silent placeholder) */
