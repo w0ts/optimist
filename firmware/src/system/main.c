@@ -639,6 +639,9 @@ static BOOT_ORDER void fm1_main(void)
 #if FELUCCA_ENG_WAVE
         wt_service();                                   /* WAVE's table into the pool, four frames a call (eng_wave.c) */
 #endif
+#if FELUCCA_PLUGINS
+        plug_service();                                 /* the plugins' main-loop hooks (core/plugin.c: WAVE's table) */
+#endif
         felucca_dbg.stage = 9;
 #if FELUCCA_BENCH
         bench_frame();

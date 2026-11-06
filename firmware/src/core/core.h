@@ -756,6 +756,8 @@ typedef struct {
     uint8_t keep;                /* the voice state words s[0..7] a retrigger of a sounding voice keeps (bit k: s[k]; voice.c
                                   * voice_start: the filter states, whose reset would click), 0 = none: every engine's,
                                   * a plugin's too (never ENG_IS anything) */
+    uint8_t tab_kb;              /* KB of a block its parts share (a plugin's: plugin_api->tab_mem, the arena's; WAVE's
+                                  * table), 0 = none: read for a plugin's slot (engines.c part_tab_k); in the padding */
 } engine_t;
 
 /* ------------------------------------------------------------ track --- */

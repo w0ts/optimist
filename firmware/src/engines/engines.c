@@ -213,7 +213,8 @@ enum {
     ARB_PUNCH = ARB_X808 + (FELUCCA_DRUM_X808 ? 1 : 0),
     ARB_FM6SIN = ARB_PUNCH + (FELUCCA_PUNCH_SW ? 1 : 0),
     ARB_VIS = ARB_FM6SIN + (FELUCCA_ENG_FM6 ? 1 : 0),     /* the SCOPE's ring while a trace is drawn (fx.c vis_pcm) */
-    ARB_LEND0 = ARB_VIS + 1,                            /* the switchable features' blocks (FMEM_NLEND) */
+    ARB_PTAB0 = ARB_VIS + 1,                            /* the plugin slots' shared blocks (engine_t tab_kb: WAVE's table) */
+    ARB_LEND0 = ARB_PTAB0 + (FELUCCA_PLUGINS ? FELUCCA_PLUGIN_SLOTS : 0),   /* the switchable features' blocks (FMEM_NLEND) */
     ARB_BTA = ARB_LEND0,                                /* (Bluetooth audio's the first, when built) */
     ARB_NC = ARB_LEND0 + FMEM_NLEND
 };
@@ -513,7 +514,7 @@ static struct {
 } part_mem_refused;
 #define PART_MEM_SHORT() (part_mem_refused.on || part_mem_refused.lmask)   /* (the effects wait: a part's sound first) */
 
-#define PART_TAB (FXM_NEED && (FELUCCA_ENG_WAVE || FELUCCA_ENG_FM6))
+#define PART_TAB (FXM_NEED && (FELUCCA_ENG_WAVE || FELUCCA_ENG_FM6 || FELUCCA_PLUGINS))
 #if PART_TAB
 /* an engine's shared table (core/arena_bufs.c): WAVE's (ARB_WAVE; WAVE keeps nothing in the part's memory) and FM6's
  * sine (ARB_FM6SIN, beside each FM6 part's own memory): a part's change to that engine when no block holds the table or
@@ -522,6 +523,10 @@ static struct {
 static uint32_t part_tab_k(uint32_t e)                   /* engine e's table: its arena client, ARN_PARTS none */
 {
     e %= NENGINES;
+#if FELUCCA_PLUGINS
+    if (e >= NBUILT)                                     /* a plugin's (its descriptor asks for one) */
+        return ENGINES[e]->tab_kb ? NPART + FXM_NC + (uint32_t)ARB_PTAB0 + (e - NBUILT) : ARN_PARTS;
+#endif
 #if FELUCCA_ENG_WAVE
     if (e == (uint32_t)ENG_SLOT_WAVE)
         return NPART + FXM_NC + (uint32_t)ARB_WAVE;
@@ -537,12 +542,21 @@ static uint32_t part_tab_bytes(uint32_t e)               /* engine e's table: it
     uint32_t c = part_tab_k(e);
     if (c >= ARN_PARTS || arn_cur[c].len || (arn_has_next[c] && arn_next[c].len))
         return 0;
+#if FELUCCA_PLUGINS
+    if (e % NENGINES >= NBUILT)
+        return (uint32_t)ENGINES[e % NENGINES]->tab_kb * 1024u;
+#endif
 #if FELUCCA_ENG_WAVE
     if (e % NENGINES == (uint32_t)ENG_SLOT_WAVE)
         return WT_MEM_BYTES;
 #endif
     return FM6_SIN_BYTES + FM6_PICK_LEND;               /* (FM6's block: the sine table and the DX7 bank's room) */
 }
+#if FELUCCA_PLUGINS
+static void *plug_tab_p[FELUCCA_PLUGIN_SLOTS];          /* the plugin slots' shared blocks (core/arena_bufs.c), 0 none */
+#define PLUG_TAB_AT(k) plug_tab_p[k]
+#define PLUG_TAB_KB_MAX 255u
+#endif
 #else
 #define part_tab_k(e) ((void)(e), (uint32_t)ARN_PARTS)
 #define part_tab_bytes(e) ((void)(e), 0u)

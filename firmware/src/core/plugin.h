@@ -78,6 +78,13 @@ typedef struct {
                                            * firmware's: a plugin cannot link them) */
     void *trk;                            /* the tracks, core.h trk[NTRK] (track_t: the engines' part index is t - trk) */
     uint32_t (*rng)(void);                /* the main loop's random numbers (system/libc.c rng; never in a render) */
+    /* (plugins/state, 2026-11-06: an engine whose state is shared by its parts, WAVE's table) */
+    uint32_t (*slot_of)(uint32_t uid);    /* the engine slot playing this UID (registry.h eng_slot_of), 0xFF none: a plugin
+                                           * finds its own slot (the tracks on it) */
+    void (*service)(uint32_t slot, void (*fn)(void));   /* the main loop calls fn every pass while slot's plugin is
+                                           * placed (core/plugin.c plug_service; WAVE's table builder) */
+    void *(*tab_mem)(uint32_t slot);      /* slot's shared block (engine_t tab_kb KB: a block of the arena while a part
+                                           * plays the plugin, zeroed when placed; 0 while not placed, or no arena) */
     /* ---- the card (SD card mode, FELUCCA_SD_STREAM; plugins/samples 2026-11-06): a sample engine's material is the
      * card's, by hash, through the streaming plan (storage/sd/sd_stream_plan.c); the flash's sets and user slots never
      * reach a plugin. The plan's data the engines read in their inner loops, the slow paths as calls. Plain types (the

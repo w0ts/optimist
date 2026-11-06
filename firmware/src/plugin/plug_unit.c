@@ -64,6 +64,7 @@ const plug_api_t *plugin_api __attribute__((section(".rodata.plugin_api"))) = 0;
 #include "dsp/dsp.c"
 /* the part's engine memory (engines.c PART_MEM_AT, for the built-in engines) */
 #define PART_MEM_AT(p) (plugin_api->part_mem(p))
+#define FELUCCA_PLUGIN_UNIT 1                      /* (the engines whose state is static when built in: theirs through the API) */
 #ifndef PLUG_SAMPLES
 #define PLUG_SAMPLES 0                                  /* (tools/plugin_build.py: 1 for SAMPLE, GRAIN, SLICE, STRETCH) */
 #endif
