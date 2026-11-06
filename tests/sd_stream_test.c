@@ -9,7 +9,7 @@
  * calls sst_service in its idle wait, as main.c does.
  *   - voices at their rates (8 / 16 bits, mono / stereo, 22.05 / 44.1 / 48 kHz), files contiguous and fragmented: every
  *     sample right, none dry, the bus's share and its longest run;
- *   - a card busy 150 ms as a note starts: a 50 ms pre-buffer runs dry and fades (counted), 200 ms covers it;
+ *   - a card busy 150 ms as a note starts: a 50 ms head runs dry and fades (counted), 200 ms covers it;
  *   - a stall while playing: the ring covers 60 ms, not 250 (dry, faded, counted), the screen draws through both;
  *   - loops: back into the head, past it, inside one sector; a sample whole in its head reads no block;
  *   - notes started again and again from the interrupt in the middle of runs: never a stale block;
@@ -275,13 +275,16 @@ static void quiet(void)                              /* every voice off, the str
     gap_max = 0;
 }
 
+/* (sst_src_load takes a head in bytes, the plan one ring's: this test's heads are a time of each file's own format) */
+static uint32_t ms_bytes(const wav_t *w, uint32_t ms) { return ms * w->rate / 1000u * w->ch * (w->bits / 8u); }
+
 static void load_src(uint32_t si, const wav_t *w, uint32_t pre_ms, const char *what)
 {
     uint32_t need = 0, used = 0;
-    FRESULT r = sst_src_need(w->path, pre_ms, &need);
+    FRESULT r = sst_src_need(w->path, ms_bytes(w, pre_ms), &need);
     CHECK(r == FR_OK && need, "%s: %s's need (%d)", what, w->path, (int)r);
     src_used = (src_used + 3u) & ~3u;
-    r = sst_src_load(si, w->path, pre_ms, src_mem + src_used, sizeof src_mem - src_used, &used);
+    r = sst_src_load(si, w->path, ms_bytes(w, pre_ms), src_mem + src_used, sizeof src_mem - src_used, &used);
     CHECK(r == FR_OK && used == need, "%s: %s loaded (%d, %u of %u)", what, w->path, (int)r, used, need);
     src_used += used;
     W[si] = w;
@@ -333,7 +336,7 @@ static void smpl_tests(const char *what)
         CHECK(put_smpl_wav(T[i].path, 5000, T[i].unity, T[i].nl, T[i].ls, T[i].le, T[i].after), "%s: %s written", what,
               T[i].path);
         src_used = (src_used + 3u) & ~3u;
-        CHECK(sst_src_load(8u + i, T[i].path, 50, src_mem + src_used, sizeof src_mem - src_used, &used) == FR_OK,
+        CHECK(sst_src_load(8u + i, T[i].path, 4410u, src_mem + src_used, sizeof src_mem - src_used, &used) == FR_OK,   /* (50 ms) */
               "%s: %s loaded", what, T[i].path);
         src_used += used;
         CHECK(s->frames == 5000u && s->root == T[i].root && s->lps == T[i].lps && s->lpe == T[i].lpe,

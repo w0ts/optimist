@@ -32,7 +32,9 @@ typedef struct {
     uint8_t magic[2];                                /* "SD" */
     uint8_t keep, scale;                             /* VERSIONS 0..SDM_KEEP_MAX; SLACK in steps of 25 % (0..16) */
     uint8_t pend;                                    /* a card save pending: p */
-    uint8_t pre;                                     /* the pre-buffer (SD_STREAM): SST_PRE_MS[pre - 1], 0 its default */
+    uint8_t pre;                                     /* (the pre-buffer, retired 2026-11-06 evening: a sample's preload is one ring's,
+                                                      * no setting; kept so the record keeps its size and an old one loads, read
+                                                      * and ignored, written as 0) */
     uint8_t ids[2];                                  /* the user ids made so far (sdm_new_id), little-endian */
     sdp_pending p;
 } sdm_rec_t;
@@ -149,9 +151,6 @@ static void sdm_apply(void)
 {
     sdp_keep = sdm_rec.keep;
     sda_scale = (uint16_t)(sdm_rec.scale * 25u);
-#if FELUCCA_SD_STREAM
-    sst_pre_set(SST_PRE_MS[sdm_rec.pre ? (sdm_rec.pre - 1u) & 3u : 1u]);
-#endif
 }
 static void sdm_rec_read(void)
 {
@@ -161,8 +160,7 @@ static void sdm_rec_read(void)
             sdm_rec.keep = 8;
         if (sdm_rec.scale > SDM_SCALE_MAX)
             sdm_rec.scale = 4;
-        if (sdm_rec.pre > 4u)
-            sdm_rec.pre = 0;
+        sdm_rec.pre = 0;                             /* (retired: an old record's pre-buffer ignored) */
     } else {
         memset(&sdm_rec, 0, sizeof sdm_rec);
         sdm_rec.magic[0] = 'S', sdm_rec.magic[1] = 'D';
@@ -620,11 +618,12 @@ static int sdm_reading(void) { return sdb_reading(); }
 static uint32_t sdm_shown_page(void) { return sdm.b.page; }
 static void sdm_wait(void) { sdb_finish(); }
 /* ---- the SAMPLES list's preview (op_sdcard.c, the last black key; the voice: sd_preview.h): the file streams, a head of
- * SDM_PV_PRE ms and a ring of its own in RAM, so no project memory is touched and no track's sound changes. A sample asked
- * plays after SDM_PV_SETTLE_MS without another (K2 turned fast reads no file on the way) */
+ * SDM_PV_HEAD bytes and a ring of its own in RAM, so no project memory is touched and no track's sound changes. A sample
+ * asked plays after SDM_PV_SETTLE_MS without another (K2 turned fast reads no file on the way) */
 #if FELUCCA_SD_STREAM
 #define SDM_PV_SETTLE_MS 60u
-#define SDM_PV_PRE 25u
+#define SDM_PV_HEAD (SST_HEAD_RING < 4096u ? SST_HEAD_RING : 4096u)   /* one ring's as a voice's, half its memory at most (the
+                                                                      * runs beside it) */
 static uint8_t sdm_pv_mem[8192] __attribute__((aligned(4))) IN_POOL_AUDIO;   /* (its runs, its head) */
 static uint8_t sdm_pv_ring[SST_K * 512u] __attribute__((aligned(4))) IN_POOL_AUDIO;
 static struct {
@@ -660,9 +659,9 @@ static void sdm_pv_tick(void)
     }
     sdm_pv.ask = 0;
     sst[SST_PV].ring = sdm_pv_ring;
-    r = sst_src_load(SST_PVS, sdm_pv.path, SDM_PV_PRE, sdm_pv_mem, sizeof sdm_pv_mem, &used);
-    if (r == FR_NOT_ENOUGH_CORE)                     /* (a high rate's head) */
-        r = sst_src_load(SST_PVS, sdm_pv.path, SDM_PV_PRE / 5u, sdm_pv_mem, sizeof sdm_pv_mem, &used);
+    r = sst_src_load(SST_PVS, sdm_pv.path, SDM_PV_HEAD, sdm_pv_mem, sizeof sdm_pv_mem, &used);
+    if (r == FR_NOT_ENOUGH_CORE)                     /* (a file in many runs: their map and a shorter head) */
+        r = sst_src_load(SST_PVS, sdm_pv.path, SDM_PV_HEAD / 4u, sdm_pv_mem, sizeof sdm_pv_mem, &used);
     if (sdm_was(r) != FR_OK)
         ui_message("CANNOT PREVIEW");                /* (not a PCM WAV, or in too many pieces) */
     else
@@ -2065,17 +2064,15 @@ static int sdm_save(uint32_t list, const char *name, const char *was)
 /* ---- SYSTEM > SD CARD (op_project.c) */
 static uint32_t sdm_keep(void) { return sdm_rec.keep; }
 static uint32_t sdm_scale(void) { return sdm_rec.scale * 25u; }
-static void sdm_set(uint32_t what, int32_t s)        /* 0 VERSIONS, 1 SLACK, 2 PRE-BUFFER: a detent, stopping at the ends;
-                                                      * s 0 the default */
+static void sdm_set(uint32_t what, int32_t s)        /* 0 VERSIONS, 1 SLACK: a detent, stopping at the ends; s 0 the default */
 {
-    static const uint8_t MAX[3] = {SDM_KEEP_MAX, SDM_SCALE_MAX, 4}, DEF[3] = {8, 4, 2};
-    uint8_t *v = what == 2u ? &sdm_rec.pre : what ? &sdm_rec.scale : &sdm_rec.keep;
+    static const uint8_t MAX[2] = {SDM_KEEP_MAX, SDM_SCALE_MAX}, DEF[2] = {8, 4};
+    uint8_t *v;
     int32_t x;
-    what %= 3u;
-    if (what == 2u && !*v)
-        *v = 2;                                      /* (0: the default, 50 ms) */
+    what &= 1u;
+    v = what ? &sdm_rec.scale : &sdm_rec.keep;
     x = *v + (s > 0 ? 1 : s < 0 ? -1 : 0);
-    *v = (uint8_t)(!s ? DEF[what] : x < (what == 2u) ? (what == 2u) : x > MAX[what] ? MAX[what] : x);
+    *v = (uint8_t)(!s ? DEF[what] : x < 0 ? 0 : x > MAX[what] ? MAX[what] : x);
     sdm_apply();
     sdm_dirty = 2;
 }
@@ -2145,11 +2142,10 @@ static void sdm_again(void)                          /* SD CARD's YES: mounted a
 }
 static int32_t sdm_index_pct(void) { return sdm_st == SDM_INDEX ? (int32_t)sdm_ix_pct : -1; }   /* (-1: no pass) */
 #if FELUCCA_SD_STREAM
-static uint32_t sdm_pre_ms(void) { return sst_pre_ms; }
-static uint32_t sdm_pre_kb(void) { return sst_pre_kb(sst_pre_ms); }
-/* the card samples' memory short (sd_stream_plan.c sstp: refused): MEM FULL CARD, then a drop proposed with the one
- * confirm, one part at a time (as model.c mem_offer: only a part whose memory alone makes room, never one asked); none
- * (or all asked): the longest pre-buffer that fits said. Placed by itself once there is room (the plan's retries) */
+/* the card samples' memory short (sd_stream_plan.c sstp: refused, every voice's ring and preload not fitting): MEM FULL
+ * CARD, then a drop proposed with the one confirm, one part at a time (as model.c mem_offer: only a part whose memory
+ * alone makes room, never one asked); none (or all asked): MEM FULL CARD said once. Placed by itself once there is room
+ * (the plan's retries) */
 static uint8_t sdm_asked, sdm_offering;
 static void sdm_mem_tick(void)
 {
@@ -2175,14 +2171,7 @@ static void sdm_mem_tick(void)
             return;
         }
     sstp.said = 1;
-    if (sstp.fit_ms) {                               /* "MEM FULL CARD: 25 MS FITS" (SYSTEM > SD card's PRE-BUFFER) */
-        str_cpy(a, "MEM FULL CARD: ", sizeof a);
-        fmt_app(a, (int32_t)sstp.fit_ms);
-        str_app(a, " MS FITS", sizeof a);
-        ui_message(a);
-    } else {
-        ui_message("MEM FULL CARD");
-    }
+    ui_message("MEM FULL CARD");
 }
 /* a part on a card set the card does not hold (sd_stream_plan.c sstp.bmiss): "PIANO NOT ON CARD" once, said again
  * only after it was there (or the part left it); the part silent. Only with the card mounted (none: NO SD CARD) */
@@ -2285,8 +2274,5 @@ static void sdm_slow_tick(void)
         }
     }
 }
-#else
-static uint32_t sdm_pre_ms(void) { return 0; }
-static uint32_t sdm_pre_kb(void) { return 0; }
 #endif
 static uint32_t sdm_state(void) { return sd_state == SD_READY ? (sdm_st >= SDM_INDEX ? 3u : 2u) : sd_state == SD_NOFS ? 1u : 0u; }

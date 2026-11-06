@@ -81,8 +81,6 @@ static void sdm_set(uint32_t what, int32_t s);
 static void sdm_leave(void);
 static void sdm_again(void);
 static uint32_t sdm_state(void);
-static uint32_t sdm_pre_ms(void);                       /* (SD_STREAM: the pre-buffer, its KB) */
-static uint32_t sdm_pre_kb(void);
 static uint32_t sd_card_mb(void);                       /* storage/sd/sdcard.c */
 static uint32_t sd_clock_khz(void);                     /* storage/sd/sdcard.c: the card's SPI clock (0: unknown) */
 static int32_t sdm_index_pct(void);                     /* storage/sd/sd_mode.c: how far the index's pass is, -1 none */

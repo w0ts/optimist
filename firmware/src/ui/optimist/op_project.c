@@ -421,7 +421,6 @@ enum { SI_NONE, SI_TUNE, SI_RECQ, SI_PUNCH, SI_OUT, SI_SYNC, SI_CH1, SI_CH2,
        SI_BLEFGT, SI_FRESO, SI_HPBASS, SI_BTA, SI_BTAPEER, SI_BTAFMT, SI_BTAST, SI_CLKOFS, SI_BTOFS, SI_LINK, SI_LINKOFS,
 #if FELUCCA_SD_UI
        SI_SDCARD, SI_SDVERS, SI_SDSLACK, SI_SDINDEX,    /* SD CARD: the card, VERSIONS, SLACK, the sample index (sd_mode.c) */
-       SI_SDPRE,                                        /* (SD_STREAM: the card samples' pre-buffer) */
        SI_SDBACK, SI_SDREST,                            /* SETTINGS: BACKUP to the card, RESTORE from it (sd_mode.c) */
        SI_SDCLOCK,                                      /* SD CARD: the card's SPI clock, read-only (sd_mmc.c sd_clock_probe) */
 #endif
@@ -531,13 +530,12 @@ static const struct { const char *name; uint8_t it[4]; } SYS[] = {
 #if FELUCCA_SD_UI
     {"SD CARD", {SI_SDCARD, SI_SDVERS, SI_SDSLACK, SI_SDINDEX}},   /* (the card's state, a project's versions kept, the room
                                                          * a file's run gets past its size, the sample index again) */
+    {"SD CARD", {SI_SDCLOCK, SI_NONE, SI_NONE, SI_NONE}},   /* (the clock the mount's detection kept, read-only: the user,
+                                                         * 2026-11-04; no streaming setting here since 2026-11-06 evening:
+                                                         * a sample's preload is one ring's, the builder's SD_RING) */
 #if FELUCCA_SD_STREAM
-    {"SD CARD", {SI_SDPRE, SI_SDCLOCK, SI_NONE, SI_NONE}},   /* (the card samples' pre-buffer, its KB beside it; the clock the
-                                                         * mount's detection kept, read-only: the user, 2026-11-04) */
     {"SD STREAM", {SI_SMRATE, SI_SMSTRM, SI_SMBUF, SI_SMDRY}},   /* how the card copes: the read rate, the voices streaming, the rings'
                                                          * least fill, the dropouts (the user, 2026-11-05; op_sdmon.c) */
-#else
-    {"SD CARD", {SI_SDCLOCK, SI_NONE, SI_NONE, SI_NONE}},
 #endif
     {"SETTINGS", {SI_SDBACK, SI_SDREST, SI_NONE, SI_NONE}},   /* (the device's settings to the card and back) */
 #endif
@@ -1077,17 +1075,6 @@ static void sys_it_cell(uint32_t it, cell_t *c)     /* the cell of setting it */
     case SI_SDREST:
         cell_act(c, 0, "RESTORE", "FROM CARD", 1);
         break;
-    case SI_SDPRE: {                                    /* each card sample's head in RAM, ms, and what the project's take */
-        static char kb[10];
-        uint32_t ms = sdm_pre_ms();
-        c->label = "PRE-BUFFER";
-        fmt_int(c->val, (int32_t)ms);
-        fmt_int(kb, (int32_t)sdm_pre_kb());
-        str_app(kb, " KB", sizeof kb);
-        c->unit = kb;
-        cell_gauge(c, 1, 0, 3, ms <= 25u ? 0 : ms <= 50u ? 1 : ms <= 100u ? 2 : 3);
-        break;
-    }
     case SI_SDCLOCK: {                                  /* the SPI clock the card runs at: "15 MHZ", "8.6 MHZ"; "-" with no card */
         uint32_t t = (sd_clock_khz() + 50u) / 100u;     /* (tenths of a MHz) */
         sys_ro(c, "CLOCK");
@@ -1651,9 +1638,8 @@ static void sys_set(uint32_t it, int32_t s)
 #endif
 #if FELUCCA_SD_UI
     case SI_SDVERS:
-    case SI_SDSLACK:
-    case SI_SDPRE:                                      /* (sd_mode.c: into the log when SYSTEM is left) */
-        sdm_set(it - SI_SDVERS - (it == SI_SDPRE), s ? s : 1);
+    case SI_SDSLACK:                                    /* (sd_mode.c: into the log when SYSTEM is left) */
+        sdm_set(it - SI_SDVERS, s ? s : 1);
         break;
 #endif
     case SI_KCOL:                                       /* (kept in the settings word: settings_word.c) */
@@ -1723,8 +1709,7 @@ static int sys_factory(uint32_t it)
 #if FELUCCA_SD_UI
     case SI_SDVERS:
     case SI_SDSLACK:
-    case SI_SDPRE:
-        sdm_set(it - SI_SDVERS - (it == SI_SDPRE), 0);   /* (8 versions, 100 %, 50 ms) */
+        sdm_set(it - SI_SDVERS, 0);                     /* (8 versions, 100 %) */
         return 1;
 #endif
     case SI_HPBASS:
@@ -1862,7 +1847,7 @@ static int sys_yes(uint32_t r, uint32_t k, uint32_t ok)
             sdm_restore();
         return 1;
     }
-    if (it == SI_SDVERS || it == SI_SDSLACK || it == SI_SDPRE)
+    if (it == SI_SDVERS || it == SI_SDSLACK)
         return 0;                                       /* (numbers: the knob) */
 #if FELUCCA_SD_STREAM
     if (smn_item(it)) {                                 /* SD STREAM: YES, SAVE clear the counts */

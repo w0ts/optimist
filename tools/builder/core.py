@@ -1165,8 +1165,6 @@ ARN_UNDO_LEAST = 16 * 1024      # engines.c ARN_UNDO_LEAST: the undo's least in 
 ARN_UNDO_SRAM = 1024            # engines.c ARN_UNDO_SRAM: its SRAM part with the cache RAM, at least
 CACHE_RAM_BYTES = {2: 8192, 4: 16384, 7: 28672}   # hal/fm1_cache.h: the ways as RAM (4 KB each); the tested free part is a little less
 SD_GRAIN_CACHE, SD_STRETCH_CACHE = 33280, 16640   # a part's card cache, with its tags (docs/SD-CARD-DESIGN.md, sd_grain_test)
-SD_PRE_MS = 50                  # sd_stream_plan.c SST_PRE_MS default: the pre-buffer of a card sample
-SD_HEAD_B = SD_PRE_MS * 441 // 10 * 2   # (frames at 44.1 kHz, 16 bit mono: 2 B a frame; the sample's own rate and width decide)
 SD_RINGS_TYPICAL, SD_HEADS_TYPICAL = 4, 8   # a part's rings at most (SST_PART_RINGS); the card samples of a typical project
 ARENA_ESTIMATE_KB = 4           # the estimate's stated tolerance (KB) against a real build of a configuration the anchors know
 STG_RESERVE = 16600             # seq/undo.c, engines.c STG_MEM: the save / load staging buffers past the arena and its undo keep
@@ -1257,7 +1255,8 @@ def arena_fits(cfg):
             continue                                    # (held with FM6's engine state: a few KB, in the table's note)
         rows.append((k, v, 1, "a track each" if k.startswith("a track's") else "while the project uses it"))
     if sd_mode(cfg) and built(cfg, "SDCARD") and cfg.get("SD_RING", 0) > 0 and built(cfg, "ENG_SAMPLE"):
-        rows.append(("a card sample's head", SD_HEAD_B, SD_HEADS_TYPICAL, f"pre-buffer {SD_PRE_MS} ms, typical {SD_HEADS_TYPICAL} samples"))
+        rows.append(("a card sample's head", cfg["SD_RING"] * 1024, SD_HEADS_TYPICAL,
+                     f"its preload, one ring's (sd_stream.c SST_HEAD_RING), typical {SD_HEADS_TYPICAL} samples"))
         rows.append(("a card stream's ring", cfg["SD_RING"] * 1024, SD_RINGS_TYPICAL, "SD_RING a voice, typical one part"))
     if sd_mode(cfg) and built(cfg, "SDCARD") and cfg.get("SD_RING", 0) > 0:
         if built(cfg, "ENG_GRAIN"):

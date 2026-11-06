@@ -369,6 +369,6 @@ src/storage/sd/sd_index.c:sdx_u_scan:sdxp.oldn | the old index's records: SDXP_S
 src/storage/sd/sd_mon.c:ssm_sample:dt_ms | the period in ms: ssm_sample runs once at the first call (the rate not computed then: live is 0) and later only when ssm_poll saw SSM_MS * SD_TICKS_MS ticks pass, so dt_ms >= SSM_MS (500)
 src/ui/optimist/op_sdmon.c:smn_pct:cap | the clock carried, KB/s: smn_cap is (6000 or the clock in kHz, 1000 and more) * 98 / 1000: 588 and up
 src/ui/optimist/op_sdmon.c:smn_dry:n | the DRY line items: smn_items always puts DRY in, so 1 to 4
-src/storage/sd/sd_mon.c:ssm_streams:sst_k | SST_K, or SST_RING_MIN_K or more: sd_stream_plan.c sst_place_rings, never 0
+src/storage/sd/sd_mon.c:ssm_streams:sst_k | SST_K, the builder's SD_RING x 2 (sd_stream.h: 2 .. 64, a static assert), never 0
 src/storage/sd/sd_stream.c:sst_run:sst_k | as ssm_streams
 src/storage/sd/sd_stream.h:sst_at_slow:sst_k | as ssm_streams

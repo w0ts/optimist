@@ -13,12 +13,12 @@
  *   sd bench FILE         the whole file read: through the filesystem (512 B a call), then a run per CMD18
  *   sd write FILE         a pattern written over the file (its size, up to 64 KB) block by block (CMD24, the data by DMA
  *                         when sd dma is on), read back and compared: KB/s
- *   sd stream             the streams (SD_RING builds, storage/sd/sd_stream.c): the rings, the pre-buffer, the plan
- *                         (placed / refused: its need, what would make room), each source, each stream's fill, and since
+ *   sd stream             the streams (SD_RING builds, storage/sd/sd_stream.c): the rings (a sample's preload is one
+ *                         ring's: each source's head_B), the plan (placed / refused: its need, what would make room), each
+ *                         source, each stream's fill, and since
  *                         the last reset: dry voices, notes with no ring, runs, blocks, KB/s, stalls, CRC retries,
  *                         errors, the longest run (the screen's longest wait for the card), the least lead a run began at
  *   sd stream reset       those counts from 0 (and the keys' ui gap: console keys)
- *   sd stream pre MS      the pre-buffer: 25, 50, 100 or 200 ms (placed again)
  *   sd stream part P FILE part P's CARD sample (1..3): FILE from Optimist/ ("Samples/kick.wav", any case), by its hash in the
  *                         index (until the sample picker sets it); no FILE: none
  *   sd diag               first the clock: the one kept, what the mount's detection saw at each step, the CRC failures
@@ -556,13 +556,12 @@ static void con_sd_streams(void)
     con_kv("rings", SST_N);
     con_kv("ring KB", sst_k / 2u);
     con_kv("run blocks", SST_RUN);
-    con_kv("pre ms", sst_pre_ms);
     con_kv("plan", sstp.state);                      /* 0 none, 1 letting go, 2 placed, 3 refused */
+    con_kv("rings of the voices", sstp.nring);       /* (a ring each streaming voice, always: placed, or refused) */
     con_kv("need B", (int32_t)sstp.need);
     if (sstp.state == SSTP_REFUSED) {
         con_kv("drop one of parts", sstp.drop);      /* (a mask: any one of those parts' memory would make room) */
         con_kv("drop all parts fits", sstp.drop_all);
-        con_kv("fits at ms", sstp.fit_ms);
     }
     con_kv("missing parts", sstp.missing);
     for (i = 0; i < SST_NSRC; i++)
@@ -630,19 +629,9 @@ static void con_sd_streams(void)
 
 static void con_sd_stream_cmd(const char *p)
 {
-    int ok;
     if (con_word(&p, "reset")) {
         sst_stats_reset();
         fm1_in.ui_gap_max = 0;
-    } else if (con_word(&p, "pre")) {
-        uint32_t ms = con_num(&p, &ok);
-        sst_pre_set(ok ? ms : 50u);
-        con_kv("pre ms", sst_pre_ms);
-        for (ms = 0; ms < 4u; ms++) {                /* (what each setting would take with the project's samples) */
-            con_puts("  ");
-            con_dec(SST_PRE_MS[ms]);
-            con_kv(" ms KB", (int32_t)sst_pre_kb(SST_PRE_MS[ms]));
-        }
     } else if (con_word(&p, "part")) {
         con_sd_stream_part(p);
     } else {
