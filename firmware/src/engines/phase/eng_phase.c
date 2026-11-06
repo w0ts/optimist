@@ -324,5 +324,7 @@ static const engine_t ENG_PHASE = {
     PRESETS_OF(PHASE_PRESETS), 0, phase_note_on, phase_render,
     0x05DF, {P_E2, P_E3, P_E4, P_REL},
     .keep = FELUCCA_PHASE_FOLD ? 0x33 : 0x03,   /* a retrigger keeps s0 s1 the WAVE toggles; FOLD: s4 s5 its DC blocker (voice.c) */
-    .part_bytes = FELUCCA_PHASE_FOLD ? sizeof(pd_mem_t) : 0,   /* (the crossfade's scratch: FOLD only) */
+#if FELUCCA_PHASE_FOLD
+    .part_bytes = sizeof(pd_mem_t),               /* (the crossfade's scratch: FOLD only; the type exists only then) */
+#endif
 };
