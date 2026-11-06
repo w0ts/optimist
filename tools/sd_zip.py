@@ -286,7 +286,10 @@ def write_plugins(work, tree):
     out = tree / "Optimist" / "Plugins"
     out.mkdir(parents=True, exist_ok=True)
     n = 0
+    built = {k[len("FELUCCA_ENG_"):] for k, v in plugin_build.config_values().items() if k.startswith("FELUCCA_ENG_") and v == "1"}
     for name in engines():
+        if name in built:                                 # (a built-in engine is found before any plugin: no file needed)
+            continue
         try:
             p = plugin_build.build_plugin(name, work / "plugins")
             shutil.copyfile(p, out / p.name)
@@ -295,7 +298,7 @@ def write_plugins(work, tree):
             print(f"sd zip: {name}: not a plugin: {e}")
         except SystemExit:
             print(f"sd zip: {name}: not a plugin: its compile or link failed")
-    print(f"sd zip: {n} plugins in Optimist/Plugins")
+    print(f"sd zip: {n} plugins in Optimist/Plugins (the engines this configuration builds in: none needed)")
     return n
 
 
