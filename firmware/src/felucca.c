@@ -246,6 +246,7 @@ static int st_prog(uint32_t off, const void *src, uint32_t n)
 #if FELUCCA_SD_UI
 #include "storage/sd/sd_mode.c"        /* SD card mode: the boot's card, the projects, presets, kits and samples by name */
 #endif
+#include "system/bench_card.c"         /* (bench 20's card sample: after the card's code) */
 #include "core/plugin_card.c"          /* a plugin from the card's Optimist/Plugins into the flash (FELUCCA_PLUGINS + SDCARD) */
 #if FELUCCA_OTA
 static uint8_t recovery_active;

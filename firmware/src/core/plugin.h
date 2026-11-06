@@ -85,7 +85,28 @@ typedef struct {
                                            * placed (core/plugin.c plug_service; WAVE's table builder) */
     void *(*tab_mem)(uint32_t slot);      /* slot's shared block (engine_t tab_kb KB: a block of the arena while a part
                                            * plays the plugin, zeroed when placed; 0 while not placed, or no arena) */
-    /* (later, added at the end: the sample engines' card services, another agent's work) */
+    /* ---- the card (SD card mode, FELUCCA_SD_STREAM; plugins/samples 2026-11-06): a sample engine's material is the
+     * card's, by hash, through the streaming plan (storage/sd/sd_stream_plan.c); the flash's sets and user slots never
+     * reach a plugin. The plan's data the engines read in their inner loops, the slow paths as calls. Plain types (the
+     * header comes before sd_stream.h, sd_stream_rc.h, eng_sample.c, eng_slice.c): the plugin's side casts
+     * (sd_stream.h, sd_stream_rc.h, eng_sample.c, eng_slice.c under PLUG_BUILD). 0 in a build without the card */
+    void *src;                            /* sst_src_t sst_src[SST_NSRC + 1]: the plan's sources */
+    void *sst;                            /* sst_t sst[SST_NALL]: the streams (rings) */
+    void *rc;                             /* sst_rc_t sst_rc[SST_NPART]: the parts' caches (GRAIN, STRETCH) */
+    const uint8_t *part_src;              /* sst_part_src[]: each part's CARD source, 0xFF none */
+    const uint8_t *bank_src, *bank_n;     /* sst_bank_src / sst_bank_n[SST_NPART]: each part's card set */
+    const uint8_t *bank_free;             /* sst_bank_free: the parts on their own WAV, a mask */
+    volatile uint32_t *dry;               /* sst_dry: streams that ran dry (counted) */
+    int32_t (*sst_start)(uint32_t si, uint32_t looped, uint32_t ls, uint32_t le, uint32_t bpms,
+                         const volatile uint8_t *owner);   /* a stream for source si: its index, -1 none */
+    const uint8_t *(*sst_at_slow)(void *st, const void *s, uint32_t off);   /* a stream's read past its window (the
+                                           * head, the ring) */
+    const uint8_t *(*sst_rc_slow)(void *c, const void *s, uint32_t si, void *w, uint32_t off);   /* a cache's */
+    const void *(*cz)(uint32_t part, uint32_t *n, uint32_t *stamp);   /* the part's card set as zones (smp_zone_t[]),
+                                           * made again when the plan's sources change (eng_sample.c smp_cz_sync): n their
+                                           * count, stamp + 1 each time it holds zones */
+    const void *const volatile *slc_crd;  /* SLICE on CARD: each part's material (slc_src_t *, 0 none), read and encoded
+                                           * by the firmware (storage/sd/sd_slice.c) */
 } plug_api_t;
 
 /* the shapes a plugin shares with the firmware, in one word: the structs it reads and the descriptor it exports

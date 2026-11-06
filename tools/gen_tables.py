@@ -324,7 +324,7 @@ def main(path):
          f"#define FS {FS}", f"#define CTL {CTL}",
          "/* TAB_RAM: a table the sample loops read, in the pool on the target, copied from flash at boot (main.c; the RAM is",
          " * one packed region, docs/MEMORY-MAP.md: main RAM or pool, the same SRAM) */",
-         "#if defined(__PI32V2__)",
+         "#if defined(__PI32V2__) && !defined(PLUG_BUILD)   /* (a plugin, plugin/plug_unit.c: its tables in its image) */",
          '#define TAB_RAM __attribute__((section(".pool_init.tab_ram")))',
          "#else", "#define TAB_RAM", "#endif",
          "/* TAB_CODED: the smooth tables (carr below) delta-coded in flash and expanded into the pool at boot (tab_expand",

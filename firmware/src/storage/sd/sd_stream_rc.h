@@ -64,7 +64,11 @@ typedef struct {
     uint8_t nk;                                      /* its slots (<= SST_RK) */
     uint8_t cold;                                    /* (the main loop's: a region run's slots came from cold ones) */
 } sst_rc_t;
+#ifdef PLUG_BUILD
+#define sst_rc ((sst_rc_t *)plugin_api->rc)             /* (a plugin: the firmware's, plugin/plug_api.h) */
+#else
 static sst_rc_t sst_rc[SST_NPART] IN_POOL_AUDIO;    /* each part's (a part on GRAIN or STRETCH with a card set) */
+#endif
 
 AINL uint32_t sst_rc_tag(uint32_t si, uint32_t sec) { return si << 24 | (sec + 1u); }
 AINL uint32_t sst_rc_sec(const sst_src_t *s, uint32_t f) { return (s->dofs + (f << s->fsh)) >> 9; }
@@ -160,6 +164,12 @@ static void sst_rc_reset(sst_rc_t *c)               /* the audio, a new owner: i
 }
 
 /* data byte off of source si through window w (as sst_at): 0 = not in the cache */
+#ifdef PLUG_BUILD
+static const uint8_t *sst_rc_slow(sst_rc_t *c, const sst_src_t *s, uint32_t si, sst_rw_t *w, uint32_t off)
+{
+    return plugin_api->sst_rc_slow(c, s, si, w, off);   /* (a plugin: the firmware's read, plugin/plug_api.h) */
+}
+#else
 static const uint8_t *sst_rc_slow(sst_rc_t *c, const sst_src_t *s, uint32_t si, sst_rw_t *w, uint32_t off)
 {
     uint32_t sec, lo, hi;
@@ -190,6 +200,7 @@ static const uint8_t *sst_rc_slow(sst_rc_t *c, const sst_src_t *s, uint32_t si, 
     w->wn = hi - lo;
     return w->win + (off - lo);
 }
+#endif
 
 AINL const uint8_t *sst_rc_at(sst_rc_t *c, const sst_src_t *s, uint32_t si, sst_rw_t *w, uint32_t off)
 {
