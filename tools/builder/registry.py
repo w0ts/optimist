@@ -1342,6 +1342,21 @@ _add("SD_REC", "FELUCCA_SD_REC_KB", "record the master output to the SD card: th
           "does nothing else: samples from the card wait, the card's lists and saves say the card is busy. "
           "Needs LAYOUT (full FatFs) and SDCARD. The buffer is RAM of the pool for as long as the build has it.",
      off_warning="no recording to the card")
+# bit 454 (2026-11-06 evening, the next free after PLUGINS' 453; the user: "we move the pre buffer in flash, builder
+# setting"): the card samples' pre-buffer heads written into the PLUGINS region at kit load, read in place (XIP), the arena
+# kept for the rings (docs/SD-CARD-DESIGN.md section 7, the streaming buffers; core/plugin.c plug_install, one more KIND)
+_add("HEADS_FLASH", "FELUCCA_HEADS_FLASH", "card samples' pre-buffer in flash (the plugins' region), not in RAM", MEM, 454,
+     default=0, parent="SDCARD", shown_under="SD_MODE",
+     experimental=True, target_only=True,
+     tested="designed only (2026-11-06): the item, its rule and the planner's hook; the flash path is written when the "
+            "plugins' writer has run from the card on an FM-1",
+     desc="Each card sample's first moments (the PRE-BUFFER, 25 to 200 ms) are written into the plugins' flash region when "
+          "a kit or a project is placed, and read from there like a built-in table, instead of being kept in the arena: "
+          "the arena then holds the rings alone, so ten 8 KB rings and a 200 ms pre-buffer fit together (measured "
+          "2026-11-06: in RAM a 200 ms pre-buffer left room for five rings, and 25 ms let voices run dry). The heads of "
+          "one kit are one occupant of the region, rewritten when the kit changes (about a second of sliced erasing "
+          "while the audio keeps running); a region too full refuses and the heads stay in RAM as before. Needs "
+          "PLUGINS (the region) and SD_RING (the streams).")
 # (bit 412, OVERLAY, retired 2026-10-30: RETIRED; never reuse it)
 _add("CPU_GUARD", "FELUCCA_CPU_GUARD", "predictive CPU guard (ease back before shedding)", Y, 61, default=0,
      provenance=FLOWSTATE_GUARD,

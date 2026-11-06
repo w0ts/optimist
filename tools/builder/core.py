@@ -406,6 +406,9 @@ def validate(cfg):
     if cfg.get("SD_REC") and not (cfg.get("SDCARD") and cfg.get("LAYOUT") == 1):
         err.append(Issue("recording to the card (SD_REC) needs the card under full FatFs (SDCARD, LAYOUT 1)",
                          ["SD_REC", "SDCARD", "LAYOUT"]))
+    if cfg.get("HEADS_FLASH") and not (cfg.get("PLUGINS", 0) and cfg.get("SD_RING", 0)):
+        err.append(Issue("the pre-buffer in flash (HEADS_FLASH) needs the plugins' flash region (PLUGINS) and the card's streams "
+                         "(SD_RING)", ["HEADS_FLASH", "PLUGINS", "SD_RING"]))
     if cfg.get("SDCARD") and cfg.get("LCD_BAUD", 1) == 0:   # (the user, 2026-11-06: no 60 MHz screen with the card)
         err.append(Issue("the SD card board shares the screen's lines: its resistors (R5/R6 240 Ohm, R1 91, measured "
                          "2026-11-06 on an FM-1) leave the panel black at 60 MHz and fine at 30: LCD_BAUD 30 MHz "
