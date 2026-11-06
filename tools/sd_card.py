@@ -163,7 +163,7 @@ def run(argv=None, ask=input, say=print, tty=None, volumes=None, last_file=V.LAS
     c = None
     if not zpath:
         cfg, name, where = sd_zip.load_cfg(args.config, args.profile)
-        c = sd_zip.content_of(cfg)
+        c = sd_zip.content_of(cfg, name)
         say(f"the SD card of {name} ({where}): every factory preset and kit; {c.line()}")
     tty = sys.stdin.isatty() and sys.stdout.isatty() if tty is None else tty
     got = choose(args, ask, say, tty, volumes, last_file)
