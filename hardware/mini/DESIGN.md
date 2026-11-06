@@ -73,16 +73,15 @@ opening; they run straight, one via each. All copper on the LCD bus (through + s
 
 ## Read budget, an estimate
 
-Assumes 0.1 pF/mm, the bus at about 35 pF (`docs/SD-CARD-DESIGN.md`), and 0.69 RC. Against v6: CLK and DI lose about 4 pF behind
-330 Ohm, 0.9 ns; DO loses about 4.7 pF of bus copper at 150 Ohm, 0.7 ns. About 1.6 ns of the 50-58 ns loop (itself inferred),
-worth a few hundred kHz. It is not a clock step. The 2026-11-04 resistor change on v6 gained 2 MHz (10 to 12); shorter copper
+Against v6, by the circuit model of `../NEXT-BOARD.md` (0.05-0.06 pF/mm solved; the older 0.1 pF/mm here was about double):
+1.1-1.3 ns of a read loop measured at 33-42 ns, worth a few hundred kHz. It is not a clock step. The 2026-11-04 resistor change on v6 gained 2 MHz (10 to 12); shorter copper
 does not repeat that. What it may also help, and this estimate does not count, is ringing: v6's 50 mm stub on DO is gone.
 
 ## Values
 
 R1 150 Ohm, R5 and R6 330 Ohm, hand-size 0603, nearest E24 to the parallel values measured on v6: 12 MHz, 20 of 20 runs, CRC 0,
-793 KB/s, with SCK HD on; 15 MHz fails. **Open: the screen at a cold boot with a card in, with these values, is not confirmed.**
-Julius's test failed lower on CLK (150 Ohm distorted, stock firmware): go back up if it does. R7 stays (DO's pull-up, removing it
+793 KB/s, with SCK HD on; 15 MHz fails. **The screen at a cold boot with a card in passed at 330 / 150 (stock M-VAVE V15 and SLOOP 2.8.5, clean after a minute, 2026-11-06, on a hand-tuned v6: 338 / 150 Ohm).**
+Julius's test failed lower on CLK (150 Ohm distorted, stock firmware); not seen at 330. R7 stays (DO's pull-up, removing it
 lost a step). R8, the CS pull-down, the inverter, the 100 nF by the card's VDD, 10 uF and the ferrite are as v7.
 
 ## Fit: nothing here is measured on this board

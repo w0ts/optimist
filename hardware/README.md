@@ -27,8 +27,8 @@ and J12's pins; [`tray/`](tray/), the printed tray; [`lib/`](lib/), the footprin
 
 > **Status:** only v6 has been built and works. The 2026-11-04 minor update is in all four folders and has been
 > built for none, so the v6 files you order now differ from the tested board by one resistor (R8) and extra ground vias.
-> Design-rule check and the schematic's net check pass on all boards. **The long boards and v6 still order R5/R6 510 and R1 220:
-> reaching 12 MHz needs 330 and 150 (see `NEXT-BOARD.md`).**
+> Design-rule check and the schematic's net check pass on all boards. **The long boards and the mini order R5/R6 330 and R1 150
+> (proven at a cold boot, 2026-11-06); v6 as built has 510 and 220 and needs hand rework to reach 12 MHz (see `NEXT-BOARD.md`).**
 
 **Card slot.** On v6 the slot is as before: about 15 x 2.5 mm in the case's bottom wall, the card's left side 81.7 mm from
 the left wall's inside. On the two long boards the socket is 1 mm further from the wall (the slot's size and left-right

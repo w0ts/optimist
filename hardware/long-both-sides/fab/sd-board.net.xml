@@ -233,16 +233,16 @@
       </units>
     </comp>
     <comp ref="R1">
-      <value>220</value>
+      <value>150</value>
       <footprint>Resistor_SMD:R_0603_1608Metric_Pad0.98x0.95mm_HandSolder</footprint>
       <fields>
-        <field name="LCSC">C22962</field>
+        <field name="LCSC">C22808</field>
         <field name="Footprint">Resistor_SMD:R_0603_1608Metric_Pad0.98x0.95mm_HandSolder</field>
         <field name="Datasheet"/>
         <field name="Description"/>
       </fields>
       <libsource lib="Device" part="R" description="Resistor"/>
-      <property name="LCSC" value="C22962"/>
+      <property name="LCSC" value="C22808"/>
       <property name="Sheetname" value="sd-board"/>
       <property name="Sheetfile" value="sd-board.kicad_sch"/>
       <property name="ki_keywords" value="R res resistor"/>
@@ -337,16 +337,16 @@
       </units>
     </comp>
     <comp ref="R5">
-      <value>510</value>
+      <value>330</value>
       <footprint>Resistor_SMD:R_0603_1608Metric_Pad0.98x0.95mm_HandSolder</footprint>
       <fields>
-        <field name="LCSC">C23193</field>
+        <field name="LCSC">C23138</field>
         <field name="Footprint">Resistor_SMD:R_0603_1608Metric_Pad0.98x0.95mm_HandSolder</field>
         <field name="Datasheet"/>
         <field name="Description"/>
       </fields>
       <libsource lib="Device" part="R" description="Resistor"/>
-      <property name="LCSC" value="C23193"/>
+      <property name="LCSC" value="C23138"/>
       <property name="Sheetname" value="sd-board"/>
       <property name="Sheetfile" value="sd-board.kicad_sch"/>
       <property name="ki_keywords" value="R res resistor"/>
@@ -363,16 +363,16 @@
       </units>
     </comp>
     <comp ref="R6">
-      <value>510</value>
+      <value>330</value>
       <footprint>Resistor_SMD:R_0603_1608Metric_Pad0.98x0.95mm_HandSolder</footprint>
       <fields>
-        <field name="LCSC">C23193</field>
+        <field name="LCSC">C23138</field>
         <field name="Footprint">Resistor_SMD:R_0603_1608Metric_Pad0.98x0.95mm_HandSolder</field>
         <field name="Datasheet"/>
         <field name="Description"/>
       </fields>
       <libsource lib="Device" part="R" description="Resistor"/>
-      <property name="LCSC" value="C23193"/>
+      <property name="LCSC" value="C23138"/>
       <property name="Sheetname" value="sd-board"/>
       <property name="Sheetfile" value="sd-board.kicad_sch"/>
       <property name="ki_keywords" value="R res resistor"/>

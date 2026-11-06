@@ -69,7 +69,7 @@ Changes to the sum of the CLK and DO delays, against tuned v6 (8.2 ns at 50 %, 1
 | ESD 2.5 pF to 0.5 pF | 0.5-0.9 ns | cheap if a part fits the layout |
 | A card with 5 pF instead of 8 | 0.7-1.4 ns | not ours to choose |
 | R5/R6 100, R1 47 | 3.6-6.5 ns | **the only large one**, unsafe without a gate (below) |
-| Stronger SCK (35 to 20 Ohm) | 0.5 ns | firmware; HD + HD0 on SCK gave nothing over HD on the 510/220 board, not tried at 330/150 |
+| Stronger SCK (35 to 20 Ohm) | 0.5 ns | firmware; HD + HD0 on SCK gave nothing over HD on the 510/220 board and none at 330/150 (test 3, 2026-11-06): the drive is used up |
 
 The model under-predicts: 510 to 340 gave more than the model's 3.3-5 ns, as the table of steps needs. So take these gains as a
 lower bound, for example the card's or ESD's real capacitance may be larger.
@@ -101,7 +101,7 @@ lower bound, for example the card's or ESD's real capacitance may be larger.
 
 R5/R6 are not there for signal quality. They protect the LCD bus from a card that hears LCD traffic: with a card in native mode,
 stock firmware lost the screen with CLK direct, was distorted at 150 Ohm and was fine at 510 (Julius, cold boot). So tuning down is
-capped, and **330 is not yet proven at a cold boot**. That is still open on all boards.
+capped, and 330 was proven at a cold boot on 2026-11-06 (test 4: stock M-VAVE V15 and SLOOP 2.8.5, screens clean after a minute, on a hand-tuned v6 with 338 / 150).
 
 **The way out: gate CLK with the card's select.** A 74LVC1G08 (AND) on CLK, enabled by the LCD's CS being high, passes clock only
 when the LCD is deselected. Stock firmware sends no clock while CS is high (Julius, logic analyzer), so a card never sees LCD
@@ -135,12 +135,48 @@ Target: pink (FM1-620C), the test unit, with its hand-tuned v6. In order, each d
 | 7 | **Bodged gate.** A 74LVC1G08 on v6's CLK with R5 bridged | User, if test 1 says go | Proves the gate before ordering |
 | 8 | **Scope,** if one is at hand: CLK at both ends of R5, DO at both ends of R1, CLK's duty at 12 MHz | User probes | Direct read of each part of the loop. BAUD 4 (12 MHz) is an odd divider, so its two half clocks may differ: if so the limit is not what the first table says |
 
+## Dense kits: what limits streaming (added 2026-11-05)
+
+| Where | Same pattern: 6 files of the Acoustic kit, 8 blocks a run | Source |
+|---|---|---|
+| Mac, built-in reader, FM1-BLACK's 16 GB card | 0.48 ms a run (median), 0.64 at p95, max 3-7 ms; 7,953 KB/s | **measured**, `analysis/sd_mac_bench.py` |
+| FM-1 black, 12 MHz, a track playing | 26 % of first blocks 3-6 ms, 10 % of later blocks 1-3 ms; about 380 KB/s at DRY 0 | **measured**, not a limit test |
+| FM-1 black idle, the polled reader, 12 MHz, 4 contiguous files (`sd ceil`) | 1 block a run 615 KB/s, 8 a run 1,015, 64 a run 1,059; first block 0.75 ms (max 1.8), later blocks 455 us | **measured 2026-11-05** |
+| FM-1 black under `heavy` (render 3.9 of 5.8 ms, CPU 65 %), polled, 10 MHz | 8 a run 366 KB/s, 64 a run 404; every wait over 1 ms had a render inside, none without | **measured** |
+| the same with the reader in SPI1's interrupt (`sd irq 1`, a run ahead) | 8 a run 702 KB/s, 64 a run 1,116 | **measured** |
+| the heavy kit playing 28 s at 10 MHz, polled against the interrupt reader | 218 KB/s, 195 dry voices, 68 held frames, lead min 0; then 366 KB/s (its demand), 0 dry, 3 held, lead min 14 ms | **measured**, `sd stats` |
+
+Measured 2026-11-05 on black (`sd ceil`, `sd stats`, the sd-loop-test package): the card is not the limit and neither is the board.
+Idle, 8-block runs already give 1,015 KB/s at 12 MHz, close to the bus's 1,150. Every wait over 1 ms, idle or under load, had a
+render inside it, and none did without: the reader was polled from the main loop, and the render (ALNK0, priority 3; 1.1 ms idle,
+3.9 ms under a dense kit, every 5.8 ms) stopped it for its whole length. The card's own first-block wait is 0.75 ms (max 1.8, a few
+times 3-4 ms). Block time follows the clock set (6 / 7.5 / 10 / 12 MHz: 797 / 711 / 458 / 390 us a block, against 683 / 546 / 410 /
+341 nominal), so BAUD gives the clock it says. The fix is firmware: fm1-base `device/sd_irq.h` takes a run's blocks in SPI1's
+interrupt (IRQ 16, priority 5, nesting over the render works), a whole run ahead of the main loop. Its vector must be attached at boot:
+`fm1_guard_lock_top` write-protects the vectors afterwards, and the first try reset the FM-1 at its first run. With it the heavy kit
+plays with no dry voice where the polled reader had 195 in 28 s.
+
+The clock still matters at the margin: black stepped from 12 to 10 MHz twice that day on a CRC failure under load, so 12 MHz is
+thin there, and the board tests (the loopback, resistors in parallel across R1 / R5 / R6) now decide whether 12 can be made safe or
+15 reached, not the streaming rate. The kit files on black's card sit one 32 KB cluster apart (each file in runs of 64 blocks), which
+does not shorten 8-block runs but is why `sd ceil` skipped them until it took 16 KB first runs. The figure of 1,430 KB/s above is a
+sequential one.
+
+**2026-11-06, pink, the board tests done** (`BENCH-SHEET.md` has each run): test 4 passed, 330/150 ships; test 3 and the MOSI
+drive gave nothing on the card path; the loopback (test 1) put the chip's own path at 15 MHz pass, 20 fail, so no gate and no board
+change reaches 20, and with the card's 5-14 ns on top the card path is 10-12 MHz, which is what both units measure (12 marginal,
+one CRC step down to 10; two cards of one brand sit one step apart). **The SD code the same day, main with the interrupt reader,
+10 voices and the drums split over both cores:** ten card lanes on every step with no inserts (`heavy 0`) stream 399 KB/s with 0
+stalls, 0 CRC, 0 dry voices, 1 held frame, the buffer never under 28 ms; core 0 at 40 %, the drum halves 129 and 128 us a block
+on the two cores, no shedding (the day before, 9 samples: 75 % on core 0, nothing on core 1, buffer empty). With the full stress
+project (two inserts on every lane and three chord tracks) core 0 saturates at 78 % and sheds, 62 dry voices in 25 s: that is CPU,
+the stream itself stayed clean (202 KB/s, 0 stalls). The board is out of the streaming question for good.
+
 ## Findings to fix whatever is decided
 
-- **The long boards still order 510/220.** Only the mini has 330/150. An order today gets a board that needs hand rework to reach
-  12 MHz. Update after test 4.
-- `archive-v6-tested/DESIGN.md` and `docs/SD-CARD-DESIGN.md` still speak of 20 MHz with 220 Ohm, and "real cards reach 20 MHz".
-- `mini/DESIGN.md`: the 50-58 ns loop and 0.1 pF/mm are out of date.
+- **The long boards ordered 510/220.** Done 2026-11-06 after test 4 passed: both now order R5/R6 330 and R1 150, as the mini.
+- Done 2026-11-06: `archive-v6-tested/DESIGN.md` and `docs/SD-CARD-DESIGN.md` now say 10-12 MHz at 330/150 and the polled reader, not 20 MHz.
+- Done: `mini/DESIGN.md` uses the 33-42 ns loop and 0.05-0.06 pF/mm.
 - The mini's other open fit items stand on their own: the height under J3, the cable across the socket, the lid.
 
 ## Still to clean up
