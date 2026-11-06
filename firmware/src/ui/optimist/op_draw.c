@@ -95,10 +95,12 @@ static const char *cut(char *b, const char *s, uint32_t n)
  * the state (HS_*): green the clock follows it, amber heard but another clock followed, grey a Link session with no peer
  * yet, red a JAM mode not connected (the user: "in jam mode, not connected is not good. => red", op_wifi.c wf_link_state).
  * Which one (head_clock): JAM not connected first, then the source followed, then one heard, then Link waiting; none on the
- * internal clock with nothing heard */
+ * internal clock with nothing heard. While the card's index pass runs its progress takes the icon's place (the user,
+ * 2026-11-06: "when sd card is indexing we need a progress icon, can replace the link/midi icon"), *st its bar's width */
 enum { HS_OFF, HS_NONE, HS_THERE, HS_FOLLOW, HS_BAD };
-enum { HC_NONE, HC_MIDI, HC_LINK };
+enum { HC_NONE, HC_MIDI, HC_LINK, HC_INDEX };
 #define HS_W 19                         /* the icon's room (the DIN 17, the chain 19), right-aligned like bar.beat was */
+#define HI_W 15u                        /* HC_INDEX: the bar's width inside its outline: a redraw only when it moves */
 #if WIFI_UI && FELUCCA_LINK
 static uint32_t wf_link_state(void);    /* (op_wifi.c, included later) */
 #endif
@@ -123,6 +125,13 @@ static uint32_t head_link(void)
 static uint32_t head_clock(uint32_t *st)   /* -> HC_*: the icon shown; *st its state */
 {
     uint32_t m = head_midi(), l = head_link();
+#if FELUCCA_SD_UI
+    int32_t at = sdm_index_pct();
+    if (at >= 0) {
+        *st = (uint32_t)at * HI_W / 100u;
+        return HC_INDEX;
+    }
+#endif
     uint32_t k = l == HS_BAD || l == HS_FOLLOW ? HC_LINK : m == HS_FOLLOW ? HC_MIDI : l == HS_THERE ? HC_LINK :
                  m == HS_THERE ? HC_MIDI : l == HS_NONE ? HC_LINK : HC_NONE;
     *st = k == HC_LINK ? l : k == HC_MIDI ? m : HS_OFF;
@@ -168,10 +177,16 @@ static void hs_chain(int32_t x, int32_t y, uint16_t c)  /* a chain, 19 x 14 at (
 }
 static void head_clock_draw(int32_t x, uint32_t k, uint32_t st)   /* x: the left of HS_W */
 {
-    if (k == HC_MIDI)
+    if (k == HC_MIDI) {
         hs_din(x + 1, 4, hs_col(st));
-    else if (k == HC_LINK)
+    } else if (k == HC_LINK) {
         hs_chain(x, 4, hs_col(st));
+    } else if (k == HC_INDEX) {         /* an outline 19 x 12, filled as far as the pass has come */
+        cv_rect(x, 6, HS_W, 1, C_WARN), cv_rect(x, 17, HS_W, 1, C_WARN);
+        cv_rect(x, 7, 1, 10, C_WARN), cv_rect(x + HS_W - 1, 7, 1, 10, C_WARN);
+        if (st)
+            cv_rect(x + 2, 8, (int32_t)st, 8, C_WARN);
+    }
 }
 
 /* ---- the header */
