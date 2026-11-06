@@ -1,16 +1,16 @@
 /* SPDX-License-Identifier: GPL-3.0-only */
 /* No fragmentation by design (docs/SD-CARD-DESIGN.md 8, the user 2026-10-25: "cards are cheap ... this can be a
- * setting"): every file the FM-1 writes is ONE contiguous run, allocated at once (FatFs f_expand) and sized by a best
- * guess of its final size, never grown cluster by cluster. The file's size on the card is the run's; the real length
- * is kept inside the file (a project's header, a WAV's chunks), and the file is never truncated: the slack is the
- * point. Full FatFs builds (FELUCCA_SD_FATFS); pure over FatFs, host-tested (tests/sd_layout_test.c: every file the
- * FM-1 writes, on a card whose free room is fragmented, is one run).
+ * setting"): every file the FM-1 writes through here is ONE contiguous run (a project does not come here: sd_save.c
+ * lets FatFs allocate it, read once it may be in pieces, the user 2026-11-06), allocated at once (FatFs f_expand) and
+ * sized by a best guess of its final size, never grown cluster by cluster. The file's size on the card is the run's;
+ * the real length is kept inside the file (a WAV's chunks), and the file is never truncated: the slack is the point.
+ * Full FatFs builds (FELUCCA_SD_FATFS); pure over FatFs, host-tested (tests/sd_layout_test.c: every such file,
+ * on a card whose free room is fragmented, is one run).
  *   sda_guess(kind, need, hint)   the run's bytes before rounding: need (the bytes the file holds now) plus the kind's
  *                                 slack, the slack scaled by sda_scale (percent, the setting: 100 the guesses below,
  *                                 0 none, up to 400; less on a nearly full card):
  *       SDA_EXACT     presets, kits, the index, an edited or resampled sample: none (its length is known; a file of
  *                     a cluster or less cannot fragment anyway)
- *       SDA_PROJECT   x 1.5 (it grows as scenes and patterns are added; sd_save.c reuses the runs it drops)
  *       SDA_RECORD    hint: the take's length in bytes if one was asked for, else the loop's at the tempo x 2 (a
  *                     second take), else a minute (sda_rec_bytes); never less than need
  *       SDA_RENDER    hint: the song's length in bytes
@@ -19,7 +19,7 @@
  *                                 long free: the run of need alone (no slack) is tried, then FR_DENIED (the card full or
  *                                 too fragmented: say so, never write it in pieces); the file is gone again then
  *   sda_rec_bytes(asked_ms, loop_ms, rate, bytes_frame)   SDA_RECORD's hint */
-enum { SDA_EXACT = 0, SDA_PROJECT, SDA_RECORD, SDA_RENDER };
+enum { SDA_EXACT = 0, SDA_RECORD, SDA_RENDER };
 static uint16_t sda_scale = 100;                     /* (percent; the setting) */
 
 static uint32_t sda_rec_bytes(uint32_t asked_ms, uint32_t loop_ms, uint32_t rate, uint32_t bytes_frame)
@@ -30,7 +30,7 @@ static uint32_t sda_rec_bytes(uint32_t asked_ms, uint32_t loop_ms, uint32_t rate
 
 static uint32_t sda_guess(uint32_t kind, uint32_t need, uint32_t hint)
 {
-    uint64_t want = kind == SDA_PROJECT ? (uint64_t)need * 3u / 2u : kind == SDA_EXACT ? need : hint;
+    uint64_t want = kind == SDA_EXACT ? need : hint;
     uint64_t slack = want > need ? want - need : 0;
     slack = slack * (sda_scale < 400u ? sda_scale : 400u) / 100u;
     want = need + slack;

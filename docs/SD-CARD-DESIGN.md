@@ -765,14 +765,13 @@ presets for all devices".
   (FatFs `CREATE_LINKMAP`) turns a fragmented file's cluster chain into runs once at open, so streaming never walks the
   FAT; mono 16-bit by default, the run length a parameter (section 7), a pitch ceiling per voice like the M8's.
 - **No fragmentation: space wasted on purpose** (the user, 2026-10-25: "cards are cheap, most users will use 16 GB+
-  cards they will never fill up; this can be a setting"). Every file the FM-1 writes is allocated as **one contiguous
-  run, rounded up generously**, never grown cluster by cluster:
+  cards they will never fill up; this can be a setting"). Every file the FM-1 writes but a project is allocated as
+  **one contiguous run, rounded up generously**, never grown cluster by cluster:
   - the slack **depends on the kind of file**, never one size for all:
     - presets, kits, the index, small files: **none**: a file within one cluster (32 KB on a 16-32 GB card) cannot
       fragment, so it is written as it is;
     - bigger files: the run sized by a **best guess of the file's final size** (the user: "we can take best
       guesses"), then rounded up to whole clusters, the setting scaling the guesses (less slack on a nearly full card):
-      - a project: its size now x 1.5 (it grows as scenes and patterns are added; the next saves reuse the run);
       - a recording: the length asked for, else the song or pattern loop's length at the tempo (x 2 for a second
         take), else a minute; past the run, a new run of the same guess;
       - a sample the FM-1 edits or resamples: its new length exactly (it is known before writing);
@@ -781,7 +780,9 @@ presets for all devices".
     project's header), the file never truncated: the slack is the point;
   - recordings start with a run of the step x a few (or the take's length limit) and continue into a new run when
     longer; a take never interleaves with another file;
-  - project saves (temp + rename) get a run of the step, so the new file is contiguous too;
+  - a project is the exception (the user, 2026-11-06): it is usually one 32 KB cluster, and two fragments cost nothing
+    on a file read once, so its temporary file is written the ordinary way, allocated as it grows, with no slack and
+    no run kept for the next save; a card full under it refuses the save with the old project untouched;
   - the card formatted with large clusters (the SD Association formatter's defaults: 32 KB on 16-32 GB SDHC, more
     on SDXC) so even files from a computer come in few runs; the fast-seek map covers the rest;
   - the FM-1 says how much room the card has left counting the slack, and the setting can be lowered for a nearly
@@ -830,11 +831,19 @@ presets for all devices".
   (name, folder mark, cut mark), the page number of `pages`, the view; the knob `sdb_turn(+-1)`, a key `sdb_path` (or
   `sdb_into` for a folder), a way up (`sdb_up`) and a view switch; every list (projects, samples, kits, presets) is a
   folder view of its own folder.
-- **The save** (`sd_save.c`): as described above, with `sdp_keep` versions and the spare run; the FM-1 side still to
-  wire: the hooks (the staged copy in flash, the pending record in the settings' log) and `sdp_boot` after the boot's
-  mount. A cut rename (FatFs writes the new entry, then removes the old one) leaves one chain under two names: found by
-  the cut tests, completed by `sdl_move` / `sdp_dedupe` with `f_unlink_entry` (the entry only).
-- **The runs** (`sd_alloc.c`): by kind as above, `sda_scale` the setting; no run free: the bytes it needs, else refused.
+- **The save** (`sd_save.c`): as described above, with `sdp_keep` versions; with 0 kept the old project is deleted once
+  the new one is whole in the `.tmp`. A cut rename (FatFs writes the new entry, then removes the old one) leaves one
+  chain under two names: found by the cut tests, completed by `sdl_move` / `sdp_dedupe` with `f_unlink_entry` (the entry
+  only).
+- **An older firmware's `.spr`** (removed 2026-11-06: the user's ruling, it earned nothing). Saves used to keep a dropped
+  run as `<name>.spr` for the next one. No save writes it now; cards still hold them, so three things stay: `sdp_pick`
+  reads it, because it can be the only whole copy (no `.opp`, an older firmware's `.tmp` being rewritten, its pending
+  record lost); `sdp_dedupe` drops its name alone when an older firmware's cut rename left it one chain with the
+  `.opp`, the `.tmp` or a version, since `f_unlink` would free that file's clusters; `sdp_finish` deletes it once the
+  new `.opp` is safe, before the pending record is cleared, so a cut there is finished at the boot. A project never
+  saved again keeps its `.spr`, harmless.
+- **The runs** (`sd_alloc.c`): by kind as above, `sda_scale` the setting (SLACK: recordings and renders; a project
+  has none); no run free: the bytes it needs, else refused.
   A recording's continuation past its run (a new run) waits for the recorder.
 
 Open: the views beyond recent / name / folder.
