@@ -12,6 +12,8 @@
  * engine's own: PLAITS's PL_WS, JUNO's) are compiled into the plugin as constants (the same values): the firmware
  * that loads it may not hold them (its build lacks the engine, or TAB_CODED_ALL is off). */
 #include <stdint.h>
+#define PLUG_BUILD 1                                    /* (core.h: no RAM code; gen_tables.py: no RAM tables; the sample
+                                                         * engines: the card's material alone, through plugin_api) */
 #ifndef FELUCCA_DUAL
 #define FELUCCA_DUAL 0
 #endif
@@ -62,7 +64,26 @@ const plug_api_t *plugin_api __attribute__((section(".rodata.plugin_api"))) = 0;
 #include "dsp/dsp.c"
 /* the part's engine memory (engines.c PART_MEM_AT, for the built-in engines) */
 #define PART_MEM_AT(p) (plugin_api->part_mem(p))
+#ifndef PLUG_SAMPLES
+#define PLUG_SAMPLES 0                                  /* (tools/plugin_build.py: 1 for SAMPLE, GRAIN, SLICE, STRETCH) */
+#endif
+#if PLUG_SAMPLES
+/* the sample engines (plugins/samples, 2026-11-06): SD card mode only. Their material is the card's, by hash, through the
+ * streaming plan (the firmware's, plug_api_t's card entries); eng_sample.c's types and card helpers compiled here, the
+ * plan's data the firmware's (sd_stream.h, sd_stream_rc.h under PLUG_BUILD); the flash's sets and user slots never
+ * reach a plugin (eng_sample.c SMP_FLASH 0) */
+#if !FELUCCA_SD_STREAM
+#error "a sample engine is a plugin in SD card mode only (FELUCCA_SD_STREAM: its samples are the card's)"
+#endif
+#include "engines/sample/eng_sample.c"
+#endif
 #include PLUG_ENGINE_FILE
+#if defined(PLUG_ENG_GRAIN)
+AINL gr_part_t *gr_mem(uint32_t p) { return (gr_part_t *)PART_MEM_AT(p); }
+#endif
+#if defined(PLUG_ENG_SLICE)
+AINL slc_rbuf_t *slc_mem(uint32_t p) { return (slc_rbuf_t *)PART_MEM_AT(p); }
+#endif
 /* the engines' accessors of it (engines.c's, the same shapes; the tool sets PLUG_ENG_<NAME> for the engine built) */
 #if defined(PLUG_ENG_PHYS)
 AINL phys_slot_t *phys_mem(uint32_t p) { return (phys_slot_t *)PART_MEM_AT(p); }
