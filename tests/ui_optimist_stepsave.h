@@ -44,7 +44,7 @@ static void sv_drum_rec_tests(void)
     keys_lit(&f, &d, &h);
     check(lane_selected() == 5u && song.playing && ((song.rec >> TRK_DRUM) & 1u), "drum rec: a black key armed: the lane picked, the take started");
     check(sv_hits(5) == 1u && sv_hits(1) == 0u && !step_on(&TSEL->step[0]), "drum rec: ... its hit recorded at the playhead (one step, no step toggled)");
-    check(f & (1u << BK(5)), "drum rec: ... its key lit");
+    check(!(f & (1u << BK(5))) && !(d & (1u << BK(5))), "drum rec: ... its key dark a moment (the selected lane hit)");
     kup(BK(5));
     frames(4);
     check(pk_ok() && st.pk < NSTEP && dstep_has(&TDRUM->dstep[st.pk], 5), "drum rec: ... the hit entered is the picked note");
