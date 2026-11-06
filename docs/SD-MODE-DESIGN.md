@@ -1160,3 +1160,35 @@ region holds, not a fixed one or two.
   any-number inserts, 887 lines), the sends and the master chain in `fx.c` (3,406 lines). A hook table per effect
   type (run, set, clear, the line's units, the instance's bytes) is the refactor before any effect can be a file; the
   UI's effect lists then read the table. Several sessions of work; nothing of it is in this prototype.
+
+### 10.6 Built 2026-11-06, the evening: the API table; PHYS, PLAITS, CZ, JUNO, DRAWBAR as plugins (emulator only)
+
+- **The API table** (`core/plugin.h plug_api_t`, PLUG_API 2): `version`, `part_mem(part)` (engines.c `PART_MEM_AT`),
+  `tab[]` (the tables the boot always decodes into RAM: SINE, TANH_Q15), `trk` (the engines' part index is `t - trk`),
+  `rng()`; entries only appended (another branch appends `slot_of`, `service`, `tab_mem` after `rng`). The firmware
+  builds it once (`core/plugin.c plug_api_tab`, kept by `used, retain`); its size is in `PLUG_ABI`. A plugin reads it
+  through its word `plugin_api` (`plugin/plug_unit.c`; not const, so the compiler loads it), which **relocation kind 2**
+  (`PLUG_REL_API`) sets to the table's XIP address: the loader (`plug_patch`) and `tools/plugin_build.py place()` for a
+  preloaded package (felucca.elf's `plug_api_tab`). The tool links with `--undefined=plugin_api`: every plugin carries
+  exactly one kind-2 word.
+- **In the plugin unit:** `PART_MEM_AT`, the accessors `phys_mem pl_mem cz_mem juno_mem drw_mem` (engines.c's shapes,
+  under `PLUG_ENG_<NAME>`, which the tool sets), `SINE TANH_Q15 trk rng()` as macros over the table;
+  `FELUCCA_TAB_CODED_ALL` forced 0, so the curves only it moves into RAM (the core ones, PLAITS's PL_WS, JUNO's) are
+  the plugin's own constants (the firmware that loads it may lack the engine). CZ's tone key and PHYS's dual-core seed
+  live in the part memory in the plugin build (the built-in build unchanged).
+- **engine_t** gets two fields at its end (the positional descriptors stop before them; +4 B a descriptor: the dev
+  image 628,764 -> 628,832 B): `part_bytes` (a plugin slot's part memory: engines.c `part_mem_bytes` reads it for the
+  slots past NBUILT; a plugin larger than a part can have, the fixed memories without ARENA, is not registered and an
+  install returns `PLUG_E_MEM`) and `keep` (the s[] words a retrigger keeps: voice.c reads it for every engine instead
+  of its ENG_IS cases; the masks are the old cases', the 120 golden renders of tests/regress.c unchanged).
+- **felucca.c** tested `FELUCCA_PLUGINS` before plugin.h defined it: the PC guard window and the flash range never
+  reached the region (every plugin faulted at its first instruction); now `FELUCCA_PLUGIN_KB > 0`.
+- **Measured in the emulator** (dev profile, LAYOUT 1, PLUGINS 128, ARENA 1, the engine off; bench 19; `play_check run:3`):
+  control (empty slot) RMS 0.0516 each time. PHYS 11,404 B / 62 relocations: RMS 0.1064, T1..T3 "PHYS BELL TREE";
+  PLAITS 11,556 B / 48: 0.0819, "PLAITS FOLD BASS"; CZ 7,224 B / 64: 0.1187, "CZ CZ INIT"; JUNO 6,260 B / 55: 0.1201,
+  "JUNO JUNO INIT"; DRAWBAR (WHEEL) 2,784 B / 58: 0.0756, "WHEEL SOUL ORGAN". Without ARENA (the fixed memories of the engines built) PHYS's 9,684 B
+  do not fit a part's 3,904 B: refused, silent.
+- **Open:** a placed plugin's API word goes stale when a firmware with another table address keeps the region (a
+  rebuild of the same configuration): boot cannot see it (the image CRC is of the patched bytes); a sampled engine
+  as a plugin still keeps phases on a retrigger (`eng_sampled` is ENG_IS); `tools/builder/registry.py`'s PLUGINS
+  text still lists PHYS PLAITS CZ JUNO as not plugins (web builder data to regenerate with it).
