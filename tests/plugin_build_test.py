@@ -72,6 +72,18 @@ def main() -> int:
         check(False, "an unknown kind refused")
     except pb.PluginError:
         pass
+    cfg = {"FELUCCA_CPU_GUARD": "1", "FELUCCA_A2_LADR": "1", "FELUCCA_A2_OTA": "0"}
+    acid = pb.extra_units("ACID", cfg)
+    check(len(acid) == 1 and acid[0][0].name == "acid_dsp.c" and "-DFELUCCA_CPU_GUARD=1" in acid[0][1]
+          and "-DFAST_RAM_acid=0" in acid[0][1], "ACID: acid_dsp.c, the guard, its code not in RAM")
+    check("-DFELUCCA_CPU_GUARD=1" not in pb.extra_units("ACID", {})[0][1], "ACID: no guard define without the config's")
+    a2 = pb.extra_units("ANALOG", cfg)
+    check(a2[0][0].name == "a2_models.c" and "-DFELUCCA_A2_LADR=1" in a2[0][1] and "-DFELUCCA_A2_OTA=0" in a2[0][1]
+          and "-DFELUCCA_A2_MS20=0" in a2[0][1], "ANALOG: a2_models.c with the config's A2 flags")
+    p5 = pb.extra_units("PROPHET", cfg)
+    check(p5[0][0].name == "p5_dsp.c" and p5[0][1] == ["-DFAST_RAM_prophet=0"], "PROPHET: p5_dsp.c")
+    check(all(p.exists() for n in ("ACID", "ANALOG", "PROPHET") for p, _ in pb.extra_units(n, cfg)), "the unit files exist")
+    check(pb.extra_units("SID", cfg) == [], "SID: no extra unit")
     print(f"{fails} failed")
     return fails
 
