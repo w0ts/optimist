@@ -763,6 +763,13 @@ job; ( jobin
     $CC -O2 -w -I"$HGEN" -Ifirmware/src $X0X_ON -o "$OUT/drum_lanemix_x0x" tests/drum_lanemix_test.c -lm
     run "drum lanes PAN / MUTE / SOLO with the X0X kits built: the same, the X0X channels panned and metered per lane" "$OUT/drum_lanemix_x0x"
 ) >"$U.out" 2>&1 & jobbg
+# the drum voices in two halves by lane, one a core (drums/drum_halves.c): the one job's samples for every split
+job; ( jobin
+    $CC -O2 -w -I"$HGEN" -Ifirmware/src -o "$OUT/drum_halves_test" tests/drum_halves_test.c -lm
+    run "drum voices in two halves (the two cores' jobs): the one job's samples, meters and tail for every lane split, either half first, the SLICER's one job between" "$OUT/drum_halves_test"
+    $CC -O2 -w -I"$HGEN" -Ifirmware/src $X0X_ON -DFELUCCA_USB_AUDIO=1 -o "$OUT/drum_halves_x0x" tests/drum_halves_test.c -lm
+    run "... with the X0X kits (their channels in half A) and USB audio (the drum stem, the lanes' taps)" "$OUT/drum_halves_x0x"
+) >"$U.out" 2>&1 & jobbg
 job; ( jobin
     $CC -O2 -w -I"$HGEN" -Ifirmware/src $SEC4 -o "$OUT/backup_test" tests/backup_test.c -lm
     run "backup / restore: every stored object round trip, torn transfers and commits, an older project migrates" "$OUT/backup_test"
@@ -1552,7 +1559,7 @@ job; ( jobin   # the SD card (SDCARD): ChaN's driver + Petit FatFs, then full Fa
     $CC -O2 -Ifirmware/src -o "$OUT/sd_stream_test" tests/sd_stream_test.c $FF
     run "SD card streaming (SD_RING): voices read their samples from rings filled by short CMD18 runs between the screen's strips, the audio an interrupt in the middle of the runs: 8 / 16 bits, mono / stereo, 22.05 / 44.1 / 48 kHz, contiguous and fragmented files, every sample the file's; a card busy 150 ms at a note's start (a 50 ms pre-buffer dry and faded, 200 ms covers it), a stall while playing (the ring covers 60 ms, not 250), the screen drawing through both; loops, a sample whole in its head, notes started again from the interrupt, a CRC failing once, the card pulled, a voice gone, more voices than rings, too much for the bus" "$OUT/sd_stream_test" "$OUT/sd_fat16.img" "$OUT/sd_fat32.img"
     $CC -O2 -Ifirmware/src -DSST_RING_MIN_K=4u -o "$OUT/sd_stream_plan_short_test" tests/sd_stream_plan_test.c $FF
-    run "SD card streaming's memory: a sampled kit with no room: 6 rings, 5, then every ring shorter, then refused, never under 5" "$OUT/sd_stream_plan_short_test" "$OUT/sd_fat16.img" "$OUT/sd_fat32.img"
+    run "SD card streaming's memory: a sampled kit with no room: 10 rings, 9, then every ring shorter, then refused, never under 5" "$OUT/sd_stream_plan_short_test" "$OUT/sd_fat16.img" "$OUT/sd_fat32.img"
     $CC -O2 -Ifirmware/src -DFELUCCA_SD_RING_KB=8 -o "$OUT/sd_stream_bus8_test" tests/sd_stream_bus_test.c $FF
     run "the card before the screen, SD_RING 8: 8 voices at 1,147 KB/s, none dry on the REC ring, page changes, the whole screen every frame; a card busy or gone costs the screen no wait" "$OUT/sd_stream_bus8_test" "$OUT/sd_fat32.img"
     $CC -O2 -Ifirmware/src -o "$OUT/sd_stream_bus_test" tests/sd_stream_bus_test.c $FF

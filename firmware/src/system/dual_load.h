@@ -54,8 +54,9 @@ static int32_t dual_c1_pct(void)
 #if (defined(FELUCCA_SYS_DEBUG) && FELUCCA_SYS_DEBUG) || (defined(FELUCCA_SYS_TOP) && FELUCCA_SYS_TOP)   /* (SYS_TOP: SYSTEM > TOP
                                                     * reads the same times, op_top.c; none of the debug pages with it) */
 #define DUAL_TIMES 1
-#define DUAL_TM_NJ 7u                              /* jobs: the parts (NPART <= 4), the drums, the reverb's kept block,
-                                                    * the Bluetooth stream's SBC frame (bt/bt_sbc_job.h) */
+#define DUAL_TM_NJ 8u                              /* jobs: the parts (NPART <= 4), the drums (half A), the reverb's kept
+                                                    * block, the drums' half B, the Bluetooth stream's SBC frame (bt/
+                                                    * bt_sbc_job.h); then the platform's frames at its feed (XJOB) */
 #define DUAL_TM_WIN 4u                             /* the peaks' windows of 512 ms: the last 2 s */
 enum { DTQ_PRE, DTQ_OWN, DTQ_WAIT, DTQ_POST, DTQ_BLK, DTQ_C1, DTQ_J0, DTQ_EVT = DTQ_J0 + DUAL_TM_NJ, DTQ_NS, DTQ_N };   /* (EVT, NS last: the older ones keep their places) */
 typedef struct {

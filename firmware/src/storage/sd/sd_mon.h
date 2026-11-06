@@ -11,6 +11,7 @@
 typedef struct {
     uint32_t kbs, kbs_pk;                            /* KB/s read in the last period, the peak of the last 10 s */
     uint32_t n, n_pk;                                /* streams sounding now, the most in the last 10 s */
+    uint32_t fill;                                   /* the least a ring holds now, at the last sample (SSM_NO: none) */
     uint32_t fill_lo;                                /* the least a ring holds of the streams the card feeds, percent, in
                                                       * the last 10 s (SSM_NO: none) */
     uint32_t dry, nos, late, miss, crc, demo;        /* since the boot or the last clear: streams that ran dry, notes with no

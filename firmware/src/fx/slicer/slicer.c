@@ -200,14 +200,20 @@ AINL int slicer_busy(const track_t *t)
     return FELUCCA_FX_SLICER && (s->w || (sl_mode(t) == SL_STUT && s->loop));
 }
 
+/* the drum track's SLICER off and nothing of it left (no gate closing, no repeat fading): the drums mix as they are,
+ * the SLICER's clock alone runs (slicer_drums; drums/drum_halves.c splits them over the two cores only then) */
+AINL int slicer_drums_plain(void)
+{
+    const sl_t *s = &sl[TRK_DRUM];
+    return !FELUCCA_FX_SLICER || (sl_mode(TDRUM) == SL_OFF && !s->gc && !s->w);
+}
 /* the drum track: as drums_render, through the SLICER when it is on (or still fading) */
 static HOT void slicer_drums(int32_t *ml, int32_t *mr, int32_t *rev, uint32_t n)
 {
     const track_t *t = TDRUM;
-    const sl_t *s = &sl[TRK_DRUM];
     uint32_t i;
     ASTAGE0(0x90);
-    if (!FELUCCA_FX_SLICER || (sl_mode(t) == SL_OFF && !s->gc && !s->w)) {
+    if (slicer_drums_plain()) {
         slicer_track(t, 0, n);
         ASTAGE0(0x91);
         drums_render(ml, mr, rev, n);

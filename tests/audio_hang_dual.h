@@ -1,19 +1,23 @@
 /* SPDX-License-Identifier: GPL-3.0-only */
 /* tests/audio_hang_stress.c with HOST_DUAL (and FELUCCA_DUAL=2): the second core as a real thread. mix_block here is
  * system/dual.c mix_block_dual's shape (this tree's): events, macros, duck, the busy voices and the LFO draws before
- * the fork; then the jobs (parts 1..3, the drums, the reverb's kept block) split at random between this thread
- * ("CPU0") and the worker ("CPU1"), rendered at the same time into their own accumulators (the drums onto the buses),
- * a join, the sums, mix_finish. Built with -fsanitize=thread it names every shared value both cores write at once.
+ * the fork; then the jobs (parts 1..3, the drums' voices in two halves by lane, the reverb's kept block) split at
+ * random between this thread ("CPU0") and the worker ("CPU1"), rendered at the same time into their own accumulators
+ * (the drums' half A onto the buses, half B into its own: drums/drum_halves.c), a join (half B added, the drum bus),
+ * the sums, mix_finish. Built with -fsanitize=thread it names every shared value both cores write at once.
  * Included after ui_optimist_test.c. */
 #include <stdatomic.h>
+#include "../firmware/src/drums/drum_halves.c"   /* the drum voices' two halves (dual.c's jobs DRUMS and DR2) */
 static uint32_t dual_vbusy;                            /* (dual.c: the swarm's copies, the same on both cores) */
 static mixacc_t hd_acc[2];
 static atomic_uint hd_req, hd_done;
 static uint32_t hd_mask;
 static uint32_t hd_rs = 1;                             /* (its own random: the split) */
-#define HD_JOBS (NPART + 1u + (REV_LATE ? 1u : 0u))
+#define HD_IX_DR2 (NPART + 1u + (REV_LATE ? 1u : 0u))
+#define HD_JOBS (HD_IX_DR2 + 1u)
 #define HD_DRUMS (1u << NPART)
 #define HD_REV (1u << (NPART + 1u))
+#define HD_DR2 (1u << HD_IX_DR2)
 
 static void hd_clear(mixacc_t *A, uint32_t n)
 {
@@ -29,8 +33,16 @@ static void hd_run(uint32_t mask, uint32_t n, mixacc_t *A)    /* dual.c dual_run
             if (p < NPART) {
                 mix_part(&trk[p], n, A);
             } else if (p == NPART) {
-                slicer_drums(mix_l, mix_r, send_r, n);
-                dbus_run(n);
+                if (dh_on == DH_ONE) {
+                    slicer_drums(mix_l, mix_r, send_r, n);
+                    dbus_run(n);
+                } else if (dh_on == DH_IDLE) {
+                    dbus_run(n);                       /* (nothing sounds: the drum bus alone) */
+                } else {
+                    dh_job(0u, n);                     /* (half A: onto the buses) */
+                }
+            } else if (p == HD_IX_DR2) {
+                dh_job(1u, n);                         /* (half B: its own buffers) */
             } else {
 #if REV_LATE
                 if (!rvj.done)
@@ -88,7 +100,9 @@ static void mix_block(int32_t *out, uint32_t n)
     sw = pold_any() ? pold_in() : 0u;
     drums.a0 = TDRUM->att;
     drums.a1 = 32767 - gain_next(TDRUM);
-    jobs = (1u << (NPART + 1u)) - 1u;
+    jobs = (1u << NPART) - 1u;
+    i = dh_pre(n, 0u);
+    jobs |= HD_DRUMS | (i == DH_TWO ? HD_DR2 : 0u);
 #if REV_LATE
     rev_late = 1;
     jobs |= rvj.pend ? HD_REV : 0u;
@@ -101,6 +115,10 @@ static void mix_block(int32_t *out, uint32_t n)
     hd_run(jobs & ~mask, n, A);
     while (atomic_load(&hd_done) != req)                /* (join) */
         ;
+    if (dh_on == DH_TWO) {                              /* (the drums split: half B, the tail; the drum bus) */
+        dh_join(n);
+        dbus_run(n);
+    }
     for (i = 0; i < n; i++) {
         send_c[i] += A->send_c[i] + B->send_c[i];
         send_d[i] += A->send_d[i] + B->send_d[i];

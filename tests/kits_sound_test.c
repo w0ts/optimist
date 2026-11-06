@@ -57,6 +57,12 @@ int main(void)
 #if DRUM_X0X
             lack = kit >= DRUM_UID_X909 && x0x_standin(kit) >= DRUM_KITS && !x0x_show(kit, l);
 #endif
+#if KITS_SOUND_CARD_KITS
+            if (kit < DRUM_SAMPLED)                 /* SD card mode with the streams (tools/builder/verify.py kits_sound, core.card_drums):
+                                                     * the sampled kits play from the card on the device (drums.c kc_hit); the host
+                                                     * keeps a flash kit for the tests but SD card mode gives it no PCM: silent by design */
+                lack = 1;
+#endif
             if ((hit_peak(kit, LANE_NOTE_OF(l)) == 0) != lack) {
                 printf("kit %2u %-10s lane %2u (note %u): %s  FAIL\n", kit, DRUM_KIT_NAMES[kit], l, LANE_NOTE_OF(l),
                        lack ? "heard, but nothing is built to play it" : "silent");

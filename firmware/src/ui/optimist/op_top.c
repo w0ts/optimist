@@ -54,6 +54,11 @@ static const top_ram_t TOP_RAM[TOP_RAM_N] = {{"", 0u}};
 #else
 #define TOP_REVJ (NPART + 1u)
 #endif
+#if defined(DUAL_IX_DR2)
+#define TOP_DR2J DUAL_IX_DR2                            /* (the drums' half B: drums/drum_halves.c) */
+#else
+#define TOP_DR2J 0xFFu
+#endif
 #else
 #define TOP_NC 0u
 #endif
@@ -107,7 +112,7 @@ static void top_job_name(uint32_t q, char *b)           /* a CPU line's name */
 {
     uint32_t j = q - DTQ_J0;                            /* (UI, IDLE: past DTQ_N, no job) */
     str_cpy(b, q == DTQ_BLK ? "CPU0" : q == DTQ_C1 ? "CPU1" : q == DTQ_PRE ? "PRE" : q == DTQ_POST ? "POST" : q == TOP_QUI ? "UI" : q == TOP_QUI + 1u ? "IDLE" :
-               j == NPART ? "DRUMS" : j == TOP_REVJ ? "REV" : "BT SBC", 12);
+               j == NPART ? "DRUMS" : j == TOP_DR2J ? "DRUMS 2" : j == TOP_REVJ ? "REV" : "BT SBC", 12);
     if (q >= DTQ_J0 && q < DTQ_N && j < NPART)
         top_trk(j, b);
     else if (q >= DTQ_J0 && q < DTQ_N && j == TOP_REVJ)

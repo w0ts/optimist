@@ -13,27 +13,78 @@
  *              output. Its end, a dry stream (counted, sst_dry) or its source let go (a project change, the plan placed
  *              again): the voice ends, its last output faded by the drums' declick tail (no click) */
 
-/* card voice v's next frame into s[3]; 0 = it ended (declicked) */
-static HOT int dlc_next(voice_t *v)
+/* a card voice's stream over one block of drums_mix (dlc_open before the voice's loop, dlc_step a frame). What the
+ * frames read of the stream and its source holds for the whole block: the audio alone changes it (sst_start, sst_stop
+ * at a hit or in dlc_step itself; the main loop's sd_stream.c never runs inside a render, the card's interrupt writes
+ * only the slots and their tags), so it is looked at once a block, not once a frame */
+typedef struct {
+    sst_t *st;
+    const sst_src_t *s;
+    uint32_t k, frames, fsh;
+    int32_t ok;                                      /* 1 its stream, on, its source ready; 0 its stream, stopped or the source
+                                                      * not ready (the next frame stops it, ends); -1 not its stream (ends) */
+    uint8_t m16;                                     /* mono 16-bit: a frame in the window is a plain read */
+    int32_t *tail;                                   /* where its end's last value goes (the declick): drums.tail, or the
+                                                      * drum half's that renders it (drums_mix) */
+} dlc_blk_t;
+AINL void dlc_open(voice_t *v, dlc_blk_t *b)
 {
     uint32_t k = (uint32_t)v->s[4] & 0xFFu;
-    sst_t *st = &sst[k < SST_N ? k : 0u];
     const sst_src_t *s = &sst_src[(uint32_t)v->s[0] < SST_NSRC ? (uint32_t)v->s[0] : 0u];
+    b->k = k;
+    b->st = &sst[k < SST_N ? k : 0u];
+    b->s = s;
+    b->ok = -1;
+    b->frames = s->frames;
+    b->fsh = s->fsh;
+    b->m16 = (uint8_t)(s->bits == SST_F16 && s->chans == 1u);
+    b->tail = &drums.tail;
+    if (k < SST_N && b->st->owner == &v->active) {
+        b->st->beat = b->st->beat + 1u;              /* (rendered: the main loop keeps it; once a block is enough, it
+                                                      * looks for a change over SST_DEAD_MS) */
+        b->ok = b->st->on && s->ready;
+    }
+}
+/* card voice v's next frame into s[3] (b: its block's, dlc_open); 0 = it ended (declicked). A frame inside the
+ * stream's window of a mono 16-bit source is read in place (sst_at_go's compare, then the two bytes: the same value
+ * sst_frame gives); leaving the window, another format, the end: sst_frame, as before */
+AINL int dlc_step(voice_t *v, const dlc_blk_t *b)
+{
+    sst_t *st = b->st;
     int32_t x;
-    if (k < SST_N && st->owner == &v->active) {
-        st->beat = st->beat + 1u;                    /* (rendered: the main loop keeps it) */
-        if (st->on && s->ready && ++v->ph[0] < s->frames) {
-            if (sst_frame(st, s, v->ph[0], &x)) {
+    if (b->ok > 0) {
+        uint32_t f = v->ph[0] + 1u, off, d;
+        v->ph[0] = f;
+        if (f < b->frames) {
+            off = f << b->fsh;
+            d = off - st->wlo;
+            if (b->m16 && d < st->wn) {
+                const uint8_t *p = st->win + d;
+                st->pos = off;
+                v->s[3] = (int32_t)(int16_t)(p[0] | p[1] << 8);
+                return 1;
+            }
+            if (sst_frame(st, b->s, f, &x)) {
                 v->s[3] = x;
                 return 1;
             }
-            sst_ran_dry(k);                          /* (the card late: counted) */
+            sst_ran_dry(b->k);                       /* (the card late: counted) */
         }
-        sst_stop(k);
+        sst_stop(b->k);
+    } else if (!b->ok) {
+        sst_stop(b->k);
     }
     v->active = 0;
-    drums.tail += v->s[7];
+    *b->tail += v->s[7];
     return 0;
+}
+/* card voice v's next frame into s[3]; 0 = it ended (declicked). One frame alone (tests/sd_kit_card_test.c); drums_mix
+ * opens the block once and steps */
+static HOT int dlc_next(voice_t *v)
+{
+    dlc_blk_t b;
+    dlc_open(v, &b);
+    return dlc_step(v, &b);
 }
 
 /* no ring free for voice v's hit: the oldest card hit's tail gives its ring (cut, its last value faded by the tail, counted

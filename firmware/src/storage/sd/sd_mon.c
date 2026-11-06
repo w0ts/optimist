@@ -119,6 +119,7 @@ static void ssm_view(ssm_view_t *v)
     v->kbs_pk = ssm.kbs_pk > ssm.kbs ? ssm.kbs_pk : ssm.kbs;
     v->n = ssm.n;
     v->n_pk = ssm.n_pk > ssm.n ? ssm.n_pk : ssm.n;
+    v->fill = ssm.live ? ssm.fill : SSM_NO;
     v->fill_lo = ssm.live ? ssm.fill_lo : SSM_NO;
     v->dry = ssm.c[SSM_DRY].tot;
     v->nos = ssm.c[SSM_NOS].tot;
