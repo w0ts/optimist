@@ -62,6 +62,20 @@ const plug_api_t *plugin_api __attribute__((section(".rodata.plugin_api"))) = 0;
 #include "core/core.h"
 #define trk (*(__typeof__(trk) *)plugin_api->trk)    /* the firmware's tracks (the engines' t - trk: the part) */
 #include "dsp/dsp.c"
+/* the prelude's forward declarations the firmware defines in later files: stubs here, never called (their callers go
+ * with --gc-sections), so the compiler does not warn of static functions left undefined */
+static void fm1_fault(const fm1_crash_t *c) { (void)c; }
+#if FELUCCA_DUAL
+static void dual_flash_enter(void) {}
+static void dual_flash_leave(void) {}
+static void fm1_dual_snap_ble(fm1_c1_snap_t *s) { (void)s; }
+#endif
+#if FELUCCA_ED_MIRROR
+static uint32_t mir_meters_due(void) { return 0; }
+static uint32_t mir_meters_off(void) { return 0; }
+static void mir_fill(uint32_t x, uint32_t y, uint32_t w, uint32_t h, uint16_t c) { (void)x; (void)y; (void)w; (void)h; (void)c; }
+static void mir_blit(uint32_t x, uint32_t y, uint32_t w, uint32_t h, const uint16_t *px) { (void)x; (void)y; (void)w; (void)h; (void)px; }
+#endif
 /* the part's engine memory (engines.c PART_MEM_AT, for the built-in engines) */
 #define PART_MEM_AT(p) (plugin_api->part_mem(p))
 #define FELUCCA_PLUGIN_UNIT 1                      /* (the engines whose state is static when built in: theirs through the API) */
