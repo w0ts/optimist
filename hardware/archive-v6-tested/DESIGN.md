@@ -65,7 +65,7 @@ bench tests under "Still open" come with the first boards.
   the LCD's CS high selects the card) to 15 mA, not 33; it costs timing margin with the spec's slowest card at 20 MHz
   (`docs/SD-CARD-DESIGN.md` section 4), where the auto clock steps down.
   **Measured since (2026-11-05, `../NEXT-BOARD.md`):** this board reads at 12 MHz with R5/R6 330-340 and R1 150, fails at 15, and
-  20 MHz was never reached; the card clock in service is 10-12 MHz. The 20 MHz in this section is the first estimate. 330 / 150 passed a full cold boot with the card in (stock M-VAVE V15 and SLOOP 2.8.5, screens clean after a minute, 2026-11-06), so the long boards and the mini order 330 / 150; this v6 as built has 510 / 220.
+  20 MHz was never reached; the card clock in service is 10-12 MHz. The 20 MHz in this section is the first estimate. 330 / 150 passed a full cold boot with the card in (stock M-VAVE V15 and SLOOP 2.8.5, screens clean after a minute, 2026-11-06), so the long boards and the mini ordered 330 / 150 that morning; this v6 as built has 510 / 220. **Evening, 2026-11-06:** bodged to 245 / 89 it reads at 15 MHz (20 refused, 0 CRC errors) but the panel is black at the LCD's 60 MHz and fine at 30 MHz, so the next order is 240 / 91 with the LCD at 30 MHz.
   **The three to retune on the bench** (Julius's values were found by trial on hand wiring, not calculated: "510 is a
   bit high but works"): R1, R5, R6 sit on 0603 **hand-solder pads** (longer, an iron reaches each end) so they can be
   swapped. If the screen misbehaves with a card in, go up (R5/R6 to 680-1k); if `sd bench` shows CRC errors at 20 MHz

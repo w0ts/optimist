@@ -249,6 +249,15 @@ def main():
     p.note("STEP 5  Power off. Take the 150 off. Card back in. Done. (Fails at 15 MHz = no board change will ever help. Passes 20-30 = the board matters.)")
     p.save(out + "/loopback-steps.png")
 
+    p = Pic(board, (178.0, 147.5, 196.8, 186.0), "TEST BOARD 245/89: one STOCK v6 board (510/220 as built), three parts, each from a jumper pad to a resistor pad. Board OFF the device.")
+    p.part("JP3.bus", "R5.bus", BLUE, "470 Ohm\nleg 1: CLK jumper, RIGHT pad\nleg 2: R5, UPPER pad\n(510 || 470 = 245 Ohm)", off=(0, 0), side=1)
+    p.part("JP4.bus", "R6.bus", BLUE, "470 Ohm\nleg 1: DI jumper, RIGHT pad\nleg 2: R6, UPPER pad\n(510 || 470 = 245 Ohm)", off=(0, 0), side=-1)
+    p.part("JP1.sd", "R1.card", ORANGE, "150 Ohm\nleg 1: DO jumper, LEFT pad\nleg 2: R1, LOWER pad\n(220 || 150 = 89 Ohm)", off=(0, 0), side=1)
+    p.note("Why: 330/150 is proven (test 4). 245/89 is the next step down with your parts: it may make 12 MHz solid; it must still cold-boot stock and SLOOP clean.")
+    p.note("Then, when pink is free: pink OFF, cable out, pink's own board off the ribbon, this board on, CARD IN, cable in, on. Claude: sd diag at 10/12, a heavy play for CRC errors.")
+    p.note("User: stock V15 cold boot, screen clean? SLOOP cold boot, screen clean? (Claude installs each; you look.) Afterwards pink's own board goes back.")
+    p.save(out + "/test-board-245.png")
+
     p = Pic(board, (180.0, 136.0, 196.8, 176.5), "Attempt 4: CLK gate (needs a 74LVC1G08, SOT-23-5, on a breakout). Not before the part is here.")
     p.cut("JP3.sd", "JP3.bus")
     p.spot("JP3.bus", BLUE, "gate pin 1 (A):\nCLK after R5", (1, -1))
