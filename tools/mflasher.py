@@ -65,11 +65,11 @@ OS_LABEL = {"Darwin": "macOS", "Windows": "Windows", "Linux": "Linux"}
 INSIDE = {"dmg": "M-Flasher.app/Contents/MacOS/M-Flasher", "zip": "M-Flasher.exe", "tar.gz": "m-flasher/m-flasher"}
 ASSETS = {(SYSTEMS[f["os"]], f["arch"]): (f["name"], f["sha256"], INSIDE[f["kind"]])
           for f in RELEASE_FILES if f["kind"] in INSIDE}
-# Our m-bootloader: w0ts/m-bootloader, branch optimist, 1.4 at 8b171dd (Julius's SD card item, the build that ran on the
-# pink FM-1), built with his pi32v2-llvm 23.1.5-2. M-Flasher's own bundled build is older, so installers pass --file.
-MBOOT_RELEASE = {"version": "1.4", "commit": "8b171dd737f0a37a03cb934a4990ff7d9bc2d15e",
-                 "fm1-uboot.boot": "defa082f3ec7148054b7748e3e494f098d7428483fee1e41a1117d854e405767",
-                 "fm1-uboot.fwsc": "facfd9396a2b5be23f0b16b699bc73308fe0b5cc0e184d8ab8ccd06f2e785d33"}
+# m-bootloader 2.1, the official release (jvitkauskas/m-bootloader v2.1, f7eb4a2): its fm1-uboot packages, the SHA-256 of its
+# SHA256SUMS. M-Flasher's own bundled build is older, so installers pass --file.
+MBOOT_RELEASE = {"version": "2.1", "commit": "f7eb4a29d35e24088b0b0f24149f1178190488e8",
+                 "fm1-uboot.boot": "ef160139f731cb8190c9bb6c3fc4e3b6ecf4ef107ce35e412132f6c2aea65a35",
+                 "fm1-uboot.fwsc": "413fc2d4bab4f0f0668a35ca3266125aa24acedf0771842342727261e35dbe0c"}
 MBOOT_DIR = ROOT / "web" / "fm1base" / "m-bootloader"
 MBOOT_BOOT = MBOOT_DIR / f"fm1-uboot-{MBOOT_RELEASE['version']}.boot"
 MBOOT_COPIES = {MBOOT_BOOT: "fm1-uboot.boot",

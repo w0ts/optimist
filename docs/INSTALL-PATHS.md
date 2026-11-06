@@ -24,7 +24,7 @@ switching on enters download mode, PLAY a recovery menu, even when a firmware do
 M-Flasher is fetched for the machine it runs on: `make setup` (`python tools/optimist.py setup`) and `python tools/fm1_anyflash.py setup` download the pinned release for this OS and CPU into `build/m-flasher/m-flasher-0.7.0` inside the repo (git-ignored; nothing is installed on the machine) after checking its SHA-256; the builder's flash (and `make flash`, `fm1_install.py`) asks once before downloading it when a download-mode install needs it and none is found. The pinned names, sizes and checksums are written once, in `tools/mflasher.py`; the web installer's links (site.json) and the Mirror app's (mflasher.json, `tools/sync_mflasher.py`) are generated from it. On macOS it runs the dmg app's bundled CLI, `M-Flasher.app/Contents/MacOS/M-Flasher`, which is not signed with an Apple certificate (System Settings > Privacy & Security > Open Anyway if macOS blocks it) and asks for the password in the system's dialog for its root helper.
 
 Both are git submodules of Optimist, pinned: `third_party/m-flasher` at v0.7.0 (`0c5d50f`), `third_party/m-bootloader` at
-`8b171dd` (1.4, our fork w0ts/m-bootloader, branch `optimist`: Julius's SD card menu, PR #7 of his repository, the commit tested on an FM-1). They sit in Optimist, not in fm1-base: the callers are
+`f7eb4a2` (2.1, jvitkauskas/m-bootloader, with the SD card menu). They sit in Optimist, not in fm1-base: the callers are
 Optimist's command-line installers; fm1-base's installer is the web page, which reaches the FM-1 over Web MIDI only and
 cannot use M-Flasher. Optimist's code calls M-Flasher's command line; none of its protocol is copied here.
 
@@ -35,7 +35,7 @@ submodule with cargo instead. The installers also take `M_FLASHER=/path/to/m-fla
 `m-flasher` on the PATH. Why the release rather than a build: it is the build its author tested on each system
 (macOS's root helper, Windows' SCSI pass-through, Linux's udev rule come with it), and it needs no Rust toolchain.
 
-**The bundled m-bootloader.** `web/fm1base/m-bootloader/fm1-uboot-1.4.boot` and `.fwsc` are built from that branch with pi32v2-llvm 23.1.5-2:
+**The bundled m-bootloader.** `web/fm1base/m-bootloader/fm1-uboot-2.1.boot` and `.fwsc` are the official 2.1 release's:
 `tools/mflasher.py` pins their SHA-256 and the test checks them against it. M-Flasher's own bundled build is older, so
 the installers pass it `--file` with this one.
 

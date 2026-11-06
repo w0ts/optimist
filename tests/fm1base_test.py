@@ -122,7 +122,7 @@ check("without a build system (the page) the costs' limits", K.fits(total, {"LAY
       and K.fits(total, {})["sram"][1] == 2000 - K.SPARE["sram"])
 K.setup(limits_hook=_hook, limits=None)
 if fm1base.BUILD_PY.is_file():
-    ld = (fm1base.DIR / "device" / "app.ld").read_text()
+    ld = (fm1base.DIR / "device" / "app_packed.ld").read_text()
     got = fm1base_ld.measure_script(ld)
     check("a measurement build links fm1-base's app.ld with room (XIP, SRAM, NOINIT beyond it, no stack-guard assert)",
           got is not None and "LENGTH = 0x800000" in got and "LENGTH = 0x180000" in got and "ORIGIN = 0x01E00000" in got
