@@ -8,9 +8,12 @@
  *     hashed at once, a power cut at every write of a pass (tests/sd_index_pass_test.c: the pass in slices);
  *   - the 16-key pages: every view's entries each shown once, in order, forward and back, names cut on a UTF-8
  *     boundary and sorted by the cut, a slot's whole path found again;
- *   - the staged save: versions (N kept), the spare run reused, a power cut at every block write: the card holds the
- *     old project or the new one whole, never a mix, the boot finishes the new one, no cluster in two files;
- *   - every file the FM-1 wrote one contiguous run, on a card whose free room is in holes.
+ *   - the staged save: versions (N kept, or none), a power cut at every block write: the card holds the old project or
+ *     the new one whole, never a mix, the boot finishes the new one, no cluster in two files;
+ *   - a card an older firmware wrote: a project's .SPR read when it is the only whole copy, its name alone dropped when
+ *     a cut rename left it one chain with another file, the leftover deleted once the new project is safe;
+ *   - every file the FM-1 wrote one contiguous run but the projects, on a card whose free room is in holes: a project
+ *     fits in the holes, a recording is refused there.
  *   sd_layout_test FAT16.img FAT32.img */
 #define FELUCCA_SD_FATFS 1
 #include "sd_card_model.h"
@@ -100,8 +103,9 @@ static void walk_check(char *path, uint32_t len, int want_one, const char *what)
     f_closedir(&d);
 }
 
-/* the folders only the FM-1 writes in (SAMPLES: the test's own files stand for a computer's) */
-static const char *const FM1_DIRS[] = {"Optimist/Projects", "Optimist/System", "Optimist/Record", "Optimist/Presets"};
+/* the folders only the FM-1 writes in, and in one run (SAMPLES: the test's own files stand for a computer's; PROJECTS:
+ * a project is read once, in as many pieces as the card gives it) */
+static const char *const FM1_DIRS[] = {"Optimist/System", "Optimist/Record", "Optimist/Presets"};
 
 static void fat_check(int want_one, const char *what)
 {
@@ -575,11 +579,8 @@ static void save_tests(const char *what)
     project(1, 20000);
     CHECK(sdp_save(P, 1, 20000, buf) == FR_OK && !pend_on, "%s: the first save, the pending record cleared", what);
     CHECK(picked(P, 1, 1, 20000), "%s: save 1 on the card, whole", what);
-    CHECK(runs_of("Optimist/Projects/Night Drive/Night Drive.OPP") == 1, "%s: one run", what);
-    CHECK(f_stat("Optimist/Projects/Night Drive/Night Drive.OPP", &fi) == FR_OK &&
-          fi.fsize == (512u + 20000u) * 3u / 2u / ((uint32_t)fs.csize * 512u) * ((uint32_t)fs.csize * 512u) +
-                      ((((512u + 20000u) * 3u / 2u) % ((uint32_t)fs.csize * 512u)) ? (uint32_t)fs.csize * 512u : 0u),
-          "%s: its run the project x 1.5, whole clusters (%u)", what, (unsigned)fi.fsize);
+    CHECK(f_stat("Optimist/Projects/Night Drive/Night Drive.OPP", &fi) == FR_OK && fi.fsize == 512u + 20000u,
+          "%s: the file the header and the project, no slack (%u)", what, (unsigned)fi.fsize);
     for (len = 2; len <= 5; len++) {
         project(len, 20000 + len * 3000u);
         CHECK(sdp_save(P, len, 20000 + len * 3000u, buf) == FR_OK, "%s: save %u", what, (unsigned)len);
@@ -589,12 +590,13 @@ static void save_tests(const char *what)
     CHECK(f_stat("Optimist/Projects/Night Drive/Versions/Night Drive-0004.OPP", &fi) == FR_OK &&
           f_stat("Optimist/Projects/Night Drive/Versions/Night Drive-0003.OPP", &fi) == FR_OK,
           "%s: ... the newest two", what);
-    CHECK(f_stat("Optimist/Projects/Night Drive/Night Drive.SPR", &fi) == FR_OK, "%s: a spare run kept", what);
+    CHECK(f_stat("Optimist/Projects/Night Drive/Night Drive.SPR", &fi) == FR_NO_FILE, "%s: no .SPR", what);
     CHECK(f_stat("Optimist/Projects/Night Drive/Night Drive.TMP", &fi) == FR_NO_FILE, "%s: no .TMP", what);
     sdp_keep = 0;
     project(6, 21000);
     CHECK(sdp_save(P, 6, 21000, buf) == FR_OK && picked(P, 6, 6, 21000), "%s: N 0: saved", what);
     CHECK(versions(P) == 2, "%s: N 0: the versions there left as they are, no new one (%d)", what, versions(P));
+    CHECK(f_stat("Optimist/Projects/Night Drive/Night Drive.SPR", &fi) == FR_NO_FILE, "%s: N 0: no .SPR", what);
     sdp_keep = 1;
     project(7, 22000);
     CHECK(sdp_save(P, 7, 22000, buf) == FR_OK && picked(P, 7, 7, 22000) && versions(P) == 1,
@@ -624,30 +626,30 @@ static void save_tests(const char *what)
 }
 
 /* a power cut at every block write of a save, from a card holding save A: the pick is A or B whole at the cut, and
- * the boot's finish makes it B */
-static void save_cuts(const char *what, uint8_t *img, uint32_t sectors)
+ * the boot's finish makes it B; keep: the versions kept (0: the old project deleted, not moved) */
+static void save_cuts(const char *what, uint8_t *img, uint32_t sectors, const char *P, uint32_t keep)
 {
-    static const char *const P = "Cut Me";
     uint8_t *snap = malloc((size_t)sectors * 512u);
     long k, w0, total;
-    int mixed = 0, unfinished = 0, wrong = 0, leftover = 0;
+    int mixed = 0, unfinished = 0, wrong = 0, leftover = 0, vers;
     FILINFO fi;
     char name[96];
     int i;
-    sdp_keep = 2;
+    sdp_keep = (uint8_t)keep;
     project(11, 30000);
     CHECK(sdp_save(P, 10, 30000, buf) == FR_OK, "%s: save A", what);
     for (i = 0; i < 9; i++) {                        /* the folder over several sectors: a rename's new entry lands in
                                                       * another sector than the old one (two writes: a cut between) */
-        snprintf(name, sizeof name, "Optimist/Projects/Cut Me/a note the user left here %d.txt", i);
+        snprintf(name, sizeof name, "Optimist/Projects/%s/a note the user left here %d.txt", P, i);
         put_file(name, "x", 1);
     }
     project(12, 30000);
-    CHECK(sdp_save(P, 11, 30000, buf) == FR_OK, "%s: save A2 (a version, then the spare's turn)", what);
+    CHECK(sdp_save(P, 11, 30000, buf) == FR_OK, "%s: save A2", what);
     project(13, 41000);
     CHECK(sdp_save(P, 12, 41000, buf) == FR_OK, "%s: save A3", what);
+    vers = versions(P);
     memcpy(snap, img, (size_t)sectors * 512u);
-    project(14, 47000);                              /* B: larger than the spare (a new run) */
+    project(14, 47000);
     w0 = C.writes;
     CHECK(sdp_save(P, 13, 47000, buf) == FR_OK && picked(P, 13, 14, 47000), "%s: save B (uncut)", what);
     total = C.writes - w0;
@@ -665,18 +667,19 @@ static void save_cuts(const char *what, uint8_t *img, uint32_t sectors)
             mixed++;                                 /* (neither A3 nor B whole: a mix) */
         if (!pend_on && k < total)
             unfinished++;                            /* (cut, yet no pending record: the boot would not finish it) */
-        if (sdp_boot(buf) != FR_OK || pend_on || !picked(P, 13, 14, 47000) || versions(P) != 2)
+        if (sdp_boot(buf) != FR_OK || pend_on || !picked(P, 13, 14, 47000) || versions(P) != vers)
             wrong++;
-        if (f_stat("Optimist/Projects/Cut Me/Cut Me.TMP", &fi) == FR_OK)
+        snprintf(name, sizeof name, "Optimist/Projects/%s/%s.TMP", P, P);
+        if (f_stat(name, &fi) == FR_OK)
             leftover++;
         fat_check(1, what);
     }
     CHECK(total > 20, "%s: the save wrote %ld blocks", what, total);
-    CHECK(mixed == 0, "%s: a cut at each of %ld writes: %d left neither the old nor the new whole", what, total + 1,
-          mixed);
+    CHECK(mixed == 0, "%s: %s, %u kept: a cut at each of %ld writes: %d left neither the old nor the new whole", what, P,
+          (unsigned)keep, total + 1, mixed);
     CHECK(unfinished == 0, "%s: ... %d cut with the pending record already cleared", what, unfinished);
-    CHECK(wrong == 0, "%s: ... %d not finished right at the boot (B picked, the record cleared, 2 versions)", what,
-          wrong);
+    CHECK(wrong == 0, "%s: ... %d not finished right at the boot (B picked, the record cleared, the versions right)",
+          what, wrong);
     CHECK(leftover == 0, "%s: ... %d left a .TMP after the boot", what, leftover);
     memcpy(img, snap, (size_t)sectors * 512u);
     card_power_on();
@@ -730,6 +733,240 @@ static void half_rename(const char *what)
     fat_check(1, what);
 }
 
+/* ---- a card an older firmware wrote: a project's .SPR ------------------------------------------------------------------- */
+
+static void file_of(char *out, const char *name, const char *tail)
+{
+    sprintf(out, "Optimist/Projects/%s/%s%s", name, name, tail);
+}
+
+static void version_of(char *out, const char *name, uint32_t number)
+{
+    sprintf(out, "Optimist/Projects/%s/Versions/%s-%04u.OPP", name, name, (unsigned)number);
+}
+
+static int gone(const char *path) { FILINFO fi; return f_stat(path, &fi) == FR_NO_FILE; }
+
+static int whole(const char *path, uint32_t number)  /* that save there, its hash right */
+{
+    sdp_head h;
+    return sdp_verify_path(path, &h, buf) == FR_OK && h.number == number;
+}
+
+static void stage_pending(const char *name, uint32_t number, uint32_t seed, uint32_t len)   /* a save cut before its card write */
+{
+    sdp_pending p;
+    project(seed, len);
+    memset(&p, 0, sizeof p);
+    strcpy(p.name, name);
+    p.number = number;
+    p.len = len;
+    CHECK(sdp_stage_hash(len, buf, &p.hash) == 0 && st_set(&p) == 0, "old card: %s staged", name);
+}
+
+/* the project with a whole .SPR of that save, as an older firmware left it with no .OPP */
+static void old_spare(const char *what, const char *name, uint32_t number, uint32_t seed, uint32_t len)
+{
+    char opp[128], spr[128];
+    file_of(opp, name, ".OPP");
+    file_of(spr, name, ".SPR");
+    project(seed, len);
+    CHECK(sdp_save(name, number, len, buf) == FR_OK && f_rename(opp, spr) == FR_OK, "%s: %s: the .SPR", what, name);
+}
+
+/* src renamed dst by a cut rename: dst's entry written, src's still there, one chain under two names */
+static void half_move(const char *what, const char *name, const char *src, const char *dst)
+{
+    char pad[128];
+    int i;
+    for (i = 0; i < 40; i++) {                       /* the folder's first sectors full: new entries go past them */
+        sprintf(pad, "Optimist/Projects/%s/pad %02d.txt", name, i);
+        put_file(pad, "x", 1);
+    }
+    C.cut_at = C.writes + 1;
+    (void)f_rename(src, dst);
+    card_power_on();
+    CHECK(mount() == FR_OK, "%s: %s: mount after the cut", what, name);
+    CHECK(sdl_chain(src) && sdl_chain(src) == sdl_chain(dst), "%s: %s: %s and %s one chain", what, name, src, dst);
+}
+
+static void old_cards(const char *what)
+{
+    char opp[128], tmp[128], spr[128], ver[128];
+    sdp_keep = 2;
+
+    /* the leftover beside a whole project: deleted by the save, whatever the setting */
+    file_of(spr, "Old One", ".SPR");
+    old_spare(what, "Old One", 1, 31, 8000);
+    project(32, 9000);
+    CHECK(sdp_save("Old One", 2, 9000, buf) == FR_OK, "%s: old one: saved", what);
+    CHECK(picked("Old One", 2, 32, 9000) && gone(spr), "%s: old one: the new project, the .SPR gone", what);
+    sdp_keep = 0;
+    file_of(spr, "Old Zero", ".SPR");
+    old_spare(what, "Old Zero", 1, 33, 8000);
+    project(34, 9000);
+    CHECK(sdp_save("Old Zero", 2, 9000, buf) == FR_OK, "%s: old zero: saved", what);
+    CHECK(picked("Old Zero", 2, 34, 9000) && gone(spr), "%s: old zero: the new project, the .SPR gone", what);
+    sdp_keep = 2;
+    fat_check(0, what);
+
+    /* the .SPR the only whole copy (no .OPP, the .TMP not whole): read; the boot's save over it, then it goes */
+    file_of(tmp, "Old Sole", ".TMP");
+    file_of(spr, "Old Sole", ".SPR");
+    old_spare(what, "Old Sole", 5, 35, 7000);
+    CHECK(put_file(tmp, stage, 3000) == FR_OK, "%s: old sole: a cut .TMP", what);
+    CHECK(picked("Old Sole", 5, 35, 7000), "%s: old sole: the .SPR picked, the only whole copy", what);
+    stage_pending("Old Sole", 6, 36, 7500);
+    CHECK(sdp_boot(buf) == FR_OK && !pend_on && picked("Old Sole", 6, 36, 7500) && gone(spr) && gone(tmp),
+          "%s: old sole: the boot finished the save, the .SPR and the .TMP gone", what);
+    fat_check(0, what);
+
+    /* an older firmware's cut renames: the .SPR's name goes, never the clusters it shares */
+    file_of(opp, "Old Half A", ".OPP");
+    file_of(spr, "Old Half A", ".SPR");
+    version_of(ver, "Old Half A", 1);
+    project(37, 6000);
+    CHECK(sdp_save("Old Half A", 1, 6000, buf) == FR_OK, "%s: half A: a project", what);
+    half_move(what, "Old Half A", opp, spr);         /* .OPP -> the spare */
+    project(38, 6100);
+    CHECK(sdp_save("Old Half A", 2, 6100, buf) == FR_OK && picked("Old Half A", 2, 38, 6100) && gone(spr),
+          "%s: half A: saved, the .SPR gone", what);
+    CHECK(whole(ver, 1), "%s: half A: the old project whole in Versions", what);
+    fat_check(0, what);
+
+    file_of(opp, "Old Half B", ".OPP");
+    file_of(spr, "Old Half B", ".SPR");
+    version_of(ver, "Old Half B", 1);
+    project(39, 6000);
+    CHECK(sdp_save("Old Half B", 1, 6000, buf) == FR_OK, "%s: half B: save 1", what);
+    project(40, 6100);
+    CHECK(sdp_save("Old Half B", 2, 6100, buf) == FR_OK, "%s: half B: save 2", what);
+    half_move(what, "Old Half B", ver, spr);         /* a version -> the spare */
+    project(41, 6200);
+    CHECK(sdp_save("Old Half B", 3, 6200, buf) == FR_OK && picked("Old Half B", 3, 41, 6200) && gone(spr),
+          "%s: half B: saved, the .SPR gone", what);
+    CHECK(whole(ver, 1), "%s: half B: the version still whole", what);
+    fat_check(0, what);
+
+    file_of(tmp, "Old Half C", ".TMP");
+    file_of(spr, "Old Half C", ".SPR");
+    version_of(ver, "Old Half C", 1);
+    project(42, 6000);
+    CHECK(sdp_save("Old Half C", 1, 6000, buf) == FR_OK, "%s: half C: save 1", what);
+    project(43, 6100);
+    CHECK(sdp_save("Old Half C", 2, 6100, buf) == FR_OK && f_rename(ver, spr) == FR_OK, "%s: half C: the .SPR", what);
+    half_move(what, "Old Half C", spr, tmp);         /* the spare -> .TMP */
+    project(44, 6200);
+    CHECK(sdp_save("Old Half C", 3, 6200, buf) == FR_OK && picked("Old Half C", 3, 44, 6200) && gone(spr) && gone(tmp),
+          "%s: half C: saved, the .SPR and the .TMP gone", what);
+    fat_check(0, what);
+    sdp_keep = 2;
+}
+
+/* a power cut at every block write of a save on an older firmware's project: with sole, its .SPR the only whole copy,
+ * else a leftover beside the .OPP. The pick is the old project or the new one whole, the boot finishes, the .SPR goes */
+static void old_card_cuts(const char *what, uint8_t *img, uint32_t sectors, int sole)
+{
+    const char *P = sole ? "Old Cut Sole" : "Old Cut Left";
+    uint8_t *snap = malloc((size_t)sectors * 512u);
+    char spr[128], tmp[128];
+    long k, w0, total;
+    int mixed = 0, wrong = 0, left = 0;
+    uint32_t at = sole ? 20 : 21;                    /* the old project's number, in the file a cut must leave whole */
+    file_of(spr, P, ".SPR");
+    file_of(tmp, P, ".TMP");
+    sdp_keep = 2;
+    old_spare(what, P, 20, 51, 6000);
+    if (!sole) {
+        project(52, 6500);
+        CHECK(sdp_save(P, 21, 6500, buf) == FR_OK && put_file(tmp, stage, 512) == FR_OK &&
+              f_rename(tmp, spr) == FR_OK, "%s: the project and a leftover", what);
+    }
+    memcpy(snap, img, (size_t)sectors * 512u);
+    project(53, 7000);
+    w0 = C.writes;
+    CHECK(sdp_save(P, 22, 7000, buf) == FR_OK && picked(P, 22, 53, 7000) && gone(spr), "%s: %s: uncut", what, P);
+    total = C.writes - w0;
+    for (k = 0; k <= total; k++) {
+        memcpy(img, snap, (size_t)sectors * 512u);
+        card_power_on();
+        pend_on = 0;
+        if (mount() != FR_OK) { wrong++; continue; }
+        project(53, 7000);
+        C.cut_at = C.writes + k;
+        (void)sdp_save(P, 22, 7000, buf);
+        card_power_on();
+        if (mount() != FR_OK) { wrong++; continue; }
+        if (!picked(P, at, sole ? 51 : 52, sole ? 6000 : 6500) && !picked(P, 22, 53, 7000))
+            mixed++;
+        if (sdp_boot(buf) != FR_OK || pend_on || !picked(P, 22, 53, 7000))
+            wrong++;
+        left += !gone(spr) || !gone(tmp);
+        fat_check(1, what);
+    }
+    CHECK(total > 8, "%s: %s: %ld blocks", what, P, total);
+    CHECK(mixed == 0 && wrong == 0 && left == 0, "%s: %s: a cut at each of %ld writes: %d neither whole, %d not finished, "
+          "%d left a .SPR or a .TMP", what, P, total + 1, mixed, wrong, left);
+    memcpy(img, snap, (size_t)sectors * 512u);
+    card_power_on();
+    CHECK(mount() == FR_OK, "%s: mount after the cuts", what);
+    free(snap);
+}
+
+/* a project on a card with no long run free: saved in pieces; a recording stays refused. The card then full: the save
+ * refused, the old project and the pending record kept, no .TMP; room made, the boot finishes it */
+static void project_in_holes(const char *what)
+{
+    static const char *const P = "In Holes";
+    char name[64], opp[128], tmp[128];
+    FATFS *pf;
+    DWORD free_cl;
+    FIL f;
+    UINT put;
+    uint32_t sz, n = 0, i, cl = (uint32_t)fs.csize * 512u;
+    file_of(opp, P, ".OPP");
+    file_of(tmp, P, ".TMP");
+    CHECK(f_getfree("", &free_cl, &pf) == FR_OK, "%s: holes: the free room", what);
+    for (sz = free_cl * cl; sz >= 2u * cl;) {        /* every run of two clusters or more taken */
+        snprintf(name, sizeof name, "Optimist/Record/filler %u", (unsigned)n);
+        if (sda_create(&f, name, SDA_EXACT, sz, 0) == FR_OK) {
+            f_close(&f);
+            n++;
+        } else {
+            sz /= 2u;
+        }
+    }
+    for (i = 1; i < 400u; i += 4u) {                 /* room: single clusters, a kept file on each side */
+        snprintf(name, sizeof name, "HOLES/H%04u", (unsigned)i);
+        CHECK(f_unlink(name) == FR_OK, "%s: holes: %s", what, name);
+    }
+    fs.last_clst = 2;
+    sdp_keep = 2;
+    project(61, 6000);
+    CHECK(sda_create(&f, "Optimist/Record/take.wav", SDA_RECORD, 6000, 6000) == FR_DENIED, "%s: holes: a recording "
+          "refused: no run", what);
+    CHECK(sdp_save(P, 1, 6000, buf) == FR_OK && !pend_on && picked(P, 1, 61, 6000), "%s: holes: the project saved", what);
+    CHECK(runs_of(opp) > 1, "%s: holes: in %u pieces", what, (unsigned)runs_of(opp));
+    project(62, 6400);
+    CHECK(sdp_save(P, 2, 6400, buf) == FR_OK && picked(P, 2, 62, 6400) && versions(P) == 1, "%s: holes: saved again", what);
+    CHECK(f_open(&f, "Optimist/Record/rest", FA_CREATE_NEW | FA_WRITE) == FR_OK, "%s: full: the rest", what);
+    do {
+        CHECK(f_write(&f, buf, 512, &put) == FR_OK, "%s: full: written", what);
+    } while (put == 512);
+    CHECK(f_close(&f) == FR_OK, "%s: full: the rest closed", what);
+    project(63, 6500);
+    i = (uint32_t)sdp_save(P, 3, 6500, buf);
+    CHECK(i == FR_DENIED && pend_on, "%s: full: the save refused (%u), the record left", what, (unsigned)i);
+    CHECK(picked(P, 2, 62, 6400) && gone(tmp), "%s: full: the old project, no .TMP", what);
+    CHECK(f_unlink("Optimist/Record/rest") == FR_OK, "%s: full: room made", what);
+    CHECK(sdp_boot(buf) == FR_OK && !pend_on && picked(P, 3, 63, 6500), "%s: full: the boot finished it", what);
+    for (i = 0; i < n; i++) {
+        snprintf(name, sizeof name, "Optimist/Record/filler %u", (unsigned)i);
+        CHECK(f_unlink(name) == FR_OK, "%s: holes: %s removed", what, name);
+    }
+    fat_check(1, what);
+}
+
 /* ---- the runs ------------------------------------------------------------------------------------------------------- */
 
 static void alloc_tests(const char *what)
@@ -738,13 +975,12 @@ static void alloc_tests(const char *what)
     FILINFO fi;
     uint32_t cl = (uint32_t)fs.csize * 512u;
     sda_scale = 100;
-    CHECK(sda_guess(SDA_EXACT, 1000, 0) == 1000 && sda_guess(SDA_PROJECT, 1000, 0) == 1500 &&
-          sda_guess(SDA_RECORD, 1000, 9000) == 9000 && sda_guess(SDA_RECORD, 1000, 10) == 1000 &&
+    CHECK(sda_guess(SDA_EXACT, 1000, 0) == 1000 && sda_guess(SDA_RECORD, 1000, 9000) == 9000 && sda_guess(SDA_RECORD, 1000, 10) == 1000 &&
           sda_guess(SDA_RENDER, 5, 7) == 7, "guesses by kind");
     sda_scale = 0;
-    CHECK(sda_guess(SDA_PROJECT, 1000, 0) == 1000 && sda_guess(SDA_RECORD, 1000, 9000) == 1000, "the setting 0: none");
+    CHECK(sda_guess(SDA_RECORD, 1000, 9000) == 1000, "the setting 0: none");
     sda_scale = 200;
-    CHECK(sda_guess(SDA_PROJECT, 1000, 0) == 2000 && sda_guess(SDA_RECORD, 1000, 9000) == 17000, "the setting 200 %%");
+    CHECK(sda_guess(SDA_RECORD, 1000, 9000) == 17000, "the setting 200 %%");
     sda_scale = 100;
     CHECK(sda_rec_bytes(2000, 0, 48000, 2) == 192000 && sda_rec_bytes(0, 1000, 48000, 2) == 192000 &&
           sda_rec_bytes(0, 0, 44100, 2) == 5292000, "a recording's guess: asked, the loop x 2, a minute");
@@ -783,8 +1019,13 @@ static void card_run(const char *what, uint8_t *img, uint32_t sectors, uint32_t 
     save_tests(what);
     alloc_tests(what);
     fat_check(1, what);
-    save_cuts(what, img, sectors);
+    save_cuts(what, img, sectors, "Cut Me", 2);
+    save_cuts(what, img, sectors, "Cut Zero", 0);
     half_rename(what);
+    old_cards(what);
+    old_card_cuts(what, img, sectors, 1);
+    old_card_cuts(what, img, sectors, 0);
+    project_in_holes(what);
     CHECK(C.lcd_bad == 0 && C.crc_refused == 0, "%s: LCD bytes %ld, CRC refusals %ld", what, C.lcd_bad,
           C.crc_refused);
 }
