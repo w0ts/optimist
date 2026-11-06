@@ -23,7 +23,7 @@ static uint8_t live_save_off;            /* an erase held the audio (no suspend)
 #include "fm1_clock.h"
 #include "fm1_sys.h"
 #include "fm1_irq.h"
-#if FELUCCA_PLUGINS
+#if defined(FELUCCA_PLUGIN_KB) && FELUCCA_PLUGIN_KB > 0   /* (FELUCCA_PLUGINS is core/plugin.h's, not yet here) */
 #include "fm1_xip.h"
 #include "core/plugin.h"             /* the PC guard's XIP window reaches the PLUGINS region: the engines placed there run
                                       * from flash past .text (pink, 2026-11-06: SID's first render hit the PC limit, rescue) */

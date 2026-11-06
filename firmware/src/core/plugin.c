@@ -33,7 +33,9 @@
 #ifndef PLUG_API_ADDR
 static void *plug_part_mem(uint32_t part) { return PART_MEM_AT(part % NPART); }
 static uint32_t plug_rng(void) { return rng(); }
-static const plug_api_t plug_api_tab = {
+static const plug_api_t plug_api_tab __attribute__((used)) = {   /* (used: kept whether or not this build loads
+                                                                   * plugins itself; a preloaded package's plugins
+                                                                   * point at it, tools/build.py OPTIMIST_PLUGIN_PRELOAD) */
     .version = PLUG_API,
     .part_mem = plug_part_mem,
     .tab = {[PLUG_TAB_SINE] = SINE, [PLUG_TAB_TANH] = TANH_Q15},
