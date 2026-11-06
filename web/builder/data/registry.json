@@ -5055,6 +5055,7 @@
     "not_built": {},
     "provenance": null,
     "children": [
+     "PLUGINS",
      "SD_RING",
      "SD_REC",
      "HEADS_FLASH"
@@ -5318,7 +5319,7 @@
     "provenance": null,
     "children": [],
     "hidden": false,
-    "shown_under": null,
+    "shown_under": "SD_MODE",
     "dim_when": null,
     "tested": "host-tested (tests/plugin_test.c, plugin_card_test.c), the emulator plays SID from the region and loads it from the card; on an FM-1 once (pink, 2026-11-06: SID placed in the region boots and renders)",
     "provenance_line": ""
