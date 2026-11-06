@@ -127,7 +127,7 @@ AINL const smp_zone_t *pst_zone(uint32_t part, uint32_t src, uint32_t zl)
 {
 #if ST_CARD
     if (smp_cz_on(src))
-        return &smp_cz[part % SST_NPART][zl % SST_BANK_Z];
+        return smp_cz_zone(part, zl);
 #endif
     (void)part;
     return src < SMP_NSETS ? &SMP_ZONES[SMP_SETS[src].z0 + zl] : smp_usr_zone((src - SMP_NSETS) % SMP_USER_SLOTS, zl & 15u);

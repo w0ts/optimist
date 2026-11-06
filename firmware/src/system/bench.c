@@ -38,7 +38,7 @@
  *  19  the first plugin slot (the one after the built-in engines, FELUCCA_PLUGINS; core/plugin.c) on the three
  *      parts, preset 0, 3 + 3 + 2 notes: the placed engine plays, or the empty slot's silence; without plugins
  *      the last engine
- *  20  scenario 19 after SID installed from the card at boot (Optimist/Plugins/SID.opl, core/plugin_card.c; the
+ *  20  scenario 19 after SID (FELUCCA_BENCH_PLUG_UID) installed from the card at boot (Optimist/Plugins/SID.opl, core/plugin_card.c; the
  *      result in bench.plug_rc: the slot, or PLUG_E_*): the card load path, in the emulator with its card image
  * (before the integration: the DX7 and SUPER engines, gone since: FM6 and ANALOG 2 take their places)
  * with a drum groove (1 to 4, 7) (kick, snare, hats in eighths at 120 BPM) and the presets' FX sends. The notes
@@ -50,6 +50,10 @@
 #define FELUCCA_BENCH_SWAP 0
 #endif
 #define BENCH_PLUG (FELUCCA_BENCH == 19 || FELUCCA_BENCH == 20)   /* (the parts on the first plugin slot) */
+#ifndef FELUCCA_BENCH_PLUG_UID
+#define FELUCCA_BENCH_PLUG_UID ENG_UID_SID  /* 20: the engine installed from the card (a UID, core/registry.h: GRAIN, SLICE,
+                                             * STRETCH... as -DFELUCCA_BENCH_PLUG_UID=ENG_UID_GRAIN) */
+#endif
 #ifndef FELUCCA_BENCH_COMP
 #define FELUCCA_BENCH_COMP 0
 #endif
@@ -164,7 +168,8 @@ static void bench_setup(void)                              /* boot, after felucc
                                           : (FELUCCA_BENCH - 1u) % 3u;
     TDRUM->p[P_E0] = (int16_t)FELUCCA_BENCH_KIT;
 #if FELUCCA_BENCH == 20 && FELUCCA_PLUGINS && FELUCCA_SDCARD
-    bench.plug_rc = plug_card_install(ENG_UID_SID);       /* 20: SID from the card's Optimist/Plugins/SID.opl (plugin_card.c) */
+    bench.plug_rc = plug_card_install(FELUCCA_BENCH_PLUG_UID);   /* 20: the engine of that UID from the card's
+                                                                  * Optimist/Plugins/<NAME>.opl (plugin_card.c) */
 #endif
 #if FELUCCA_BENCH_COMP && FELUCCA_MASTER_COMP
     song.g[G_CTHR] = -10, song.g[G_CRAT] = 1, song.g[G_CATK] = 4, song.g[G_CREL] = 6;

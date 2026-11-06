@@ -209,7 +209,8 @@ def layout():
 def plugin_kb():
     """the PLUGINS region's KB (core/plugin.h FELUCCA_PLUGIN_KB): the builder item PLUGINS, else the dev switch
     OPTIMIST_PLUGIN_KB; 0: no plugins"""
-    return int(CFG_VALUES.get("FELUCCA_PLUGIN_KB", os.environ.get("OPTIMIST_PLUGIN_KB", "0") or 0))
+    return int(CFG_VALUES.get("FELUCCA_PLUGIN_KB", 0) or os.environ.get("OPTIMIST_PLUGIN_KB", "0") or 0)   # (a profile
+    # with PLUGINS off, the item's default 0: the dev switch still sets it)
 
 
 def plugin_region(lay):
@@ -343,9 +344,12 @@ def build_app():
         v = os.environ.get(flag)
         if v and v.isdigit() and int(v) < 128 and os.environ.get("FELUCCA_BENCH", "0") != "0":
             flags.append(f"-D{flag}={v}")
+    v = os.environ.get("FELUCCA_BENCH_PLUG_UID")   # (bench 20: the UID of the engine installed from the card, core/registry.h)
+    if v and v.isdigit() and int(v) < 256 and os.environ.get("FELUCCA_BENCH") == "20":
+        flags.append(f"-DFELUCCA_BENCH_PLUG_UID={v}u")
     if os.environ.get("FELUCCA_BENCH") in ("10", "11", "12", "13", "14", "15", "16", "18", "19", "20"):   # (bench.c scenarios 10..20: two digits, the loop below takes one)
         flags.append(f"-DFELUCCA_BENCH={os.environ['FELUCCA_BENCH']}")
-    if plugin_kb() and "FELUCCA_PLUGIN_KB" not in CFG_FLAGS:   # the PLUGINS region by the dev switch OPTIMIST_PLUGIN_KB (the
+    if plugin_kb() and not int(CFG_VALUES.get("FELUCCA_PLUGIN_KB", 0) or 0):   # the PLUGINS region by the dev switch OPTIMIST_PLUGIN_KB (the
         flags.append(f"-DFELUCCA_PLUGIN_KB={plugin_kb()}")        # builder item PLUGINS sets it in the configuration header)
     for flag, ok in (("FELUCCA_DUAL", "012"), ("FELUCCA_BENCH", "0123456789"), ("FELUCCA_BENCH_SAVE", "01"),
                      ("FELUCCA_BENCH_SWAP", "01"),
