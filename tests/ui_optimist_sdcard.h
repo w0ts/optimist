@@ -1310,7 +1310,7 @@ static void sdu_kit_row(void)
  * on HOME and on SYSTEM's page that shows the pass */
 static void sdu_boot_clears(void)
 {
-    uint32_t i, s, c0, steps = 0, was;
+    uint32_t i, s, c0, steps = 0, was, ix_bar = 0, ix_all = 0;
     for (s = 0; s < 2u; s++) {
         if (s)
             op_enter(SCR_SYSTEM);
@@ -1330,7 +1330,17 @@ static void sdu_boot_clears(void)
             sdm_poll();
             steps += sdm_ix_pct != was;
             was = sdm_ix_pct;
+            if (sdm_st == SDM_INDEX) {                  /* (the header's progress bar in the clock icon's place) */
+                uint32_t st = 0, k = head_clock(&st);
+                ix_bar += k == HC_INDEX && st == (uint32_t)sdm_ix_pct * HI_W / 100u;
+                ix_all++;
+            }
         }
+        {
+            uint32_t st = 0;
+            check(sdm_st != SDM_INDEX && head_clock(&st) != HC_INDEX, "index done: the clock icon back in its place");
+        }
+        check(ix_all && ix_bar == ix_all, "a boot's index pass: the header's icon is its progress throughout");
         sdu_ix_ms = 0xFFFFFFFFu;
         printf("SD boot on %s: %u passes, %u steps of the %%, %u LCD clears\n", s ? "SYSTEM" : "HOME", i, steps, full_fills - c0);
         check(steps >= 10u && full_fills - c0 <= 2u, "a boot's index pass: at most two LCD clears");
