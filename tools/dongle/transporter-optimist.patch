@@ -1,0 +1,109 @@
+diff --git a/src/jieli_uboot.h b/src/jieli_uboot.h
+index e6370b8..335a5d7 100644
+--- a/src/jieli_uboot.h
++++ b/src/jieli_uboot.h
+@@ -8,7 +8,10 @@
+ //
+ // Writes are limited to whole 4 KiB sectors inside the application area
+ // [JL_WRITE_MIN, JL_WRITE_END). Header/SPL/isd_config below 0x4000 and the
+-// device data from 0x93000 up are refused here, whatever the host asks.
++// kits, presets and settings from 0xDA000 up are refused here, whatever the
++// host asks. (Optimist: its SD-card layouts reach 0xD0000 and a layout switch
++// clears up to 0xDA000, tools/flash_layout.py CLEAR_TOP; stock V15 ends at
++// 0x93000, which was the limit before.)
+ // Deliberately absent: block/chip erase, chip-key write. RAM writes exist only
+ // for the loader upload and the ROM-stage RAM-run calls below (RAM, never flash).
+ 
+@@ -19,7 +22,7 @@
+ #define JL_READ_MAX 4096        // largest READ_FLASH we issue (see jl_read_chunk)
+ #define JL_SECTOR_SIZE 0x1000
+ #define JL_WRITE_MIN 0x4000
+-#define JL_WRITE_END 0x93000
++#define JL_WRITE_END 0xDA000
+ 
+ typedef struct {
+     uint16_t chip_key;
+diff --git a/src/pio_host.c b/src/pio_host.c
+index e61b4df..e69f9db 100644
+--- a/src/pio_host.c
++++ b/src/pio_host.c
+@@ -78,6 +78,7 @@ bool fm1_pio_host_mounted(void) {
+ }
+ 
+ static bool uboot_ready;    // INQUIRY answered on the current mount
++static char inq_vendor[9], inq_product[17];   // that answer's strings, for `status`
+ 
+ bool fm1_host_bot(const uint8_t *cdb, uint8_t cdb_len, bool in, void *buf, uint16_t len,
+                   uint32_t *got) {
+@@ -123,6 +124,7 @@ void tuh_mount_cb(uint8_t daddr) {
+     mount_us = time_us_64();
+     watchdog_hw->scratch[REATTACH_SCRATCH] = 0;
+     uboot_ready = false;
++    inq_vendor[0] = inq_product[0] = 0;
+     jl_reset();
+     probe_pending = true;
+ }
+@@ -132,6 +134,7 @@ void tuh_umount_cb(uint8_t daddr) {
+          (time_us_64() - mount_us) / 1000.0);
+     mounted_addr = 0;
+     uboot_ready = false;
++    inq_vendor[0] = inq_product[0] = 0;
+     mounted_is_v15 = false;
+     unmounted_since_us = time_us_64();
+     probe_pending = false;
+@@ -355,6 +358,18 @@ static bool probe_descriptors(uint8_t daddr) {
+     return true;
+ }
+ 
++// An INQUIRY string without its padding, inner spaces as '_': one word in `status`.
++static void copy_trim(char *dst, const char *src, size_t size) {
++    size_t n = strlen(src);
++    while (n && src[n - 1] == ' ') n--;
++    if (n >= size) n = size - 1;
++    for (size_t i = 0; i < n; i++) dst[i] = src[i] == ' ' ? '_' : src[i];
++    dst[n] = 0;
++}
++
++const char *fm1_host_inquiry_vendor(void) { return inq_vendor[0] ? inq_vendor : "-"; }
++const char *fm1_host_inquiry_product(void) { return inq_product[0] ? inq_product : "-"; }
++
+ static bool probe_inquiry(uint8_t daddr) {
+     static const uint8_t inquiry[6] = {0x12, 0, 0, 0, 36, 0};
+     uint32_t got = 0;
+@@ -371,6 +386,8 @@ static bool probe_inquiry(uint8_t daddr) {
+     product[16] = 0;
+     memcpy(rev, &data_buf[32], 4);
+     rev[4] = 0;
++    copy_trim(inq_vendor, vendor, sizeof(inq_vendor));
++    copy_trim(inq_product, product, sizeof(inq_product));
+     dlog("INQUIRY OK: vendor=\"%s\" product=\"%s\" rev=\"%s\"", vendor, product, rev);
+     return true;
+ }
+diff --git a/src/pio_host.h b/src/pio_host.h
+index 9bfcd7e..bfe7fd4 100644
+--- a/src/pio_host.h
++++ b/src/pio_host.h
+@@ -36,3 +36,7 @@ bool fm1_host_bot(const uint8_t *cdb, uint8_t cdb_len, bool in, void *buf, uint1
+ 
+ // Queues a one-letter console command for core 1 (safe to call from core 0).
+ void fm1_pio_host_command(char c);
++
++// The chip's INQUIRY vendor and product on the current mount ("-" before it answered).
++const char *fm1_host_inquiry_vendor(void);
++const char *fm1_host_inquiry_product(void);
+diff --git a/src/transporter_proto.c b/src/transporter_proto.c
+index b2cf0c9..c8443ee 100644
+--- a/src/transporter_proto.c
++++ b/src/transporter_proto.c
+@@ -335,8 +335,9 @@ void fm1_proto_poll(void) {
+     if (!argc) return;
+ 
+     if (!strcmp(argv[0], "status")) {
+-        tx_line("OK uboot=%d v15=%d loader=%d loader_running=%d", fm1_host_uboot_ready(),
+-                fm1_host_v15_mounted(), jl_have_loader(), jl_loader_running());
++        tx_line("OK uboot=%d v15=%d loader=%d loader_running=%d vendor=%s product=%s",
++                fm1_host_uboot_ready(), fm1_host_v15_mounted(), jl_have_loader(), jl_loader_running(),
++                fm1_host_inquiry_vendor(), fm1_host_inquiry_product());
+     } else if (!strcmp(argv[0], "uboot")) {
+         if (fm1_host_uboot_ready()) {
+             tx_line("OK uboot");

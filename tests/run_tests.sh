@@ -1996,6 +1996,7 @@ job; ( jobin
 job; ( jobin
     run "rescue tool (fm1_rescue.py, from X0X) against a simulated UBOOT FM-1" python3 tests/rescue_test.py
     run "rescue tool with any .fwsc (validation, confirmation flag, fake USB transport)" python3 tests/rescue_any_test.py
+    run "rescue tool through the RP2040 dongle (fm1_dongle.py, a simulated FM-1-transporter)" python3 tests/rescue_dongle_test.py
 ) >"$U.out" 2>&1 & jobbg
 
 job; ( jobin
