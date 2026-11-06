@@ -102,10 +102,11 @@ static void sd_end(void)
                                                                     : (uint32_t)NVOICE)   /* (mono: the note before's tail) */
 /* a part on SAMPLE, GRAIN or STRETCH with a set on the card (SD card mode, eng_sample.c SMP_CARD_SET): that set + 1,
  * else 0; its folder. GRAIN and STRETCH read it through a cache (SST_PART_RAND: sd_stream_rc.h) */
-#define SST_PART_RAND(p) (trk[p].engine == (uint8_t)ENG_SLOT_GRAIN ? SST_RAND_KB : \
-                          trk[p].engine == (uint8_t)ENG_SLOT_STRETCH ? SST_STRETCH_KB : 0u)   /* (its cache's KB) */
+/* (by the engine's UID: a plugin's part as a built-in's, core/plugin.c) */
+#define SST_PART_RAND(p) (eng_uid(trk[p].engine) == ENG_UID_GRAIN ? SST_RAND_KB : \
+                          eng_uid(trk[p].engine) == ENG_UID_STRETCH ? SST_STRETCH_KB : 0u)   /* (its cache's KB) */
 #define SST_PART_FREE(p) (SST_PART_RAND(p) && trk[p].p[P_E0] == (int16_t)SMP_CARD)   /* (their SRC on CARD: the part's own WAV) */
-#define SST_PART_BANK(p) ((trk[p].engine == (uint8_t)ENG_SLOT_SAMPLE || SST_PART_RAND(p)) && \
+#define SST_PART_BANK(p) ((eng_uid(trk[p].engine) == ENG_UID_SAMPLE || SST_PART_RAND(p)) && \
                           (uint32_t)trk[p].p[P_E0] < SMP_NSETS && SMP_CARD_SET((uint32_t)trk[p].p[P_E0]) ? \
                           (uint32_t)trk[p].p[P_E0] + 1u : 0u)
 #define SST_BANK_NAME(b) SMP_SET_NAMES[(b) % SMP_NSETS]

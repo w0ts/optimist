@@ -89,8 +89,9 @@ enum { Q_OFF, Q_SNAP, Q_WHITE, Q_ALL, Q_SEQ };   /* P_QUANT (SCL › KEYS): seq.
  * section 2 and 3). TAB_RAM
  * (felucca_tables.h) puts a constant table that the sample loops read into the pool: copied to RAM at
  * boot, so the UI's font reads cannot evict it from the data cache either (no extra flash). */
-#if defined(__PI32V2__) && !(defined(FELUCCA_ASM_CHECK) && FELUCCA_ASM_CHECK)
-/* (an ASM_CHECK verification build runs every asm kernel next to its C: too big for RAMTEXT, so it
+#if defined(__PI32V2__) && !(defined(FELUCCA_ASM_CHECK) && FELUCCA_ASM_CHECK) && !defined(PLUG_BUILD)
+/* (a plugin, plugin/plug_unit.c: all of it in its flash image, no RAM code of its own)
+ * (an ASM_CHECK verification build runs every asm kernel next to its C: too big for RAMTEXT, so it
  * keeps the whole audio path in XIP; the same code, placed elsewhere) */
 #define HOT __attribute__((section(".ram_hot")))
 #define HOT2 __attribute__((section(".ram_hot2")))

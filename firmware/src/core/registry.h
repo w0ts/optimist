@@ -183,6 +183,8 @@
 #define ENG_UID_SLICE 11u
 #define ENG_UID_SUPER 9u
 #endif
+#define ENG_UID_SAMPLE 4u                  /* (both lists; the card's plan finds its parts by UID: sdcard.c) */
+#define ENG_UID_GRAIN 8u
 
 #define ENG_CNT_(u, N, fb, s) +FELUCCA_ENG_##N
 #define NBUILT (0 ENGINE_LIST(ENG_CNT_))   /* engines built in */
