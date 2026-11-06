@@ -28,6 +28,7 @@ final class FlashTests: XCTestCase {
         XCTAssertEqual(id, FlashProtocol.Identity(text: "ota-FM-1_700", model: "ota-FM-1", version: 700))
         XCTAssertTrue(id!.isLoader && id!.isOurLoader)
         XCTAssertFalse(FlashProtocol.identity(FakeFlashDevice.identity("ota-FM-1_015"))!.isOurLoader)
+        XCTAssertTrue(FlashProtocol.identity(FakeFlashDevice.identity("ota-FM-1_7900"))!.isOurLoader)
         XCTAssertFalse(FlashProtocol.identity(FakeFlashDevice.identity("FM-1_700"))!.isLoader)
         // M-UPGRADE 3.11: FM-1_790 to the plain query, the whole identity to the query with 01
         let body: [UInt8] = [0, 0x59, 0x11, 1, 0, 0, 1, 0xFE]
@@ -55,6 +56,12 @@ final class FlashTests: XCTestCase {
         XCTAssertEqual(Array(p.image[(20 * 0x2F)...]), Array(fwsc[(20 * 0x30)...]))
         XCTAssertThrowsError(try FlashPackage.check(FakeFlashDevice.package("FM-1_015", size: 4000), title: "t")) {
             XCTAssertEqual($0 as? FlashPackage.Problem, .notOurs("FM-1_015"))
+        }
+        // Optimist's release and any fm1-base firmware: four digits or more
+        XCTAssertEqual(try FlashPackage.check(FakeFlashDevice.package("FM-1_7900", size: 4000), title: "t").product, "FM-1_7900")
+        XCTAssertEqual(try FlashPackage.check(FakeFlashDevice.package("FM-1_7010302", size: 4000), title: "t").product, "FM-1_7010302")
+        XCTAssertThrowsError(try FlashPackage.check(FakeFlashDevice.package("FM-1_102", size: 4000), title: "t")) {
+            XCTAssertEqual($0 as? FlashPackage.Problem, .notOurs("FM-1_102"))
         }
         XCTAssertThrowsError(try FlashPackage.check(FakeFlashDevice.package("FM-1_700", size: 4000, loader: false), title: "t")) {
             XCTAssertEqual($0 as? FlashPackage.Problem, .noLoader)
