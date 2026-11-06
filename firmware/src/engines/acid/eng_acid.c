@@ -18,6 +18,7 @@
  * envelopes and tuning); the ADSR gates it (the presets: SUS 127). ACID GEN (an EDIT page on an ACID track): DENS,
  * ACC %, SLD %, GO (twice): a new line of TB-3PO into the pattern (LEN steps, the track's ROOT, its own minor
  * scale), undoable. */
+#include "acid_mem.h"                             /* (ACID_PLUG_BYTES: a plugin's part memory) */
 void acid_pots(int k, const int16_t *e);           /* acid/acid_dsp.c (float, its own unit) */
 void acid_note(int k, int note, int accent, int slide);
 void acid_start(int k, const int16_t *e, int note, int accent);
@@ -161,4 +162,6 @@ static const engine_t ENG_ACID = {
     .poly = 1,
     .vel_own = 1,
     .legato = acid_legato,
+    .part_bytes = ACID_PLUG_BYTES,                 /* (a plugin's: the 303, its coefficients, its note state; built in,
+                                                    * engines.c gives ACID_MEM_BYTES, the rest static) */
 };
