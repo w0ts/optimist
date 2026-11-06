@@ -28,10 +28,10 @@
  * ~6.7 cents.
  *
  * Stereo: a part is mono up to its pan (fx.c mix_part), so with BEAT the network runs twice (an ear each: twice the
- * cost) and writes the mid (L + R) / 2 to the block and the side (L - R) / 2 to drone_side, which mix_part adds after
+ * cost) and writes the mid (L + R) / 2 to the block and the side (L - R) / 2 to the part's side (drone_mem_t), which mix_part adds after
  * the level as WIDE's side (insfx.c ifx_side_mix). BEAT OFF: one network, the right ear's state kept on the left's.
  *
- * State: the part's (drone_pt; one voice), kept across notes; a note on a silent voice starts it afresh (drone_note_on). */
+ * State: the part's (drone_mem_t; one voice), kept across notes; a note on a silent voice starts it afresh (drone_note_on). */
 static const char *const N_DRONE_TOPO[] = {"PAIRS", "CHAIN", "RING"};
 /* = edit[6] at 0: an F_INT with a 0-terminated name list reads OFF on any value of its range (params.c param_format; an
  * F_ENUM would read names 1..127 that are not there: a lock's value on STEP, the editor's DESC, the list tests) */
@@ -55,11 +55,21 @@ typedef struct {
     uint32_t latched;                     /* HOLD: the voices whose key went up (voice.c drone_latch_off), bit i voice i */
     uint8_t lnote[NVOICE];                /* (and the note each latched: MONO may move the voice to another key since) */
 } drone_pt_t;
-static drone_pt_t drone_pt[NPART];
-/* a part's side this block (BEAT: (L - R) / 2), mixed by fx.c mix_part; set: written this block (drone_block clears
- * it, the voice zeroes the block) */
-static int32_t drone_side[NPART][CTL];
-static uint8_t drone_sd[NPART];
+/* the part's state: its network (pt), its side this block (BEAT: (L - R) / 2, mixed by fx.c mix_part) and whether it
+ * was written this block (sd: drone_block clears it, the voice zeroes the block). Built in: one static instance a part
+ * (voice.c's HOLD and fx.c's side read it through DRONE_MEM); a plugin (plugin/plug_unit.c): the part's engine memory
+ * through the firmware's API table (PART_MEM_AT, engine_t .part_bytes; zeroed when the part comes to it: ready 0, afresh) */
+typedef struct {
+    drone_pt_t pt;
+    int32_t side[CTL];
+    uint8_t sd;
+} drone_mem_t;
+#if FELUCCA_PLUGIN_UNIT
+#define DRONE_MEM(k) ((drone_mem_t *)PART_MEM_AT(k))
+#else
+static drone_mem_t drone_st[NPART];
+#define DRONE_MEM(k) (&drone_st[k])
+#endif
 
 static const param_desc_t *drone_desc(const track_t *t, uint32_t k)
 {
@@ -72,12 +82,14 @@ static const param_desc_t *drone_desc(const track_t *t, uint32_t k)
 static void drone_block(track_t *t)
 {
     uint32_t k, i;
+    drone_mem_t *dm;
     drone_pt_t *d;
     if (t >= &trk[NPART])
         return;
     k = (uint32_t)(t - trk);
-    d = &drone_pt[k];
-    drone_sd[k] = 0;
+    dm = DRONE_MEM(k);
+    d = &dm->pt;
+    dm->sd = 0;
     if (d->latched && !t->p[P_E7]) {                    /* HOLD OFF: the latched notes into their release */
         for (i = 0; i < NVOICE; i++)
             if ((d->latched >> i) & 1u) {
@@ -102,7 +114,7 @@ static void drone_note_on(track_t *t, voice_t *v)
     drone_pt_t *d;
     if (t >= &trk[NPART])
         return;
-    d = &drone_pt[t - trk];
+    d = &DRONE_MEM((uint32_t)(t - trk))->pt;
     d->latched &= ~(1u << ((uint32_t)(v - t->v) % NVOICE));   /* a new note on this voice: not latched (yet) */
     if (!v->env)                                        /* silent: afresh (sounding: retrigger, steal, the network on) */
         d->ready = 0;
@@ -163,7 +175,8 @@ static void drone_render(track_t *t, voice_t *v, int32_t *__restrict out, uint32
     static const int8_t DT[4] = {-3, -1, 1, 3};
     const int16_t *p = t->p;
     uint32_t k = (uint32_t)(t - trk) % NPART, i, g, e;
-    drone_pt_t *d = &drone_pt[k];
+    drone_mem_t *dm = DRONE_MEM(k);
+    drone_pt_t *d = &dm->pt;
     uint32_t bi = p[P_E6] > 0 ? LFO_HZ_X100[p[P_E6] & 127] * DRONE_BEAT_K : 0u, st[4];
     uint32_t spr = (uint32_t)clamp(p[P_E0], 0, 127), det = (uint32_t)clamp(p[P_DETUNE], 0, 127);
     int32_t tg[DR_NC], fq[4], *sd;
@@ -187,11 +200,11 @@ static void drone_render(track_t *t, voice_t *v, int32_t *__restrict out, uint32
             d->ctl[i] = tg[i];
         d->ready = 1;
     }
-    sd = drone_side[k] + (CTL - n);                     /* (a voice from inside the block: out is the block + CTL - n) */
-    if (bi && !drone_sd[k]) {                           /* the part's side, zeroed once this block */
+    sd = dm->side + (CTL - n);                     /* (a voice from inside the block: out is the block + CTL - n) */
+    if (bi && !dm->sd) {                                /* the part's side, zeroed once this block */
         for (i = 0; i < CTL; i++)
-            drone_side[k][i] = 0;
-        drone_sd[k] = 1;
+            dm->side[i] = 0;
+        dm->sd = 1;
     }
     for (i = 0; i < n; i++) {
         int32_t a = mulq15(amp_at(m, i), VOICE_FS), g1, yl;
@@ -266,4 +279,5 @@ static const engine_t ENG_DRONE = {
     .poly = 1,                                   /* (one network a part; with BEAT two ears of four generators) */
     .desc = drone_desc,
     .block = drone_block,
+    .part_bytes = sizeof(drone_mem_t),
 };

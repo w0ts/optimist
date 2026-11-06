@@ -889,8 +889,8 @@ static void drone_latch_off(const track_t *t, uint32_t note)
     uint32_t i;
     for (i = 0; i < NVOICE; i++)
         if (t->v[i].gate && t->v[i].note == note) {
-            drone_pt[(uint32_t)(t - trk) % NPART].latched |= 1u << i;
-            drone_pt[(uint32_t)(t - trk) % NPART].lnote[i] = (uint8_t)note;
+            DRONE_MEM((uint32_t)(t - trk) % NPART)->pt.latched |= 1u << i;
+            DRONE_MEM((uint32_t)(t - trk) % NPART)->pt.lnote[i] = (uint8_t)note;
         }
 }
 static int drone_unlatch(track_t *t, uint32_t note)
@@ -901,7 +901,7 @@ static int drone_unlatch(track_t *t, uint32_t note)
         if (t->v[i].gate && t->v[i].note == note) {
             t->v[i].gate = 0;
             t->v[i].stage = 3;
-            drone_pt[(uint32_t)(t - trk) % NPART].latched &= ~(1u << i);
+            DRONE_MEM((uint32_t)(t - trk) % NPART)->pt.latched &= ~(1u << i);
             hit = 1;
         }
     if (hit && t->mono_note == note) {                  /* (MONO / LEGATO / UNISON: the stack goes with it) */

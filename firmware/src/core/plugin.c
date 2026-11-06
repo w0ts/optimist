@@ -28,6 +28,10 @@
 #ifndef PLUG_ENCRYPT
 #define PLUG_ENCRYPT 1                    /* the region is inside the app area: the SFC decrypts every read of it */
 #endif
+#ifndef PLUG_TAB_AT
+#define PLUG_TAB_AT(k) ((void)(k), (void *)0)   /* (no arena for the plugins' shared blocks: engines.c's otherwise) */
+#define PLUG_TAB_KB_MAX 0u                /* (a plugin that asks for one is refused: PLUG_E_MEM) */
+#endif
 /* the API table (core/plugin.h plug_api_t): built once, const, in the image; its XIP address is what the loader
  * writes into a plugin's plugin_api word (PLUG_REL_API). A host test names its own (PLUG_API_ADDR) */
 #ifndef PLUG_API_ADDR
@@ -53,12 +57,32 @@ static const void *plug_cz(uint32_t part, uint32_t *n, uint32_t *stamp)
     return smp_cz_zone(part, 0);
 }
 #endif
-static const plug_api_t plug_api_tab = {
+static void (*plug_svc[FELUCCA_PLUGIN_SLOTS])(void);   /* each slot's main-loop hook (plug_api_service), 0 none */
+static uint32_t plug_api_slot_of(uint32_t uid) { return eng_slot_of(uid); }
+static void plug_api_service(uint32_t slot, void (*fn)(void))
+{
+    if (slot - NBUILT < FELUCCA_PLUGIN_SLOTS)
+        plug_svc[slot - NBUILT] = fn;
+}
+static void *plug_api_tab_mem(uint32_t slot) { return slot - NBUILT < FELUCCA_PLUGIN_SLOTS ? PLUG_TAB_AT(slot - NBUILT) : 0; }
+#define PLUG_SLOT_HOOK(k) (plug_svc[k] = 0)
+/* the main loop, every pass (main.c): the placed plugins' hooks */
+static void plug_service(void)
+{
+    uint32_t k;
+    for (k = 0; k < FELUCCA_PLUGIN_SLOTS; k++)
+        if (plug_svc[k])
+            plug_svc[k]();
+}
+static const plug_api_t plug_api_tab __attribute__((used, retain)) = {   /* (kept: a build whose only install is the package's preload never calls the loader) */
     .version = PLUG_API,
     .part_mem = plug_part_mem,
     .tab = {[PLUG_TAB_SINE] = SINE, [PLUG_TAB_TANH] = TANH_Q15},
     .trk = trk,
     .rng = plug_rng,
+    .slot_of = plug_api_slot_of,
+    .service = plug_api_service,
+    .tab_mem = plug_api_tab_mem,
 #if FELUCCA_SD_STREAM
     .src = sst_src,
     .sst = sst,
@@ -92,7 +116,10 @@ static const plug_api_t plug_api_tab = {
 #endif
 #endif
 #ifndef PLUG_DESC_OK
-#define PLUG_DESC_OK(d) ((d)->part_bytes <= PLUG_PART_MAX)
+#define PLUG_DESC_OK(d) ((d)->part_bytes <= PLUG_PART_MAX && (d)->tab_kb <= PLUG_TAB_KB_MAX)
+#endif
+#ifndef PLUG_SLOT_HOOK
+#define PLUG_SLOT_HOOK(k) ((void)0)       /* slot k emptied (the API table's main-loop hook forgotten) */
 #endif
 #define PLUG_MARGIN 8u
 #define PLUG_RELCHUNK 64u                 /* relocation words read at a time */
@@ -148,6 +175,7 @@ static int plug_whole(uint32_t off, plug_hdr_t *h)
 
 static void plug_slot_clear(uint32_t k)
 {
+    PLUG_SLOT_HOOK(k);
     PLUG_SET_SLOT(k, PLUG_NONE);
     plug_uid[k] = 0xFF;
     plug_off_[k] = 0;
