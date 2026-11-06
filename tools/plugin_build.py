@@ -117,6 +117,29 @@ def firmware_flags() -> list[str]:
     return [*build.CFLAGS, "-Ifirmware/hal", "-Ifirmware/src", "-I" + build.GEN_REL, "-include", f"{build.GEN_REL}/felucca_config.h"]
 
 
+def config_values() -> dict[str, str]:
+    """the build's `#define NAME VALUE` lines of build/gen/felucca_config.h (the values build.py's CFG_VALUES held)"""
+    text = (build.GEN / "felucca_config.h").read_text()
+    return dict(re.findall(r"^#define (\w+) (\S+)\s*$", text, re.M))
+
+
+A2_FLAGS = ("FELUCCA_A2_LADR", "FELUCCA_A2_OTA", "FELUCCA_A2_DIOD", "FELUCCA_A2_MS20")
+
+
+def extra_units(name: str, cfg: dict[str, str]) -> list[tuple[Path, list[str]]]:
+    """the engine's separate float unit(s) as (source, flags): the same file and flags tools/build.py build_app compiles
+    them with (build.ACID_CFLAGS: the FPU), except that the code is never in RAM (FAST_RAM_x 0: a plugin runs from flash)"""
+    ed = FW / "src" / "engines"
+    if name == "ACID":
+        return [(ed / "acid" / "acid_dsp.c", [*(["-DFELUCCA_CPU_GUARD=1"] if cfg.get("FELUCCA_CPU_GUARD") == "1" else []),
+                                               "-DFAST_RAM_acid=0"])]
+    if name == "ANALOG":
+        return [(ed / "analog" / "a2_models.c", [f"-D{k}={cfg.get(k, '0')}" for k in A2_FLAGS])]
+    if name == "PROPHET":
+        return [(ed / "prophet" / "p5_dsp.c", ["-DFAST_RAM_prophet=0"])]
+    return []
+
+
 def section_sizes(elf: Path) -> dict[str, int]:
     out = build.tc("common/bin/objdump", "-h", elf)
     sizes = {}
@@ -165,7 +188,12 @@ def build_plugin(name: str, out_dir: Path | None = None) -> Path:
     sym = f"ENG_{name}"
     build.tc("cc", *firmware_flags(), f"-DFELUCCA_ENG_{name}=1", f'-DPLUG_ENGINE_FILE="{rel_file}"',
              f"-DPLUG_ENGINE_SYM={sym}", "-c", FW / "src" / "plugin" / "plug_unit.c", "-o", obj)
-    build.tc("pi32v2/bin/ld", "--gc-sections", "-q", "-e", ENTRY, "-T", ld, obj, "-o", elf)
+    unit_objs = []
+    for src, flags in extra_units(name, config_values()):
+        uo = out_dir / f"{name}_{src.stem}.o"
+        build.tc("cc", *build.ACID_CFLAGS, *flags, "-c", src, "-o", uo)
+        unit_objs.append(uo)
+    build.tc("pi32v2/bin/ld", "--gc-sections", "-q", "-e", ENTRY, "-T", ld, obj, *unit_objs, "-o", elf)
     sizes = section_sizes(elf)
     if sizes.get(".data", 0) or sizes.get(".bss", 0):
         raise PluginError(f"{name}: {sizes.get('.data', 0)} B of .data and {sizes.get('.bss', 0)} B of .bss: a plugin has "
