@@ -122,7 +122,8 @@ def firmware_flags() -> list[str]:
     gen = build.GEN / "felucca_config.h"
     if not gen.exists():
         raise PluginError(f"{gen}: no configuration; build the firmware first (the same OPTIMIST_BUILD_DIR)")
-    return [*build.CFLAGS, "-Ifirmware/hal", "-Ifirmware/src", "-I" + build.GEN_REL, "-include", f"{build.GEN_REL}/felucca_config.h"]
+    return [*build.CFLAGS, "-fdata-sections", "-Ifirmware/hal", "-Ifirmware/src", "-I" + build.GEN_REL,   # (-fdata-sections: the
+            "-include", f"{build.GEN_REL}/felucca_config.h"]                                          # prelude's unreferenced globals go)
 
 
 def config_values() -> dict[str, str]:
@@ -191,7 +192,8 @@ def build_plugin(name: str, out_dir: Path | None = None) -> Path:
     out_dir = out_dir or build.OUT / "plugins"
     out_dir.mkdir(parents=True, exist_ok=True)
     obj, elf, ld = out_dir / f"{name}.o", out_dir / f"{name}.elf", out_dir / "plugin.ld"
-    ld.write_text("SECTIONS { . = 0; .text : { *(.text*) } .rodata : { *(.rodata*) . = ALIGN(4); } "
+    ld.write_text("SECTIONS { . = 0; .text : { *(.text*) *(.ram_text*) *(.ram_hot*) } "   # (hot code runs from flash in a plugin)
+                  ".rodata : { *(.rodata*) . = ALIGN(4); } "
                   ".data : { *(.data*) } .bss : { *(.bss*) *(COMMON) } /DISCARD/ : { *(.comment) *(.note*) } }\n")
     sym = f"ENG_{name}"
     build.tc("cc", *firmware_flags(), f"-DFELUCCA_ENG_{name}=1", f'-DPLUG_ENGINE_FILE="{rel_file}"',
@@ -201,7 +203,7 @@ def build_plugin(name: str, out_dir: Path | None = None) -> Path:
         uo = out_dir / f"{name}_{src.stem}.o"
         build.tc("cc", *build.ACID_CFLAGS, *flags, f"-DPLUG_ENG_{name}=1", "-c", src, "-o", uo)
         unit_objs.append(uo)
-    build.tc("pi32v2/bin/ld", "--gc-sections", "-q", "-e", ENTRY, f"--undefined={API_SYM}", "-T", ld, obj, *unit_objs, "-o", elf)
+    build.tc("pi32v2/bin/ld", "--gc-sections", "-q", "-e", ENTRY, f"--undefined={API_SYM}", "--undefined=plugin_abi", "-T", ld, obj, *unit_objs, "-o", elf)
     sizes = section_sizes(elf)
     strange = {k: v for k, v in sizes.items() if v and k not in (".text", ".rodata") and
                not k.startswith((".rela", ".symtab", ".strtab", ".shstrtab", ".comment", ".note"))}
