@@ -175,4 +175,5 @@ static const engine_t ENG_ANALOG = {
 #if FELUCCA_ANALOG2
     .block = super_block,                     /* (the swarm's CPU cap: voices sounding) */
 #endif
+    .keep = FELUCCA_ANALOG2 ? 0x73 : 0x03,   /* a retrigger keeps s0 s1 (ANALOG 2: s4 s5 s6 too): the filter, its second stage, the last cutoff (voice.c) */
 };

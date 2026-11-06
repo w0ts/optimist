@@ -1002,7 +1002,8 @@ def main():
     if plugin_kb() and os.environ.get("OPTIMIST_PLUGIN_PRELOAD"):   # a plugin file placed at the region's start in the
         import plugin_build                                        # package (the emulator, a factory set): as the loader would
         lo = plugin_region(layout())[0]
-        placed = plugin_build.place(Path(os.environ["OPTIMIST_PLUGIN_PRELOAD"]).read_bytes(), lo)
+        api = plugin_build.symbol(OUT / "felucca.elf", plugin_build.API_TABLE)   # (the API table: relocation kind 2)
+        placed = plugin_build.place(Path(os.environ["OPTIMIST_PLUGIN_PRELOAD"]).read_bytes(), lo, api)
         extra.append((lo, placed))
         print(f"plugin   {os.environ['OPTIMIST_PLUGIN_PRELOAD']} placed at 0x{lo:x}, {len(placed)} B")
     pkg = fm1pkg_make.ufw(fm1pkg_make.flash_image(img, fm1pkg_make.KEY, flash_layout.app_hi(layout()), extra), ota, PRODUCT)

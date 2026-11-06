@@ -1,8 +1,8 @@
 /* SPDX-License-Identifier: GPL-3.0-only */
 /* Host test of the plugins' flash loader (firmware/src/core/plugin.c, docs/SD-MODE-DESIGN.md section 10) against a
  * simulated NOR flash (erase -> 0xFF, a program only clears bits) with a 64 KB region at the normal layout's place:
- *   - a synthetic plugin file (an image of known words, relocations of both kinds, two of them straddling the first
- *     sector's end) installed: placed at the region's start, the header whole (base where it sits, the image's CRC as
+ *   - a synthetic plugin file (an image of known words, relocations of the three kinds, two of them straddling the first
+ *     sector's end; kind 2 the API table's address) installed: placed at the region's start, the header whole (base where it sits, the image's CRC as
  *     patched, nrel 0), every relocated word the file's word plus the image's XIP address, the untouched words as
  *     they were, slot 0 its descriptor's address and its UID;
  *   - a second file (another UID) placed right after the first's sectors; the same UID again: its slot, nothing written;
@@ -21,6 +21,8 @@
 #define FELUCCA_PLUGIN_SLOTS 2
 #define FELUCCA_LAYOUT 0
 #define PLUG_ABI 0x12345678u                  /* (no core.h here: a stand-in for the structs' shapes) */
+#define PLUG_API_ADDR 0x02ABCDE0u             /* (a stand-in for the firmware's API table: tests/plugin_build_test.py's) */
+#define PLUG_DESC_OK(d) ((void)(d), 1)        /* (the test's descriptors are pattern words: no part memory to check) */
 #include "fm1_xip.h"
 #include "core/plugin.h"
 
@@ -101,9 +103,9 @@ static uint32_t le32(const uint8_t *p) { return plug_le32(p); }
 static void st32(uint8_t *p, uint32_t v) { plug_st32(p, v); }
 
 #define IMG_LEN 10000u                                  /* 3 sectors with the header */
-#define NREL 5u
+#define NREL 6u
 static const uint32_t REL[NREL] = {                     /* kind << 28 | image offset */
-    0x10u, 0x1000u, (1u << 28) | 0x6Eu, 0x1FCEu, (1u << 28) | 0xFCAu};   /* ABS32, ABS32, MOV32, ABS32 straddling placed
+    0x10u, 0x1000u, (1u << 28) | 0x6Eu, (2u << 28) | 0x200u, 0x1FCEu, (1u << 28) | 0xFCAu};   /* ABS32, ABS32, MOV32, ABS32 straddling placed
                                                          * 0x2000 (image 0x1FCE = placed 0x1FFE), MOV32 straddling 0x1000
                                                          * (image 0xFCA = placed 0xFFA, 8 bytes) */
 static uint8_t filebuf[PLUG_HDR_LEN + IMG_LEN + NREL * 4u + 64u];
@@ -187,6 +189,7 @@ int main(void)
     }
     CHECK(le32(img + 0x10) == 0x10u * 0x01010101u + 7u + base0, "ABS32 at 0x10 patched: %08x", le32(img + 0x10));
     CHECK(le32(img + 0x1000) == 0x1000u * 0x01010101u + 7u + base0, "ABS32 at 0x1000 patched");
+    CHECK(le32(img + 0x200) == PLUG_API_ADDR, "API at 0x200: the table's address, the file's word ignored: %08x", le32(img + 0x200));
     {   /* (0x1FCE is not a word of the pattern: its bytes are the top half of word 0x1FCC and the bottom of 0x1FD0) */
         uint32_t orig = ((0x1FCCu * 0x01010101u + 7u) >> 16) | ((0x1FD0u * 0x01010101u + 7u) << 16);
         CHECK(le32(img + 0x1FCE) == orig + base0, "ABS32 across the sector end patched: %08x", le32(img + 0x1FCE));
@@ -267,6 +270,10 @@ int main(void)
         f.d = filebuf, f.len = file_len;
         rc = plug_install(rd, &f);
         CHECK(rc == PLUG_E_BAD, "a relocation past the image: BAD (%d)", rc);
+        bad[0] = (3u << 28) | 0x10u;                        /* a kind the loader does not know */
+        mk_file(23, 300u, bad, 1u, 0x20u);
+        rc = plug_install(rd, &f);
+        CHECK(rc == PLUG_E_BAD, "relocation kind 3: BAD (%d)", rc);
         plug_init();
         CHECK(plug_uid[0] == 0xFFu && flash[FL_PLUG_LO] == 0xFFu, "nothing registered, no header");
     }

@@ -223,4 +223,5 @@ static const engine_t ENG_LOFI = {
     },
     PRESETS_OF(LOFI_PRESETS), 1, lofi_note_on, lofi_render,
     0x3F2C, {P_E1, P_E2, P_E3, P_REL}, 0, lofi_amp, lofi_desc,
+    .keep = 0x11,   /* a retrigger keeps s0 s4 (voice.c) */
 };

@@ -750,6 +750,12 @@ typedef struct {
     void (*mono_key)(struct track *t, uint32_t note);
     /* optional: the part's block after its voices (FM6: Dexed's DC filter); nr: voices rendered */
     void (*post)(struct track *t, int32_t *out, uint32_t n, uint32_t nr);
+    /* (last: the descriptors that list their fields in order stop before them; +4 B a descriptor, 2026-11-06) */
+    uint16_t part_bytes;         /* the bytes it keeps in its part's engine memory, 0 = none: read for a plugin's slot
+                                  * (engines.c part_mem_bytes, core/plugin.c); the built-in engines' sizes are engines.c's */
+    uint8_t keep;                /* the voice state words s[0..7] a retrigger of a sounding voice keeps (bit k: s[k]; voice.c
+                                  * voice_start: the filter states, whose reset would click), 0 = none: every engine's,
+                                  * a plugin's too (never ENG_IS anything) */
 } engine_t;
 
 /* ------------------------------------------------------------ track --- */

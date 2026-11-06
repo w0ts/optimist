@@ -172,4 +172,5 @@ static const engine_t ENG_SUPER = {
     PRESETS_OF(SUPER_PRESETS), 1, super_note_on, super_render,
     0xFD20, {P_E1, P_E5, P_E6, P_REL},
     .block = super_block,
+    .keep = 0x73,   /* a retrigger keeps s0 s1 s4 s5 s6: the filter, its second stage, the sub phase (voice.c) */
 };
