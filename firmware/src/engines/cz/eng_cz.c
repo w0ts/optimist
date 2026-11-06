@@ -35,13 +35,21 @@ typedef struct {                                   /* a part's CZ state: its eng
     uint8_t tone[128];                             /* the part's tone: Casio's 128 synthesis bytes */
     cz_env_def_t defs[2][3];                       /* its envelope points (cz_part_defs), for its EDIT times */
     cz_ed_t ed;
+#ifdef PLUG_ENG_CZ
+    uint32_t key;                                  /* (a plugin has no RAM of its own: cz_key here, zeroed with it) */
+#endif
 } cz_mem_t;
 AINL cz_mem_t *cz_mem(uint32_t p);                 /* (engines.c, after every engine) */
 #define cz_tone(p) (cz_mem(p)->tone)
 #define cz_defs(p) (cz_mem(p)->defs)
 #define cz_ed(p) (cz_mem(p)->ed)
+#ifdef PLUG_ENG_CZ
+#define cz_key_of(p) (cz_mem(p)->key)              /* (zeroed when the part comes to CZ: the firmware's part_mem_claim) */
+#else
 static uint32_t cz_key[NPART];                     /* what the tone / the points were built for, 0 = nothing yet */
+#define cz_key_of(p) cz_key[p]
 static void cz_forget(uint32_t p) { cz_key[p % NPART] = 0; }   /* (engines.c part_mem_claim: its memory zeroed) */
+#endif
 
 static FASTI(cz) cz_voice_t *cz_voice(track_t *t, voice_t *v)
 {
@@ -223,8 +231,8 @@ static FAST(cz) void cz_block(track_t *t)
     ed->mod = (uint8_t)clamp(p[P_E6], 0, 3);
     ed->vib = (uint8_t)clamp(p[P_E7], 0, 99);
     key = 1u + tone + ((uint32_t)(ed->wtim + 64) << 4) + ((uint32_t)(ed->atim + 64) << 12);
-    if (key != cz_key[part]) {
-        if (tone != ed->tone || !cz_key[part]) {
+    if (key != cz_key_of(part)) {
+        if (tone != ed->tone || !cz_key_of(part)) {
 #if CZ_NUSER
             const uint8_t *u = czb_tone(tone);           /* a CZ collection slot, as stored (none / empty: INIT) */
             if (u)
@@ -235,7 +243,7 @@ static FAST(cz) void cz_block(track_t *t)
         }
         ed->tone = (uint8_t)tone;
         cz_part_defs(cz_tone(part), cz_defs(part), ed->wtim, ed->atim);
-        cz_key[part] = key;
+        cz_key_of(part) = key;
     }
 }
 
@@ -326,4 +334,5 @@ static const engine_t ENG_CZ = {
     .amp = cz_amp,
     .block = cz_block,
     .vel_own = 1,
+    .part_bytes = sizeof(cz_mem_t),
 };

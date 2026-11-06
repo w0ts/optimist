@@ -98,6 +98,10 @@ static uint32_t arb_bytes(uint32_t c)                   /* client c's block */
 #endif
     if (c == (uint32_t)ARB_VIS)
         return 2u * VIS_RING * 4u;
+#if FELUCCA_PLUGINS
+    if (c - (uint32_t)ARB_PTAB0 < FELUCCA_PLUGIN_SLOTS)   /* (a plugin slot's shared block, its descriptor's KB) */
+        return (uint32_t)ENGINES[NBUILT + c - ARB_PTAB0]->tab_kb * 1024u;
+#endif
 #if FMEM_NLEND
     if (ARB_LENT(c))
         return FMEM_LEND_BYTES(c - (uint32_t)ARB_LEND0);
@@ -171,6 +175,17 @@ static uint32_t arb_want(uint32_t c)                    /* client c's feature is
 #endif
     if (c == (uint32_t)ARB_VIS)
         return vis_ui != 0;
+#if FELUCCA_PLUGINS
+    if (c - (uint32_t)ARB_PTAB0 < FELUCCA_PLUGIN_SLOTS) {   /* (a part on the plugin, or switching to it) */
+        uint32_t k, e = NBUILT + c - ARB_PTAB0;
+        if (!ENGINES[e]->tab_kb)
+            return 0;
+        for (k = 0; k < NPART; k++)
+            if (trk[k].eng_req == (uint8_t)e || trk[k].engine == (uint8_t)e)
+                return 1;
+        return 0;
+    }
+#endif
 #if FMEM_NLEND
     if (ARB_LENT(c))
         return (uint32_t)(FMEM_LEND_WANT(c - (uint32_t)ARB_LEND0) != 0);
@@ -224,6 +239,10 @@ static void arb_set(uint32_t c, void *p)
 #endif
     if (c == (uint32_t)ARB_VIS)
         vis_pcm = (int32_t (*)[VIS_RING])p;              /* (zeroed: a flat trace until the next blocks) */
+#if FELUCCA_PLUGINS
+    if (c - (uint32_t)ARB_PTAB0 < FELUCCA_PLUGIN_SLOTS)
+        plug_tab_p[c - ARB_PTAB0] = p;                  /* (zeroed: the plugin starts its state afresh) */
+#endif
 #if FMEM_NLEND
     if (ARB_LENT(c))
         FMEM_LEND_SET(c - (uint32_t)ARB_LEND0, p);      /* (its interrupts see it whole, or not at all) */
@@ -372,6 +391,10 @@ static const char *arb_said(void)
 #endif
         if (c == (uint32_t)ARB_VIS)
             return "MEM FULL SCOPE";
+#if FELUCCA_PLUGINS
+        if (c - (uint32_t)ARB_PTAB0 < FELUCCA_PLUGIN_SLOTS)
+            return "MEM FULL PLUGIN";
+#endif
         return "MEM FULL X0X";
     }
     return 0;

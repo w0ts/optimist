@@ -3,7 +3,7 @@
  * (ui/optimist/op_sdmon.c, storage/sd/sd_mon.c; the user, 2026-11-05: "we should totally monitor how we are doing on the SD
  * read rate and sample playback somehow"). The monitor sampled at ticks of the test's own (the model's clock: 1000 a ms)
  * over the streams' real state, the caches' and the card driver's counters, the page's four lines read as the screen does:
- *   the page: right after SD CARD's two, READ / STREAMS / BUFFER / DRY
+ *   the page: right after SD CARD, READ / STREAMS / BUFFER / DRY
  *   READ: KB/s from the blocks read over a period; the bar against the kept clock (8.57 MHz: 839 KB/s); the peak held 10 s,
  *         then the period's own; the colours by the share of the clock's rate
  *   STREAMS: sounding now / the most in 10 s;  BUFFER: the least ring fill of the streams the card feeds, now / the least of 10 s ("42/0"),
@@ -48,22 +48,20 @@ static void sdmon_tests(void)
 {
     uint32_t r, i, k, seen;
     cell_t c;
-    char t[16], l[4][12];
+    char t[16], l[5][12];
     for (r = 0; r < sys_rows(); r++) {                  /* the first SD CARD page */
         sys_name(r, t);
         if (!strcmp(t, "SD CARD"))
             break;
     }
-    smt_ck(r + 2u < sys_rows(), "SD STREAM: SD CARD has its pages");
+    smt_ck(r + 1u < sys_rows(), "SD STREAM: a page past SD CARD's");
     sys_name(r + 1u, t);
-    smt_ck(!strcmp(t, "SD CARD"), "SD STREAM: SD CARD's second page");
-    sys_name(r + 2u, t);
-    smt_ck(!strcmp(t, "SD STREAM"), "SYSTEM: a SD STREAM page right after SD CARD's two");
-    r += 2u;
+    smt_ck(!strcmp(t, "SD STREAM"), "SYSTEM: a SD STREAM page right after SD CARD");
+    r += 1u;
     memset(&ssm, 0, sizeof ssm);
     for (i = 0; i < SST_NALL; i++)
         sst[i].on = 0;
-    sst_dry = sst_nostream = 0;
+    sst_dry = sst_nostream = sst_cut = 0;
     sst_st.blocks = sst_rcs.blocks = 0;
     for (i = 0; i < SST_NPART; i++)
         sst_rc[i].late = sst_rc[i].miss = 0;
@@ -165,25 +163,27 @@ static void sdmon_tests(void)
     sd_crc_fails = 3;
     sd_demotions = 1;
     sst_nostream = 4;
+    sst_cut = 5;                                        /* (tails cut for a newer hit's ring: the CUT item, 2026-11-06) */
     smt_run(500, 0);
     sys_cell(r, 3, &c);
     smt_ck(!strcmp(c.label, "DRY"), "DRY: a stream just dry keeps the line on DRY though the others count");
     smt_run(11000, 0);
     seen = 0;
-    for (k = 0; k < 4u; k++) {
+    for (k = 0; k < 5u; k++) {
         sys_turn(r, 3, 1, 0);                           /* the knob: the next item, held 30 s */
         sys_cell(r, 3, &c);
         strncpy(l[k], c.label, sizeof l[k] - 1u);
         l[k][sizeof l[k] - 1u] = 0;
         seen |= !strcmp(c.label, "DRY") && !strcmp(c.val, "2") ? 1u : !strcmp(c.label, "NO RING") && !strcmp(c.val, "4") ? 2u :
-                !strcmp(c.label, "CRC FAILS") && !strcmp(c.val, "3") ? 4u : !strcmp(c.label, "STEPS DOWN") && !strcmp(c.val, "1") ? 8u : 0u;
+                !strcmp(c.label, "CRC FAILS") && !strcmp(c.val, "3") ? 4u : !strcmp(c.label, "STEPS DOWN") && !strcmp(c.val, "1") ? 8u :
+                !strcmp(c.label, "CUT") && !strcmp(c.val, "5") ? 16u : 0u;
         smt_ck(c.col == C_WARN, "DRY: %s %s amber", c.label, c.val);
     }
-    smt_ck(seen == 15u, "DRY: four turns of the knob show DRY 2, NO RING 4, CRC FAILS 3, STEPS DOWN 1 (%u)", seen);
-    smt_ck(strcmp(l[0], l[1]) && strcmp(l[1], l[2]) && strcmp(l[2], l[3]), "DRY: each turn another item");
+    smt_ck(seen == 31u, "DRY: five turns of the knob show DRY 2, NO RING 4, CUT 5, CRC FAILS 3, STEPS DOWN 1 (%u)", seen);
+    smt_ck(strcmp(l[0], l[1]) && strcmp(l[1], l[2]) && strcmp(l[2], l[3]) && strcmp(l[3], l[4]), "DRY: each turn another item");
     fm1_ms += 5000;
     sys_cell(r, 3, &c);
-    smt_ck(!strcmp(c.label, l[3]), "DRY: held where the knob left it 5 s on");
+    smt_ck(!strcmp(c.label, l[4]), "DRY: held where the knob left it 5 s on");
     fm1_ms += 26000;
     sys_cell(r, 3, &c);
     smt_ck(smn_ph() == (fm1_ms >> SMN_PH_SH), "DRY: the clock's turns again 30 s after the last turn");
@@ -194,7 +194,7 @@ static void sdmon_tests(void)
     smt_ck(!strcmp(c.label, "DRY") && !strcmp(c.val, "0") && c.col == C_OK, "YES: DRY from 0 again (%s)", c.val);
     sys_cell(r, 0, &c);
     smt_ck(c.hold[0] == 0, "YES: READ's peak from the period's own (%d)", c.hold[0]);
-    smt_ck(sst_dry == 2u && sd_crc_fails == 3u && sst_nostream == 4u, "the counters themselves go on (the console's sd stream): sst_dry %u", sst_dry);
+    smt_ck(sst_dry == 2u && sd_crc_fails == 3u && sst_nostream == 4u && sst_cut == 5u, "the counters themselves go on (the console's sd stream): sst_dry %u", sst_dry);
     sst_nostream++;
     smt_run(500, 0);
     sys_cell(r, 3, &c);

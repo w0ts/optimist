@@ -84,7 +84,10 @@ Optimist cannot read may not be kept, except SLOOP's: SLOOP 2.7 data is kept.
 - **Nothing starts at all:** hold **OCT− + OCT+** while switching on and keep them held for **3 s**: the chip's own update mode
   (UBOOT; the screen stays dark). Then M-UPGRADE, or `tools/fm1_rescue.py` from this repository (macOS; from X0X: it
   backs up the whole flash first and writes only the firmware area), or
-  [FM-1-transporter](https://github.com/kurogedelic/FM-1-transporter).
+  [FM-1-transporter](https://github.com/kurogedelic/FM-1-transporter). With the RP2040 dongle of
+  [tools/dongle/](tools/dongle/README.md) (the transporter on a Seeed XIAO RP2040 or a Raspberry Pi Pico, three wires
+  on the USB port) `tools/fm1_rescue.py --dongle` needs neither the key combo nor a cable swap: the dongle keys the chip
+  when the FM-1 is switched on and is its USB host.
 
 ## What is in it
 

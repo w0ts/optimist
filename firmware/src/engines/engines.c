@@ -19,6 +19,12 @@
 #if FELUCCA_SLICE
 #include "slice/eng_slice.c"
 #endif
+/* SLC_CARD_SVC: SLICE's card material read and encoded by the main loop (storage/sd/sd_slice.c): with SLICE built in, or
+ * for a SLICE plugin (core/plugin.c plug_api_t slc_crd: SLICE's table code alone, slice/slc_card.c) */
+#define SLC_CARD_SVC (FELUCCA_SD_STREAM && (FELUCCA_SLICE || FELUCCA_PLUGINS))
+#if SLC_CARD_SVC && !FELUCCA_SLICE
+#include "slice/slc_card.c"
+#endif
 #if (FELUCCA_ENG_PHYS || FELUCCA_ENG_ACID || FELUCCA_ENG_CZ || FELUCCA_ENG_JUNO) && !FELUCCA_ANALOG2
 #error "the backported engines take the engine numbers of the ANALOG 2 build (11, 12, 13, 14)"
 #endif
@@ -207,7 +213,8 @@ enum {
     ARB_PUNCH = ARB_X808 + (FELUCCA_DRUM_X808 ? 1 : 0),
     ARB_FM6SIN = ARB_PUNCH + (FELUCCA_PUNCH_SW ? 1 : 0),
     ARB_VIS = ARB_FM6SIN + (FELUCCA_ENG_FM6 ? 1 : 0),     /* the SCOPE's ring while a trace is drawn (fx.c vis_pcm) */
-    ARB_LEND0 = ARB_VIS + 1,                            /* the switchable features' blocks (FMEM_NLEND) */
+    ARB_PTAB0 = ARB_VIS + 1,                            /* the plugin slots' shared blocks (engine_t tab_kb: WAVE's table) */
+    ARB_LEND0 = ARB_PTAB0 + (FELUCCA_PLUGINS ? FELUCCA_PLUGIN_SLOTS : 0),   /* the switchable features' blocks (FMEM_NLEND) */
     ARB_BTA = ARB_LEND0,                                /* (Bluetooth audio's the first, when built) */
     ARB_NC = ARB_LEND0 + FMEM_NLEND
 };
@@ -359,6 +366,21 @@ AINL gr_part_t *gr_mem(uint32_t p)
 #if FELUCCA_ENG_PHYS
 AINL phys_slot_t *phys_mem(uint32_t p) { return (phys_slot_t *)PART_MEM_AT(p); }
 #endif
+#if FELUCCA_ENG_DRONE || FELUCCA_PLUGINS
+#if !FELUCCA_ENG_DRONE
+#include "drone/drone_mem.h"          /* (a plugin DRONE's state shape: voice.c's HOLD, fx.c's BEAT side) */
+#endif
+/* part k's DRONE state, the engine of slot e: the built-in engine's own, or a plugin's in the part's memory */
+static drone_mem_t *drone_mem_of(uint32_t k, uint32_t e)
+{
+#if FELUCCA_ENG_DRONE
+    if (e == (uint32_t)ENG_SLOT_DRONE)
+        return DRONE_MEM(k);
+#endif
+    (void)e;
+    return (drone_mem_t *)PART_MEM_AT(k);
+}
+#endif
 #if FELUCCA_ENG_ACID
 FAST(acid) void *acid_mem(int k) { return PART_MEM_AT((uint32_t)k % NPART); }
 #endif
@@ -379,7 +401,32 @@ AINL slc_rbuf_t *slc_mem(uint32_t p) { return (slc_rbuf_t *)PART_MEM_AT(p); }
 /* the engines built, in UID order (registry.h ENGINE_LIST): the slots */
 #define ENG_PTR_(u, N, fb, s) FIF(FELUCCA_ENG_##N)(&ENG_##N,)
 #define ENG_IX_FM6 ((uint32_t)ENG_SLOT_FM6)   /* FM6's slot (bench.c, the tests), 0xFF when not built */
+#if FELUCCA_PLUGINS
+/* an empty plugin slot (core/plugin.c sets a placed plugin's descriptor in its place): silent, one preset, no page */
+static void plug_none_render(track_t *t, voice_t *v, int32_t *out, uint32_t n, const vmod_t *m) { (void)t; (void)v; (void)out; (void)n; (void)m; }
+static void plug_none_note_on(track_t *t, voice_t *v) { (void)t; (void)v; }
+static const preset_t PLUG_NONE_PRESETS[] = {{"NO PLUGIN", {0, 0, 0, 0, 0, 0, 0, 0}, {0, 60, 100, 40}, 0, 0, FX(0, 0, 0, 0)}};
+static const engine_t ENG_PLUG_NONE = {
+    .name = "PLUGIN",
+    .page_title = {"EMPTY", "EMPTY"},
+    .edit = {PU("-", F_PCT, 0, 0, 0, 0), PU("-", F_PCT, 0, 0, 0, 0), PU("-", F_PCT, 0, 0, 0, 0), PU("-", F_PCT, 0, 0, 0, 0),
+             PU("-", F_PCT, 0, 0, 0, 0), PU("-", F_PCT, 0, 0, 0, 0), PU("-", F_PCT, 0, 0, 0, 0), PU("-", F_PCT, 0, 0, 0, 0)},
+    .presets = PRESETS_PTR(PLUG_NONE_PRESETS),
+    .npresets = 1,
+    .note_on = plug_none_note_on,
+    .render = plug_none_render,
+    .poly = 1,
+    .fil_page = -1,
+    .color = 0x8410,
+};
+#define PLUG_INIT_1 &ENG_PLUG_NONE,
+#define PLUG_INIT_2 PLUG_INIT_1 PLUG_INIT_1
+#define PLUG_INIT_3 PLUG_INIT_2 PLUG_INIT_1
+#define PLUG_INIT_4 PLUG_INIT_3 PLUG_INIT_1
+static const engine_t *ENGINES[NENGINES] = {ENGINE_LIST(ENG_PTR_) FCAT(PLUG_INIT_, FELUCCA_PLUGIN_SLOTS)};   /* (RAM: the plugin slots change) */
+#else
 static const engine_t *const ENGINES[NENGINES] = {ENGINE_LIST(ENG_PTR_)};
+#endif
 #define ENG_IX_NOISE ((uint32_t)ENG_SLOT_NOISE)
 #define ENG_IX_DRONE ((uint32_t)ENG_SLOT_DRONE)
 #define ENG_IX_PLAITS ((uint32_t)ENG_SLOT_PLAITS)
@@ -456,6 +503,11 @@ static FASTI(seqev) uint32_t part_mem_bytes(uint32_t e)
     if (e == (uint32_t)ENG_SLOT_SLICE)
         return sizeof(slc_rbuf_t);
 #endif
+#if FELUCCA_PLUGINS
+    if (e >= NBUILT)
+        return ENGINES[e]->part_bytes;                   /* (a plugin's, from its descriptor; core/plugin.c refuses one
+                                                          * larger than a part's memory can be: PLUG_PART_MAX) */
+#endif
     return 0;
 }
 
@@ -477,7 +529,7 @@ static struct {
 } part_mem_refused;
 #define PART_MEM_SHORT() (part_mem_refused.on || part_mem_refused.lmask)   /* (the effects wait: a part's sound first) */
 
-#define PART_TAB (FXM_NEED && (FELUCCA_ENG_WAVE || FELUCCA_ENG_FM6))
+#define PART_TAB (FXM_NEED && (FELUCCA_ENG_WAVE || FELUCCA_ENG_FM6 || FELUCCA_PLUGINS))
 #if PART_TAB
 /* an engine's shared table (core/arena_bufs.c): WAVE's (ARB_WAVE; WAVE keeps nothing in the part's memory) and FM6's
  * sine (ARB_FM6SIN, beside each FM6 part's own memory): a part's change to that engine when no block holds the table or
@@ -486,6 +538,10 @@ static struct {
 static uint32_t part_tab_k(uint32_t e)                   /* engine e's table: its arena client, ARN_PARTS none */
 {
     e %= NENGINES;
+#if FELUCCA_PLUGINS
+    if (e >= NBUILT)                                     /* a plugin's (its descriptor asks for one) */
+        return ENGINES[e]->tab_kb ? NPART + FXM_NC + (uint32_t)ARB_PTAB0 + (e - NBUILT) : ARN_PARTS;
+#endif
 #if FELUCCA_ENG_WAVE
     if (e == (uint32_t)ENG_SLOT_WAVE)
         return NPART + FXM_NC + (uint32_t)ARB_WAVE;
@@ -501,12 +557,21 @@ static uint32_t part_tab_bytes(uint32_t e)               /* engine e's table: it
     uint32_t c = part_tab_k(e);
     if (c >= ARN_PARTS || arn_cur[c].len || (arn_has_next[c] && arn_next[c].len))
         return 0;
+#if FELUCCA_PLUGINS
+    if (e % NENGINES >= NBUILT)
+        return (uint32_t)ENGINES[e % NENGINES]->tab_kb * 1024u;
+#endif
 #if FELUCCA_ENG_WAVE
     if (e % NENGINES == (uint32_t)ENG_SLOT_WAVE)
         return WT_MEM_BYTES;
 #endif
     return FM6_SIN_BYTES + FM6_PICK_LEND;               /* (FM6's block: the sine table and the DX7 bank's room) */
 }
+#if FELUCCA_PLUGINS
+static void *plug_tab_p[FELUCCA_PLUGIN_SLOTS];          /* the plugin slots' shared blocks (core/arena_bufs.c), 0 none */
+#define PLUG_TAB_AT(k) plug_tab_p[k]
+#define PLUG_TAB_KB_MAX 255u
+#endif
 #else
 #define part_tab_k(e) ((void)(e), (uint32_t)ARN_PARTS)
 #define part_tab_bytes(e) ((void)(e), 0u)

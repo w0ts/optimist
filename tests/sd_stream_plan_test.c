@@ -4,10 +4,12 @@
  * client, placed by need):
  *   - each part's CARD sample by its hash: found in the index, one source a sample (two parts on one sample share it),
  *     the rings and the heads one block of the arena, every head the file's first bytes, the rings in the block;
- *   - the setting (the pre-buffer) changed: the voices let go first (the sources not ready at once), placed again, its
- *     KB as the setting's page shows it;
- *   - no room: refused, the part whose memory would make room proposed (one at a time, as model.c mem_offer), the longest pre-buffer that fits proposed, the
- *     samples silent; placed by itself once the part's memory is given back;
+ *   - the one setting, SD_RING (the user, 2026-11-06 evening): a ring every streaming voice (the ring count the voice
+ *     count), the preload of a sample one ring's bytes (a shorter sample whole); the voices let go first when the
+ *     samples change (the sources not ready at once);
+ *   - no room: refused with all the rings asked (never fewer, never shorter, never shorter heads), the parts whose memory
+ *     would make room proposed (one at a time, as model.c mem_offer), the samples silent; placed by itself once a part's
+ *     memory is given back; a sampled kit's ten rings the same;
  *   - a hash not on the card: that part MISSING, the others play;
  *   - a placed sample streams: its frames through the rings as the file holds them;
  *   - a part on SLICE CARD: its sample whole in the block (sd_slice.c), no ring and no head for it; off it, streamed;
@@ -17,9 +19,11 @@
  *     (no ring, no bus, a cache of 1 KB), a long one through its cache (no head), one not fitting whole through its cache
  *     too, a stereo file's STRETCH cache twice the KB; a part's WAV of 24 bits or in too many runs: said (sstp.bad), MISSING,
  *     the others play; the zone over every key (sst_bank_free); off it: nothing held.
- *   sd_stream_plan_test FAT16.img FAT32.img */
+ *   sd_stream_plan_test FAT16.img FAT32.img (FELUCCA_SD_RING_KB: the rings' KB, run_tests.sh 4 and 8) */
 #define FELUCCA_SD_FATFS 1
+#ifndef FELUCCA_SD_RING_KB
 #define FELUCCA_SD_RING_KB 4
+#endif
 #define AINL static inline
 #include "sd_card_model.h"
 #include "storage/sd/sd_mmc.c"
@@ -30,8 +34,10 @@
 #include "storage/sd/sd_index.c"
 #include "storage/sd/sd_stream.c"
 #define ARN_PARTS 4u                                 /* three parts, then the streams' block */
-#define ARN_BYTES (88u * 1024u)                     /* 72 KB when the kit had 6 rings; 10 rings of 8 slots (2026-11-05) are 16 KB more,
-                                                      * so every room scenario below keeps the slack it was written with */
+#define ARN_BASE (88u * 1024u)                       /* the arena with 4 KB rings: 72 KB when the kit had 6 rings; 10 rings of 8 slots
+                                                      * (2026-11-05) are 16 KB more, so every room scenario below keeps the slack it
+                                                      * was written with */
+#define ARN_BYTES (ARN_BASE + SST_N * (FELUCCA_SD_RING_KB - 4u) * 1024u)   /* (larger rings: the same slack) */
 #define ARN_TOPS 8u
 static void fm1_irq_off(void);                       /* (below: core/arena.c calls them) */
 static void fm1_irq_on(void);
@@ -181,8 +187,9 @@ static void run_card(const char *img_path)
     uint8_t *img = load(img_path, &sectors), *blk;
     const char *what = img_path;
     sdx_rec rec;
-    uint64_t h0, h1;
+    uint64_t h0, h1, ht;
     int32_t x;
+    const uint32_t ring_b = SST_K * 512u;            /* (one ring's bytes: a sample's preload) */
     card(img, sectors, 0, 1, 1, 0);
     dma_on = 1;
     memset(&fs, 0, sizeof fs);
@@ -191,19 +198,20 @@ static void run_card(const char *img_path)
     memset(&sstp, 0, sizeof sstp);
     memset(sst_part_hash, 0, sizeof sst_part_hash);
     part_voices[0] = part_voices[1] = part_voices[2] = 8;
-    sst_pre_ms = 50;
     sd_gone = 0;
     sd_dstat = STA_NOINIT;
     CHECK(f_mount(&fs, "", 1) == FR_OK && sdl_prepare() == FR_OK, "%s: mount, the folders", what);
     CHECK(put_wav("Optimist/Samples/kick.wav", 44100, 1) && f_mkdir("Optimist/Samples/loops") == FR_OK &&
-          put_wav("Optimist/Samples/loops/pad.wav", 66150, 2),
-          "%s: two samples", what);
+          put_wav("Optimist/Samples/loops/pad.wav", 66150, 2) && put_wav("Optimist/Samples/tiny.wav", 1000, 9),
+          "%s: three samples", what);
     CHECK(sdx_update(buf, sizeof buf) == FR_OK && sdx_open() == FR_OK, "%s: the index", what);
     CHECK(sdx_find_path("Samples/kick.wav", &rec) >= 0, "%s: kick indexed", what);
     h0 = rec.hash;
     CHECK(sdx_find_path("Samples/loops/pad.wav", &rec) >= 0, "%s: pad indexed", what);
     h1 = rec.hash;
-    CHECK(h0 && h1 && h0 != h1, "%s: two hashes", what);
+    CHECK(sdx_find_path("Samples/tiny.wav", &rec) >= 0, "%s: tiny indexed", what);
+    ht = rec.hash;
+    CHECK(h0 && h1 && ht && h0 != h1 && ht != h0 && ht != h1, "%s: three hashes", what);
 
     fm1_irq_off();                                   /* part 0's engine: 20 KB of the arena */
     CHECK(arn_reserve(0, 20u * 1024u) == 0 && arn_take(0), "%s: part 0's block", what);
@@ -222,15 +230,16 @@ static void run_card(const char *img_path)
           what, sst_part_src[0], sst_part_src[1], sst_part_src[2]);
     blk = (uint8_t *)arn_ptr(SST_ARN_K);
     CHECK(blk && arn_cur[SST_ARN_K].len >= sstp.need, "%s: one block of the arena (%u B)", what, sstp.need);
-    CHECK(sstp.need == SST_N * SST_K * 512u + 12u * (sst_src[0].nrun + sst_src[1].nrun) + 4412u * 2u,
-          "%s: the need: the rings, the runs, two 50 ms heads (%u)", what, sstp.need);
+    CHECK(sstp.nring == SST_N, "%s: three 8-voice parts: a ring each voice they stream, SST_N at most (%u)", what, sstp.nring);
+    CHECK(sstp.need == SST_N * ring_b + 12u * (sst_src[0].nrun + sst_src[1].nrun) + ring_b * 2u,
+          "%s: the need: the rings, the runs, two preloads of one ring each (%u)", what, sstp.need);
+    CHECK(sst_src[0].hlen == ring_b && sst_src[1].hlen == ring_b, "%s: each preload one ring's bytes (%u %u, a ring %u)", what,
+          sst_src[0].hlen, sst_src[1].hlen, ring_b);
     CHECK(head_ok(0, 1) && head_ok(1, 2), "%s: the heads are the files' first bytes", what);
     for (i = 0, k = 1; i < SST_N; i++)
-        k &= sst[i].ring >= blk && sst[i].ring + SST_K * 512u <= blk + sstp.need;
+        k &= sst[i].ring >= blk && sst[i].ring + ring_b <= blk + sstp.need;
     CHECK(k, "%s: the rings in the block", what);
     CHECK(irq_depth == 0, "%s: the interrupts back on", what);
-    CHECK(sst_pre_kb(100) == (2u * 8820u + 12u * (sst_src[0].nrun + sst_src[1].nrun) + 1023u) / 1024u,
-          "%s: the setting's KB at 100 ms (%u)", what, sst_pre_kb(100));
 
     /* a placed sample streams through the rings */
     i = (uint32_t)sst_start(sst_part_src[1], 0, 0, 0, sst_rate(&sst_src[1], 65536u), 0);
@@ -241,31 +250,53 @@ static void run_card(const char *img_path)
     CHECK(k == 3000u, "%s: pad's first 3000 frames through head and ring (%u)", what, k);
     sst_stop(i);
 
-    /* the setting changed: the voices let go at once, placed again */
-    sst_pre_set(100);
+    /* a sample shorter than a ring: its preload the whole of it; the voices let go at once, placed again */
+    sst_part_set(2, ht);
     sst_plan_poll();
     CHECK(!sst_src[0].ready && !sst_src[1].ready && sst_part_src[0] == 0xFF, "%s: gated: the sources not ready", what);
     settle();
-    CHECK(sstp.state == SSTP_PLACED && sst_src[0].hlen == 8820u, "%s: 100 ms heads (%u)", what, sst_src[0].hlen);
-
-    /* no room: 200 ms needs more than the arena has beside part 0 */
-    sst_pre_set(200);
+    k = sst_part_src[2];
+    CHECK(sstp.state == SSTP_PLACED && k < SST_NSRC && sst_src[k].hlen == 2000u && sst_src[k].dlen == 2000u && head_ok(k, 9),
+          "%s: a 2,000-byte sample: preloaded whole (%u)", what, k < SST_NSRC ? sst_src[k].hlen : 0u);
+    CHECK(sst_src[sst_part_src[0]].hlen == ring_b, "%s: beside it a long one's preload still one ring", what);
+    sst_part_set(2, h0);
     sst_plan_poll();
     settle();
-    CHECK(sstp.state == SSTP_REFUSED, "%s: 200 ms refused (%u B)", what, sstp.need);
-    CHECK(sstp.drop == 1 && sstp.drop_all, "%s: part 0's memory proposed (%x)", what, sstp.drop);
-    CHECK(sstp.fit_ms == 100, "%s: 100 ms proposed (%u)", what, sstp.fit_ms);
+
+    /* no room: every voice's ring and preload not fitting beside part 0 and part 1: refused with all the rings asked,
+     * never fewer */
+    sst_part_set(0, 0);
+    sst_part_set(1, 0);
+    sst_part_set(2, 0);
+    sst_plan_poll();
+    settle();
+    CHECK(sstp.state == SSTP_IDLE && !arn_ptr(SST_ARN_K), "%s: no card samples: the block given back", what);
+    fm1_irq_off();
+    CHECK(arn_reserve(1, 24u * 1024u) == 0 && arn_take(1), "%s: part 1's engine: 24 KB", what);
+    fm1_irq_on();
+    sst_part_set(0, h0);
+    sst_part_set(1, h1);
+    sst_part_set(2, h0);
+    sst_plan_poll();
+    settle();
+    CHECK(sstp.state == SSTP_REFUSED && sstp.nring == SST_N, "%s: refused, all %u rings asked (%u, %u B)", what, SST_N,
+          sstp.nring, sstp.need);
+    CHECK(sstp.need == SST_N * ring_b + 12u * (sst_src[0].nrun + sst_src[1].nrun) + ring_b * 2u,
+          "%s: the need asked: every ring, every preload whole (%u)", what, sstp.need);
+    CHECK((sstp.drop & 2u) && sstp.drop_all, "%s: part 1's memory proposed (%x; the arena's places decide part 0's)", what,
+          sstp.drop);
     CHECK(sst_part_src[0] == 0xFF && sst_part_src[1] == 0xFF && !arn_ptr(SST_ARN_K), "%s: silent meanwhile", what);
     clk += SST_RETRY_MS * 1000u + 1000u;
     sst_plan_poll();
-    CHECK(sstp.state == SSTP_REFUSED, "%s: still no room", what);
+    CHECK(sstp.state == SSTP_REFUSED && sstp.nring == SST_N, "%s: still no room, still every ring asked", what);
     fm1_irq_off();
-    arn_give(0);                                     /* part 0's engine let go */
+    arn_give(1);                                     /* part 1's engine let go */
+    arn_give(0);                                     /* (and part 0's: the scenarios below were written with its room) */
     fm1_irq_on();
     clk += SST_RETRY_MS * 1000u + 1000u;
     sst_plan_poll();
-    CHECK(sstp.state == SSTP_PLACED && sst_part_src[1] == 1 && sst_src[1].hlen == 17640u && head_ok(1, 2),
-          "%s: placed by itself once there is room (%u)", what, sstp.state);
+    CHECK(sstp.state == SSTP_PLACED && sstp.nring == SST_N && sst_part_src[1] == 1 && sst_src[1].hlen == ring_b && head_ok(1, 2),
+          "%s: placed by itself once there is room, every ring (%u)", what, sstp.state);
 
     /* a part's rings: 4 at most (SST_PART_RINGS: the default project's effects leave no room for 8); one 8-voice part */
     sst_part_set(1, 0);
@@ -273,9 +304,9 @@ static void run_card(const char *img_path)
     sst_plan_poll();
     settle();
     CHECK(sstp.state == SSTP_PLACED && sstp.nring == 4u, "%s: one 8-voice part: 4 rings (%u)", what, sstp.nring);
-    /* a sampled kit's hits: a ring a drum voice; no room for them: fewer, one at a time down to SST_KIT_RINGS_MIN, placed all the
-     * same, and it stays so. The part's ring and the kit's together never pass SST_N (sst_nring_kit): with SST_KIT_RINGS at
-     * SST_N the kit's full set is SST_N - 1 beside a one-voice part */
+    /* a sampled kit's hits: a ring a drum voice (SST_KIT_RINGS, NDRUM), always; no room for them: refused with every ring
+     * asked, never fewer nor shorter, and placed whole once there is room. The part's ring and the kit's together never pass
+     * SST_N (sst_nring): with SST_KIT_RINGS at SST_N the kit's full set is SST_N beside a one-voice part */
     const uint32_t kit_full = 1u + SST_KIT_RINGS <= SST_N ? 1u + SST_KIT_RINGS : SST_N;
     part_voices[0] = 1u;
     kit_want = 1u;
@@ -284,82 +315,40 @@ static void run_card(const char *img_path)
     CHECK(sstp.state == SSTP_PLACED && sstp.nring == kit_full, "%s: a one-voice part and the kit: %u rings, SST_N at most (%u)", what,
           kit_full, sstp.nring);
     {
-        uint32_t room, tight = 0;
+        uint32_t room, placed = 0, short_seen = 0;
         kit_want = 0u;
         sst_plan_poll();
         settle();
-        for (room = 1024u; room < ARN_BYTES && tight == 0u; room += 1024u) {   /* (the arena's own rounding: part 1 grown until it bites) */
+        for (room = 1024u; room < ARN_BYTES; room += 1024u) {   /* (the arena's own rounding: part 1 grown until it bites) */
             CHECK(arn_reserve(1, room) == 0 && arn_take(1), "%s: part 1's block (%u B)", what, room);
             kit_want = 1u;
             sst_plan_poll();
             settle();
-            if (sstp.state == SSTP_PLACED && sstp.nring < kit_full)
-                tight = sstp.nring;
-            else if (sstp.state != SSTP_PLACED)
+            if (sstp.state != SSTP_PLACED)
                 break;
-            else {
-                kit_want = 0u;
-                sst_plan_poll();
-                settle();
-                arn_give(1);
-            }
+            placed++;
+            short_seen |= sstp.nring != kit_full || sst_k != SST_K || sst_src[sst_part_src[0]].hlen != ring_b;
+            kit_want = 0u;
+            sst_plan_poll();
+            settle();
+            arn_give(1);
         }
-        CHECK(sstp.state == SSTP_PLACED && tight == kit_full - 1u && tight >= 1u + SST_KIT_RINGS_MIN && sst_k == SST_K,
-              "%s: no room for all the kit's rings: one less, placed (%u rings of %u slots, state %u, part 1 %u B)", what, tight, sst_k,
-              sstp.state, room);
+        CHECK(placed > 0u && !short_seen, "%s: while it fits: every ring, full length, full preloads (%u sizes of part 1)", what, placed);
+        CHECK(sstp.state == SSTP_REFUSED && sstp.nring == kit_full && sst_k == SST_K && (sstp.drop & 2u),
+              "%s: no room for all the kit's rings: refused, all %u asked, part 1 proposed (%u rings of %u slots, state %u, drop %x, "
+              "part 1 %u B)", what, kit_full, sstp.nring, sst_k, sstp.state, sstp.drop, room);
         sst_plan_poll();
         sst_plan_poll();
         settle();
-        CHECK(sstp.state == SSTP_PLACED && sstp.nring == tight, "%s: and it stays so, not placed again and again (%u)", what, sstp.nring);
+        CHECK(sstp.state == SSTP_REFUSED && sstp.nring == kit_full, "%s: and it stays so, never fewer (%u)", what, sstp.nring);
+        arn_give(1);                                 /* part 1's engine let go: room */
+        clk += SST_RETRY_MS * 1000u + 1000u;
+        sst_plan_poll();
+        CHECK(sstp.state == SSTP_PLACED && sstp.nring == kit_full && sst_k == SST_K && sst[kit_full - 1u].ring,
+              "%s: placed by itself once there is room, every ring (%u)", what, sstp.nring);
         kit_want = 0u;
         sst_plan_poll();
         settle();
-        arn_give(1);
-        if (SST_RING_MIN_K < SST_K) {                /* (run_tests.sh: built with a lower floor, 4 KB being this test's rings) */
-            /* less room: 5 rings kept, every ring shorter; the kit gone, full length again */
-            uint32_t seen = 0;
-            for (; room < ARN_BYTES && !seen; room += 1024u) {
-                CHECK(arn_reserve(1, room) == 0 && arn_take(1), "%s: part 1's block (%u B)", what, room);
-                kit_want = 1u;
-                sst_plan_poll();
-                settle();
-                if (sstp.state == SSTP_PLACED && sst_k < SST_K)
-                    seen = sst_k;
-                else if (sstp.state != SSTP_PLACED)
-                    break;
-                kit_want = 0u;
-                sst_plan_poll();
-                settle();
-                arn_give(1);
-                if (seen)
-                    break;
-            }
-            CHECK(seen == SST_RING_MIN_K && sstp.state == SSTP_PLACED && sst_k == SST_K, "%s: no room for 5 full rings: placed shorter (%u slots), "
-                  "full length again after (%u, state %u)", what, seen, sst_k, sstp.state);
-        }
-        /* no room for 5 of the shortest: refused, MEM FULL CARD, never fewer */
-        room = ARN_BYTES - 20u * 1024u - 8u * 1024u;
-        CHECK(arn_reserve(1, room) == 0 && arn_take(1), "%s: part 1 takes nearly all (%u B)", what, room);
-        kit_want = 1u;
-        sst_plan_poll();
-        settle();
-        CHECK(sstp.state == SSTP_REFUSED && sstp.nring == 1u + SST_KIT_RINGS_MIN, "%s: no room for 5 rings: refused, not fewer (state %u, %u)",
-              what, sstp.state, sstp.nring);
-        CHECK(sst_kit_pre == SST_KIT_PRE_MS, "%s: and every step taken first, the heads down to 25 ms (%u)", what, sst_kit_pre);
-        kit_want = 0u;
-        sst_plan_poll();
-        settle();
-        arn_give(1);
-        CHECK(sst_kit_pre == SST_PRE_MS[3], "%s: the kit gone: no cap on a kit's heads again (%u)", what, sst_kit_pre);
-        /* a kit's heads (the user: "changing the buffer size has no effect"): cut only when short of room */
-        CHECK(sst_use_pre(SSTU_KIT, 25u) == SST_KIT_HEAD_MS && sst_use_pre(SSTU_KIT, 50u) == SST_KIT_HEAD_MS && sst_use_pre(SSTU_KIT, 200u) == 200u,
-              "%s: a drum sound's head: 100 ms, the setting's if longer (%u %u %u)", what, sst_use_pre(SSTU_KIT, 25u), sst_use_pre(SSTU_KIT, 50u),
-              sst_use_pre(SSTU_KIT, 200u));
-        CHECK(sst_use_pre(SSTU_STREAM, 50u) == 50u, "%s: a melodic sample's head stays the setting's (%u)", what, sst_use_pre(SSTU_STREAM, 50u));
-        sst_kit_pre = SST_KIT_PRE_MS;
-        CHECK(sst_use_pre(SSTU_KIT, 200u) == SST_KIT_PRE_MS && sst_use_pre(SSTU_STREAM, 200u) == 200u,
-              "%s: short of room only the kit's heads are cut (%u %u)", what, sst_use_pre(SSTU_KIT, 200u), sst_use_pre(SSTU_STREAM, 200u));
-        sst_kit_pre = SST_PRE_MS[3];
     }
     part_voices[0] = 8u;
     sst_plan_poll();
@@ -376,8 +365,8 @@ static void run_card(const char *img_path)
     settle();
     CHECK(sstp.state == SSTP_PLACED && sstp.nring == 3u && sst[2].ring && !sst[3].ring,
           "%s: three one-voice parts, three rings (%u)", what, sstp.nring);
-    CHECK(sstp.need == 3u * SST_K * 512u + 12u * (sst_src[0].nrun + sst_src[1].nrun) + 2u * 17640u,
-          "%s: their need (%u)", what, sstp.need);
+    CHECK(sstp.need == 3u * ring_b + 12u * (sst_src[0].nrun + sst_src[1].nrun) + 2u * ring_b,
+          "%s: their need: three rings, two preloads of a ring each (%u)", what, sstp.need);
     part_voices[0] = part_voices[1] = part_voices[2] = 8;
 
     /* part 1 on SLICE CARD: its sample whole in the block, no ring and no head for it; off again: streamed (one-voice
@@ -394,8 +383,8 @@ static void run_card(const char *img_path)
           "%s: part 1's sample whole in the block (%u, %s)", what, sstp.state, ssl_path);
     CHECK(sst_part_src[1] == 0xFF && !sst_src[1].ready && sst_part_src[0] == 0 && sst_part_src[2] == 0,
           "%s: not streamed; parts 0 and 2 stream (%u %u %u)", what, sst_part_src[0], sst_part_src[1], sst_part_src[2]);
-    CHECK(sstp.nring == 2u && sstp.need == 2u * SST_K * 512u + 12u * sst_src[0].nrun + 17640u + ((k + 3u) & ~3u),
-          "%s: the need: two rings (parts 0 and 2), kick's head, pad whole (%u rings, %u B)", what, sstp.nring, sstp.need);
+    CHECK(sstp.nring == 2u && sstp.need == 2u * ring_b + 12u * sst_src[0].nrun + ring_b + ((k + 3u) & ~3u),
+          "%s: the need: two rings (parts 0 and 2), kick's preload, pad whole (%u rings, %u B)", what, sstp.nring, sstp.need);
     part_slice = 0;
     sst_plan_poll();
     CHECK(!slc_tab[1], "%s: off SLICE CARD: its material let go at once", what);
@@ -421,7 +410,6 @@ static void run_card(const char *img_path)
     CHECK(f_mkdir("Optimist/Samples/PIANO") == FR_OK && put_wav("Optimist/Samples/PIANO/Z0.WAV", 22050, 3) &&
           put_inst("Optimist/Samples/PIANO/Z0.WAV", 0, 59) && put_wav("Optimist/Samples/PIANO/Z1.WAV", 22050, 4) &&
           put_inst("Optimist/Samples/PIANO/Z1.WAV", 60, 127), "%s: a card set's two zones", what);
-    sst_pre_set(50);
     sst_part_set(0, h0);
     part_bank[1] = 1u;
     sst_plan_poll();
@@ -432,7 +420,8 @@ static void run_card(const char *img_path)
           sst_part_src[0] == 0 && k == 1u, "%s: placed: part 0's sample, the set's two zones (%u sources, zones %u at %u, "
           "missing %x)", what, sstp.nsrc, sst_bank_n[1], k, sstp.missing);
     CHECK(k + 1u < SST_NSRC && sst_src[k].lo == 0 && sst_src[k].hi == 59 && sst_src[k + 1u].lo == 60 &&
-          sst_src[k + 1u].hi == 127 && head_ok(k, 3) && head_ok(k + 1u, 4), "%s: the zones' keys and heads", what);
+          sst_src[k + 1u].hi == 127 && head_ok(k, 3) && head_ok(k + 1u, 4) && sst_src[k].hlen == ring_b &&
+          sst_src[k + 1u].hlen == ring_b, "%s: the zones' keys and heads (a ring's each)", what);
     CHECK(sstp.nring == (SST_PART_RINGS * 2u < SST_N ? SST_PART_RINGS * 2u : SST_N), "%s: its rings as a CARD part's (%u)",
           what, sstp.nring);
     part_bank[2] = 2u;                               /* (BASS: not on this card) */
@@ -488,6 +477,8 @@ static void run_card(const char *img_path)
     {
         uint64_t hs, hl, hm, hw, h24, hf;
         uint32_t whole_need;
+        if (ARN_BYTES > ARN_BASE)                    /* (larger rings' builds: the arena these files were sized for) */
+            CHECK(arn_reserve(2, ARN_BYTES - ARN_BASE) == 0 && arn_take(2), "%s: part 2 holds the rings' extra", what);
         CHECK(put_wav("Optimist/Samples/short.wav", 15000, 11) && put_wav("Optimist/Samples/long.wav", 300000, 12) &&
               put_wav("Optimist/Samples/mid.wav", 50000, 13) && put_wav("Optimist/Samples/wide.wav", 200000, 14) &&
               put_wav("Optimist/Samples/deep.wav", 3000, 15) && put_fmt("Optimist/Samples/wide.wav", 2, 16) &&
@@ -553,6 +544,8 @@ static void run_card(const char *img_path)
         sst_plan_poll();
         settle();
         CHECK(sstp.state == SSTP_IDLE && !sst_bank_n[1] && !sst_bank_free, "%s: off it: nothing held", what);
+        if (ARN_BYTES > ARN_BASE)
+            arn_give(2);
     }
     free(img);
 }

@@ -58,7 +58,7 @@ SIZE_FILES = ["ui/colors.c", "ui/splash.c", "storage/storage.c", "storage/uprese
 # half, the BLE start-up a link stop over its bound, perf/flash-survey 2026-10-15)
 OS_FILES = ["system/main.c", "system/supply.c", "io/usb/usb.c", "io/midi/midi_rings.c", "io/usb/usb_audio_route.c",
             "io/usb/usb_audio.c", "storage/motion_flash.c", "display/lcd.c",
-            "display/gfx.c", "system/libc.c", "system/bench.c", "system/bench_plaits.c", "system/simd_probe.c",
+            "display/gfx.c", "system/libc.c", "system/bench.c", "system/bench_card.c", "system/bench_plaits.c", "plugin/plug_unit.c", "core/plugin.c", "core/plugin_card.c", "system/simd_probe.c",
             "system/cpuguard.c",
             "ui/meters.c", "seq/motion.c", "core/macro.c", "fx/master_comp/master_comp.c",
             "seq/seq_midi.c", "drums/drum_sends.c", "drums/drum_mix.c", "seq/chance.c", "seq/qnt_seq.c", "fx/bassplus/bassplus.c", "fx/outcorr.c",
@@ -109,7 +109,7 @@ AUDIO_FILES = [  # (the A2DP stream's SBC encoder runs in the audio interrupt: b
                "engines/digital/eng_digital.c", "engines/phase/eng_phase.c", "engines/lofi/eng_lofi.c",
                "engines/sample/eng_sample.c", "engines/formant/eng_formant.c", "engines/trio/eng_trio.c",
                "engines/drawbar/eng_drawbar.c", "engines/grain/eng_grain.c", "engines/grain/grain_card.c", "engines/super/eng_super.c",
-               "engines/fm6/eng_fm6.c", "engines/slice/eng_slice.c", "drums/drums.c", "drums/drum_halves.c", "drums/lane_card.c", "drums/kit_card.c", "drums/x0x/x0x_card.c", "drums/synth/drum_synth.c", "drums/synth/drum_plaits.c",
+               "engines/fm6/eng_fm6.c", "engines/slice/eng_slice.c", "engines/slice/slc_card.c", "drums/drums.c", "drums/drum_halves.c", "drums/lane_card.c", "drums/kit_card.c", "drums/x0x/x0x_card.c", "drums/synth/drum_synth.c", "drums/synth/drum_plaits.c",
                "drums/drum_edit.c", "drums/x0x/drum_x0x.c", "core/params.c", "core/voice.c", "fx/slicer/slicer.c", "fx/insfx/insfx.c", "fx/insfx/fxi_kern.c", "fx/insfx/gater.c", "fx/insfx/eq3.c", "fx/insfx/tapespit.c", "fx/insfx/xdly.c", "fx/insfx/fxi_send.c",
                "engines/juno/eng_juno.c", "engines/noise/eng_noise.c", "engines/drone/eng_drone.c", "engines/plaits/eng_plaits.c", "engines/clipper/eng_strings.c", "engines/clipper/eng_vps.c",
                "engines/clipper/eng_terrain.c", "engines/clipper/eng_wseq.c", "engines/clipper/eng_vector.c", "engines/sid/eng_sid.c", "engines/prophet/eng_prophet.c", "engines/clipper/eng_wave.c", "engines/cs80/eng_cs80.c", "engines/stretch/eng_stretch.c",

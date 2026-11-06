@@ -215,7 +215,7 @@ static void t_topo(void)
     }
     check(r[0].hash != r[1].hash && r[1].hash != r[2].hash && r[0].hash != r[2].hash, "COUPLE up: PAIRS CHAIN RING sound apart");
     for (i = 0; i < 3u; i++) {
-        const drone_pt_t *d = &drone_pt[0];
+        const drone_pt_t *d = &DRONE_MEM(0)->pt;
         reset();
         host_preset(&trk[0], ENG_IX_DRONE, 2);
         dry();
@@ -362,7 +362,7 @@ static void t_switch(void)
             a += fabs((double)out[2 * i]);
         }
     }
-    check(same && a > 0 && drone_sd[0], "from DRONE (BEAT on) to ANALOG: the ears the same again (its side left unmixed)");
+    check(same && a > 0 && DRONE_MEM(0)->sd, "from DRONE (BEAT on) to ANALOG: the ears the same again (its side left unmixed)");
     host_preset(&trk[0], ENG_IX_DRONE, 0);            /* DRONE latched a note before: none now */
     trk[0].p[P_E7] = 1;
     trk_note_on(&trk[0], 60, 100);

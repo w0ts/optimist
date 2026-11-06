@@ -11,7 +11,15 @@
 #define COL_ENG_SQUARE 0x658Au   /* #62b356 (EX_SQUARE, the example engine: a hue no engine has; not in tools/colors.json,
                                   * so the web editor shows it in its "other" grey) */
 #define ENG_COLV_(u, N, fb, s) FIF(FELUCCA_ENG_##N)(COL_ENG_##N,)
+#if FELUCCA_PLUGINS                      /* the plugin slots: a grey for now (the placed engine's own colour: later) */
+#define PLUG_COL_1 0x8410u,
+#define PLUG_COL_2 PLUG_COL_1 PLUG_COL_1
+#define PLUG_COL_3 PLUG_COL_2 PLUG_COL_1
+#define PLUG_COL_4 PLUG_COL_3 PLUG_COL_1
+static const uint16_t ENG_COL[NENGINES] = {ENGINE_LIST(ENG_COLV_) FCAT(PLUG_COL_, FELUCCA_PLUGIN_SLOTS)};   /* by slot */
+#else
 static const uint16_t ENG_COL[NENGINES] = {ENGINE_LIST(ENG_COLV_)};   /* by slot (ENGINES[]) */
+#endif
 
 /* c at n / 8 of its brightness (the dim and mid shades of a colour: 3, 5) */
 static uint16_t col_shade(uint32_t c, uint32_t n)
