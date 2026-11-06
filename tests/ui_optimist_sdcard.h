@@ -1310,7 +1310,7 @@ static void sdu_kit_row(void)
  * on HOME and on SYSTEM's page that shows the pass */
 static void sdu_boot_clears(void)
 {
-    uint32_t i, s, c0, steps = 0, was;
+    uint32_t i, s, c0, steps = 0, was, ix_bar = 0, ix_all = 0;
     for (s = 0; s < 2u; s++) {
         if (s)
             op_enter(SCR_SYSTEM);
@@ -1330,7 +1330,17 @@ static void sdu_boot_clears(void)
             sdm_poll();
             steps += sdm_ix_pct != was;
             was = sdm_ix_pct;
+            if (sdm_st == SDM_INDEX) {                  /* (the header's progress bar in the clock icon's place) */
+                uint32_t st = 0, k = head_clock(&st);
+                ix_bar += k == HC_INDEX && st == (uint32_t)sdm_ix_pct * HI_W / 100u;
+                ix_all++;
+            }
         }
+        {
+            uint32_t st = 0;
+            check(sdm_st != SDM_INDEX && head_clock(&st) != HC_INDEX, "index done: the clock icon back in its place");
+        }
+        check(ix_all && ix_bar == ix_all, "a boot's index pass: the header's icon is its progress throughout");
         sdu_ix_ms = 0xFFFFFFFFu;
         printf("SD boot on %s: %u passes, %u steps of the %%, %u LCD clears\n", s ? "SYSTEM" : "HOME", i, steps, full_fills - c0);
         check(steps >= 10u && full_fills - c0 <= 2u, "a boot's index pass: at most two LCD clears");
@@ -1896,7 +1906,7 @@ static void sdcard_tests(void)
     sdu_kit_row();
 #endif
     sdu_boot_clears();
-    /* ---- SYSTEM > SD CARD: VERSIONS, SLACK, kept in the log's device record */
+    /* ---- SYSTEM > SD CARD: the card and the index; 25 versions, no setting (the user, 2026-11-06) */
     op_enter(SCR_SYSTEM);
     for (r = 0; r < sys_rows(); r++) {
         char t[16];
@@ -1911,46 +1921,35 @@ static void sdcard_tests(void)
         sdu_frames(2);
         sys_cell(r, 0, &c);
         check(!strcmp(c.label, "CARD") && !strcmp(c.val, "READY"), "SD CARD: CARD READY");
-        sys_turn(r, 1, 1, 0);
-        sys_turn(r, 2, 1, 0);
-        check(sdp_keep == 9u && sda_scale == 125u, "VERSIONS +1: 9 kept; SLACK +1: 125 %");
-        op_enter(SCR_HOME);
-        check(sdm_dirty == 1u, "SYSTEM left: the settings due (written once quiet)");
-        sdu_frames(1);
-        memset(&sdm_rec, 0, sizeof sdm_rec);
-        sdm_rec_read();
-        check(sdm_keep() == 9u && sdm_scale() == 125u, "SYSTEM left: the settings in the log (read again)");
-        sdm_set(0, 0);
-        sdm_set(1, 0);
-        sdm_leave();
-        sdu_frames(1);
-        check(sdp_keep == 8u && sda_scale == 100u, "SHIFT + the knob: 8 versions, 100 %");
-        {   /* SD CARD page 2: CLOCK, read-only, the step the mount's detection kept (sd_mmc.c sd_clock_probe); alone on it
-             * (the pre-buffer beside it retired 2026-11-06 evening: a sample's preload is one ring's) */
-            const uint32_t k = 0u;
-            sys_cell(r + 1u, k, &c);
+        for (uint32_t k = 1; k < 3u; k++) {
+            sys_cell(r, k, &c);
+            check(strcmp(c.label, "SLACK") && strcmp(c.label, "VERSIONS") && strcmp(c.label, "PRE-BUFFER"),
+                  "SD CARD: no SLACK, no VERSIONS, no PRE-BUFFER");
+        }
+        check(sdp_keep == 25u, "25 versions kept");
+        {   /* SD CARD: CLOCK, read-only, the step the mount's detection kept (sd_mmc.c sd_clock_probe) */
+            const uint32_t k = 2u;
+            sys_cell(r, k, &c);
             check(!strcmp(c.label, "CLOCK") && !strcmp(c.val, "6") && c.unit && !strcmp(c.unit, "MHZ") && c.kind == CK_RO,
-                  "SD CARD page 2: CLOCK 6 MHZ, read-only (the floor: no probe in this test)");
+                  "SD CARD: CLOCK 6 MHZ, read-only (the floor: no probe in this test)");
             sd_step = 2;
-            sys_cell(r + 1u, k, &c);
+            sys_cell(r, k, &c);
             check(!strcmp(c.val, "15"), "CLOCK: 15 MHZ at step 2");
             sd_step = 5;
-            sys_cell(r + 1u, k, &c);
+            sys_cell(r, k, &c);
             check(!strcmp(c.val, "8.6"), "CLOCK: 8.6 MHZ at step 5 (8.57)");
             sd_step = SD_FLOOR;
         }
-        sys_cell(r + 1u, 1, &c);
-        check(c.kind == CK_NONE, "SD CARD page 2: CLOCK alone, no setting beside it");
-        {   /* an old device record with a pre-buffer (retired): loaded, its other settings kept, the byte ignored */
-            sdm_rec.keep = 7;
-            sdm_rec.pre = 4;
-            check(sdm_rec_put() == 0, "an old record with a pre-buffer written");
+        sys_cell(r, 3, &c);
+        check(c.kind == CK_NONE, "SD CARD: CARD, SAMPLES INDEX, CLOCK, nothing beside them");
+        {   /* an old device record with VERSIONS, SLACK and a pre-buffer (all retired): loaded, the bytes ignored, written as 0 */
+            sdm_rec.rsv[0] = 7;
+            sdm_rec.rsv[1] = 4;
+            sdm_rec.rsv2 = 4;
+            check(sdm_rec_put() == 0, "an old record with its settings written");
             memset(&sdm_rec, 0, sizeof sdm_rec);
             sdm_rec_read();
-            check(sdm_keep() == 7u && sdm_rec.pre == 0u, "... read back: VERSIONS 7 kept, the pre-buffer byte ignored");
-            sdm_set(0, 0);
-            sdm_leave();
-            sdu_frames(1);
+            check(sdp_keep == 25u && !sdm_rec.rsv[0] && !sdm_rec.rsv[1] && !sdm_rec.rsv2, "... read back: 25 versions, the old bytes ignored");
         }
 #if FELUCCA_SD_STREAM
         /* the streams' memory short (sd_stream_plan.c refused: every voice's ring and preload do not fit): MEM FULL CARD, a

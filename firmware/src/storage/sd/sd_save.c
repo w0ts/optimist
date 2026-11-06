@@ -13,19 +13,24 @@
  * A cut anywhere: the card holds the old project whole or the new one (sdp_pick takes the newest whole copy among the
  * project's files), and the next boot finishes the save from the flash copy (sdp_boot). Every step checks what is on
  * the card first, so finishing is the same code as saving.
- * No fragmentation (sd_alloc.c): <name>.tmp is one run of the project's size x 1.5; the run a save drops (the oldest
- * version past sdp_keep, or with sdp_keep 0 the replaced project itself) is kept as <name>.spr, the next save's run
- * when it is big enough (the user's "the next saves reuse the run").
+ * A project file is an ordinary one: allocated as it is written, its size its bytes, no slack and no run kept for the
+ * next save (the user, 2026-11-06: usually one 32 KB cluster, and two fragments cost nothing on a file read once).
+ * With sdp_keep 0 the old project is deleted once the new one is read back whole in <name>.tmp.
+ * A card an older firmware wrote may hold a <name>.spr, the run that firmware kept for its next save (a whole older
+ * save, or a half-written one). This firmware never writes one; three things still know it: sdp_pick reads it, the only
+ * whole copy when the .OPP is gone and the .TMP is being rewritten (over an older firmware's cut with its pending record
+ * lost); sdp_dedupe drops its name alone when a cut rename left it sharing a chain, since deleting it would free a live
+ * file's clusters; sdp_leftover deletes it once the new .opp is safe.
  *   Projects/<name>/<name>.opp      the project: a header sector (sdp_head: "OPPJ", the save number, the length, the
- *                                   payload's XXH64, the header's own), the payload from byte 512, slack to the run's end
+ *                                   payload's XXH64, the header's own), the payload from byte 512
  *   Projects/<name>/Versions/<name>-NNNN.opp   earlier saves (a number already there: -NNNN-2 .. -9)
- *   sdp_keep                        the versions kept (the setting; 0 none)
+ *   sdp_keep                        the versions kept (the user, 2026-11-06: "put it to 25 and basta"; 0 none: a test's)
  *   sdp_save(name, number, len, buf)   the save: the staged copy (len bytes, read by hooks.read) to the card; buf 512
  *                                   B. FR_OK; else the error, the pending record left for sdp_boot
  *   sdp_boot(buf)                   at boot after the mount: a pending record finished. FR_OK (nothing pending too)
  *   sdp_pick(name, out, cap, &head, buf)   the project's whole copy (the header right, the payload's hash right): the
- *                                   .OPP, else (a cut between the moves) the newest of the .TMP, the spare and the
- *                                   versions by save number: its path; FR_NO_FILE when none */
+ *                                   .OPP, else (a cut between the moves) the newest of the .TMP, an older firmware's
+ *                                   .SPR and the versions by save number: its path; FR_NO_FILE when none */
 #define SDP_SECTOR 512u
 #define SDP_VERSIONS "Versions"
 
@@ -51,7 +56,7 @@ typedef struct {                                     /* the flash side (the call
 } sdp_hooks_t;
 
 static sdp_hooks_t sdp_hooks;
-static uint8_t sdp_keep = 8;                         /* (the setting) */
+static uint8_t sdp_keep = 25;
 static struct {
     FIL f;
     char path[FF_LFN_BUF + 1], to[FF_LFN_BUF + 1];
@@ -96,7 +101,8 @@ static int sdp_name_ok(const char *name)
     return sdl_name_ok(part) && sdl_name_ok(name + slash + 1u);   /* (a second '/' fails the second part's check) */
 }
 
-/* a project's paths: its folder, VERSIONS, the .OPP, .TMP, .SPR, a version (number, dup 0 or 2..9); 0: too long */
+/* a project's paths: its folder, VERSIONS, the .OPP, .TMP, an older firmware's .SPR, a version (number, dup 0 or
+ * 2..9); 0: too long */
 static uint32_t sdp_path(char *out, const char *name, uint32_t what, uint32_t number, uint32_t dup)
 {
     static const char *const EXT[3] = {".opp", ".tmp", ".spr"};
@@ -165,64 +171,53 @@ static FRESULT sdp_verify_path(const char *path, sdp_head *h, uint8_t *buf)   /*
     return r;
 }
 
-static FRESULT sdp_drop(const char *path, const char *name)   /* a run no longer wanted: the spare if there is none */
-{
-    FRESULT r;
-    char *spr = sdp.to;
-    if (!sdp_path(spr, name, SDP_SPR, 0, 0))
-        return FR_INVALID_NAME;
-    r = sdl_move(path, spr);
-    if (r == FR_EXIST)
-        r = f_unlink(path);                          /* (a spare there already, its own chain) */
-    return r;
-}
-
 /* the temporary file, opened for writing: a valid one of this save (the payload checked) is kept as it is (1 in
- * *done), else one big enough is reused (the spare, or a cut save's), else a new run */
+ * *done), else a new file (a cut save's goes first) */
 static FRESULT sdp_temp(const sdp_pending *p, uint8_t *buf, int *done)
 {
     sdp_head h;
-    char *tmp = sdp.path, *spr = sdp.to;
-    uint32_t need = SDP_SECTOR + p->len;
+    char *tmp = sdp.path;
     FRESULT r;
     *done = 0;
-    if (!sdp_path(tmp, p->name, SDP_TMP, 0, 0) || !sdp_path(spr, p->name, SDP_SPR, 0, 0))
+    if (!sdp_path(tmp, p->name, SDP_TMP, 0, 0))
         return FR_INVALID_NAME;
     r = f_open(&sdp.f, tmp, FA_READ | FA_WRITE);
-    if (r == FR_NO_FILE && (r = sdl_move(spr, tmp)) == FR_OK)   /* (the spare's run: the next save's) */
-        r = f_open(&sdp.f, tmp, FA_READ | FA_WRITE);
     if (r == FR_OK) {
         if (sdp_verify(&sdp.f, &h, buf) == FR_OK && h.number == p->number && h.hash == p->hash && h.len == p->len) {
             *done = 1;
             return FR_OK;
         }
-        if (f_size(&sdp.f) >= need)
-            return FR_OK;                            /* reused: written over */
         (void)f_close(&sdp.f);
         if ((r = f_unlink(tmp)) != FR_OK)
             return r;
     } else if (r != FR_NO_FILE) {
         return r;
     }
-    return sda_create(&sdp.f, tmp, SDA_PROJECT, need, 0);
+    return f_open(&sdp.f, tmp, FA_CREATE_NEW | FA_READ | FA_WRITE);
+}
+
+static FRESULT sdp_put(const void *p, uint32_t n)    /* a short write is a full card (FatFs: FR_OK): FR_DENIED */
+{
+    UINT put;
+    FRESULT r = f_write(&sdp.f, p, n, &put);
+    return r == FR_OK && put != n ? FR_DENIED : r;
 }
 
 static FRESULT sdp_write(const sdp_pending *p, uint8_t *buf)   /* the staged copy into sdp.f, then checked */
 {
     sdp_head h;
-    UINT put;
     uint32_t at = 0, n;
     FRESULT r;
-    memset(buf, 0, SDP_SECTOR);                      /* the header first gone: a run's old bytes never read as one */
+    memset(buf, 0, SDP_SECTOR);                      /* the header first: old clusters' bytes never read as one */
     r = f_lseek(&sdp.f, 0);
     if (r == FR_OK)
-        r = f_write(&sdp.f, buf, SDP_SECTOR, &put);
+        r = sdp_put(buf, SDP_SECTOR);
     while (r == FR_OK && at < p->len) {
         n = p->len - at < SDP_SECTOR ? p->len - at : SDP_SECTOR;
         if (sdp_hooks.read(at, buf, n))
             r = FR_INT_ERR;
         else
-            r = f_write(&sdp.f, buf, n, &put);
+            r = sdp_put(buf, n);
         at += n;
     }
     if (r == FR_OK)
@@ -236,7 +231,7 @@ static FRESULT sdp_write(const sdp_pending *p, uint8_t *buf)   /* the staged cop
     h.hash = p->hash;
     h.check = sdp_check(&h);
     if (r == FR_OK && (r = f_lseek(&sdp.f, 0)) == FR_OK)
-        r = f_write(&sdp.f, &h, sizeof h, &put);
+        r = sdp_put(&h, sizeof h);
     if (r == FR_OK)
         r = f_sync(&sdp.f);
     if (r == FR_OK && ((r = sdp_verify(&sdp.f, &h, buf)) != FR_OK || h.number != p->number || h.hash != p->hash))
@@ -244,7 +239,8 @@ static FRESULT sdp_write(const sdp_pending *p, uint8_t *buf)   /* the staged cop
     return r;
 }
 
-/* the old project (a header that does not read: number 0) into VERSIONS, or the spare with no versions kept */
+/* the old project (a header that does not read: number 0) into VERSIONS, or deleted with no versions kept: the new one
+ * is whole in the .TMP by now */
 static FRESULT sdp_retire(const sdp_pending *p, char *opp, uint8_t *buf)
 {
     sdp_head h;
@@ -255,7 +251,7 @@ static FRESULT sdp_retire(const sdp_pending *p, char *opp, uint8_t *buf)
     if (r != FR_OK && r != FR_NO_FILESYSTEM)
         return r;
     if (!sdp_keep)
-        return sdp_drop(opp, p->name);
+        return f_unlink(opp);
     number = r == FR_OK ? h.number : 0;
     for (dup = 0; dup < 10u; dup = dup ? dup + 1u : 2u) {
         if (!sdp_path(sdp.to, p->name, SDP_VER, number, dup))
@@ -296,13 +292,21 @@ static FRESULT sdp_prune(const sdp_pending *p)       /* the versions past the ne
             return r;
         if (sdl_cat(v, sdl_cat(v, len, sizeof sdp.path, "/"), sizeof sdp.path, old) >= sizeof sdp.path)
             return FR_INVALID_NAME;
-        if ((r = sdp_drop(v, p->name)) != FR_OK)     /* (sdp_drop's spare path goes to sdp.to: old is read already) */
+        if ((r = f_unlink(v)) != FR_OK)
             return r;
     }
 }
 
-/* the halves of renames a cut left: a pair of the project's files that is one chain loses its rename source's name
- * (the moves: .OPP -> a version or the spare, .TMP -> .OPP, the spare -> .TMP, a version -> the spare) */
+static FRESULT sdp_drop_name(const char *name, uint32_t what, DWORD *chain)   /* the entry alone: the chain stays */
+{
+    *chain = 0;
+    return sdp_path(sdp.path, name, what, 0, 0) ? f_unlink_entry(sdp.path) : FR_INVALID_NAME;
+}
+
+/* the halves of renames a cut left: a pair of the project's files that is one chain loses a name, the clusters stay:
+ * .TMP = .OPP and .OPP = a version the source's (the moves .TMP -> .OPP, .OPP -> a version). An older firmware's .SPR
+ * in such a pair always loses its own, whichever way its move went (.OPP or a version -> the spare, the spare -> .TMP):
+ * the other file is where this firmware wants it */
 static FRESULT sdp_dedupe(const char *name)
 {
     char v[FF_LFN_BUF + 1];
@@ -311,31 +315,40 @@ static FRESULT sdp_dedupe(const char *name)
     FRESULT r = FR_OK;
     for (i = 0; i < 3u; i++)
         c[i] = sdp_path(sdp.path, name, SDP_OPP + i, 0, 0) ? sdl_chain(sdp.path) : 0;   /* .OPP, .TMP, .SPR */
-    for (i = 0; i < 3u && r == FR_OK; i++) {          /* .TMP = .OPP, .SPR = .TMP, .OPP = .SPR: drop the first */
-        uint32_t src = (i + 1u) % 3u, dst = i;
-        if (c[src] && c[src] == c[dst]) {
-            sdp_path(sdp.path, name, SDP_OPP + src, 0, 0);
-            r = f_unlink_entry(sdp.path);
-            c[src] = 0;
-        }
-    }
-    if (r != FR_OK || !(n = sdp_path(v, name, SDP_VDIR, 0, 0)) || f_opendir(&sdp.d, v) != FR_OK)
+    if (c[1] && c[1] == c[0])
+        r = sdp_drop_name(name, SDP_TMP, &c[1]);
+    if (r == FR_OK && c[2] && (c[2] == c[0] || c[2] == c[1]))
+        r = sdp_drop_name(name, SDP_SPR, &c[2]);
+    if (r != FR_OK)
         return r;
-    while (r == FR_OK && f_readdir(&sdp.d, &sdp.fi) == FR_OK && sdp.fi.fname[0]) {
+    if (!(n = sdp_path(v, name, SDP_VDIR, 0, 0)))
+        return FR_INVALID_NAME;
+    if ((r = f_opendir(&sdp.d, v)) != FR_OK)
+        return r == FR_NO_PATH ? FR_OK : r;
+    while ((r = f_readdir(&sdp.d, &sdp.fi)) == FR_OK && sdp.fi.fname[0]) {
         if (sdl_cat(v, sdl_cat(v, n, sizeof v, "/"), sizeof v, sdp.fi.fname) >= sizeof v)
             continue;
         ch = sdl_chain(v);
-        if (ch && ch == c[0]) {                      /* .OPP -> this version */
-            sdp_path(sdp.path, name, SDP_OPP, 0, 0);
-            r = f_unlink_entry(sdp.path);
-            c[0] = 0;
-        } else if (ch && ch == c[2]) {               /* this version -> the spare */
-            r = f_unlink_entry(v);
-        }
+        if (ch && ch == c[0])                        /* .OPP -> this version */
+            r = sdp_drop_name(name, SDP_OPP, &c[0]);
+        else if (ch && ch == c[2])
+            r = sdp_drop_name(name, SDP_SPR, &c[2]);
         v[n] = 0;
+        if (r != FR_OK)
+            break;
     }
     (void)f_closedir(&sdp.d);
     return r;
+}
+
+/* an older firmware's .SPR: gone once the new .OPP is safe (sdp_dedupe ran first: it shares no chain) */
+static FRESULT sdp_leftover(const char *name)
+{
+    FRESULT r;
+    if (!sdp_path(sdp.path, name, SDP_SPR, 0, 0))
+        return FR_INVALID_NAME;
+    r = f_unlink(sdp.path);
+    return r == FR_NO_FILE ? FR_OK : r;
 }
 
 static FRESULT sdp_finish(const sdp_pending *p, uint8_t *buf)
@@ -366,6 +379,8 @@ static FRESULT sdp_finish(const sdp_pending *p, uint8_t *buf)
         r = done ? FR_OK : sdp_write(p, buf);
         if (f_close(&sdp.f) != FR_OK && r == FR_OK)
             r = FR_DISK_ERR;
+        if (r == FR_DENIED && sdp_path(sdp.path, p->name, SDP_TMP, 0, 0))
+            (void)f_unlink(sdp.path);                /* (the card full: the room back, the old project stays) */
         if (r == FR_OK)
             r = sdp_retire(p, opp, buf);
         if (r == FR_OK && sdp_path(sdp.path, p->name, SDP_TMP, 0, 0))
@@ -375,6 +390,8 @@ static FRESULT sdp_finish(const sdp_pending *p, uint8_t *buf)
     }
     if (sdp_keep)
         r = sdp_prune(p);
+    if (r == FR_OK)
+        r = sdp_leftover(p->name);
     if (r == FR_OK && sdp_hooks.pend_clear())
         r = FR_INT_ERR;
     return r;
@@ -417,7 +434,7 @@ static FRESULT sdp_boot(uint8_t *buf)
 }
 
 /* the project's whole copy: its .OPP; with none whole there (a cut between the moves), the newest whole one of the
- * .TMP, the spare and the versions, by save number */
+ * .TMP, an older firmware's .SPR and the versions, by save number */
 static FRESULT sdp_pick(const char *name, char *out, uint32_t cap, sdp_head *best, uint8_t *buf)
 {
     sdp_head h;

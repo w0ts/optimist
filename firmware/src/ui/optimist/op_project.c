@@ -420,7 +420,7 @@ enum { SI_NONE, SI_TUNE, SI_RECQ, SI_PUNCH, SI_OUT, SI_SYNC, SI_CH1, SI_CH2,
        SI_DROPS, SI_GUARD, SI_UAINFO, SI_XRUN, SI_DIAG, SI_CREDITS, SI_BLEST, SI_BLEPEER, SI_BLEMIDI, SI_BLELIST, SI_BLEAUTO,
        SI_BLEFGT, SI_FRESO, SI_HPBASS, SI_BTA, SI_BTAPEER, SI_BTAFMT, SI_BTAST, SI_CLKOFS, SI_BTOFS, SI_LINK, SI_LINKOFS,
 #if FELUCCA_SD_UI
-       SI_SDCARD, SI_SDVERS, SI_SDSLACK, SI_SDINDEX,    /* SD CARD: the card, VERSIONS, SLACK, the sample index (sd_mode.c) */
+       SI_SDCARD, SI_SDINDEX,                           /* SD CARD: the card, the sample index (sd_mode.c) */
        SI_SDBACK, SI_SDREST,                            /* SETTINGS: BACKUP to the card, RESTORE from it (sd_mode.c) */
        SI_SDCLOCK,                                      /* SD CARD: the card's SPI clock, read-only (sd_mmc.c sd_clock_probe) */
 #endif
@@ -528,11 +528,10 @@ static const struct { const char *name; uint8_t it[4]; } SYS[] = {
     {"WI-FI", {SI_WFMODE, SI_WFNET, SI_WFSIG, SI_WFST}},   /* the same pattern as the Bluetooth pages (the user, 2026-10-27: "it should be very similar") */
 #endif
 #if FELUCCA_SD_UI
-    {"SD CARD", {SI_SDCARD, SI_SDVERS, SI_SDSLACK, SI_SDINDEX}},   /* (the card's state, a project's versions kept, the room
-                                                         * a file's run gets past its size, the sample index again) */
-    {"SD CARD", {SI_SDCLOCK, SI_NONE, SI_NONE, SI_NONE}},   /* (the clock the mount's detection kept, read-only: the user,
-                                                         * 2026-11-04; no streaming setting here since 2026-11-06 evening:
-                                                         * a sample's preload is one ring's, the builder's SD_RING) */
+    {"SD CARD", {SI_SDCARD, SI_SDINDEX, SI_SDCLOCK, SI_NONE}},   /* (the card's state, the sample index again, the clock the
+                                                         * mount's detection kept, read-only: the user, 2026-11-04; no
+                                                         * streaming setting since 2026-11-06 evening: a sample's preload
+                                                         * is one ring's, the builder's SD_RING) */
 #if FELUCCA_SD_STREAM
     {"SD STREAM", {SI_SMRATE, SI_SMSTRM, SI_SMBUF, SI_SMDRY}},   /* how the card copes: the read rate, the voices streaming, the rings'
                                                          * least fill, the dropouts (the user, 2026-11-05; op_sdmon.c) */
@@ -1044,17 +1043,6 @@ static void sys_it_cell(uint32_t it, cell_t *c)     /* the cell of setting it */
         }
         break;
     }
-    case SI_SDVERS:
-        c->label = "VERSIONS";
-        fmt_int(c->val, (int32_t)sdm_keep());
-        cell_gauge(c, 0, 0, 16, (int32_t)sdm_keep());
-        break;
-    case SI_SDSLACK:
-        c->label = "SLACK";
-        fmt_int(c->val, (int32_t)sdm_scale());
-        c->unit = "%";
-        cell_gauge(c, 0, 0, 400, (int32_t)sdm_scale());
-        break;
     case SI_SDINDEX: {                                  /* a pass under way: how far ("INDEX 12 %") */
         static char pct[12];
         int32_t at = sdm_index_pct();
@@ -1636,12 +1624,6 @@ static void sys_set(uint32_t it, int32_t s)
         usbh_set((uint32_t)sys_step((int32_t)usbh_mode(), s, 1));
         return;
 #endif
-#if FELUCCA_SD_UI
-    case SI_SDVERS:
-    case SI_SDSLACK:                                    /* (sd_mode.c: into the log when SYSTEM is left) */
-        sdm_set(it - SI_SDVERS, s ? s : 1);
-        break;
-#endif
     case SI_KCOL:                                       /* (kept in the settings word: settings_word.c) */
         knob_colors = (uint8_t)sys_step(knob_colors, s, 1);
         ui.redraw = 1;                                   /* (every band's colours move: the bands again over themselves, no black fill) */
@@ -1704,12 +1686,6 @@ static int sys_factory(uint32_t it)
 #if USBH_UI
     case SI_UHMODE:
         usbh_set(0);                                    /* (DEVICE: the computer again) */
-        return 1;
-#endif
-#if FELUCCA_SD_UI
-    case SI_SDVERS:
-    case SI_SDSLACK:
-        sdm_set(it - SI_SDVERS, 0);                     /* (8 versions, 100 %) */
         return 1;
 #endif
     case SI_HPBASS:
@@ -1847,8 +1823,6 @@ static int sys_yes(uint32_t r, uint32_t k, uint32_t ok)
             sdm_restore();
         return 1;
     }
-    if (it == SI_SDVERS || it == SI_SDSLACK)
-        return 0;                                       /* (numbers: the knob) */
 #if FELUCCA_SD_STREAM
     if (smn_item(it)) {                                 /* SD STREAM: YES, SAVE clear the counts */
         smn_clear();
