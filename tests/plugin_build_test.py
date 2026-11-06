@@ -12,8 +12,9 @@ import plugin_build as pb  # noqa: E402
 
 FL_PLUG_LO = 0x82000                    # the normal layout's 64 KB region (plugin_test.c)
 IMG_LEN = 10000
-REL = [0x10, 0x1000, (1 << 28) | 0x6E, 0x1FCE, (1 << 28) | 0xFCA]
-C_TEST_CRC = 0x45459D31                 # what plugin_test.c printed for its first vector (2026-11-06)
+REL = [0x10, 0x1000, (1 << 28) | 0x6E, (2 << 28) | 0x200, 0x1FCE, (1 << 28) | 0xFCA]
+API = 0x02ABCDE0                        # plugin_test.c PLUG_API_ADDR
+C_TEST_CRC = 0x690C1FFA                 # what plugin_test.c printed for its first vector (2026-11-06, with kind 2)
 fails = 0
 
 
@@ -39,13 +40,14 @@ def vector1() -> bytes:
 def main() -> int:
     f = vector1()
     h, image, rels = pb.parse(f)
-    check(h["uid"] == 23 and h["len"] == IMG_LEN and h["desc"] == 0x100 and rels == REL and len(f) == 48 + IMG_LEN + 20, "parse")
-    placed = pb.place(f, FL_PLUG_LO)
+    check(h["uid"] == 23 and h["len"] == IMG_LEN and h["desc"] == 0x100 and rels == REL and len(f) == 48 + IMG_LEN + 4 * len(REL), "parse")
+    placed = pb.place(f, FL_PLUG_LO, API)
     base = pb.XIP_BASE + FL_PLUG_LO + 48
     ph, pimg, prels = pb.parse(placed)
     check(ph["base"] == base and ph["nrel"] == 0 and prels == [] and len(placed) == 48 + IMG_LEN, "the placed header")
     check(zlib.crc32(pimg) == C_TEST_CRC, f"the placed image's CRC {zlib.crc32(pimg):08x} = the loader's {C_TEST_CRC:08x}")
     check(struct.unpack_from("<I", pimg, 0x10)[0] == (0x10 * 0x01010101 + 7 + base) & 0xFFFFFFFF, "ABS32 patched")
+    check(struct.unpack_from("<I", pimg, 0x200)[0] == API, "API word set")
     w0, w1 = struct.unpack_from("<II", pimg, 0x6E)
     check(((w0 >> 16) | (w1 & 0xFFFF) << 16) == (0x123456 + base) & 0xFFFFFFFF and w0 & 0xFFFF == 0xFFC8 and w1 >> 16 == 0x18BA, "MOV32 patched")
     try:
@@ -66,7 +68,7 @@ def main() -> int:
     except pb.PluginError:
         pass
     try:
-        pb.patch(bytearray(8), (2 << 28) | 0, 0)
+        pb.patch(bytearray(8), (3 << 28) | 0, 0)
         check(False, "an unknown kind refused")
     except pb.PluginError:
         pass
