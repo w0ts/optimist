@@ -1275,9 +1275,9 @@ _add("PLUGINS", "FELUCCA_PLUGIN_KB", "engines as plugins: flash they are loaded 
           "first time a project asks for an engine this build does not have; the placed engines play from there like "
           "built-in ones, and stay until the region is full (the oldest unused goes) or a firmware update rewrites the "
           "code's room. A plugin is built for one configuration's structs: another build's file is refused and loaded "
-          "again from a card zip made for this build. Engines whose code keeps RAM of its own (FM6, PHYS, PLAITS, "
-          "CZ, JUNO, GRAIN, SLICE, STRETCH, DRONE, FORMANT, PHASE, STRINGS, WAVE, ACID, ANALOG, PROPHET, 2026-11-06) "
-          "are not plugins yet. Needs SDCARD to load from the card.")
+          "again from a card zip made for this build. Every engine but FM6 is a plugin (FM6 stays built in: its editor); "
+          "the sample engines (SAMPLE, GRAIN, SLICE, STRETCH) in SD card mode with the card's streams only. Needs "
+          "SDCARD to load from the card.")
 # bit 411 (2026-10-25): the next free one after LAYOUT's 410; the arena (core/arena.c, fx/fx_arena.c, docs/SD-MODE-DESIGN.md
 # 6b): KB, 0 the fixed memories as before. The core (every build it is set in): the parts' engine states placed by need,
 # the edit's one confirm for what to drop, a load's refusals on it one by one; the extras only in the SD card mode
@@ -1317,15 +1317,16 @@ _add("SD_RING", "FELUCCA_SD_RING_KB", "samples streamed from the SD card (SAMPLE
      experimental=True, target_only=True, tested="host-tested only (tests/sd_stream_test.c, sd_stream_plan_test.c: "
      "a card model with stalls, an interrupt-driven audio clock); no FM-1 has the card yet",
      desc="SAMPLE's SET gets a last value, CARD: the part plays its sample from the SD card (a WAV of 8 or 16 bits, mono "
-          "or stereo, up to 176 kHz), streamed, not loaded. Each sample's first moments are kept in memory (the "
-          "pre-buffer, one setting: 25, 50, 100 or 200 ms, 50 by default; 50 ms of 44.1 kHz 16-bit mono is 4.4 KB a "
-          "sample) so a note starts at once while the card's first block comes; each playing voice reads ahead "
-          "into a ring of this size, filled in short bursts of 4 KB between the screen's strips (the screen and the "
-          "card share a bus). A card that stalls longer than the ring holds makes the voice fade out at once (no "
-          "click; the console's sd stream counts it). 8 voices take 8 x this of the arena while the project plays "
-          "card samples, with the heads; a project whose samples do not fit is refused and the device proposes what "
-          "to drop (a part's engine, or a shorter pre-buffer). A card sample plays at most an octave up (each octave "
-          "doubles what it reads). Needs LAYOUT (full FatFs) and SDCARD, SAMPLE and ARENA.",
+          "or stereo, up to 176 kHz), streamed, not loaded. This is the one setting: every voice that streams owns a "
+          "ring of this size, always, and each sample's first bytes are preloaded in memory, exactly one ring's worth "
+          "(a sample shorter than that: whole; there is no device setting), so a note starts at once while the card's "
+          "first block comes and its ring fills before the preload runs out. The rings are filled in short bursts of "
+          "4 KB between the screen's strips (the screen and the card share a bus). A card that stalls longer than the "
+          "ring holds makes the voice fade out at once (no click; the console's sd stream counts it). The rings (a "
+          "voice each: up to 4 a part, 10 for a sampled kit, 10 at most) and the preloads take the arena while the "
+          "project plays card samples; a project whose rings and preloads do not fit is refused and the device "
+          "proposes a part's engine to drop (never fewer or shorter rings). A card sample plays at most an octave up "
+          "(each octave doubles what it reads). Needs LAYOUT (full FatFs) and SDCARD, SAMPLE and ARENA.",
      off_warning="no samples from the card")
 # bit 416 (2026-10-26): the next free one after SD_RING's 415; the master recorded to the SD card (storage/sd/sd_rec.c,
 # docs/SD-CARD-DESIGN.md 7): the ring's KB, 0 off (registry.h FELUCCA_SD_REC_KB -> SD_REC with full FatFs)

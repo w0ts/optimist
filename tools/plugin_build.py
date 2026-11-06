@@ -39,6 +39,8 @@ API_SYM = "plugin_api"                          # plug_unit.c: that word
 API_TABLE = "plug_api_tab"                      # core/plugin.c: the firmware's table (felucca.elf)
 REL_PCREL = {"R_PI32V2_LONG_JUMP_23M2"}        # PC-relative: the same at every address (measured 2026-11-02)
 ENTRY = "plugin_desc"
+NOT_PLUGINS = {"FM6": "stays built in (the user's ruling, 2026-11-06: its editor, the SysEx import and the user voices "
+                      "are the firmware's); not a plugin"}
 SAMPLE_ENGINES = {"SAMPLE", "GRAIN", "SLICE", "STRETCH"}   # SD card mode: the card's material (plug_unit.c PLUG_SAMPLES)
 
 
@@ -189,7 +191,12 @@ def symbol(elf: Path, name: str) -> int:
 
 def build_plugin(name: str, out_dir: Path | None = None) -> Path:
     """the engine NAME (registry.h) built as <out_dir>/NAME.opl"""
+    if name in NOT_PLUGINS:
+        raise PluginError(f"{name}: {NOT_PLUGINS[name]}")
     uid, shown, rel_file = engine_info(name)
+    if name in SAMPLE_ENGINES and config_values().get("FELUCCA_SD_STREAM", "0") in ("0", ""):
+        raise PluginError(f"{name}: a sample engine is a plugin in SD card mode with the card's streams only (SD_RING): "
+                          "this configuration has none")
     out_dir = out_dir or build.OUT / "plugins"
     out_dir.mkdir(parents=True, exist_ok=True)
     obj, elf, ld = out_dir / f"{name}.o", out_dir / f"{name}.elf", out_dir / "plugin.ld"
