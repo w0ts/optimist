@@ -176,7 +176,9 @@ static int plug_whole(uint32_t off, plug_hdr_t *h)
     memcpy(h, PLUG_XIP(off), PLUG_HDR_LEN);
     return plug_hdr_ok(h) && h->nrel == 0u && h->base == FM1_XIP(off) + PLUG_HDR_LEN &&
            (off - FL_PLUG_LO) / PLUG_SECTOR + plug_sectors(h->len) <= PLUG_NSECT &&
-           plug_crc(PLUG_XIP(off) + PLUG_HDR_LEN, h->len) == h->crc;
+           plug_crc(PLUG_XIP(off) + PLUG_HDR_LEN, h->len) == h->crc &&
+           (h->kind != PLUG_KIND_ENGINE || h->apiw == 0xFFFFFFFFu ||   /* placed for THIS firmware's API table */
+            (h->apiw + 4u <= h->len && plug_le32(PLUG_XIP(off) + PLUG_HDR_LEN + h->apiw) == PLUG_API_ADDR));
 }
 
 static void plug_slot_clear(uint32_t k)

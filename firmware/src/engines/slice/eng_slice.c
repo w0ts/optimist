@@ -341,5 +341,5 @@ static const engine_t ENG_SLICE = {
         PU("TONE", F_INT, 0, 127, 127, 0),
     },
     PRESETS_OF(SLICE_PRESETS), -1, slice_note_on, slice_render,
-    0xFB2C, {P_E0, P_E1, P_E3, P_E6}, 0, slice_amp, .part_bytes = sizeof(slc_rbuf_t),   /* (a plugin's part memory: core/plugin.c) */
+    0xFB2C, {P_E0, P_E1, P_E3, P_E6}, 0, slice_amp, .part_bytes = sizeof(slc_rbuf_t), .traits = ENG_T_SAMPLED,   /* (a plugin's part memory: core/plugin.c) */
 };

@@ -25,7 +25,7 @@
     "desc": "The main subtractive synth: two oscillators with hard sync, a swarm of up to 6 detuned copies (supersaw), two filters. About 6 KB of flash and 4.7 KB of fast RAM code; it is also the stand-in that most other engines fall back to, so keep it unless you need the space.",
     "experimental": false,
     "notice": "",
-    "off_warning": "",
+    "off_warning": "not built in: with PLUGINS and SDCARD on, a project that names this engine loads it from the SD card (Optimist/Plugins) into the flash the first time; without them its fallback engine plays",
     "env": "",
     "target_only": false,
     "symbols": [
@@ -191,7 +191,7 @@
     "desc": "Four-operator FM synth: 8 classic algorithms, feedback on operator 4 and one modulation INDEX with its own envelope. About 2 KB of flash; the stand-in for FM6 when FM6 is left out.",
     "experimental": false,
     "notice": "",
-    "off_warning": "",
+    "off_warning": "not built in: with PLUGINS and SDCARD on, a project that names this engine loads it from the SD card (Optimist/Plugins) into the flash the first time; without them its fallback engine plays",
     "env": "",
     "target_only": false,
     "symbols": [
@@ -267,7 +267,7 @@
     "desc": "Phase-distortion synth: bends the phase of a cosine wave to get saw, square, pulse and resonant shapes with a second line to mix or ring-modulate. About 1.4 KB of flash; the stand-in for CZ.",
     "experimental": false,
     "notice": "",
-    "off_warning": "",
+    "off_warning": "not built in: with PLUGINS and SDCARD on, a project that names this engine loads it from the SD card (Optimist/Plugins) into the flash the first time; without them its fallback engine plays",
     "env": "",
     "target_only": false,
     "symbols": [
@@ -349,7 +349,7 @@
     "desc": "Chip voice: pulse, triangle, saw, noise and a 4-bit wavetable, with a few-bit amplitude, a held (low) sample rate and a pitch sweep. About 2 KB of flash.",
     "experimental": false,
     "notice": "",
-    "off_warning": "",
+    "off_warning": "not built in: with PLUGINS and SDCARD on, a project that names this engine loads it from the SD card (Optimist/Plugins) into the flash the first time; without them its fallback engine plays",
     "env": "",
     "target_only": false,
     "symbols": [
@@ -395,7 +395,7 @@
     "desc": "Plays the built-in sample sets and your own samples (USR1..USR3 slots) across the keyboard, with loops. About 1.4 KB of flash plus the sets you keep (see Sample sets); it is also the stand-in for GRAIN and SLICE.",
     "experimental": false,
     "notice": "",
-    "off_warning": "",
+    "off_warning": "not built in: with PLUGINS and SDCARD on, a project that names this engine loads it from the SD card (Optimist/Plugins) into the flash the first time; without them its fallback engine plays",
     "env": "",
     "target_only": false,
     "symbols": [
@@ -439,7 +439,7 @@
     "desc": "Formant synth that sings vowels from the keyboard (4 voices; BUZZ and BREATH shape the voice). About 2.7 KB of flash; a special sound, leave it out if you need the space.",
     "experimental": false,
     "notice": "",
-    "off_warning": "",
+    "off_warning": "not built in: with PLUGINS and SDCARD on, a project that names this engine loads it from the SD card (Optimist/Plugins) into the flash the first time; without them its fallback engine plays",
     "env": "",
     "target_only": false,
     "symbols": [
@@ -484,7 +484,7 @@
     "desc": "Three oscillators with ring modulation and hard sync into a multimode filter, in the style of early 8-bit home-computer sound chips. About 3.4 KB of flash.",
     "experimental": false,
     "notice": "",
-    "off_warning": "",
+    "off_warning": "not built in: with PLUGINS and SDCARD on, a project that names this engine loads it from the SD card (Optimist/Plugins) into the flash the first time; without them its fallback engine plays",
     "env": "",
     "target_only": false,
     "symbols": [
@@ -529,7 +529,7 @@
     "desc": "Tonewheel-style organ: nine sine drawbars per note, 16 registrations to choose from. About 2.3 KB of flash and 2.5 KB of RAM.",
     "experimental": false,
     "notice": "",
-    "off_warning": "",
+    "off_warning": "not built in: with PLUGINS and SDCARD on, a project that names this engine loads it from the SD card (Optimist/Plugins) into the flash the first time; without them its fallback engine plays",
     "env": "",
     "target_only": false,
     "symbols": [
@@ -574,7 +574,7 @@
     "desc": "Granular synth: plays clouds of tiny grains cut from the sample sets or your USR slots. About 4.9 KB of flash and 21 KB of pool; with no sample set built it plays your USR samples only.",
     "experimental": false,
     "notice": "",
-    "off_warning": "",
+    "off_warning": "not built in: with PLUGINS and SDCARD on, a project that names this engine loads it from the SD card (Optimist/Plugins) into the flash the first time; without them its fallback engine plays",
     "env": "",
     "target_only": false,
     "symbols": [
@@ -606,7 +606,7 @@
     "desc": "Six-operator FM that plays Yamaha DX7 voices the way the Dexed plug-in does (MSFA, bit for bit), with its own operator editor and DX7 SysEx in; INIT VOICE and the voice packs below are its sounds. The biggest engine: about 28 KB of flash and 6 KB of RAM; its options below trim it down.",
     "experimental": false,
     "notice": "",
-    "off_warning": "",
+    "off_warning": "not built in: with PLUGINS and SDCARD on, a project that names this engine loads it from the SD card (Optimist/Plugins) into the flash the first time; without them its fallback engine plays",
     "env": "",
     "target_only": false,
     "symbols": [
@@ -921,7 +921,7 @@
     "desc": "Break slicer: cuts a loop (the built-in BREAK, 22 KB of samples, or a USR slot) into 4 / 8 / 16 / 32 slices or one per hit and plays them from the keys or the sequencer. About 27 KB of flash and 6 KB of RAM; off by default.",
     "experimental": false,
     "notice": "",
-    "off_warning": "",
+    "off_warning": "not built in: with PLUGINS and SDCARD on, a project that names this engine loads it from the SD card (Optimist/Plugins) into the flash the first time; without them its fallback engine plays",
     "env": "",
     "target_only": false,
     "symbols": [
@@ -958,7 +958,7 @@
     "desc": "A coupled network for drones and ambient (engine 16), after Caravel's DRONE (bonszaimusic), itself inspired by the LYRA-8: four sines a note, each phase-modulating another (COUPLE) as PAIRS, a CHAIN or a RING (TOPO), SPREAD from unison to 1 : 5/4 : 3/2 : 2, a soft cubic CHAR, a slow DRIFT and a one-pole TONE; the track's DTUNE detunes the four. BEAT plays binaural beats: each ear its own pitch, 0.05 to 40 Hz apart (headphones; the network runs twice). HOLD latches the keys. 9 presets (theta, alpha, delta and gamma beats among them); one voice a part, about half an 8-note ANALOG part's CPU (host-measured).",
     "experimental": false,
     "notice": "",
-    "off_warning": "",
+    "off_warning": "not built in: with PLUGINS and SDCARD on, a project that names this engine loads it from the SD card (Optimist/Plugins) into the flash the first time; without them its fallback engine plays",
     "env": "",
     "target_only": false,
     "symbols": [
@@ -996,7 +996,7 @@
     "desc": "Four of Mutable Instruments Plaits' synthesis models as one engine (engine 17), with Plaits' own controls: MODEL, HARMONICS, TIMBRE, MORPH. WAVSH: a slope through five waveshapers and a wavefolder; ADDTV: 24 harmonics under a moving bump spectrum (AUX: an 8-drawbar organ); GRFMT: two synced formant grainlets (AUX: the Z oscillator); PRTCL: random pings of six resonant filters (rain, droplets, dust). AUX fades to each model's second output, TONE and LPG are a low-pass gate, VEL lets the velocity open TIMBRE. 12 presets; 4 voices a part, about twice an ANALOG voice's CPU (host-measured; PRTCL the heaviest). Integer code, no float. About 11 KB of flash (its tables 3.6 KB), no RAM of its own: its state lives in the part memory the other engines share.",
     "experimental": false,
     "notice": "Plaits' models by Emilie Gillet (pichenettes/eurorack f4cfa76, MIT), ported to integers. Tested in the host tests only, not on a device.",
-    "off_warning": "",
+    "off_warning": "not built in: with PLUGINS and SDCARD on, a project that names this engine loads it from the SD card (Optimist/Plugins) into the flash the first time; without them its fallback engine plays",
     "env": "",
     "target_only": false,
     "symbols": [
@@ -1047,7 +1047,7 @@
     "desc": "Clipper's string machine (engine 18), after the Solina, ARP and Elka ensembles: 16', 8' and 4' registers divided down from one phase, so they stay locked; a three-line ensemble whose taps two LFOs move 120 degrees apart (ENS, RATE); SHP turns the saws toward squares; a 12 dB low-pass (CUT, RES). 16 presets. Integer code, about 2.5 KB of flash.",
     "experimental": false,
     "notice": "From Clipper by 3dSam (isod89/clipper-fm1, GPL-3.0-only). Tested in the host tests only, not on a device.",
-    "off_warning": "",
+    "off_warning": "not built in: with PLUGINS and SDCARD on, a project that names this engine loads it from the SD card (Optimist/Plugins) into the flash the first time; without them its fallback engine plays",
     "env": "",
     "target_only": false,
     "symbols": [
@@ -1098,7 +1098,7 @@
     "desc": "Clipper's vector phaseshaping (engine 19, after Kleimola et al., DAFx 2011): a sine read through a bent phase. D moves the bend along the period, V sets its height: below 1 a phase-distorted, CZ-like wave, above 1 a formant at V times the note (VENV sweeps it with each note). OSC2 a second one, mirrored and detuned (DTN), SUB a sine an octave down, then a 12 dB low-pass. 10 presets. Integer code, no table: about 2 KB of flash.",
     "experimental": false,
     "notice": "From Clipper by 3dSam (isod89/clipper-fm1, GPL-3.0-only). Tested in the host tests only, not on a device.",
-    "off_warning": "",
+    "off_warning": "not built in: with PLUGINS and SDCARD on, a project that names this engine loads it from the SD card (Optimist/Plugins) into the flash the first time; without them its fallback engine plays",
     "env": "",
     "target_only": false,
     "symbols": [
@@ -1136,7 +1136,7 @@
     "desc": "Clipper's wave terrain synthesis (engine 20): an orbit circles over one of 8 surfaces (TERR) once a period of the note, the surface's height under it is the sound. RAD, X and Y place the orbit, ORB squeezes it to a line or turns it into a figure eight, DRIFT moves its centre slowly, each note its own way. Then a 12 dB low-pass. 10 presets. Integer code; about 18 KB of flash, the surfaces 16 KB of it.",
     "experimental": false,
     "notice": "From Clipper by 3dSam (isod89/clipper-fm1, GPL-3.0-only). Tested in the host tests only, not on a device.",
-    "off_warning": "",
+    "off_warning": "not built in: with PLUGINS and SDCARD on, a project that names this engine loads it from the SD card (Optimist/Plugins) into the flash the first time; without them its fallback engine plays",
     "env": "",
     "target_only": false,
     "symbols": [
@@ -1174,7 +1174,7 @@
     "desc": "Clipper's wave sequencing (engine 21), after the Korg Wavestation: each note plays one of 16 sequences (SEQ) of up to 16 steps, each its own wave, pitch and level, at the song's tempo (RATE 1/32 to a bar). XFADE fades each step into the next, LOOP plays forward, back, ping-pong or once, START picks the first step, PITCH scales the steps' intervals. Then a 12 dB low-pass. 16 presets. Integer code, the waves computed: about 5 KB of flash.",
     "experimental": false,
     "notice": "From Clipper by 3dSam (isod89/clipper-fm1, GPL-3.0-only). Tested in the host tests only, not on a device.",
-    "off_warning": "",
+    "off_warning": "not built in: with PLUGINS and SDCARD on, a project that names this engine loads it from the SD card (Optimist/Plugins) into the flash the first time; without them its fallback engine plays",
     "env": "",
     "target_only": false,
     "symbols": [
@@ -1212,7 +1212,7 @@
     "desc": "Clipper's vector synthesis (engine 22), after the Prophet VS and the Wavestation's joystick: four of 16 single-cycle waves at the corners of a square (A B C D), a point in it (X, Y) mixing them; MOVE sends the point round a circle, a figure eight, the square's edge, a sweep from A or a random walk, slow or fast. Then a 12 dB low-pass. 16 presets. Integer code; about 24 KB of flash, the waves 21 KB of it.",
     "experimental": false,
     "notice": "From Clipper by 3dSam (isod89/clipper-fm1, GPL-3.0-only). Tested in the host tests only, not on a device.",
-    "off_warning": "",
+    "off_warning": "not built in: with PLUGINS and SDCARD on, a project that names this engine loads it from the SD card (Optimist/Plugins) into the flash the first time; without them its fallback engine plays",
     "env": "",
     "target_only": false,
     "symbols": [
@@ -1250,7 +1250,7 @@
     "desc": "Clipper's wavetable engine (engine 25): 8 of its tables (TABL) of 16 single-cycle frames, POS sweeping through them crossfaded (PPG / Serum style; the track's SHP moves POS), a second oscillator DTN cents up, a SUB sine, then a 12 dB low-pass with drive (CUT RES DRV KTR). Without aliasing: the tables are spectra, the main loop builds one table's band-limited copies in the pool, and every WAVE track plays that one table (the first WAVE track's TABL). 13 presets. Integer code; about 70 KB of flash (the spectra 64 KB) and 72 KB of the pool: a build with it needs a shorter delay line.",
     "experimental": false,
     "notice": "From Clipper by 3dSam (isod89/clipper-fm1, GPL-3.0-only). Tested in the host tests only, not on a device.",
-    "off_warning": "",
+    "off_warning": "not built in: with PLUGINS and SDCARD on, a project that names this engine loads it from the SD card (Optimist/Plugins) into the flash the first time; without them its fallback engine plays",
     "env": "",
     "target_only": false,
     "symbols": [
@@ -1289,7 +1289,7 @@
     "desc": "Mini-Tone's SID engine (engine 23): one voice of reSID 0.16 in integer code, three a part as the chip has. TRI SAW PULSE NOISE and the combined waveforms sampled from real chips (WAVE), PW, SYNC and RING against a second oscillator RATIO semitones away (MOD), the chip's multimode filter (MODE: LP BP HP and their mixes, CUT on the FC register's curve, RES in its 16 steps) and the 6581 or 8580 (MODEL). 26 presets. Integer code; about 44 KB of flash, reSID's tables 40 KB of it.",
     "experimental": false,
     "notice": "SID by Stephane Schmitz (Mini-Tone, GPL-3.0-only) after reSID 0.16 by Dag Lem (GPL-2.0-or-later). Tested in the host tests only, not on a device.",
-    "off_warning": "",
+    "off_warning": "not built in: with PLUGINS and SDCARD on, a project that names this engine loads it from the SD card (Optimist/Plugins) into the flash the first time; without them its fallback engine plays",
     "env": "",
     "target_only": false,
     "symbols": [
@@ -1327,7 +1327,7 @@
     "desc": "A Prophet-5 Rev 4 style voice (engine 24) from Melodee's PROPHET: two oscillators (A: saw, pulse or both, hard-synced to B or not; B: saw, triangle, pulse and their mixes, B FRQ semitones away), the MIX between them, Poly-Mod from B (PMOD: on A's pitch, or on the cutoff) and the Curtis 4-pole (CUT, RES), PW for both pulses. The track's ENV and LFO drive it; 12 presets of our own, no Sequential programs. Five voices. Floating point (the FPU), its own unit; about 11 KB of flash.",
     "experimental": false,
     "notice": "The voice is Melodee's (Kerem Kilic, GPL-3.0-only), with our controls. Tested in the host tests only, not on a device. Not affiliated with Sequential.",
-    "off_warning": "",
+    "off_warning": "not built in: with PLUGINS and SDCARD on, a project that names this engine loads it from the SD card (Optimist/Plugins) into the flash the first time; without them its fallback engine plays",
     "env": "",
     "target_only": false,
     "symbols": [
@@ -1378,7 +1378,7 @@
     "desc": "A Yamaha CS-80 style voice (engine 26) after CS-1's: two channels a voice (I and II), each a saw, pulse, both, saw with a sine or noise through a high-pass and a low-pass in series (HPF, LPF, RES), the MIX lever between them, channel II at its own footage (II FT) and detuned by the track's DTUNE, and the ring modulator (RING). The track's ENV, ENV > FLT, LFO and SHP (the pulse width) drive it; velocity opens the filters. 12 presets of our own. Eight voices, integer code; about 3.5 KB of flash.",
     "experimental": false,
     "notice": "After CS-1's CS-80 voice (twochannels, GPL-3.0-only), with our controls; none of CS-1's presets or its RANDOM model. Tested in the host tests only, not on a device. Not affiliated with Yamaha.",
-    "off_warning": "",
+    "off_warning": "not built in: with PLUGINS and SDCARD on, a project that names this engine loads it from the SD card (Optimist/Plugins) into the flash the first time; without them its fallback engine plays",
     "env": "",
     "target_only": false,
     "symbols": [],
@@ -1413,7 +1413,7 @@
     "desc": "Extreme time stretching of the SAMPLE material (engine 27), in the manner of Paul Nasca's PaulStretch: the source read through a 4096-sample window, a fixed-point FFT, every bin turned by a random phase (SMEAR), the spectrum moved to each voice's pitch, one inverse FFT and an overlap-add, a frame every 46 ms. STRCH sets how many times slower (up to frozen), POS where the scan starts, TONE a spectral low-pass, SUB and SHIM octaves, BLUR tones into noise bands: a smooth, endless sound from any sample. One part plays it at a time (45 KB of the pool, once). 8 presets of our own. Integer code; about 6 KB of flash.",
     "experimental": false,
     "notice": "Our code, after PaulStretch's algorithm (Paul Nasca) and AEther's design (an fm1-base app) as a reference; none of their code. Tested in the host tests only, not on a device.",
-    "off_warning": "",
+    "off_warning": "not built in: with PLUGINS and SDCARD on, a project that names this engine loads it from the SD card (Optimist/Plugins) into the flash the first time; without them its fallback engine plays",
     "env": "",
     "target_only": false,
     "symbols": [],

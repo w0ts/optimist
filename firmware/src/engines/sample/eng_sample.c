@@ -516,5 +516,6 @@ static const engine_t ENG_SAMPLE = {
     },
     SMP_PRESET_TABLE, sizeof(SMP_PRESET_TABLE) / sizeof(SMP_PRESET_TABLE[0]), -1, sample_note_on, sample_render,
     0xFFFF, {P_E0, P_E4, P_ATK, P_REL},
+    .traits = ENG_T_SAMPLED,                      /* (a retrigger starts the sample again: voice.c) */
 };
 #endif /* ENG_SAMPLE_C */

@@ -125,6 +125,7 @@ static uint32_t mk_file(uint8_t uid)
     h.desc = 0x100u;
     h.nrel = 3;
     h.abi = PLUG_ABI;
+    h.apiw = 0xFFFFFFFFu;
     h.crc = plug_crc(img, IMG_LEN);
     h.hcrc = plug_crc(&h, PLUG_HDR_LEN - 4u);
     memcpy(filebuf, &h, PLUG_HDR_LEN);
