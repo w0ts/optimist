@@ -14,9 +14,10 @@ typedef struct {
     uint32_t fill;                                   /* the least a ring holds now, at the last sample (SSM_NO: none) */
     uint32_t fill_lo;                                /* the least a ring holds of the streams the card feeds, percent, in
                                                       * the last 10 s (SSM_NO: none) */
-    uint32_t dry, nos, late, miss, crc, demo;        /* since the boot or the last clear: streams that ran dry, notes with no
-                                                      * ring free, GRAIN's and STRETCH's late and missed reads, blocks
-                                                      * whose CRC failed, steps down of the card's clock for them */
+    uint32_t dry, nos, cut, late, miss, crc, demo;   /* since the boot or the last clear: streams that ran dry, notes with no
+                                                      * ring free, tails cut for a newer hit's ring (the user, 2026-11-06),
+                                                      * GRAIN's and STRETCH's late and missed reads, blocks whose CRC failed,
+                                                      * steps down of the card's clock for them */
     uint8_t dry_hot;                                 /* a stream ran dry within the last 10 s */
 } ssm_view_t;
 
