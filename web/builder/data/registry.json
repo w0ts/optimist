@@ -5056,7 +5056,8 @@
     "provenance": null,
     "children": [
      "SD_RING",
-     "SD_REC"
+     "SD_REC",
+     "HEADS_FLASH"
     ],
     "hidden": false,
     "shown_under": null,
@@ -5445,6 +5446,35 @@
     "shown_under": "SD_MODE",
     "dim_when": null,
     "tested": "host-tested only (tests/sd_wr_test.c, sd_rec_test.c: a card model with stalls, an interrupt-driven audio clock); no FM-1 has the card yet; for now started from the console (sd rec)",
+    "provenance_line": ""
+   },
+   {
+    "key": "HEADS_FLASH",
+    "flag": "FELUCCA_HEADS_FLASH",
+    "label": "card samples' pre-buffer in flash (the plugins' region), not in RAM",
+    "group": "Memory management",
+    "bit": 454,
+    "default": 0,
+    "parent": "SDCARD",
+    "desc": "Each card sample's first moments (the PRE-BUFFER, 25 to 200 ms) are written into the plugins' flash region when a kit or a project is placed, and read from there like a built-in table, instead of being kept in the arena: the arena then holds the rings alone, so ten 8 KB rings and a 200 ms pre-buffer fit together (measured 2026-11-06: in RAM a 200 ms pre-buffer left room for five rings, and 25 ms let voices run dry). The heads of one kit are one occupant of the region, rewritten when the kit changes (about a second of sliced erasing while the audio keeps running); a region too full refuses and the heads stay in RAM as before. Needs PLUGINS (the region) and SD_RING (the streams).",
+    "experimental": true,
+    "notice": "",
+    "off_warning": "",
+    "env": "",
+    "target_only": true,
+    "symbols": [],
+    "no_image": false,
+    "fixed": false,
+    "head": false,
+    "choices": [],
+    "dim_choice": {},
+    "not_built": {},
+    "provenance": null,
+    "children": [],
+    "hidden": false,
+    "shown_under": "SD_MODE",
+    "dim_when": null,
+    "tested": "designed only (2026-11-06): the item, its rule and the planner's hook; the flash path is written when the plugins' writer has run from the card on an FM-1",
     "provenance_line": ""
    },
    {

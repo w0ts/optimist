@@ -396,7 +396,26 @@ the probed J12 pins; SD reads, a FAT32 reader and a flash-slot loader in m-bootl
   and it SFC-encrypts what it programs because the region sits in the app area and XIP decrypts every read: the heads read in
   place like a constant. Heads need no relocation patch. Open for both clients: a firmware update rewrites the app slot and
   the region with it; eviction is not built (full = refused). After that writer is proven on an FM-1 (the integrated build
-  has not run on hardware yet).
+  has not run on hardware yet). The writer's calls landed on plugins/integ 10512393: `PLUG_KIND_HEADS` 1, `plug_install(rd, ctx)`
+  (0 placed or already placed by that key), `plug_find(kind, key, &base, &len)`, `plug_free(kind, key)`, `plug_region_kb(&used,
+  &free)`; the key is the kit's hash in the header's `desc`, `name[12]` the kit's; all static in the one unit (plugin.c comes
+  before sdcard.c and sd_mode.c in felucca.c).
+- **RULING 2026-11-06 evening (the user: "each sampler should allocate its ring. basta"; "one setting: ring size per sampler,
+  and we preload one ring"). One setting, `SD_RING` (4 / 8 / 12 / 16 KB a voice; 8 KB the default for card kits).** Every
+  streaming voice owns one ring of that size, always: the drum voices (NDRUM, a lane each), each CARD part's voices up to
+  SST_PART_RINGS, the 909's two; the planner places that many or refuses the project with what to drop (as an engine that
+  does not fit), it never bargains the count down (SST_KIT_RINGS_MIN, sst_place_rings' shortening: gone). The preload of a
+  sample is exactly one ring's worth of its first bytes (46 ms of 44.1 kHz 16-bit mono at 4 KB, 93 at 8, stereo half):
+  the ring is fed before the preload runs out by construction (the card-first rule, sst_strip). The device's PRE-BUFFER
+  setting (SYSTEM > SD CARD, SST_PRE_MS 25..200, sst_pre_set, its settings record, the console's and the page's KB figure)
+  goes away; SST_KIT_HEAD_MS and sst_kit_pre go with it; "whole" sources (a sample shorter than a ring) stay as they are.
+  The preloads live in flash with HEADS_FLASH (one occupant per placement, key = the hash of the placed sources' hashes,
+  `name` "HEADS", an index of (hash, offset, bytes) first, then the preloads back to back; found by key = no write; the
+  previous key freed before a new write; a full region = the preloads in RAM as without the item) and in the arena
+  without it. SYSTEM > Info gets a FLASH line beside RAM: the region's used / free KB (`plug_region_kb`). Host tests:
+  tests/sd_stream_plan_test.c rewritten to the rule (the ring count is the voice count or a refusal; the preload is one ring;
+  the flash path against a simulated region with plug_* stubs: placed, found again without a write, freed on a kit change,
+  full = RAM). Measured reasons: 2026-11-06 the bargaining gave five rings at 200 ms and dry voices at 25 ms (above).
 - **Streaming, built (2026-10-26, host-tested only; builder `SD_RING`, `FELUCCA_SD_STREAM`: full FatFs, SAMPLE and
   ARENA too).** `src/storage/sd/sd_stream.h` (the audio's side), `sd_stream.c` (the main loop's runs, the sources),
   `sd_stream_plan.c` (the memory per project), SAMPLE's CARD set (`engines/sample/eng_sample.c` `smp_card_*`):
