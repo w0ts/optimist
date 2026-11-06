@@ -2834,8 +2834,8 @@ static HOT void mix_part(track_t *t, uint32_t n MIXACC_PARAM)
             FAST_CALL(insx, ifx_side_mix)(ifx_cside[(uint32_t)(t - trk) % NPART], lvl0, dl, ga, gb, MX(mix_l), MX(mix_r), n);
 #endif
 #if FELUCCA_ENG_DRONE
-        if (ENG_IS(ENGINES[t->engine % NENGINES], DRONE) && drone_sd[(uint32_t)(t - trk) % NPART])   /* DRONE's BEAT: */
-            FAST_CALL(insx, ifx_side_mix)(drone_side[(uint32_t)(t - trk) % NPART], lvl0, dl, ga, gb, MX(mix_l), MX(mix_r), n);   /* the ears' side */
+        if (ENG_IS(ENGINES[t->engine % NENGINES], DRONE) && DRONE_MEM((uint32_t)(t - trk) % NPART)->sd)   /* DRONE's BEAT: */
+            FAST_CALL(insx, ifx_side_mix)(DRONE_MEM((uint32_t)(t - trk) % NPART)->side, lvl0, dl, ga, gb, MX(mix_l), MX(mix_r), n);   /* the ears' side */
 #endif
     }
 }

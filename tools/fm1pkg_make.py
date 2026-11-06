@@ -105,8 +105,9 @@ def sdk_file(rel):
         raise SystemExit(f"fm1pkg_make: {path}: {e.strerror}. Set AC79_SDK to a JieLi AC79 SDK checkout.")
 
 
-def flash_image(app, key, app_hi=FLASH_SIZE):
-    """flash.bin [0, app_hi): app_hi one of tools/flash_layout.py's steps' ends (more flash 0xD0000, no user samples 0xB5000)"""
+def flash_image(app, key, app_hi=FLASH_SIZE, extra=()):
+    """flash.bin [0, app_hi): app_hi one of tools/flash_layout.py's steps' ends (more flash 0xD0000, no user samples 0xB5000);
+    extra: (flash offset, bytes) pairs written over the app area's erased room (a plugin placed in the PLUGINS region)"""
     app_slot = app_hi - flash_layout.APP_LO - flash_layout.APP_HEAD - flash_layout.APP_TAIL
     flash_layout.layout_of(app_hi)                   # (refuses an end no layout has)
     spl = sdk_file("uboot.boot")                         # SDK SPL, BANKCB-encoded as in the SDK
@@ -132,7 +133,14 @@ def flash_image(app, key, app_hi=FLASH_SIZE):
     # ---- app area (plain first, then SFC)
     if len(app) > app_slot:
         raise SystemExit(f"app is {len(app)} B, the slot is {app_slot} B")
-    app = app + b"\xFF" * (app_slot - len(app))
+    app_len = len(app)
+    app = bytearray(app + b"\xFF" * (app_slot - len(app)))
+    for off, data in extra:                              # (into app.bin's erased room: SFC-encrypted with the rest, its CRC theirs)
+        at = off - 0x4000 - 0x120
+        if at < app_len or at + len(data) > app_slot or set(app[at:at + len(data)]) != {0xFF}:
+            raise SystemExit(f"extra data at 0x{off:x}: not in app.bin's erased room")
+        app[at:at + len(data)] = data
+    app = bytes(app)
     blk = 0x120 + app_slot + len(cfg_tool)              # app_area_head block size
     area = bytearray(b"\xFF" * blk)
     area[0x120:0x120 + app_slot] = app

@@ -89,8 +89,9 @@ enum { Q_OFF, Q_SNAP, Q_WHITE, Q_ALL, Q_SEQ };   /* P_QUANT (SCL › KEYS): seq.
  * section 2 and 3). TAB_RAM
  * (felucca_tables.h) puts a constant table that the sample loops read into the pool: copied to RAM at
  * boot, so the UI's font reads cannot evict it from the data cache either (no extra flash). */
-#if defined(__PI32V2__) && !(defined(FELUCCA_ASM_CHECK) && FELUCCA_ASM_CHECK)
-/* (an ASM_CHECK verification build runs every asm kernel next to its C: too big for RAMTEXT, so it
+#if defined(__PI32V2__) && !(defined(FELUCCA_ASM_CHECK) && FELUCCA_ASM_CHECK) && !defined(PLUG_BUILD)
+/* (a plugin, plugin/plug_unit.c: all of it in its flash image, no RAM code of its own)
+ * (an ASM_CHECK verification build runs every asm kernel next to its C: too big for RAMTEXT, so it
  * keeps the whole audio path in XIP; the same code, placed elsewhere) */
 #define HOT __attribute__((section(".ram_hot")))
 #define HOT2 __attribute__((section(".ram_hot2")))
@@ -749,7 +750,20 @@ typedef struct {
     void (*mono_key)(struct track *t, uint32_t note);
     /* optional: the part's block after its voices (FM6: Dexed's DC filter); nr: voices rendered */
     void (*post)(struct track *t, int32_t *out, uint32_t n, uint32_t nr);
+    /* (last: the descriptors that list their fields in order stop before them; +4 B a descriptor, 2026-11-06) */
+    uint16_t part_bytes;         /* the bytes it keeps in its part's engine memory, 0 = none: read for a plugin's slot
+                                  * (engines.c part_mem_bytes, core/plugin.c); the built-in engines' sizes are engines.c's */
+    uint8_t keep;                /* the voice state words s[0..7] a retrigger of a sounding voice keeps (bit k: s[k]; voice.c
+                                  * voice_start: the filter states, whose reset would click), 0 = none: every engine's,
+                                  * a plugin's too (never ENG_IS anything) */
+    uint8_t tab_kb;              /* KB of a block its parts share (a plugin's: plugin_api->tab_mem, the arena's; WAVE's
+                                  * table), 0 = none: read for a plugin's slot (engines.c part_tab_k); in the padding */
+    uint8_t traits;              /* ENG_T_*: what the firmware did by the engine's identity (ENG_IS) and a plugin, never
+                                  * ENG_IS anything, says of itself (2026-11-06) */
 } engine_t;
+#define ENG_T_SAMPLED 1u             /* a retrigger or a steal does not keep the phases (SAMPLE, SLICE: voice.c eng_sampled) */
+#define ENG_T_DRONE 2u               /* DRONE's HOLD latch (E7, voice.c) and BEAT side (fx.c), in a drone_mem_t: its own when
+                                      * built in, the part's memory as a plugin (engines.c drone_mem_of) */
 
 /* ------------------------------------------------------------ track --- */
 #define T_SILENT(t) (PART_DROPS && (t)->silent)   /* a silent placeholder (track_t.silent; only with an ARENA) */

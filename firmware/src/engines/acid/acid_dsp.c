@@ -30,22 +30,35 @@
 #ifndef DSPF_FAST
 #define DSPF_FAST FAST(acid)
 #endif
-#include "bass303.c"
-
 #include "acid_mem.h"
+#include "bass303.c"
 
 #define ACID_PARTS 3
 _Static_assert(sizeof(bass303_t) <= ACID_MEM_BYTES, "acid_mem.h ACID_MEM_BYTES: a part's engine memory holds a bass303_t");
-static uint8_t acid_ready[ACID_PARTS], acid_gate[ACID_PARTS];
-static struct acid_pend_s {
-    uint8_t on, note, acc;
-    int16_t e[8];
-} acid_pend[ACID_PARTS];   /* (acid_start below) */
+/* a part's state besides its bass303_t: its 303 set up (ready), a note sounding (gate), a note's start waiting for the
+ * part's next render (pend: acid_start below). Built in: one static instance a part (66 B, as the three arrays before);
+ * a plugin (PLUG_ENG_ACID): in the part's engine memory after the bass303_t and the shared coefficients' copy
+ * (acid_mem.h ACID_PLUG_BYTES), zeroed when the part comes to the plugin (as acid_forget) */
+typedef struct {
+    uint8_t ready, gate;
+    struct acid_pend_s {
+        uint8_t on, note, acc;
+        int16_t e[8];
+    } pend;
+} acid_st_t;
+#if defined(PLUG_ENG_ACID)
+#define ACID_ST(k) ((acid_st_t *)((uint8_t *)acid_mem(k) + ACID_MEM_BYTES + sizeof(bass303_fixed_t)))
+_Static_assert(ACID_MEM_BYTES + sizeof(bass303_fixed_t) + sizeof(acid_st_t) <= ACID_PLUG_BYTES,
+               "acid_mem.h ACID_PLUG_BYTES: a plugin's part memory holds the bass303_t, the coefficients and acid_st_t");
+#else
+static acid_st_t acid_st[ACID_PARTS];
+#define ACID_ST(k) (&acid_st[k])
+#endif
 
 void acid_forget(int k)                            /* (engines.c part_mem_claim: another engine had the memory) */
 {
     if (k >= 0 && k < ACID_PARTS)
-        acid_ready[k] = acid_gate[k] = acid_pend[k].on = 0;
+        ACID_ST(k)->ready = ACID_ST(k)->gate = ACID_ST(k)->pend.on = 0;
 }
 
 /* our 8 EDIT values -> the 303's pots: CUT RESO ENV DEC ACC WAVE DRV SLD (the rest: X0X's defaults). WAVE 0..3:
@@ -57,9 +70,9 @@ static FASTI(acid) bass303_t *acid_part(int k)
 {
     if (k < 0 || k >= ACID_PARTS)
         return 0;
-    if (!acid_ready[k]) {
+    if (!ACID_ST(k)->ready) {
         bass303_init((bass303_t *)acid_mem(k));
-        acid_ready[k] = 1;
+        ACID_ST(k)->ready = 1;
     }
     return (bass303_t *)acid_mem(k);
 }
@@ -87,7 +100,7 @@ static FAST(acid) FM_SETUP void acid_note0(int k, int note, int accent, int slid
     if (!b)
         return;
     bass303_note_on(b, note, accent, slide);
-    acid_gate[k] = 1;
+    ACID_ST(k)->gate = 1;
 }
 
 /* A note's start (acid_start, in the block's events on CPU0) waits for the part's next render (acid_due, in its job:
@@ -96,21 +109,25 @@ static FAST(acid) FM_SETUP void acid_note0(int k, int note, int accent, int slid
  * note, a slide, the render, a note off) does the waiting start first: the same calls in the same order */
 FAST(acid) FM_SETUP void acid_due(int k)
 {
-    if (k < 0 || k >= ACID_PARTS || !acid_pend[k].on)
+    acid_st_t *s;
+    if (k < 0 || k >= ACID_PARTS || !ACID_ST(k)->pend.on)
         return;
-    acid_pend[k].on = 0;
-    acid_pots(k, acid_pend[k].e);
-    acid_note0(k, acid_pend[k].note, acid_pend[k].acc, 0);
+    s = ACID_ST(k);
+    s->pend.on = 0;
+    acid_pots(k, s->pend.e);
+    acid_note0(k, s->pend.note, s->pend.acc, 0);
 }
 FAST(acid) FM_SETUP void acid_start(int k, const int16_t *e, int note, int accent)
 {
     int i;
     if (k < 0 || k >= ACID_PARTS)
         return;
+    acid_st_t *s;
     acid_due(k);
+    s = ACID_ST(k);
     for (i = 0; i < 8; i++)
-        acid_pend[k].e[i] = e[i];
-    acid_pend[k].note = (uint8_t)note, acid_pend[k].acc = (uint8_t)(accent != 0), acid_pend[k].on = 1;
+        s->pend.e[i] = e[i];
+    s->pend.note = (uint8_t)note, s->pend.acc = (uint8_t)(accent != 0), s->pend.on = 1;
 }
 FAST(acid) FM_SETUP void acid_note(int k, int note, int accent, int slide)
 {
@@ -132,9 +149,9 @@ FAST(acid) FM_SETUP void acid_off(int k)
     bass303_t *b;
     acid_due(k);
     b = acid_part(k);
-    if (b && acid_gate[k]) {
+    if (b && ACID_ST(k)->gate) {
         bass303_note_off(b);
-        acid_gate[k] = 0;
+        ACID_ST(k)->gate = 0;
     }
 }
 

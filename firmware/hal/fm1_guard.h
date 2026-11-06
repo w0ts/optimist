@@ -38,7 +38,10 @@
 #define FM1_EMU_USP_L (*(volatile uint32_t *)0x1EEF0E4u)
 
 extern char _guard0[], _ustack_lo[], _guard1[], _sstack_lo[], _sstack_top[], _etext[];
+#ifndef FM1_XIP_CODE_END                         /* (felucca.c with plugins: the PLUGINS region's end, core/plugin.h: the
+                                                  * engines placed there run from flash past .text) */
 #define FM1_XIP_CODE_END _etext                  /* (every step: the code is .text alone, no far section since 2026-10-30) */
+#endif
 extern uint32_t _rt_start[], _rt_end[], _rh_end[], _rh2_start[], _rh2_end[];
 
 enum { FM1_GUARD_STACK = 1, FM1_GUARD_WRITE = 2, FM1_GUARD_BUS = 4, FM1_GUARD_PC = 8 };
