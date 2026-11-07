@@ -94,7 +94,7 @@ def detection():
     v15 = (ROOT / "web" / "stock" / "FM-1_015.fwsc").read_bytes()
     info = R.package_kind(v15, FI.flash_size(FI.logical_image(v15)))
     ok(info.kind == R.P_V15 and info.flash_len == 0x93000, "package: M-VAVE's V15 by its SHA-256 (web/stock)")
-    mb = (ROOT / "web" / "fm1base" / "m-bootloader" / "fm1-uboot-1.4.fwsc").read_bytes()
+    mb = (ROOT / "web" / "fm1base" / "m-bootloader" / "fm1-uboot-2.2.fwsc").read_bytes()
     info = R.package_kind(mb, FI.flash_size(FI.logical_image(mb)))
     ok(info.kind == R.P_MBOOT and info.flash_len is None, "package: m-bootloader's installer FM-1_099 (no flash.bin)")
     kinds = {}
@@ -393,9 +393,15 @@ def download_mode():
     err, out = flow(dev, R.choose(R.OPTIMIST, pk(R.P_MBOOT)), None, None)
     ok(err is None and unit_runs(dev) == ["backup", "bootloader"] and dev.flash[0] == 0xB0
        and dev.flash[0x1000:] == unit_flash(0x93000)[0x1000:], f"m-bootloader's installer: 2 runs ({unit_runs(dev)})")
-    dev = Dev("mboot2", unit_flash(0x93000), bootloader="m-bootloader 1.2-22e2559 (fm1)")
+    dev = Dev("mboot2", unit_flash(0x93000), bootloader=f"m-bootloader {MF.MBOOT_RELEASE['version']}-64f7c9c (fm1)")
     err, out = flow(dev, mb, write_pkg(TMP / "mb.fwsc", nf, "FM-1_700"), nf)
-    ok(err is None and "bootloader" not in cmds(dev) and "found: kept" in out, "m-bootloader already there: not written again")
+    ok(err is None and "bootloader" not in cmds(dev) and "found: kept" in out, "m-bootloader at the pinned version: not written again")
+    dev = Dev("mboot1", unit_flash(0x93000), bootloader="m-bootloader 1.4-8b171dd (fm1)")
+    err, out = flow(dev, mb, write_pkg(TMP / "mb.fwsc", nf, "FM-1_700"), nf)
+    ok(err is None and "bootloader" in cmds(dev) and "found: kept" not in out, "an older m-bootloader: upgraded when asked for")
+    dev = Dev("mbootx", unit_flash(0x93000), bootloader="m-bootloader custom (fm1)")
+    err, out = flow(dev, mb, write_pkg(TMP / "mb.fwsc", nf, "FM-1_700"), nf)
+    ok(err is None and "bootloader" not in cmds(dev), "an m-bootloader that says no version: kept")
     dev = Dev("keep", unit_flash(0x93000))
     err, out = flow(dev, route, write_pkg(TMP / "k.fwsc", nf, "FM-1_7900"), nf)
     ok(err is None and "bootloader" not in cmds(dev) and dev.flash[:0x4000] == unit_flash(0x93000)[:0x4000],
@@ -682,7 +688,7 @@ def boot_word():
     const = {n: bytes(int(x, 16) for x in _re.findall(r"0x([0-9a-f]{2})", body))
              for n, body in _re.findall(r"(BOOTID_\w+)\[16\] = \{([^}]*)\}", text)}
     _, _, v15 = AF.load(ROOT / "web" / "stock" / "FM-1_015.fwsc")
-    boot = (ROOT / "web" / "fm1base" / "m-bootloader" / "fm1-uboot-1.4.boot").read_bytes()
+    boot = (ROOT / "web" / "fm1base" / "m-bootloader" / "fm1-uboot-2.2.boot").read_bytes()
     ok(const["BOOTID_STOCK_HEAD"] == v15[0xA0:0xB0], "bootid.h: the stock head is V15's flash.bin at 0xA0, as stored")
     ok(const["BOOTID_MBOOT_TAG"] == enc_ffff(boot[16:16 + 0x50])[0x40:0x50] and boot[0x50:0x58] == b"AC79BLID",
        "bootid.h: m-bootloader's tag is its container's payload +0x40 ciphered from the payload's start")

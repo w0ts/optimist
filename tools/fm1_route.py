@@ -42,13 +42,13 @@ FIRMWARES = {
     FM1BASE: ("an fm1-base firmware (FM-1_0 + 6 digits, Optimist's release FM-1_79..)", "yes (felucca-bsp chip/usb.c)",
               "REC held while switching on"),
     OTHER: ("another firmware (FM-1_5NN Lunar, FM-1_701 ...)", "not known", "not known: m-bootloader's REC at power-on"),
-    LOADER: ("an update loader (an install was cut off)", "no", "-"),
+    LOADER: ("an update loader (an install was cut off, or m-bootloader's MIDI MODE)", "no", "-"),
     NONE: ("nothing answers on USB-MIDI (off, no data cable, a firmware that does not start, already in "
-           "download mode)", "no", "m-bootloader: REC while switching on; Optimist: OCT- + OCT+ while switching on, 3 s; "
+           "download mode)", "no", "m-bootloader: REC while switching on, or PLAY then MIDI MODE; Optimist: OCT- + OCT+ while switching on, 3 s; "
            "else the USB_KEY dongle"),
 }
 SOFT_KEY_OK = {STOCK, FELUCCA, OPTIMIST, AMBIG_000, FM1BASE}
-MBOOT_KEYS = "hold REC while switching on (m-bootloader's download mode; PLAY: its menu, DOWNLOAD MODE)"
+MBOOT_KEYS = "hold REC while switching on (m-bootloader's download mode; PLAY: its menu, DOWNLOAD MODE or MIDI MODE)"
 
 # packages
 P_V15, P_STOCK, P_MBOOT, P_OPTIMIST, P_FM1BASE, P_FELUCCA, P_OTHER = (

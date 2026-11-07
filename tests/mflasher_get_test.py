@@ -96,7 +96,7 @@ class Server:
 
 def as_windows(sha, base):
     """a Windows x86_64 host whose pinned zip is the given bytes' hash, fetched from base"""
-    asset = ("M-Flasher-0.7.0-windows.zip", sha, "M-Flasher.exe")
+    asset = ("M-Flasher-0.9.2-windows.zip", sha, "M-Flasher.exe")
     return Patched((MF.platform, "system", lambda: "Windows"), (MF.platform, "machine", lambda: "AMD64"),
                    (MF, "ASSETS", {**MF.ASSETS, ("Windows", "any"): asset}), (MF, "RELEASE", base),
                    (MF, "binary", lambda: None))
@@ -114,9 +114,9 @@ def picking():
         ok(a is not None and a[0].endswith(tail) and MF.pick(system, machine)["name"] == a[0], f"{system} {machine} -> {tail}")
     ok(MF.asset("FreeBSD", "x86_64") is None and MF.asset("Linux", "riscv64") is None and MF.pick("Linux", "armv7l") is None,
        "no release for FreeBSD, riscv64, armv7l: None")
-    ok(MF.question("Darwin", "arm64") == "M-Flasher (MIT, Julius Vitkauskas) is needed for this install: download v0.7.0 "
+    ok(MF.question("Darwin", "arm64") == "M-Flasher (MIT, Julius Vitkauskas) is needed for this install: download v0.9.2 "
                                          "for macOS arm64 (7.4 MB)?", "the question: macOS arm64, version, size")
-    ok("Linux x86_64 (4.0 MB)" in MF.question("Linux", "amd64") and "Windows x86_64 (3.1 MB)" in MF.question("Windows", "AMD64"),
+    ok("Linux x86_64 (4.0 MB)" in MF.question("Linux", "amd64") and "Windows x86_64 (3.2 MB)" in MF.question("Windows", "AMD64"),
        "the question names the OS, CPU and size of the file it would fetch")
     try:
         MF.question("FreeBSD", "x86_64")
@@ -141,22 +141,22 @@ def fetching():
     finally:
         if saved is not None:
             os.environ["M_FLASHER_HOME"] = saved
-    ok(d == (shared.main_checkout(MF.ROOT) or MF.ROOT) / "build" / "m-flasher" / "m-flasher-0.7.0" and Path.home() / ".jieli" not in d.parents,
+    ok(d == (shared.main_checkout(MF.ROOT) or MF.ROOT) / "build" / "m-flasher" / "m-flasher-0.9.2" and Path.home() / ".jieli" not in d.parents,
        "the fetched release stays inside the repo (build/m-flasher of the main checkout, git-ignored), never in the user's home")
     data = windows_zip()
     sha = hashlib.sha256(data).hexdigest()
-    srv = Server({"M-Flasher-0.7.0-windows.zip": data})
+    srv = Server({"M-Flasher-0.9.2-windows.zip": data})
     home = TMP / "home-good"
     os.environ["M_FLASHER_HOME"] = str(home)
     try:
         with as_windows(sha, srv.url):
             exe = MF.fetch()
-        ok(exe == home / "m-flasher-0.7.0" / "M-Flasher.exe" and exe.read_bytes() == b"MZ fake" and len(srv.hits) == 1,
+        ok(exe == home / "m-flasher-0.9.2" / "M-Flasher.exe" and exe.read_bytes() == b"MZ fake" and len(srv.hits) == 1,
            "good SHA-256 (local server): installed in its pinned place")
         with as_windows(sha, srv.url):
             MF.fetch()
         ok(len(srv.hits) == 1, "...and kept: a second fetch downloads nothing")
-        ok([p.name for p in home.iterdir()] == ["m-flasher-0.7.0"], "...and no temporary file is left beside it")
+        ok([p.name for p in home.iterdir()] == ["m-flasher-0.9.2"], "...and no temporary file is left beside it")
 
         home = TMP / "home-bad"
         os.environ["M_FLASHER_HOME"] = str(home)
@@ -166,18 +166,18 @@ def fetching():
                 ok(False, "bad SHA-256 installs nothing")
             except MF.MFlasherError as e:
                 ok("SHA-256" in str(e) and "nothing installed" in str(e) and not list(home.rglob("*.exe")) and
-                   not (home / "m-flasher-0.7.0").exists(), "bad SHA-256: a clear message, nothing installed")
+                   not (home / "m-flasher-0.9.2").exists(), "bad SHA-256: a clear message, nothing installed")
 
         home = TMP / "home-noexe"
         os.environ["M_FLASHER_HOME"] = str(home)
         bad_inside = windows_zip(with_exe=False)
-        srv2 = Server({"M-Flasher-0.7.0-windows.zip": bad_inside})
+        srv2 = Server({"M-Flasher-0.9.2-windows.zip": bad_inside})
         with as_windows(hashlib.sha256(bad_inside).hexdigest(), srv2.url):
             try:
                 MF.fetch()
                 ok(False, "an archive without the binary installs nothing")
             except MF.MFlasherError as e:
-                ok("no M-Flasher.exe inside" in str(e) and not (home / "m-flasher-0.7.0").exists(),
+                ok("no M-Flasher.exe inside" in str(e) and not (home / "m-flasher-0.9.2").exists(),
                    "an archive without the binary: refused, nothing installed")
         srv2.close()
 
@@ -189,7 +189,7 @@ def fetching():
                 MF.fetch()
                 ok(False, "a missing file installs nothing")
             except MF.MFlasherError as e:
-                ok("cannot download" in str(e) and not (home / "m-flasher-0.7.0").exists(), "a 404: a clear message, nothing installed")
+                ok("cannot download" in str(e) and not (home / "m-flasher-0.9.2").exists(), "a 404: a clear message, nothing installed")
         srv3.close()
     finally:
         srv.close()
@@ -202,7 +202,7 @@ def fetching():
             ok(False, "offline installs nothing")
         except MF.MFlasherError as e:
             ok("cannot download" in str(e) and "offline" in str(e) and "nothing installed" in str(e)
-               and not (home / "m-flasher-0.7.0").exists() and not list(home.rglob("*.part")), "offline: a clear message, nothing written")
+               and not (home / "m-flasher-0.9.2").exists() and not list(home.rglob("*.part")), "offline: a clear message, nothing written")
     del os.environ["M_FLASHER_HOME"]
 
 
@@ -211,7 +211,7 @@ def fetching():
 def asking():
     data = windows_zip()
     sha = hashlib.sha256(data).hexdigest()
-    srv = Server({"M-Flasher-0.7.0-windows.zip": data})
+    srv = Server({"M-Flasher-0.9.2-windows.zip": data})
     os.environ["M_FLASHER_HOME"] = str(TMP / "home-ask")
     try:
         questions, said = [], []
@@ -374,7 +374,7 @@ def app_and_source():
         except (UnicodeDecodeError, OSError):
             continue
         stray += [f"{f}: {m['name']}" for m in MF.RELEASE_FILES if m["sha256"] in text]
-        if "0.7.0-macos.dmg" in text or "m-flasher/releases/download" in text:
+        if "0.9.2-macos.dmg" in text or "m-flasher/releases/download" in text:
             stray.append(f"{f}: a release URL or file name")
     ok(not stray, "one source of truth: no other tracked file carries a pinned SHA-256 or release URL" + (f" {stray[:4]}" if stray else ""))
 
