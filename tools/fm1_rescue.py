@@ -210,9 +210,12 @@ def load_package(path):
     if bad:
         raise Fail(f"{path}: damaged package ({bad}); nothing is written. Get the file again")
     flash = package_flash_image(raw)
-    if len(flash) not in flash_layout.APP_HI.values():
+    # the classic layouts' ends and the release's (Optimist on fm1-base: its SD card mode end 0xce000 is not a classic
+    # one; tools/flash_layout.py STEPS release_end), so a release package is accepted too (2026-11-07)
+    ends = set(flash_layout.APP_HI.values()) | {s.release_end for s in flash_layout.STEPS.values()}
+    if len(flash) not in ends:
         raise Fail(f"{path}: the flash entry is {len(flash):#x} B, expected one of "
-                   + ", ".join(f"{v:#x}" for v in flash_layout.APP_HI.values()))
+                   + ", ".join(f"{v:#x}" for v in sorted(ends)))
     return Package(os.path.abspath(path), product, digest, flash, package_chip_key(flash), digest == STOCK_SHA256)
 
 
@@ -352,10 +355,12 @@ class Uboot:
 
 
 # ------------------------------------------------------------------- flow ---
-def rescue(dev, image, loader, write, backup_dir, say=print, confirm=None, key=None, label="V15"):
+def rescue(dev, image, loader, write, backup_dir, say=print, confirm=None, key=None, label="V15", keep_head=False):
     """Everything in one session: the FM-1 leaves UBOOT (and crashes again) as soon as it is let go.
     key: the chip key the package was built for; when given it must equal the FM-1's. label names the
-    package in the messages."""
+    package in the messages. keep_head: the boot head [0, WRITE_MIN) differs (an FM-1 running another
+    bootloader than the package's, e.g. m-bootloader) and is KEPT; only the app area is written and the
+    device keeps its own bootloader. The chip key and flash id are still checked, so it is the right part."""
     vendor, product = dev.inquiry()
     say(f"  device: {vendor} {product}")
     if vendor != "WL82":
@@ -379,9 +384,14 @@ def rescue(dev, image, loader, write, backup_dir, say=print, confirm=None, key=N
     lo, hi = flash_layout.switch_clear(installed_end(now, chip_key), flash_layout.layout_of(end))
     clear = [a for a in range(lo, hi, SECTOR) if now[a:a + SECTOR] != b"\xFF" * SECTOR]
     low = [a for a in diff if a < WRITE_MIN]
-    if low:
+    if low and keep_head:
+        say(f"  --keep-head: the boot head differs ({len(low)} sectors: " + " ".join(f"{a:#06x}" for a in low)
+            + f"); it is KEPT (the FM-1's own bootloader stays), only the app area [{WRITE_MIN:#x}, {end:#x}) is written")
+        diff = [a for a in diff if a >= WRITE_MIN]
+    elif low:
         raise Fail(f"the protected head of the flash differs from {label} (sectors "
-                   + " ".join(f"{a:#06x}" for a in low) + "): not writing; send this output and the backup")
+                   + " ".join(f"{a:#06x}" for a in low) + "): not writing; send this output and the backup. "
+                   + "--keep-head writes only the app area and keeps the FM-1's bootloader")
     say(f"  {len(diff)} of {end // SECTOR} firmware sectors differ from {label}")
     if clear:
         say(f"  a switch of flash layout: {len(clear)} sectors in [{lo:#x}, {hi:#x}) cleared first (the other layout's)")
@@ -411,7 +421,9 @@ def rescue(dev, image, loader, write, backup_dir, say=print, confirm=None, key=N
     kept = bytearray(now)
     for a in clear:
         kept[a:a + SECTOR] = b"\xFF" * SECTOR
-    expect = image + bytes(kept[end:])
+    # the head is the package's, unless --keep-head left the FM-1's own bootloader in place
+    head = bytes(now[:WRITE_MIN]) if keep_head else image[:WRITE_MIN]
+    expect = head + image[WRITE_MIN:] + bytes(kept[end:])
     final = dev.read(0, FLASH_SIZE)
     if final != expect:
         bad = [a for a in range(0, FLASH_SIZE, SECTOR) if final[a:a + SECTOR] != expect[a:a + SECTOR]]
@@ -532,6 +544,9 @@ def parser():
                     "this: the first 8 or more hex digits of its sha256 (--check prints it)")
     ap.add_argument("--check", action="store_true", help="validate the package and stop: no USB, no sudo, no download")
     ap.add_argument("--ask", action="store_true", help="after the check and the backup, ask before writing")
+    ap.add_argument("--keep-head", action="store_true", help="the FM-1 runs another bootloader than the package's "
+                    "(m-bootloader): keep its boot head [0, 0x4000) and write only the app area (the chip key and flash "
+                    "id are still checked)")
     ap.add_argument("--loader", help="a local wl82loader.bin instead of downloading it")
     ap.add_argument("--backup-dir", help="where the flash backup goes (default: next to the package)")
     ap.add_argument("--wait", type=float, default=120, help="seconds to wait for the FM-1 (default 120)")
@@ -580,7 +595,7 @@ def main(argv=None, open_dev=None, is_root=None):
             try:
                 rescue(bot if args.dongle else Uboot(bot), pkg.flash, loader, args.write, backup_dir,
                        say=lambda *a, **k: print(*a, **k, flush=True),
-                       confirm=make_ask(pkg) if args.ask else None, key=pkg.key, label=label)
+                       confirm=make_ask(pkg) if args.ask else None, key=pkg.key, label=label, keep_head=args.keep_head)
                 return 0
             except errors as e:
                 print(f"\n  attempt {attempt}: {e}")
