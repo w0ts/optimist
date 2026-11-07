@@ -241,7 +241,7 @@ gpufarm run); a measurement build can also set `OPTIMIST_ARENA_BYTES` and `OPTIM
   the own room once the last instance in it has faded out. The audio runs on with the pointer 0 (tested).
 - **No room** (the ruling for parts carried over): the effect is **bypassed where it is** (a send's return adds nothing,
   the dry signal passes; a limited insert FULL, as when the effects memory is full), **kept in the project**, shown dim
-  (the master slot's card: FULL, struck through), MEM FULL said once, and **placed by itself as soon as there is room**
+  (the master slot's card: FULL, struck through), "MEMORY FULL: REVERB OFF" (CHORUS, DELAY, INSERT FX) said once if it still stands 2 s later (`op_input.c mem_news_tick`: a refusal the next retry places is not news), and **placed by itself as soon as there is room**
   (tried every pass, never while a part's refused change waits: a part's sound first). When the free room is only cut
   up, the send lines whose buses are silent are gated, given back and placed again with it, the largest first, if a
   trial on the arena says that makes it fit (nothing heard is lost: a silent bus's line is all zeros).
@@ -263,16 +263,16 @@ blocks of the arena too, held only while the project uses their feature, placed 
 | Buffer | Bytes | Held while | Refused (no room) |
 |---|---|---|---|
 | each track's SLICER recording (`slicer.c sl_bp`, `FX_SLICER`) | SL_LEN x 2 (8,192) | its SLICER is on STUT, or a repeat still plays | STUT bypassed: the live sound, as OFF; its card FULL, dim, struck through (op_cells.c) |
-| WAVE's table: its copies and the frame builder's scratch (`eng_wave.c wt_mip wt_fr wt_fi`, `ENG_WAVE`) | 73,216 | a part plays WAVE (or is switching to it) | the change to WAVE refused as any engine's: the drop proposal, parts first, then the effects; on a load the list page (the table its need) (the night's ruling, 2026-10-25); only if it is lost after that: silent, MEM FULL WAVE |
+| WAVE's table: its copies and the frame builder's scratch (`eng_wave.c wt_mip wt_fr wt_fi`, `ENG_WAVE`) | 73,216 | a part plays WAVE (or is switching to it) | the change to WAVE refused as any engine's: the drop proposal, parts first, then the effects; on a load the list page (the table its need) (the night's ruling, 2026-10-25); only if it is lost after that: silent, MEMORY FULL: WAVE SILENT |
 | the X0X 909's / 808's state (`x0x_drums.c x0x_mem`, `DRUM_X0X909` / `808`) | 5,344 / 3,376 | the kit or a lane plays the machine, or one of its voices sounds | its hits play the stand-in kit (as the notes the machine lacks) |
 | the ROOM's diffusers (`fx.c rev_ap`, `REV_ROOM`) | 1,994 | in the reverb's block, after its line (fx_arena.c) | as the reverb |
-| FM6's sine table (`eng_fm6.c FM6_SIN`, `ENG_FM6`; 2026-10-26) | 4,100 | a part plays FM6 or is switching to it (set aside with the part's own memory) | the change to FM6 refused as any engine's (the drop proposal); only if lost after that: FM6 silent, MEM FULL FM6 |
-| the PUNCH ring (`punch.c punch_ring`, `FX_PUNCH`; 2026-10-26) | PUNCH_N x 2 (32,768 / 65,536) | the project's PUNCH switch is on (GLOBAL > Rec), or an effect still fades out | the punch bypassed (the mix as it is), MEM FULL PUNCH once; FX + a key: let go |
+| FM6's sine table (`eng_fm6.c FM6_SIN`, `ENG_FM6`; 2026-10-26) | 4,100 | a part plays FM6 or is switching to it (set aside with the part's own memory) | the change to FM6 refused as any engine's (the drop proposal); only if lost after that: FM6 silent, MEMORY FULL: FM6 SILENT |
+| the PUNCH ring (`punch.c punch_ring`, `FX_PUNCH`; 2026-10-26) | PUNCH_N x 2 (32,768 / 65,536) | the project's PUNCH switch is on (GLOBAL > Rec), or an effect still fades out | the punch bypassed (the mix as it is), MEMORY FULL: PUNCH OFF once; FX + a key: let go |
 
 - The main loop only (`arb_poll`, every pass after `fxm_poll`): placed (the interrupts off), zeroed, the feature's state
   reset, then its pointer set (the interrupts off); no longer used: its pointer 0 at once, the block given back two
   audio blocks later (`fxm_tick`); used again meanwhile: the same block, zeroed again.
-- No room (WAVE's table aside, above): bypassed where it is, kept in the project, MEM FULL SLICER / WAVE / X0X said once (op_input.c mem_tick,
+- No room (WAVE's table aside, above): bypassed where it is, kept in the project, MEMORY FULL: SLICER OFF / WAVE SILENT / 909 KIT OFF said once if it still stands 2 s later (op_input.c mem_news_tick,
   `arb_said`), placed by itself once there is room (tried every pass, never while a part's refused change waits or the
   lines are being moved), the largest first. A part's change refused while one of them is on its way back waits for it
   (`fxm_pending`). They are never proposed to drop.
@@ -299,7 +299,7 @@ split so that every build can have it and only the SD card mode pays for the res
 - A load with the core alone: `proj_apply` makes each part it cannot place a silent placeholder (`lmask`), as before; each
   frame `mem_load_next` turns the first into the edit's refusal (`part_mem_refused.keep`): `mem_retry` waits for every
   part's switch (the old blocks free after), places it with the project's sound if it fits now, else the confirm
-  proposes what to drop; declined to the end: MEM FULL, the part stays a placeholder; then the next.
+  proposes what to drop; declined to the end: MEMORY FULL: SOUND NOT LOADED, the part stays a placeholder; then the next.
 - What to propose (both): `arn_drop_for`'s search over every set of parts is gone; `mem_offer` proposes first the parts
   whose memory alone would make room (`engines.c part_mem_frees`: `arn_fits` with that part's block given back, the
   parts dropped before idle by then), then any other, one drop at a time. Two drops that only help together are
@@ -332,7 +332,7 @@ so its ring cannot wait for the key: a project setting says the project uses it.
 built and the arena's extras): `punch_sw`, GLOBAL > Tune's PUNCH (TEMPO's REC 2 page with REC MODES), OFF in a new project;
 saved in the project's G_INFO slot, bit 1 = ON (bit 0 stays REC QUANTIZE's). The ring is the arena buffer `ARB_PUNCH`
 (`core/arena_bufs.c`), held while the switch is on or an effect still fades out; not placed, `punch_process` leaves the
-mix as it is and the main loop lets go of FX + a key (`punch_asked`): PUNCH OFF said with the switch off, MEM FULL PUNCH
+mix as it is and the main loop lets go of FX + a key (`punch_asked`): PUNCH OFF said with the switch off, MEMORY FULL: PUNCH OFF
 once when refused. An extra and not the core: the ring is one of the other buffers (their placement, `arb_poll`, is the
 extras' code), and without the arena's extras the ring stays static and the punch always there, no switch (a normal
 build gains nothing from it: the ring is in its pool either way).

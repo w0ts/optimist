@@ -22,7 +22,7 @@
  *   sstp                       the plan's state for the UI: SSTP_PLACED, or SSTP_REFUSED (no room): need (bytes), drop
  *                              (the parts any one of whose memory, given back, would make room: a mask, as model.c
  *                              mem_offer proposes one drop at a time; 0 none alone), drop_all (1: the three parts'
- *                              together would), said (the UI said MEM FULL CARD once);
+ *                              together would), said (the UI said MEMORY FULL: CARD SOUNDS OFF once);
  *                              missing (a mask of slots whose sample is not on the card: MISSING, never another sound);
  *                              bmiss (a mask of the parts whose card set is not on the card: sd_mode.c says it once)
  * A part on a CARD SET (SST_PART_BANK(p): the set's number + 1, SD card mode's built-in sets, gen_samples.py
@@ -51,7 +51,7 @@
 #endif
 /* a part's rings at most: its card notes at once (a 5th is silent and counted, sst_nostream). Measured 2026-10-26 on the
  * default project (the emulator, SD card build): the effects' lines held 68 KB of the 96 KB arena, and a SAMPLE part's 8
- * rings of 4 KB plus its head (37,192 B) never fit beside them (MEM FULL CARD at the first USE); 4 rings, about 21 KB, do */
+ * rings of 4 KB plus its head (37,192 B) never fit beside them (MEMORY FULL: CARD SOUNDS OFF at the first USE); 4 rings, about 21 KB, do */
 #ifndef SST_PART_RINGS
 #define SST_PART_RINGS 4u
 #endif
@@ -564,7 +564,7 @@ static void sst_free_pick(void)
     }
 }
 
-/* 0 placed (or nothing to place), -1 refused: no room for every voice's ring and every preload, MEM FULL CARD with the
+/* 0 placed (or nothing to place), -1 refused: no room for every voice's ring and every preload, MEMORY FULL: CARD SOUNDS OFF with the
  * parts whose memory would make room (never fewer rings, shorter rings or shorter heads: the user, 2026-11-06 evening) */
 static int sst_place(void)
 {

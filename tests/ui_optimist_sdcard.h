@@ -1952,20 +1952,55 @@ static void sdcard_tests(void)
             check(sdp_keep == 25u && !sdm_rec.rsv[0] && !sdm_rec.rsv[1] && !sdm_rec.rsv2, "... read back: 25 versions, the old bytes ignored");
         }
 #if FELUCCA_SD_STREAM
-        /* the streams' memory short (sd_stream_plan.c refused: every voice's ring and preload do not fit): MEM FULL CARD, a
-         * part's drop asked, then MEM FULL CARD alone (no shorter buffer proposed: there is none) */
+        /* the streams' memory short (sd_stream_plan.c refused: every voice's ring and preload do not fit): nothing said
+         * while the refusal is young (the plan's retries may place it: a power-on's moment), then MEMORY FULL: CARD
+         * SOUNDS OFF, a part's drop asked, then MEMORY FULL: CARD SOUNDS OFF alone (no shorter buffer proposed: there is none) */
+        sstp.state = SSTP_IDLE;
+        sdu_frames(1);                                  /* (whatever the plan was: a new refusal from here) */
         sstp.state = SSTP_REFUSED;
         sstp.said = 0;
         sstp.drop = 1u << 2;
         sdu_frames(1);
-        check(op_armed() && ui.arm_danger && !strncmp(ui.arm_q, "DROP T3", 7), "MEM FULL CARD: DROP T3 asked, red");
+        check(!op_armed() && !sdu_msg("MEMORY FULL") && !sstp.said, "a young refusal: nothing said or asked yet");
+        sstp.state = SSTP_IDLE;
+        sdu_frames(1);
+        check(!sdm_short_on, "... placed by a retry meanwhile: forgotten, never said");
+        sstp.state = SSTP_REFUSED;
+        sdu_frames(1);
+        check(!op_armed() && sdm_short_on, "... refused again: held again");
+        sdm_short_ms -= SDM_MEM_SAY_MS;                   /* (stood that long: the plan's retries leave it refused) */
+        sdu_frames(1);
+        check(op_armed() && ui.arm_danger && !strncmp(ui.arm_q, "DROP T3", 7), "the refusal stood 2 s: DROP T3 asked, red");
         tap(B_HOME);
         sdu_frames(1);
-        check(!op_armed() && sdu_msg("MEM FULL CARD") && !sdu_msg("FITS"), "NO: no other part frees enough: MEM FULL CARD, nothing else proposed");
+        check(!op_armed() && sdu_msg("MEMORY FULL: CARD SOUNDS OFF") && !sdu_msg("FITS"), "NO: no other part frees enough: MEMORY FULL: CARD SOUNDS OFF, nothing else proposed");
         sdu_frames(3);
         check(!op_armed(), "... said once");
         sstp.state = SSTP_IDLE;
         sdu_frames(1);
+#if FXM_NEED && PART_DROPS
+        {   /* an effect's line refused, then placed (or let go) by the next passes: not news, never said; one that
+             * stands 2 s: said in plain words (op_input.c mem_news_tick) */
+            uint8_t full0 = fxm_full;
+            fxm_full |= 4u;
+            fxm_news |= 4u;
+            sdu_frames(1);
+            check(mem_news_on && !sdu_msg("REVERB OFF"), "a young refusal of the reverb's line: held, nothing said");
+            fxm_full = full0;                           /* (placed meanwhile) */
+            mem_news_ms -= MEM_SAY_MS;
+            sdu_frames(1);
+            check(!mem_news_on && !fxm_news && !sdu_msg("REVERB OFF"), "... placed before 2 s: forgotten, never said");
+            fxm_full |= 4u;
+            fxm_news |= 4u;
+            sdu_frames(1);
+            mem_news_ms -= MEM_SAY_MS;
+            fxm_full |= 4u;                             /* (still refused) */
+            mem_tick();
+            check(sdu_msg("MEMORY FULL: REVERB OFF") && !fxm_news, "... one that stood 2 s: MEMORY FULL: REVERB OFF, once");
+            fxm_full = full0;
+            sdu_frames(1);
+        }
+#endif
         {   /* a GRAIN part's cache missing its reads (sd_stream_rc.h, the card too slow): "T3 CARD SLOW" once */
             static uint8_t rcm[SST_RC_BYTES(16)] __attribute__((aligned(4)));
             sst_rc_place(2, rcm, 16);
