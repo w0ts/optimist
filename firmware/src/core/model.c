@@ -638,7 +638,7 @@ static void bank_resolve(void)
             continue;
         e = ENGINES[bank_eng(i)];
         for (k = 0; k < e->npresets; k++)
-            if (str_eq(e->presets[k].name, BANK[i].name))
+            if (e->presets && str_eq(e->presets[k].name, BANK[i].name))
                 bank_pi[i] = (uint8_t)k;
         if (bank_pi[i] != 0xFF && preset_playable(e, bank_pi[i]))
             bank_ix[bank_n++] = (uint8_t)i;
@@ -813,7 +813,7 @@ static const char *preset_name(uint32_t e, uint32_t k)
 #if PRESETS_CARD
     return k == PRESET_INIT || !ENG_NPRE(e) ? "INIT" : sdm_factory_name(e, k % ENG_NPRE(e));
 #else
-    return k == PRESET_INIT || !ENGINES[e] || !ENGINES[e]->npresets ? "INIT"
+    return k == PRESET_INIT || !ENGINES[e] || !ENGINES[e]->presets || !ENGINES[e]->npresets ? "INIT"
            : ENGINES[e]->presets[k % ENGINES[e]->npresets].name;
 #endif
 }

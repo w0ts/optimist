@@ -444,6 +444,8 @@ static int preset_playable(const engine_t *e, uint32_t pi)
     uint32_t s;
     if (PRESETS_CARD || (!ENG_IS(e, SAMPLE) && !ENG_IS(e, GRAIN)))
         return 1;                                        /* (SD card mode: the card's files, every one listed) */
+    if (!e->presets)
+        return 1;                                        /* a loaded plugin with card presets (presets=NULL): playable, the card lists them */
     s = (uint32_t)e->presets[pi].e[0];
     return s >= SMP_NSETS || SMP_SETS[s].nz != 0;
 }
