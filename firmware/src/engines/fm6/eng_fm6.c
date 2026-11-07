@@ -373,7 +373,7 @@ static void fm6_bake_old(int16_t *ed, int32_t mod, int32_t mtim, int32_t ctim)
 }
 
 /* ------------------------------------------------ Dexed's lookups (exact) --- */
-static FAST(fm6) uint64_t fm6_mulhi(uint64_t a, uint64_t b);
+static FAST(fm6) FAST_OOL(fm6) uint64_t fm6_mulhi(uint64_t a, uint64_t b);
 
 /* SLOOP: the sine table is built in RAM at boot (or before the first FM6 block), the 2^x and
  * frequency tables are figured where they are read, from 2^(i / 1024) = FM6_P2A x FM6_P2B: each value
@@ -506,7 +506,7 @@ static const uint64_t FM6_EXPB[16] = {                   /* e^(b / 256), Q63 */
     0x84102b00893f64c7u, 0x84947d49a77c8498u, 0x851954274e0fac0au, 0x859eb01e53e19398u,
     0x862491b414f45e15u, 0x86aaf96e72e8f4b3u, 0x8731e7d3d584e8bau, 0x87b95d6b2b38db4cu};
 
-static FAST(fm6) uint64_t fm6_mulhi(uint64_t a, uint64_t b)        /* (a * b) >> 64 */
+static FAST(fm6) FAST_OOL(fm6) uint64_t fm6_mulhi(uint64_t a, uint64_t b)        /* (a * b) >> 64 */
 {
     uint32_t a1 = (uint32_t)(a >> 32), a0 = (uint32_t)a, b1 = (uint32_t)(b >> 32), b0 = (uint32_t)b;
     uint64_t m = (uint64_t)a1 * b0, n = (uint64_t)a0 * b1, l = (uint64_t)a0 * b0;
@@ -637,7 +637,7 @@ typedef struct {
     uint8_t mf_ok, me_ok;
 } fm6_memo_t;
 static fm6_memo_t fm6_memo[NPART][NVOICE];
-static inline FAST(fm6) int32_t fm6_freq_m(fm6_memo_t *s, uint32_t k, int32_t lf)
+static inline FAST(fm6) FAST_OOL(fm6) int32_t fm6_freq_m(fm6_memo_t *s, uint32_t k, int32_t lf)
 {
     if (!((s->mf_ok >> k) & 1u) || s->mf_in[k] != lf) {
         s->mf_in[k] = lf, s->mf_out[k] = fm6_freq(lf);
