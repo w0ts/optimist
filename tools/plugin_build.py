@@ -148,7 +148,11 @@ def firmware_flags() -> list[str]:
             if not (own / h).exists():
                 subprocess.run([sys.executable, str(SRC / "tools" / g), str(own / h)], check=True, cwd=SRC)
         gens = [own.relative_to(SRC).as_posix(), rel]
-    return [*build.CFLAGS, "-fdata-sections", "-Ifirmware/hal", "-Ifirmware/src", *("-I" + g for g in gens),   # (-fdata-sections:
+    # the release keeps the factory presets in the image (fm1base/optimist/core/opt_core.c: #define PRESETS_CARD 0),
+    # even in SD card mode; the plugin must match (its engine's .presets point into the plugin, not NULL "on the card"),
+    # or the firmware reads a null preset table and the engine shows only INIT (2026-11-07)
+    card = ["-DPRESETS_CARD=0"] if gen_dir() != build.GEN else []
+    return [*card, *build.CFLAGS, "-fdata-sections", "-Ifirmware/hal", "-Ifirmware/src", *("-I" + g for g in gens),   # (-fdata-sections:
             "-include", f"{rel}/felucca_config.h"]                                              # the prelude's unreferenced globals go)
 
 
