@@ -85,7 +85,7 @@ static struct {
 static int fm6_sel(void) { return !is_drum(TSEL) && ENG_IS(ENGINES[tsel()->eng_req % NENGINES], FM6); }
 static int16_t *f6_ed(void) { return fm6_ed[song.sel % NPART]; }
 static uint32_t f6_kind(uint32_t r) { return r < F6_PIT0 ? 0u : r < F6_GLO0 ? 1u : 2u; }
-static const fm6k_page_t *f6_page(uint32_t r) { return r ? &FMK_PAGES[(r - 1u) % F6_NPG] : 0; }
+static __attribute__((noinline)) const fm6k_page_t *f6_page(uint32_t r) { return r ? &FMK_PAGES[(r - 1u) % F6_NPG] : 0; }
 static uint32_t f6_off(uint32_t r, const fm6k_pd_t *d)  /* where value d of row r lives in the voice */
 {
     if (d->kind == FK_ON)

@@ -427,7 +427,7 @@ static uint32_t fxz_line(uint32_t c, uint8_t *cur, uint32_t w)
     }
     return 1;
 }
-static uint32_t fxz_want(uint32_t id, uint32_t n)      /* the project's value of G_FXZ_*, inside the build's choices */
+static __attribute__((noinline)) uint32_t fxz_want(uint32_t id, uint32_t n)      /* the project's value of G_FXZ_*, inside the build's choices */
 {
     int32_t v = song.g[id];
     return v < 0 ? 0u : (uint32_t)v >= n ? n - 1u : (uint32_t)v;

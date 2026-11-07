@@ -552,7 +552,7 @@ static int pat_save_held(void) { return btn_held(B_SAVE) || (lay.lock == LY_PAT 
  * clear asks (arm_k = t << 4 | slot), a mask of tracks in the launch asks */
 #define PAT_ALLT NTRK
 #define PAT_ALLM ((1u << NTRK) - 1u)
-static uint32_t pat_mask(uint32_t t) { return t >= NTRK ? PAT_ALLM : 1u << t; }
+static __attribute__((noinline)) uint32_t pat_mask(uint32_t t) { return t >= NTRK ? PAT_ALLM : 1u << t; }
 static void pat_name_t(char *b, uint32_t t, uint32_t s)   /* "T2 5", "ALL 5" */
 {
     if (t < NTRK) {
