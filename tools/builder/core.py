@@ -31,13 +31,6 @@ NEEDS_AUTO = ()                 # (setup: the items the firmware switches off wi
 _UNSET = object()
 
 
-def engine_from_card(cfg, key):
-    """-> this engine item is left out of a build that loads engines from the SD card (PLUGINS, the region, and SDCARD):
-    a plugin the card zip writes (tools/sd_zip.py), not a loss; FM6 stays built in (the user's ruling, 2026-11-06)"""
-    return (key.startswith("ENG_") and key != "ENG_FM6" and not cfg.get(key, 0)
-            and int(cfg.get("PLUGINS", 0) or 0) > 0 and bool(cfg.get("SDCARD", 0)))
-
-
 def _release():
     """which firmware the rules are for: configure.py sets CLASSIC_HOOK to its classic() (Optimist's own firmware,
     OPTIMIST_CLASSIC=1); the default is the release (Optimist as an fm1-base app)"""
@@ -413,9 +406,6 @@ def validate(cfg):
     if cfg.get("SD_REC") and not (cfg.get("SDCARD") and cfg.get("LAYOUT") == 1):
         err.append(Issue("recording to the card (SD_REC) needs the card under full FatFs (SDCARD, LAYOUT 1)",
                          ["SD_REC", "SDCARD", "LAYOUT"]))
-    if cfg.get("HEADS_FLASH") and not (cfg.get("PLUGINS", 0) and cfg.get("SD_RING", 0)):
-        err.append(Issue("the pre-buffer in flash (HEADS_FLASH) needs the plugins' flash region (PLUGINS) and the card's streams "
-                         "(SD_RING)", ["HEADS_FLASH", "PLUGINS", "SD_RING"]))
     if cfg.get("SDCARD") and cfg.get("LCD_BAUD", 1) == 0:   # (the user, 2026-11-06: no 60 MHz screen with the card)
         err.append(Issue("the SD card board shares the screen's lines: its resistors (R5/R6 240 Ohm, R1 91, measured "
                          "2026-11-06 on an FM-1) leave the panel black at 60 MHz and fine at 30: LCD_BAUD 30 MHz "
@@ -474,8 +464,8 @@ def validate(cfg):
                           f"memories; a new project needs about {need['kb']} KB of it together ({what}); a project "
                           "using more than there is is refused and offered what to drop", ["ARENA"]))
     for k, it in R.ITEMS.items():
-        if it.off_warning and not cfg[k] and (not it.parent or built(cfg, it.parent)) and not engine_from_card(cfg, k):
-            warn.append(Issue(f"{it.label} off: {it.off_warning}", [k]))   # (an engine the card supplies is not lost)
+        if it.off_warning and not cfg[k] and (not it.parent or built(cfg, it.parent)):
+            warn.append(Issue(f"{it.label} off: {it.off_warning}", [k]))
         if built(cfg, k):
             if it.experimental:
                 warn.append(Issue(f"{it.label}: EXPERIMENTAL ({it.tested})", [k]))
@@ -1552,10 +1542,6 @@ def fits(total, cfg=None):
             # a step the build system gives no slot (the release builds only 1 and 3; its other steps' end = the classic
             # end): the design table's room, not the normal slot, or 4 projects showed no more room than 16
             cap = layout_room(cfg["LAYOUT"]) - SPARE["flash"]
-        if b == "flash" and cfg and int(cfg.get("PLUGINS", 0) or 0) > 1:
-            cap -= int(cfg["PLUGINS"]) * 1024       # (a fixed PLUGINS region: the slot's last KB, tools/build.py plugin_region)
-        # PLUGINS 1 ("all the free flash") costs nothing: the region IS whatever the code leaves (tools/fm1base.py _fill_kb),
-        # so it never makes a build over; the gauge's free flash is the region's size
         out[b] = (u, cap, u - cap)
     return out
 

@@ -1796,16 +1796,6 @@ static uint32_t sdm_samplers(uint8_t *e)
 #if FELUCCA_ENG_STRETCH
     e[n++] = (uint8_t)ENG_SLOT_STRETCH;
 #endif
-#if FELUCCA_PLUGINS
-    {   /* a sampler placed as a plugin (core/plugin.c; an engine is built in or a plugin, never both: n stays <= 4) */
-        uint32_t k, u;
-        for (k = NBUILT; k < NENGINES && n < SDM_NSAMPLERS; k++) {
-            u = eng_uid(k);
-            if (u == ENG_UID_SAMPLE || u == ENG_UID_SLICE || u == ENG_UID_GRAIN || u == ENG_UID_STRETCH)
-                e[n++] = (uint8_t)k;
-        }
-    }
-#endif
 #endif
     (void)e;
     return n;

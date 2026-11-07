@@ -30,43 +30,12 @@
 static const uint16_t WT_OFF[WT_LEVELS] = {0, 1024, 1536, 1792, 1920, 1984, 2016};
 /* The state: the table's progress (wt_st: have, building, next), the copies (wt_mip) and the frame builder's scratch
  * (wt_fr, wt_fi). One table for every WAVE track: shared, not per part. Built in: a static instance (wt_st), the copies
- * and the scratch in the pool or, with FELUCCA_FX_ARENA, one block of the arena (core/arena_bufs.c ARB_WAVE). A plugin
- * (plugin/plug_unit.c): all of it one block of the firmware's (wt_blk_t, engine_t .tab_kb; plugin_api->tab_mem, the
- * arena's), the main loop's builder called through plugin_api->service (wave_block asks for it) */
+ * and the scratch in the pool or, with FELUCCA_FX_ARENA, one block of the arena (core/arena_bufs.c ARB_WAVE) */
 typedef struct {
     volatile int16_t have;                       /* the table in wt_mip, complete (-1: none, or being built) */
     int16_t building;                            /* the table being built, frame by frame */
     uint8_t next;                                /* its next frame */
-    uint8_t init;                                /* (the plugin's block: 0 as placed, then have / building set) */
 } wt_st_t;
-#if FELUCCA_PLUGIN_UNIT
-typedef struct {
-    wt_st_t st;
-    int16_t mip[WT_NF][WT_PTS];
-    int32_t fr[1024], fi[1024];
-} wt_blk_t;
-#define WT_SLOT plugin_api->slot_of(ENG_UID_WAVE)   /* (the plugin slot the firmware gave it) */
-static wt_blk_t *wt_blk(void)                    /* its block, 0 while not placed */
-{
-    uint32_t s = WT_SLOT;
-    wt_blk_t *b = s == 0xFFu ? 0 : (wt_blk_t *)plugin_api->tab_mem(s);
-    if (b && !b->st.init) {                      /* (placed, zeroed: no table yet) */
-        b->st.have = b->st.building = -1;
-        b->st.next = 0;
-        b->st.init = 1;
-    }
-    return b;
-}
-#define WT_BP wt_blk_t *const wt_bp = wt_blk()
-#define WT_PLACED (wt_bp != 0)
-#define wt_mip (wt_bp->mip)
-#define wt_fr (wt_bp->fr)
-#define wt_fi (wt_bp->fi)
-#define wt_have (wt_bp->st.have)
-#define wt_building (wt_bp->st.building)
-#define wt_next (wt_bp->st.next)
-#define WT_TAB_KB ((sizeof(wt_blk_t) + 1023u) / 1024u)
-#else
 #define WT_SLOT ENG_SLOT_WAVE
 #define WT_BP
 #if FELUCCA_FX_ARENA
@@ -87,7 +56,6 @@ static wt_st_t wt_st = {-1, -1, 0, 1};
 static int32_t *wt_fr, *wt_fi;                   /* (after the copies, in their block) */
 #else
 static int32_t wt_fr[1024] __attribute__((section(".pool"))), wt_fi[1024] __attribute__((section(".pool")));
-#endif
 #endif
 #define WT_NALL WT_NFACTORY
 static const int16_t (*wt_spec(uint32_t table, uint32_t f))[2] { return WT_SPEC[table % WT_NFACTORY][f]; }
@@ -354,12 +322,6 @@ static const preset_t WAVE_PRESETS[] = {
     {"SYNC SCREAM", {4, 10, 0, 0, 110, 40, 40, 64}, {2, 70, 110, 40}, 0, 1, FX(10, 10, 26, 24), XP(P_ED_SHP + 1, 40, P_GLIDE + 1, 30)},
 };
 
-#if FELUCCA_PLUGIN_UNIT
-static void wave_block(track_t *t)               /* the plugin: the main loop builds its table (plugin_api->service) */
-{
-    plugin_api->service(t->engine, wt_service);
-}
-#endif
 static const engine_t ENG_WAVE = {
     .name = "WAVE",
     .page_title = {"WAVE", "FLT"},
@@ -380,8 +342,4 @@ static const engine_t ENG_WAVE = {
     .render = wave_render,
     .color = 0x5BB8,                             /* #5d74c4 (tools/colors.json) */
     .macro = {P_E1, P_E4, P_E5, P_E0},
-#if FELUCCA_PLUGIN_UNIT
-    .block = wave_block,
-    .tab_kb = WT_TAB_KB,
-#endif
 };

@@ -164,7 +164,7 @@ static void apply_preset_to(track_t *t, uint32_t pi)
         return;
 #if !PRESETS_CARD
     if (!e->presets)                                 /* no preset table: an engine the project names but this build cannot
-                                                      * play (a plugin not loaded, an engine turned off) -> INIT, the engine's
+                                                      * play (an engine turned off) -> INIT, the engine's
                                                       * own defaults, never e->presets[pi] at address 0 (the FM-1 faults on
                                                       * a null-page read; the emulator reads 0 and limps, 2026-11-07) */
         pi = PRESET_INIT;

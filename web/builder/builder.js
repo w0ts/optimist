@@ -8,7 +8,7 @@
 // app's page (web/builder/app.html): the Build card first, without the files and the keys. docs/WEB.md.
 import {
   MAIN_REF, PYODIDE_VERSION, TURNSTILE_SITEKEY, COSTS, costOf, sramParts, BUDGETS, budgetsOf, SORTS, ARENA_TIP, arenaText, barModel, fmtK, built, dimmedChoices, cloudConfigUrl, commitOf, latestOf, pickRef, refUrl, repoOf, defaultPreset, defaults, deltaOf, fileName, fmt,
-  changeText, engineFromCard, gaugeModel, hasInfo, indexRegistry, kDelta, messagesOf, offFits, oneLine, overflowLines, presets, pyodideBase, savedOf, treeOf,
+  changeText, gaugeModel, hasInfo, indexRegistry, kDelta, messagesOf, offFits, oneLine, overflowLines, presets, pyodideBase, savedOf, treeOf,
 } from "./logic.js";
 import { mountCloud } from "./cloud.js";
 
@@ -377,7 +377,6 @@ function itemRow(key, hasKids) {
   const an = v && v.arena_item ? v.arena_item[key] : undefined;
   if (an !== undefined && arenaText(an)) tags.append(el("span", { class: "arena" + (S.sortBy === "arena" ? " sortby" : ""), title: ARENA_TIP, text: `arena ${arenaText(an)}` }));
   if (v && offFits(deltas, over)) tags.append(el("span", { class: "fits", text: "◀ off = fits" }));
-  if (engineFromCard(S.values, key)) tags.append(el("span", { class: "kit", text: "from the SD card" }));   /* (a plugin: not lost) */
   if (S.reg.kits.includes(key) && live && v) {
     const sh = v.kit_shared && v.kit_shared.flash;
     tags.append(el("span", { class: "kit", text: `shares PERC samples${sh ? ` (${Math.round(sh / 1000)} KB)` : ""} with the other sampled kits ` }));
