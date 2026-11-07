@@ -2105,19 +2105,29 @@ static void sdm_again(void)                          /* SD CARD's YES: mounted a
 }
 static int32_t sdm_index_pct(void) { return sdm_st == SDM_INDEX ? (int32_t)sdm_ix_pct : -1; }   /* (-1: no pass) */
 #if FELUCCA_SD_STREAM
-/* the card samples' memory short (sd_stream_plan.c sstp: refused, every voice's ring and preload not fitting): MEM FULL
- * CARD, then a drop proposed with the one confirm, one part at a time (as model.c mem_offer: only a part whose memory
- * alone makes room, never one asked); none (or all asked): MEM FULL CARD said once. Placed by itself once there is room
- * (the plan's retries) */
+/* the card samples' memory short (sd_stream_plan.c sstp: refused, every voice's ring and preload not fitting): MEMORY
+ * FULL: CARD SOUNDS OFF, then a drop proposed with the one confirm, one part at a time (as model.c mem_offer: only a part
+ * whose memory alone makes room, never one asked); none (or all asked): MEMORY FULL: CARD SOUNDS OFF said once. Placed by
+ * itself once there is room (the plan's retries). Nothing said or asked before the refusal has stood SDM_MEM_SAY_MS:
+ * the plan retries every 200 ms, and at power-on or a load it is refused for a moment while the other blocks take
+ * their places (the user, 2026-11-07: a message at every power-on of pink, the kit placed a moment later) */
+#define SDM_MEM_SAY_MS 2000u
 static uint8_t sdm_asked, sdm_offering;
+static uint32_t sdm_short_ms;                           /* fm1_ms when the refusal began (sdm_short_on) */
+static uint8_t sdm_short_on;
 static void sdm_mem_tick(void)
 {
     char a[30];
     uint32_t k;
     if (sstp.state != SSTP_REFUSED) {
         sdm_asked = sdm_offering = 0;
+        sdm_short_on = 0;
         return;
     }
+    if (!sdm_short_on)
+        sdm_short_on = 1, sdm_short_ms = fm1_ms;
+    if (fm1_ms - sdm_short_ms < SDM_MEM_SAY_MS)
+        return;                                       /* (perhaps placed by the next retries: not news yet) */
     if (op_armed() || (sstp.said && !sdm_offering))
         return;
     sdm_offering = 0;
@@ -2129,12 +2139,12 @@ static void sdm_mem_tick(void)
             str_cpy(a, trk_tag(k), sizeof a);
             str_app(a, " ", sizeof a);
             str_app(a, trk_eng_name(&trk[k]), sizeof a);
-            ui_message("MEM FULL CARD");
+            ui_message("MEMORY FULL: CARD SOUNDS OFF");
             op_arm(ARM_OP, OA_SDDROP, k, "DROP", a, 1);
             return;
         }
     sstp.said = 1;
-    ui_message("MEM FULL CARD");
+    ui_message("MEMORY FULL: CARD SOUNDS OFF");
 }
 /* a part on a card set the card does not hold (sd_stream_plan.c sstp.bmiss): "PIANO NOT ON CARD" once, said again
  * only after it was there (or the part left it); the part silent. Only with the card mounted (none: NO SD CARD) */
@@ -2173,7 +2183,7 @@ static void sdm_part_tick(void)
 {
     uint32_t k, m = 0;
     char a[30];
-    if (sd_state == SD_READY && sdm_st == SDM_READY && sstp.state == SSTP_PLACED)   /* (MEM FULL CARD says its own) */
+    if (sd_state == SD_READY && sdm_st == SDM_READY && sstp.state == SSTP_PLACED)   /* (MEMORY FULL: CARD SOUNDS OFF says its own) */
         for (k = 0; k < SST_NPART && k < NPART; k++)
             m |= (uint32_t)((sstp.missing >> k & 1u) && !(sstp.bmiss >> k & 1u) && sdm_part_samples(k) && sdm_smp[k].hash) << k;
     sdm_part_said &= (uint8_t)m;
