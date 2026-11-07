@@ -42,12 +42,12 @@ def sources(d):
 
 
 def strip(text):
-    """comments, string / char literals and the FAST / FASTI markers blanked, lines kept"""
+    """comments, string / char literals and the FAST / FASTI / FAST_OOL markers blanked, lines kept"""
     def blank(m):
         return re.sub(r"[^\n]", " ", m.group(0))
     text = re.sub(r"/\*.*?\*/|//[^\n]*|\"(?:\\.|[^\"\\\n])*\"|'(?:\\.|[^'\\\n])*'", blank, text, flags=re.S)
-    return re.sub(r"\bFASTI?\(\w+\)[ \t]*", "", text)   # (FAST(name) / FASTI(name): taken out, so a definition it
-                                                        # starts still starts its line; the lines kept)
+    return re.sub(r"\b(?:FASTI?|FAST_OOL)\(\w+\)[ \t]*", "", text)   # (FAST(name) / FASTI(name) / FAST_OOL(name): taken
+                                                        # out, so a definition it starts still starts its line; the lines kept)
 
 
 def operand(text, i):
