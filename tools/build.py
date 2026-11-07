@@ -206,20 +206,6 @@ def layout():
     return int(CFG_VALUES.get("FELUCCA_LAYOUT", os.environ.get("FELUCCA_LAYOUT", "0")))
 
 
-def plugin_kb():
-    """the PLUGINS region's KB (core/plugin.h FELUCCA_PLUGIN_KB): the builder item PLUGINS, else the dev switch
-    OPTIMIST_PLUGIN_KB; 0: no plugins"""
-    return int(CFG_VALUES.get("FELUCCA_PLUGIN_KB", 0) or os.environ.get("OPTIMIST_PLUGIN_KB", "0") or 0)   # (a profile
-    # with PLUGINS off, the item's default 0: the dev switch still sets it)
-
-
-def plugin_region(lay):
-    """(lo, hi): the PLUGINS region's flash offsets in this layout, as core/plugin.h FL_PLUG_LO / FL_PLUG_HI have them:
-    the last whole sectors of the app slot, below the app area's tail"""
-    hi = (flash_layout.app_hi(lay) - flash_layout.APP_TAIL) & ~0xFFF
-    return hi - plugin_kb() * 1024, hi
-
-
 def build_loader():
     LDR.mkdir(parents=True, exist_ok=True)
     src = FW / "loader"
@@ -344,19 +330,8 @@ def build_app():
         v = os.environ.get(flag)
         if v and v.isdigit() and int(v) < 128 and os.environ.get("FELUCCA_BENCH", "0") != "0":
             flags.append(f"-D{flag}={v}")
-    v = os.environ.get("FELUCCA_BENCH_PLUG_UID")   # (bench 20: the UID of the engine installed from the card, core/registry.h)
-    if v and v.isdigit() and int(v) < 256 and os.environ.get("FELUCCA_BENCH") == "20":
-        flags.append(f"-DFELUCCA_BENCH_PLUG_UID={v}u")
-    v = os.environ.get("FELUCCA_BENCH_PLUG_SAMPLE")   # (bench 20: the plugin's parts' CARD sample, a path from Optimist/)
-    if v and os.environ.get("FELUCCA_BENCH") == "20" and re.fullmatch(r"[A-Za-z0-9_ ./-]+", v):
-        flags.append(f'-DFELUCCA_BENCH_PLUG_SAMPLE="{v}"')
-    v = os.environ.get("FELUCCA_BENCH_PLUG_PARTS")   # (bench 19, 20: the parts on the plugin slot, 1..3)
-    if v in ("1", "2", "3") and os.environ.get("FELUCCA_BENCH") in ("19", "20"):
-        flags.append(f"-DFELUCCA_BENCH_PLUG_PARTS={v}u")
-    if os.environ.get("FELUCCA_BENCH") in ("10", "11", "12", "13", "14", "15", "16", "18", "19", "20"):   # (bench.c scenarios 10..20: two digits, the loop below takes one)
+    if os.environ.get("FELUCCA_BENCH") in ("10", "11", "12", "13", "14", "15", "16", "18"):   # (bench.c scenarios 10..15: two digits, the loop below takes one)
         flags.append(f"-DFELUCCA_BENCH={os.environ['FELUCCA_BENCH']}")
-    if plugin_kb() and not int(CFG_VALUES.get("FELUCCA_PLUGIN_KB", 0) or 0):   # the PLUGINS region by the dev switch OPTIMIST_PLUGIN_KB (the
-        flags.append(f"-DFELUCCA_PLUGIN_KB={plugin_kb()}")        # builder item PLUGINS sets it in the configuration header)
     for flag, ok in (("FELUCCA_DUAL", "012"), ("FELUCCA_BENCH", "0123456789"), ("FELUCCA_BENCH_SAVE", "01"),
                      ("FELUCCA_BENCH_SWAP", "01"),
                      ("FELUCCA_BENCH_MIX", "01"), ("FELUCCA_BENCH_COMP", "01"), ("FELUCCA_BENCH_REVONLY", "01"),
@@ -469,8 +444,6 @@ def build_app():
     elf = OUT / "felucca.elf"
     ld = FW / "app.ld"
     slot = flash_layout.app_slot(layout())
-    if plugin_kb():                 # the PLUGINS region takes the slot's last whole sectors (core/plugin.h FL_PLUG_LO)
-        slot = plugin_region(layout())[0] - flash_layout.APP_LO - flash_layout.APP_HEAD
     LIMITS["flash"] = slot          # (the whole slot, the code's limit in every step: flash_layout.code_limit; no far
                                     # probe since 2026-10-30)
     ld_text = (FW / "app.ld").read_text()
@@ -1004,15 +977,7 @@ def main():
         print(f"measure  {OUT / 'sizes.json'} (no package: a measurement build is not flashable)")
         return 0
     mark(5)
-    extra = []
-    if plugin_kb() and os.environ.get("OPTIMIST_PLUGIN_PRELOAD"):   # a plugin file placed at the region's start in the
-        import plugin_build                                        # package (the emulator, a factory set): as the loader would
-        lo = plugin_region(layout())[0]
-        api = plugin_build.symbol(OUT / "felucca.elf", plugin_build.API_TABLE)   # (the API table: relocation kind 2)
-        placed = plugin_build.place(Path(os.environ["OPTIMIST_PLUGIN_PRELOAD"]).read_bytes(), lo, api)
-        extra.append((lo, placed))
-        print(f"plugin   {os.environ['OPTIMIST_PLUGIN_PRELOAD']} placed at 0x{lo:x}, {len(placed)} B")
-    pkg = fm1pkg_make.ufw(fm1pkg_make.flash_image(img, fm1pkg_make.KEY, flash_layout.app_hi(layout()), extra), ota, PRODUCT)
+    pkg = fm1pkg_make.ufw(fm1pkg_make.flash_image(img, fm1pkg_make.KEY, flash_layout.app_hi(layout())), ota, PRODUCT)
     (OUT / name).write_bytes(pkg)
     att = SRC / "assets" / "samples-cc0" / "ATTRIBUTION.txt"
     if att.exists():

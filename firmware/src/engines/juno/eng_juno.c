@@ -143,5 +143,4 @@ static const engine_t ENG_JUNO = {
     .poly = JUNO_POLY,
     .amp = juno_amp,
     .post = juno_post,
-    .part_bytes = sizeof(juno_mem_t),
 };

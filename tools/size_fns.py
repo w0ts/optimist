@@ -58,7 +58,7 @@ SIZE_FILES = ["ui/colors.c", "ui/splash.c", "storage/storage.c", "storage/uprese
 # half, the BLE start-up a link stop over its bound, perf/flash-survey 2026-10-15)
 OS_FILES = ["system/main.c", "system/supply.c", "io/usb/usb.c", "io/midi/midi_rings.c", "io/usb/usb_audio_route.c",
             "io/usb/usb_audio.c", "storage/motion_flash.c", "display/lcd.c",
-            "display/gfx.c", "system/libc.c", "system/bench.c", "system/bench_card.c", "system/bench_plaits.c", "plugin/plug_unit.c", "core/plugin.c", "core/plugin_card.c", "system/simd_probe.c",
+            "display/gfx.c", "system/libc.c", "system/bench.c", "system/bench_plaits.c", "system/simd_probe.c",
             "system/cpuguard.c",
             "ui/meters.c", "seq/motion.c", "core/macro.c", "fx/master_comp/master_comp.c",
             "seq/seq_midi.c", "drums/drum_sends.c", "drums/drum_mix.c", "seq/chance.c", "seq/qnt_seq.c", "fx/bassplus/bassplus.c", "fx/outcorr.c",

@@ -794,8 +794,7 @@ static FAST(seq) void voice_start(track_t *t, voice_t *v, uint32_t note, uint32_
         v->ph[0] = ph0;                                 /* (resetting them clicks) */
         v->ph[1] = ph1;
         v->ph[2] = ph2;
-        /* the voice state words the engine's descriptor names (engine_t keep: its filter states; a plugin's too, which
-         * is never ENG_IS anything). s[2] and s[3] are never kept (note_on's) */
+        /* the voice state words the engine's descriptor names (engine_t keep: its filter states). s[2] and s[3] are never kept (note_on's) */
         if (keep & 0x01u)
             v->s[0] = s0;
         if (keep & 0x02u)

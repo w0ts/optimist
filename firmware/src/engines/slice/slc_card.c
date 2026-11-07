@@ -1,9 +1,7 @@
 /* SPDX-License-Identifier: GPL-3.0-only
  * Copyright (C) 2026 Leo Kuroshita (@kurogedelic), Hügelton Instruments */
 /* SLICE's material (engines/slice/eng_slice.c, the top): the slice table, the ADPCM decoder over it, the onset scan, and
- * a CARD's encoder. Split out (plugins/samples, 2026-11-06) so that a firmware whose SLICE is a plugin still reads and
- * encodes a part's card sample in its main loop (storage/sd/sd_slice.c, SLC_CARD_SVC: engines.c), and the plugin plays
- * it (the table through plug_api_t slc_crd). The same code, moved. */
+ * a CARD's encoder (storage/sd/sd_slice.c reads and encodes a part's card sample with it: SLC_CARD_SVC, engines.c) */
 #ifndef SLC_CARD_C
 #define SLC_CARD_C
 #define SLC_GRID 128u                /* grid points: decoder states at k * len / SLC_GRID */
@@ -28,11 +26,7 @@ typedef struct {
 
 #define SLC_SRC_CARD 4u
 #if FELUCCA_SD_STREAM
-#ifdef PLUG_BUILD
-#define slc_crd ((const slc_src_t *const volatile *)plugin_api->slc_crd)   /* (a plugin: the firmware's) */
-#else
 static const slc_src_t *volatile slc_crd[SST_NPART];   /* each part's CARD material, 0 none (storage/sd/sd_slice.c) */
-#endif
 #endif
 
 /* ---- the ADPCM decoder over the material (segments one after the other, each from 0 / 0) */

@@ -236,15 +236,10 @@ static FAST(phase) __attribute__((noinline)) void phase_loopf(track_t *t, voice_
  * fold's output has none of the wave's DC, so the switch would step (up to half full scale on PLS / RING). That block
  * is rendered both ways and crossfaded, unfolded -> folded or back (going off: at the last FOLD's gain); going on, the
  * blocker starts afresh as on a note-on. Once per switch: not the loop's cost */
-/* the two renders' scratch (a block each). Built in: one static instance; a plugin (plugin/plug_unit.c): the part's
- * engine memory through the firmware's API table (PART_MEM_AT, engine_t .part_bytes), a scratch per part */
+/* the two renders' scratch (a block each): one static instance */
 typedef struct { int32_t xa[CTL], xb[CTL]; } pd_mem_t;
-#if FELUCCA_PLUGIN_UNIT
-#define PD_MEM(t) ((pd_mem_t *)PART_MEM_AT((uint32_t)((t) - trk) % NPART))
-#else
 static pd_mem_t pd_st;
 #define PD_MEM(t) (&pd_st)
-#endif
 static FAST(phase) __attribute__((noinline)) void phase_xfade(track_t *t, voice_t *v, int32_t *out, uint32_t n, const vmod_t *m,
                                                              uint32_t on)
 {
@@ -324,7 +319,4 @@ static const engine_t ENG_PHASE = {
     PRESETS_OF(PHASE_PRESETS), 0, phase_note_on, phase_render,
     0x05DF, {P_E2, P_E3, P_E4, P_REL},
     .keep = FELUCCA_PHASE_FOLD ? 0x33 : 0x03,   /* a retrigger keeps s0 s1 the WAVE toggles; FOLD: s4 s5 its DC blocker (voice.c) */
-#if FELUCCA_PHASE_FOLD
-    .part_bytes = sizeof(pd_mem_t),               /* (the crossfade's scratch: FOLD only; the type exists only then) */
-#endif
 };

@@ -102,7 +102,7 @@ static void sd_end(void)
                                                                     : (uint32_t)NVOICE)   /* (mono: the note before's tail) */
 /* a part on SAMPLE, GRAIN or STRETCH with a set on the card (SD card mode, eng_sample.c SMP_CARD_SET): that set + 1,
  * else 0; its folder. GRAIN and STRETCH read it through a cache (SST_PART_RAND: sd_stream_rc.h) */
-/* (by the engine's UID: a plugin's part as a built-in's, core/plugin.c) */
+/* (by the engine's UID) */
 #define SST_PART_RAND(p) (eng_uid(trk[p].engine) == ENG_UID_GRAIN ? SST_RAND_KB : \
                           eng_uid(trk[p].engine) == ENG_UID_STRETCH ? SST_STRETCH_KB : 0u)   /* (its cache's KB) */
 #define SST_PART_FREE(p) (SST_PART_RAND(p) && trk[p].p[P_E0] == (int16_t)SMP_CARD)   /* (their SRC on CARD: the part's own WAV) */

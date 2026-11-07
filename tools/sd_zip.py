@@ -52,7 +52,7 @@ FW = ROOT / "firmware" / "src"
 NAME = "optimist-sd-card.zip"
 STAGE2_REL = "MBOOT/MENU.BIN"                # (the card's root: m-bootloader's path, its docs/SPEC.md 11.5)
 FIRMWARES = "FIRMWARES"                      # (firmware/stage2/s2_card.c: found by its short name)
-DIRS = ("Projects", "Samples", "Kits", "Presets", "Record", "Renders", "Backup", "System", "Plugins")   # (sd_layout.c SDL_DIR)
+DIRS = ("Projects", "Samples", "Kits", "Presets", "Record", "Renders", "Backup", "System")   # (sd_layout.c SDL_DIR)
 SUBDIRS = ("Presets/Factory", "Presets/User", "Kits/Factory", "Kits/User")   # (sd_layout.c sdl_prepare)
 BUILD = ROOT / (os.environ.get("OPTIMIST_BUILD_DIR") or "build")   # (tools/build.py's: a parallel build's own)
 CACHE = BUILD / "sd-zip-cache"
@@ -123,17 +123,10 @@ def _all():
     return Content(tuple(gen_samples.CARD_SETS), True, tuple(sd_samples.X909_FILES), PACKS)
 
 
-_CFG = {"hash": None, "name": None}                  # the configuration the zip is for (content_of): the plugins' check
-
-
-def content_of(cfg, name="this configuration"):
-    """a builder configuration -> its Content (core.py card_content); remembers the configuration's hash so the plugins
-    are built only against a firmware build of the same configuration (write_plugins)"""
+def content_of(cfg):
+    """a builder configuration -> its Content (core.py card_content)"""
     sys.path.insert(0, str(ROOT / "tools" / "builder"))
     import core
-    import configure
-    _CFG["hash"], _CFG["name"] = configure.cfg_hash(cfg), name
-    _CFG["plugins"], _CFG["classic"] = int(cfg.get("PLUGINS", 0) or 0), bool(core.CLASSIC_HOOK())
     c = core.card_content(cfg)
     return Content(tuple(c["sets"]), bool(c["kits"]), tuple(c["x909"]), tuple(c["fm6_packs"]))
 
@@ -219,9 +212,7 @@ def inputs():
     """-> the files the zip is made from (its cache key): the firmware's sources, the host headers, the generators, the
     sample sets' sources, MENU.BIN's"""
     files = [ROOT / "tools" / n for n in ("sd_zip.py", "sd_factory.c", "gen_samples.py", "sd_samples.py",
-                                           "gen_x0x_drums.py", "sampleio.py", "stage2_pack.py", "toolchain.py",
-                                           "plugin_build.py")]
-    files += [p for p in (_plugins_gen() / "felucca_config.h",) if p.exists()]   # (the plugins' ABI follows the build's configuration)
+                                           "gen_x0x_drums.py", "sampleio.py", "stage2_pack.py", "toolchain.py")]
     files += [ROOT / "tests" / "hostsim.c", ROOT / "firmware" / "stage2" / "Makefile"]
     mboot = ROOT / "third_party" / "m-bootloader"
     for top, pats in ((ROOT / "firmware" / "stage2", ("*.c", "*.h")), (mboot / "src", ("*.c",)), (mboot / "include", ("*.h",))):
@@ -259,7 +250,6 @@ def generate(out_zip, c=None):
         import sd_samples
         smp = sd_samples.write_all(tree, sets=c.sets, kits=c.kits, x909=c.x909)
         (tree / "Optimist" / "readme.txt").write_text(readme(c))
-        write_plugins(work, tree)
         menu = tree / STAGE2_REL
         menu.parent.mkdir()
         menu.write_bytes(build_stage2(work))
@@ -275,65 +265,6 @@ def generate(out_zip, c=None):
         shutil.rmtree(work, ignore_errors=True)
     tally = dict(ln.split()[:2] for ln in res.stdout.splitlines() if ln.split()[:1] in (["total"], ["kits"]))
     return int(tally["total"]), int(tally["kits"]), smp["sets"], len(smp["files"])
-
-
-def _plugins_gen():
-    """the firmware build's generated headers the plugins follow (tools/plugin_build.py gen_dir: the classic build's
-    OPTIMIST_BUILD_DIR/gen, or the release's fm1base/optimist/build/optgen); BUILD/gen without the tool"""
-    sys.path.insert(0, str(ROOT / "tools"))
-    try:
-        import plugin_build
-        return plugin_build.gen_dir()
-    except Exception:
-        return BUILD / "gen"
-
-
-def write_plugins(work, tree):
-    """Optimist/Plugins/<name>.opl for every engine the toolchain builds as a plugin (tools/plugin_build.py: linked
-    alone, its relocations kept; docs/SD-MODE-DESIGN.md section 10), against the firmware build's configuration
-    (OPTIMIST_BUILD_DIR's gen: the same structs, PLUG_ABI). Without the toolchain or that build: none, said.
-    An engine the tool refuses (RAM of its own, a relocation it cannot patch) is left out, said -> how many"""
-    if _CFG["hash"] is None:
-        print("sd zip: no plugins on the card: no configuration (--all): a plugin is built for one")
-        return 0
-    # the firmware must have the region the plugins are loaded into: the builder's PLUGINS item (FELUCCA_PLUGIN_KB; the
-    # release's region is fm1-base's, tools/fm1base.py env_for FM1B_PLUGIN_KB; the classic build's tools/build.py
-    # plugin_region) -> without it no file, said
-    if not _CFG["plugins"]:
-        print(f"sd zip: no plugins on the card: PLUGINS is off in {_CFG['name']}: the firmware has no flash region to load "
-              "them into (the builder's PLUGINS item)")
-        return 0
-    sys.path.insert(0, str(ROOT / "tools"))
-    try:
-        import plugin_build
-        plugin_build.build.backend()                    # (the compiler alone: no Pillow, no SDK: the zip's Python may lack them)
-        plugin_build.firmware_flags()
-    except (ImportError, SystemExit, Exception) as e:   # (toolchain.ToolchainError, PluginError: no toolchain, no build)
-        print(f"sd zip: no plugins on the card: {e}")
-        return 0
-    # a plugin is built against one configuration's structs (core/plugin.h PLUG_ABI): the firmware build in the build
-    # directory must be this configuration's, else the FM-1 refuses the files
-    cv = plugin_build.config_values()
-    built_for, built_hash = cv.get("FELUCCA_CFG_NAME", "?").strip('"'), int(cv.get("FELUCCA_CFG_HASH", "0").rstrip("u") or 0)
-    if built_hash != _CFG["hash"]:
-        print(f"sd zip: no plugins on the card: the firmware in {plugin_build.gen_dir().parent} was built for {built_for} ({built_hash:08x}), not "
-              f"{_CFG['name']} ({_CFG['hash']:08x}): build this configuration first (make build / make package), then the card")
-        return 0
-    out = tree / "Optimist" / "Plugins"
-    out.mkdir(parents=True, exist_ok=True)
-    n = 0
-    built = {k[len("FELUCCA_ENG_"):] for k, v in plugin_build.config_values().items() if k.startswith("FELUCCA_ENG_") and v == "1"}
-    for name in engines():                                # (every engine, the built-in ones too: the user, 2026-11-06, "all
-        try:                                              # engines should be on the sd card"; a built-in one is never loaded)
-            p = plugin_build.build_plugin(name, work / "plugins")
-            shutil.copyfile(p, out / p.name.lower())      # (the card: files lower case, folders capitalised)
-            n += 1
-        except plugin_build.PluginError as e:
-            print(f"sd zip: {name}: not a plugin: {e}")
-        except SystemExit:
-            print(f"sd zip: {name}: not a plugin: its compile or link failed")
-    print(f"sd zip: {n} plugins in Optimist/Plugins (the engines this configuration builds in: none needed)")
-    return n
 
 
 def cached(c=None):
@@ -411,7 +342,7 @@ def main(argv):
         c, where = _all(), "every tick (--all)"
     else:
         cfg, name, where = load_cfg(a.config, a.profile)
-        c = content_of(cfg, name)
+        c = content_of(cfg)
         where = f"{name} ({where})"
         sys.path.insert(0, str(ROOT / "tools" / "builder"))
         import core
