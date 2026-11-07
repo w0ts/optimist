@@ -144,7 +144,7 @@ static inline FAST_OOL(seq) int auto_find(const auto_list_t *l, uint32_t place, 
             return (int)i;
     return -1;
 }
-static inline void auto_del(auto_list_t *l, uint32_t i)                /* event i goes, the order kept */
+static inline FAST_OOL(seq) void auto_del(auto_list_t *l, uint32_t i)                /* event i goes, the order kept */
 {
     if (i >= l->n)
         return;
@@ -175,7 +175,7 @@ static inline FAST_OOL(seq) int auto_get(const auto_list_t *l, uint32_t place, u
     return i >= 0;
 }
 /* a pseudo-parameter of step `step` set (its default: the event goes); 0 the list is full */
-static inline int auto_pseudo_set(auto_list_t *l, uint32_t step, uint32_t param, int32_t v)
+static inline FAST_OOL(seq) int auto_pseudo_set(auto_list_t *l, uint32_t step, uint32_t param, int32_t v)
 {
     uint32_t pl = (step & AUTO_STEP) | AUTO_ONLY;
     int i;
