@@ -162,6 +162,13 @@ static void apply_preset_to(track_t *t, uint32_t pi)
     uint32_t i;
     if (is_drum(t))
         return;
+#if !PRESETS_CARD
+    if (!e->presets)                                 /* no preset table: an engine the project names but this build cannot
+                                                      * play (an engine turned off) -> INIT, the engine's
+                                                      * own defaults, never e->presets[pi] at address 0 (the FM-1 faults on
+                                                      * a null-page read; the emulator reads 0 and limps, 2026-11-07) */
+        pi = PRESET_INIT;
+#endif
     sound_change(t);                                  /* (SLOOP 2.6: what sounds fades out with the old sound, no click) */
     panic_req |= (uint8_t)(1u << trk_index(t));       /* MONO/POLY may change: release what sounds */
     t->user = 0;
@@ -631,7 +638,7 @@ static void bank_resolve(void)
             continue;
         e = ENGINES[bank_eng(i)];
         for (k = 0; k < e->npresets; k++)
-            if (str_eq(e->presets[k].name, BANK[i].name))
+            if (e->presets && str_eq(e->presets[k].name, BANK[i].name))
                 bank_pi[i] = (uint8_t)k;
         if (bank_pi[i] != 0xFF && preset_playable(e, bank_pi[i]))
             bank_ix[bank_n++] = (uint8_t)i;
@@ -800,10 +807,14 @@ static const char *preset_kind(uint32_t n) { return n < NBANK ? BANK_KIND[BANK[b
 /* the name of preset k of engine slot e as the lists show it */
 static const char *preset_name(uint32_t e, uint32_t k)
 {
+    e %= NENGINES;                                   /* a stale engine index (a project from a build with other engines):
+                                                      * bounded, never a read past ENGINES[] (2026-11-07: ENGINES[e] with e
+                                                      * out of range read as 0, then ENGINES[e]->npresets faulted on hw) */
 #if PRESETS_CARD
     return k == PRESET_INIT || !ENG_NPRE(e) ? "INIT" : sdm_factory_name(e, k % ENG_NPRE(e));
 #else
-    return k == PRESET_INIT || !ENGINES[e]->npresets ? "INIT" : ENGINES[e]->presets[k % ENGINES[e]->npresets].name;
+    return k == PRESET_INIT || !ENGINES[e] || !ENGINES[e]->presets || !ENGINES[e]->npresets ? "INIT"
+           : ENGINES[e]->presets[k % ENGINES[e]->npresets].name;
 #endif
 }
 #if FELUCCA_FAVORITES

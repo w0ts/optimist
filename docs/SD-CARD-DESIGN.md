@@ -390,21 +390,9 @@ the probed J12 pins; SD reads, a FAT32 reader and a flash-slot loader in m-bootl
   **Measured 2026-11-06** (pink, the user's ten-lane card kit, SD_RING 4 KB, the card at 15 MHz, the LCD at 30 MHz): the heads
   and the rings share the arena, so at 200 ms the planner placed five rings and a sixth hit cut the oldest tail, and at 25 to
   100 ms all ten rings but about 12 voices a second ran dry at hits on every lane; with the card given priority over the
-  screen (sd_stream.c SST_STRIP_MS 64, SST_HOLD_MS 1000) and 200 ms, five minutes with no dry voice. **Next design step, the
-  user's ("just like we load engines from flash"): the heads in flash.** A kit's heads (or only each sample's first 20-30 ms)
-  written into a flash region when the kit is picked, read in place, the arena kept for the rings alone: 8 KB rings for ten
-  voices and a 200 ms pre-buffer without a ring lost. The plugins' writer takes it as it is (the plugins session, 2026-11-06:
-  `core/plugin.c plug_install(reader, ctx)`, docs/SD-MODE-DESIGN.md 10.4-10.8): the region (builder item PLUGINS, 64 / 128 /
-  192 KB off the app slot) has no directory, an occupant is a 48-byte header at a sector start with a KIND byte, packed first
-  fit beside the plugins, so kit heads are one more KIND, no layout change; the writer streams any bytes through a reader
-  callback in one-sector windows, header last (a cut write leaves free sectors), the erase sliced so the audio keeps running,
-  and it SFC-encrypts what it programs because the region sits in the app area and XIP decrypts every read: the heads read in
-  place like a constant. Heads need no relocation patch. Open for both clients: a firmware update rewrites the app slot and
-  the region with it; eviction is not built (full = refused). After that writer is proven on an FM-1 (the integrated build
-  has not run on hardware yet). The writer's calls landed on plugins/integ 10512393: `PLUG_KIND_HEADS` 1, `plug_install(rd, ctx)`
-  (0 placed or already placed by that key), `plug_find(kind, key, &base, &len)`, `plug_free(kind, key)`, `plug_region_kb(&used,
-  &free)`; the key is the kit's hash in the header's `desc`, `name[12]` the kit's; all static in the one unit (plugin.c comes
-  before sdcard.c and sd_mode.c in felucca.c).
+  screen (sd_stream.c SST_STRIP_MS 64, SST_HOLD_MS 1000) and 200 ms, five minutes with no dry voice. The heads in flash (a kit's preloads written into the plugins'
+  flash region, HEADS_FLASH) were designed 2026-11-06 and dropped with plugins in flash 2026-11-07 (writing the
+  flash made everything slow; docs/SD-MODE-DESIGN.md section 10): the preloads stay in the arena.
 - **RULING 2026-11-06 evening (the user: "each sampler should allocate its ring. basta"; "one setting: ring size per sampler,
   and we preload one ring"). One setting, `SD_RING` (4 / 8 / 12 / 16 KB a voice; 8 KB the default for card kits).** Every
   streaming voice owns one ring of that size, always: the drum voices (NDRUM, a lane each), each CARD part's voices up to
@@ -414,13 +402,8 @@ the probed J12 pins; SD reads, a FAT32 reader and a flash-slot loader in m-bootl
   the ring is fed before the preload runs out by construction (the card-first rule, sst_strip). The device's PRE-BUFFER
   setting (SYSTEM > SD CARD, SST_PRE_MS 25..200, sst_pre_set, its settings record, the console's and the page's KB figure)
   goes away; SST_KIT_HEAD_MS and sst_kit_pre go with it; "whole" sources (a sample shorter than a ring) stay as they are.
-  The preloads live in flash with HEADS_FLASH (one occupant per placement, key = the hash of the placed sources' hashes,
-  `name` "HEADS", an index of (hash, offset, bytes) first, then the preloads back to back; found by key = no write; the
-  previous key freed before a new write; a full region = the preloads in RAM as without the item) and in the arena
-  without it. SYSTEM > Info gets a FLASH line beside RAM: the region's used / free KB (`plug_region_kb`). Host tests:
-  tests/sd_stream_plan_test.c rewritten to the rule (the ring count is the voice count or a refusal; the preload is one ring;
-  the flash path against a simulated region with plug_* stubs: placed, found again without a write, freed on a kit change,
-  full = RAM). Measured reasons: 2026-11-06 the bargaining gave five rings at 200 ms and dry voices at 25 ms (above).
+  The preloads live in the arena. Host tests:
+  tests/sd_stream_plan_test.c rewritten to the rule (the ring count is the voice count or a refusal; the preload is one ring). Measured reasons: 2026-11-06 the bargaining gave five rings at 200 ms and dry voices at 25 ms (above).
 - **Streaming, built (2026-10-26, host-tested only; builder `SD_RING`, `FELUCCA_SD_STREAM`: full FatFs, SAMPLE and
   ARENA too).** `src/storage/sd/sd_stream.h` (the audio's side), `sd_stream.c` (the main loop's runs, the sources),
   `sd_stream_plan.c` (the memory per project), SAMPLE's CARD set (`engines/sample/eng_sample.c` `smp_card_*`):
@@ -470,7 +453,7 @@ the probed J12 pins; SD reads, a FAT32 reader and a flash-slot loader in m-bootl
     212 of 328 hits of a busy pattern, 16ths at 120 BPM, 8 bars: 4 rings 148, 5 rings 118, 6 rings 0 (a ring a drum voice,
     `NDRUM`). Then 6 rings for the kit, fewer and shorter when the arena had no room (2026-11-05, the user: "i would say 5
     is min", "or we can use shorter ring"); since 2026-11-06 evening a ring every drum voice, 10 (`SST_KIT_RINGS`), never
-    fewer nor shorter: no room is a refusal, MEM FULL CARD (the drop offered, no card sample plays until it fits). A hit with no ring takes the oldest card hit's (`lane_card.c dlc_ring_free`, counted as "tails cut for a ring": 198 tails on 3 rings, none
+    fewer nor shorter: no room is a refusal, MEMORY FULL: CARD SOUNDS OFF (the drop offered, no card sample plays until it fits). A hit with no ring takes the oldest card hit's (`lane_card.c dlc_ring_free`, counted as "tails cut for a ring": 198 tails on 3 rings, none
     on 6). Still silent: a part's 5th note (`SST_PART_RINGS`) and the 909's third.
   - **Dry**: a voice whose next slot is not there fades out at once over 64 samples (1.5 ms) from the sample it was
     at, then ends; `sd stream` counts it (`dry`). A note with no ring free is silent and counted (`no ring`).
@@ -480,7 +463,7 @@ the probed J12 pins; SD reads, a FAT32 reader and a flash-slot loader in m-bootl
     runs and preload (one ring's bytes, `sst_src_head`). Placed again when the parts' samples or their voice counts
     change (the CARD voices let go first, their sources not ready: they fade; the old block given back 20 ms later),
     and at every mount (a run is a sector number: another card's would be garbage). No room for every ring and every
-    preload: refused (`sstp.state` 3), all the rings still asked: the project's card samples silent, MEM FULL CARD for
+    preload: refused (`sstp.state` 3), all the rings still asked: the project's card samples silent, MEMORY FULL: CARD SOUNDS OFF for
     the UI to say once, the proposal `sstp.drop` (the parts any one of whose engine memory would make room, one drop at
     a time as model.c mem_offer proposes) and `sstp.drop_all`; tried again every 200 ms, placed by itself once it fits.
     A hash not in the index: that part MISSING (`sstp.missing`), never another sound.
@@ -511,7 +494,7 @@ the probed J12 pins; SD reads, a FAT32 reader and a flash-slot loader in m-bootl
     So the part's card sample goes into the streams' arena block whole, as mono IMA ADPCM at its own rate (a one-bar
     break of 2 s at 44.1 kHz: 44 KB), and is scanned as a user slot (grid, AUTO onsets): REV, AUTO, LOOP play as
     from the flash. USE with a part on SLICE keeps SLICE and sets SRC CARD (another part: the sampler popup, UI-OPTIMIST-DESIGN.md 4.14); the plan places again when a part goes on
-    or off SLICE CARD (no ring, no head for it). Too big for the arena: refused as any card sample (MEM FULL CARD);
+    or off SLICE CARD (no ring, no head for it). Too big for the arena: refused as any card sample (MEMORY FULL: CARD SOUNDS OFF);
     nothing placed: silent, never BREAK. Tested: `tests/sd_stream_engine_test.c` (the slices by key, REV, ADPCM
     25 dB or better), `tests/sd_stream_plan_test.c` (the block, the rings).
   - A card WAV's "smpl" chunk (before or after the data, `sst_wav`): its unity note is the note that plays it at its
@@ -526,7 +509,7 @@ the probed J12 pins; SD reads, a FAT32 reader and a flash-slot loader in m-bootl
   - **A cache** per part on GRAIN or STRETCH with a card set (`SST_PART_RAND`): slots of one 512-byte card sector, any
     sector of any of the part's sources in any slot, each tagged (source << 24 | file sector + 1). GRAIN's is
     `SST_RAND_KB` (8 x SD_RING, 16 to 32 KB: 32 with SD_RING 4), STRETCH's 16 KB; in the streams' arena block after the
-    rings (33,280 B and 16,640 B with the tags), placed and refused as the rings are (MEM FULL CARD). A zone only they
+    rings (33,280 B and 16,640 B with the tags), placed and refused as the rings are (MEMORY FULL: CARD SOUNDS OFF). A zone only they
     play has no head (a head is a stream's start); SAMPLE on the same set shares the zones with their heads.
   - **Wants** (the audio's, each a sector range of one source by a due on the audio's clock): GRAIN's PLAN (`gr_plan`,
     the block hook) knows the part's next grains up to 60 ms early, exactly: their positions are the part's generator's
@@ -748,7 +731,7 @@ presets for all devices".
   pins); any other through the part's cache (GRAIN 32 KB, STRETCH 16 KB, 32 KB for a stereo file: its window's bytes),
   whatever its length: up to 2^30 frames, and only as many of its sectors as the grains or the window read. Not
   playable, said once: "T1 FILE IN PIECES" (more than 31 runs), "T1 NOT 8/16-BIT PCM", "T1 FILE TOO LONG"; gone: "T1 SAMPLE
-  MISSING"; no room for even the cache: MEM FULL CARD. A USE of a file over 256 KB the index has not hashed yet does not
+  MISSING"; no room for even the cache: MEMORY FULL: CARD SOUNDS OFF. A USE of a file over 256 KB the index has not hashed yet does not
   hash it there (seconds of a frozen main loop): the index's pass runs, "CARD INDEXING: USE AGAIN". Measured at 840 KB/s
   (8.57 MHz; `tests/sd_grain_test.c`, the screen's strips drawing, 44.1 kHz mono unless said; of about 130 grains in 4.5 s):
   GRAIN frozen 0 missed, 4 KB/s of the bus; SPRD 8 with short grains 0, 198 KB/s; SPRD 35 9 missed, 417 KB/s; SPRD 127 0,
@@ -925,9 +908,9 @@ checked: only the build time and the commit differ).
 - **Streaming's memory** (`FELUCCA_SD_STREAM`): no device setting (since 2026-11-06 evening; the pre-buffer's byte in
   the device record kept, read and ignored): a ring each streaming voice of the builder's `SD_RING`, each sample
   preloaded one ring's worth. The plan refused (`sstp` SSTP_REFUSED: every ring and preload asked, never fewer):
-  *MEM FULL CARD*, then one drop at a time with the one confirm, red (*Drop T2 FM6?*: a part of `sstp.drop`, whose
+  *MEMORY FULL: CARD SOUNDS OFF*, then one drop at a time with the one confirm, red (*Drop T2 FM6?*: a part of `sstp.drop`, whose
   memory alone makes room, never one asked, as model.c `mem_offer`; YES: the part a silent placeholder, the plan places
-  by itself once its memory is back); none left: *MEM FULL CARD*. Said once a refusal.
+  by itself once its memory is back); none left: *MEMORY FULL: CARD SOUNDS OFF*. Said once a refusal, and only once it has stood 2 s (`sd_mode.c SDM_MEM_SAY_MS`: the plan retries every 200 ms, and at power-on or a load it is refused for a moment while the other blocks take their places; 2026-11-07).
 - **Presets and kits**: one small file each, `Presets/User/<Engine>/<L>/<nn> - <name>.ops` ("OPPR": a user preset's record, `upreset.c up_card_*`
   through slot `UP_CARD` = `UP_SLOTS`, RAM only) and `Kits/User/<L>/<nn> - <name>.opk` ("OPKT": a user kit and its lanes' sends,
   `drum_kits.c ukit_card_*`), a 16-byte header (magic, version, length, the payload's XXH64), a sector at most
@@ -1056,7 +1039,7 @@ found again after a move, RECENT); SYSTEM > SD card; a full card (the save pendi
 mount); the card pulled; no card at the boot; a power cut at every block write of a save made from the UI (the next boot
 finishes it: the card's project the staged one, the record cleared); a pending save of another project dropped; with
 streaming built (`ui_optimist_sdstream_test`): the pick given to the plan, SD CARD's second page (CLOCK alone),
-an old device record's pre-buffer byte ignored, MEM FULL CARD's drop and then MEM FULL CARD alone. Not run on an FM-1; the emulator stops at the
+an old device record's pre-buffer byte ignored, MEMORY FULL: CARD SOUNDS OFF's drop and then MEMORY FULL: CARD SOUNDS OFF alone. Not run on an FM-1; the emulator stops at the
 boot's mount in SD builds.
 
 Open: a card LOAD while playing says STOP FIRST (the flash slots stop, load and play again); projects with names the

@@ -66,21 +66,10 @@ static FAST(formant) void vowel_at(int32_t pos, int32_t *f, int32_t *b)
 
 typedef struct { int32_t a, b, c; } fres_t;
 /* the state: the breath noise's xorshift. Built in: one per part with two cores (two cores render parts at once;
- * dual.c), else one for all voices. A plugin (plugin/plug_unit.c): one per part in the part's engine memory through
- * the firmware's API table (PART_MEM_AT, engine_t .part_bytes), zeroed when the part comes to it: a zero seed starts again at the
- * built-in's seed (xorshift never reaches 0 from another value) */
+ * dual.c), else one for all voices */
 typedef struct { int32_t nz; } formant_mem_t;
 #define FORMANT_SEED 0x2545F491
-#if FELUCCA_PLUGIN_UNIT
-AINL int32_t *formant_nzp(const track_t *t)
-{
-    formant_mem_t *fm = (formant_mem_t *)PART_MEM_AT((uint32_t)(t - trk) % NPART);
-    if (!fm->nz)
-        fm->nz = FORMANT_SEED;
-    return &fm->nz;
-}
-#define FORMANT_NZ(t) (*formant_nzp(t))
-#elif DUAL_RENDER
+#if DUAL_RENDER
 static formant_mem_t formant_st[NPART] = {{FORMANT_SEED}, {FORMANT_SEED}, {FORMANT_SEED}};
 #define FORMANT_NZ(t) formant_st[(uint32_t)((t) - trk) % NPART].nz
 #else
@@ -254,5 +243,4 @@ static const engine_t ENG_FORMANT = {
     },
     PRESETS_OF(FORMANT_PRESETS), 0, formant_note_on, formant_render,
     0xF81F, {P_E0, P_E4, P_E5, P_E2}, 4,
-    .part_bytes = sizeof(formant_mem_t),
 };

@@ -331,10 +331,6 @@ static BOOT_ORDER void fm1_main(void)
                                                          * LCD, the audio and the BLE radio's start-up program */
 #endif
     BOOT_STAGE(STORES);
-#if FELUCCA_PLUGINS
-    if (flash_ok)
-        plug_init();                                    /* the engines placed in the PLUGINS region (core/plugin.c) */
-#endif
     fm6_boot();                                         /* FM6's sine table (eng_fm6.c) */
 #if CZ_NUSER
     czb_find();                                         /* the CZ collection (nbank.c) */
@@ -638,9 +634,6 @@ static BOOT_ORDER void fm1_main(void)
 #endif
 #if FELUCCA_ENG_WAVE
         wt_service();                                   /* WAVE's table into the pool, four frames a call (eng_wave.c) */
-#endif
-#if FELUCCA_PLUGINS
-        plug_service();                                 /* the plugins' main-loop hooks (core/plugin.c: WAVE's table) */
 #endif
         felucca_dbg.stage = 9;
 #if FELUCCA_BENCH

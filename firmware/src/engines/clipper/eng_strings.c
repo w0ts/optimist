@@ -11,15 +11,10 @@
  * lines), the depth ENS, the speed RATE. Then a 12 dB low-pass.
  * EDIT 1  16'  8'  4'  ENS        EDIT 2  CUT  RATE  SHP  RES
  * Voice state: ph[0..2] the three taps (16' phase), s[0..1] the SVF. Part state: the ensemble LFOs (strings_block). */
-/* the part's state: the ensemble's slow and fast LFO (strings_block). Built in: one static instance a part; a plugin
- * (plugin/plug_unit.c): the part's engine memory through the firmware's API table (PART_MEM_AT, engine_t .part_bytes) */
+/* the part's state: the ensemble's slow and fast LFO (strings_block). One static instance a part */
 typedef struct { uint32_t lfo[2]; } str_mem_t;
-#if FELUCCA_PLUGIN_UNIT
-#define STR_MEM(part) ((str_mem_t *)PART_MEM_AT(part))
-#else
 static str_mem_t str_st[NPART];
 #define STR_MEM(part) (&str_st[part])
-#endif
 
 static FAST(strings) void strings_block(track_t *t)
 {
@@ -136,5 +131,4 @@ static const engine_t ENG_STRINGS = {
     .color = 0xD50E,                             /* #d4a373 (tools/colors.json) */
     .macro = {P_E3, P_E4, P_E1, P_ATK},
     .block = strings_block,
-    .part_bytes = sizeof(str_mem_t),
 };

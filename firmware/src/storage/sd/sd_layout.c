@@ -38,9 +38,9 @@
 #define SDL_ROOT "Optimist"
 #define SDL_NAME_MAX 63u                             /* a name's bytes: Projects/<name>/Versions/<name>-NNNN.opp stays
                                                       * far inside FatFs' 255 */
-enum { SDL_PROJECTS = 0, SDL_SAMPLES, SDL_KITS, SDL_PRESETS, SDL_RECORD, SDL_RENDERS, SDL_BACKUP, SDL_SYSTEM, SDL_PLUGINS, SDL_N };
+enum { SDL_PROJECTS = 0, SDL_SAMPLES, SDL_KITS, SDL_PRESETS, SDL_RECORD, SDL_RENDERS, SDL_BACKUP, SDL_SYSTEM, SDL_N };
 static const char *const SDL_DIR[SDL_N] = {"Projects", "Samples", "Kits", "Presets", "Record", "Renders", "Backup",
-                                           "System", "Plugins"};   /* (Plugins/<NAME>.opl: core/plugin_card.c) */
+                                           "System"};
 #define SDL_FACTORY "Factory"                        /* Presets/Factory/<Engine>/: the SD card zip's (tools/sd_factory.c) */
 #define SDL_USER "User"                              /* Presets/User/<Engine>/: the presets saved on the FM-1 */
 

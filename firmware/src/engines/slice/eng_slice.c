@@ -40,12 +40,8 @@
  * s[6] 0 to prime, 1 playing, 3 fading out, 2 ended, s[7] low-pass. */
 #include "slc_card.c"                           /* the material: the table, the decoder, the scan, a CARD's encoder */
 
-#if SMP_FLASH
 static const slc_src_t SLC_BREAK = SLC_BREAK_INIT;
 static slc_src_t slc_usr[SMP_USER_SLOTS];
-#else
-static const slc_src_t SLC_BREAK;                     /* (a plugin: the card's material alone, no BREAK, no USR slot) */
-#endif
 typedef int16_t slc_rbuf_t[NVOICE][SLC_RB];          /* a part's reverse windows, one per voice: its engine memory
                                                        * (engines.c part_mem_t, the arena) */
 AINL slc_rbuf_t *slc_mem(uint32_t p);                 /* (engines.c, after every engine) */
@@ -76,11 +72,7 @@ static const slc_src_t *slc_get(uint32_t part, uint32_t src)
     (void)part;
 #endif
     src--;
-#if SMP_FLASH
     return src < SMP_USER_SLOTS && usr_nz[src] && slc_usr[src].len ? &slc_usr[src] : 0;
-#else
-    return 0;
-#endif
 }
 
 static inline uint32_t slc_gpos(const slc_src_t *s, uint32_t k) { return (k * s->len) >> SLC_GRID_LOG2; }
@@ -107,7 +99,6 @@ static void slc_bounds_v(const slc_src_t *s, const voice_t *v, uint32_t *a, uint
     slc_bounds(s, (pk >> 16) & 7u, (pk >> 8) & 63u, a, b, st);
 }
 
-#if SMP_FLASH
 /* smp_user_scan (eng_sample.c): valid 0 = the slot changes (SLICE voices on it stop), 1 = it is valid */
 static void slc_user_scan(uint32_t k, int valid)
 {
@@ -137,7 +128,6 @@ static void slc_user_scan(uint32_t k, int valid)
     s->len = at;
 }
 
-#endif
 
 /* ---- voices */
 static int16_t *slc_rb(track_t *t, voice_t *v)
@@ -341,5 +331,5 @@ static const engine_t ENG_SLICE = {
         PU("TONE", F_INT, 0, 127, 127, 0),
     },
     PRESETS_OF(SLICE_PRESETS), -1, slice_note_on, slice_render,
-    0xFB2C, {P_E0, P_E1, P_E3, P_E6}, 0, slice_amp, .part_bytes = sizeof(slc_rbuf_t), .traits = ENG_T_SAMPLED,   /* (a plugin's part memory: core/plugin.c) */
+    0xFB2C, {P_E0, P_E1, P_E3, P_E6}, 0, slice_amp,
 };

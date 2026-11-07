@@ -12,11 +12,11 @@
  *     (arb_fill), while a part plays FM6 or is switching to it (set aside with the part's own memory: engines.c
  *     part_mem_aside, as WAVE's table);
  *   - ARB_VIS: the SCOPE's ring (fx.c vis_pcm, 8 KB), while a trace is drawn (SCOPE shown, the web editor's SCOPE asked:
- *     vis_ui); else the taps keep a block peak for the mixer's MASTER meter. Refused: the trace flat, MEM FULL SCOPE;
+ *     vis_ui); else the taps keep a block peak for the mixer's MASTER meter. Refused: the trace flat, MEMORY FULL: SCOPE OFF;
  *   - ARB_PUNCH (FELUCCA_PUNCH_SW): the punch-in FX's ring of the mix (fx/punch/punch.c), while the project's PUNCH switch
  *     is on (GLOBAL > Rec; a punch needs the past, so the ring records from the switch on, not from the key), or an
  *     effect still fades out. FX + a key while it is not placed: let go, PUNCH OFF said (the switch off; refused: the
- *     MEM FULL PUNCH of its refusal).
+ *     MEMORY FULL: PUNCH OFF of its refusal).
  * Only those built have a client. The main loop only (arb_poll every pass, after fxm_poll); nothing is placed or freed
  * in the audio, which reads the pointers. Placed: reserved and taken with the interrupts off (a part's reservation may
  * run in the audio ISR), zeroed, the feature's state reset, then its pointer set with the interrupts off (the audio
@@ -24,7 +24,7 @@
  * audio blocks later (fx.c fxm_tick, as the effects' lines); used again meanwhile: the same block, zeroed again.
  * No room (the rulings for the effects carried over, the user 2026-10-25): the feature is bypassed where it is and kept
  * in the project (STUT plays the live sound, as OFF; WAVE's voices are silent, as while a table is built; the X0X kit's
- * hits play its stand-in kit, as the notes the machine lacks), MEM FULL said once (op_input.c mem_tick, arb_said), and
+ * hits play its stand-in kit, as the notes the machine lacks), "MEMORY FULL: ... OFF" said once if it still stands 2 s later (op_input.c mem_news_tick, arb_said), and
  * it is placed by itself as soon as there is room: tried every pass, except while a part's refused change waits (a
  * part's sound first) or the parts' blocks are being moved (core/arena.c arn_busy; a refusal the free room holds moves
  * them first, once until the room changes). The largest first. A part's change refused while one of these is on its way back waits for it (fxm_pending). They are never proposed to drop.
@@ -98,10 +98,6 @@ static uint32_t arb_bytes(uint32_t c)                   /* client c's block */
 #endif
     if (c == (uint32_t)ARB_VIS)
         return 2u * VIS_RING * 4u;
-#if FELUCCA_PLUGINS
-    if (c - (uint32_t)ARB_PTAB0 < FELUCCA_PLUGIN_SLOTS)   /* (a plugin slot's shared block, its descriptor's KB) */
-        return (uint32_t)ENGINES[NBUILT + c - ARB_PTAB0]->tab_kb * 1024u;
-#endif
 #if FMEM_NLEND
     if (ARB_LENT(c))
         return FMEM_LEND_BYTES(c - (uint32_t)ARB_LEND0);
@@ -175,17 +171,6 @@ static uint32_t arb_want(uint32_t c)                    /* client c's feature is
 #endif
     if (c == (uint32_t)ARB_VIS)
         return vis_ui != 0;
-#if FELUCCA_PLUGINS
-    if (c - (uint32_t)ARB_PTAB0 < FELUCCA_PLUGIN_SLOTS) {   /* (a part on the plugin, or switching to it) */
-        uint32_t k, e = NBUILT + c - ARB_PTAB0;
-        if (!ENGINES[e]->tab_kb)
-            return 0;
-        for (k = 0; k < NPART; k++)
-            if (trk[k].eng_req == (uint8_t)e || trk[k].engine == (uint8_t)e)
-                return 1;
-        return 0;
-    }
-#endif
 #if FMEM_NLEND
     if (ARB_LENT(c))
         return (uint32_t)(FMEM_LEND_WANT(c - (uint32_t)ARB_LEND0) != 0);
@@ -239,10 +224,6 @@ static void arb_set(uint32_t c, void *p)
 #endif
     if (c == (uint32_t)ARB_VIS)
         vis_pcm = (int32_t (*)[VIS_RING])p;              /* (zeroed: a flat trace until the next blocks) */
-#if FELUCCA_PLUGINS
-    if (c - (uint32_t)ARB_PTAB0 < FELUCCA_PLUGIN_SLOTS)
-        plug_tab_p[c - ARB_PTAB0] = p;                  /* (zeroed: the plugin starts its state afresh) */
-#endif
 #if FMEM_NLEND
     if (ARB_LENT(c))
         FMEM_LEND_SET(c - (uint32_t)ARB_LEND0, p);      /* (its interrupts see it whole, or not at all) */
@@ -306,7 +287,7 @@ static void arb_poll(void)
     }
 #if FELUCCA_PUNCH_SW
     if (punch_asked())
-        arb_poff |= (uint8_t)!punch_used();             /* (refused: its MEM FULL PUNCH was said) */
+        arb_poff |= (uint8_t)!punch_used();             /* (refused: its MEMORY FULL: PUNCH OFF was said) */
 #endif
 #if FMEM_ANY
     fmem_poll();                                        /* (a YES to a feature's pause: core/feat_mem.c) */
@@ -359,10 +340,13 @@ static int arb_pending(void)
             return 1;
     return 0;
 }
-/* the UI (op_input.c mem_tick): the message for the refusals not said yet, 0 none; said, they are not said again */
+/* the refusals not said yet that still stand (op_input.c mem_news_tick: said once they have stood a while) */
+static uint32_t arb_unsaid(void) { return arb_news & arb_full; }
+/* the UI (op_input.c mem_tick): the message for the refusals not said yet that still stand (one placed meanwhile is
+ * not news), 0 none; said, they are not said again. Plain words: what is off or silent, and why */
 static const char *arb_said(void)
 {
-    uint32_t c, n = arb_news;
+    uint32_t c, n = arb_news & arb_full;
 #if FELUCCA_PUNCH_SW
     if (arb_poff) {
         arb_poff = 0;
@@ -375,27 +359,31 @@ static const char *arb_said(void)
             continue;
 #if FELUCCA_FX_SLICER
         if (c < (uint32_t)ARB_SL0 + NTRK)
-            return "MEM FULL SLICER";
+            return "MEMORY FULL: SLICER OFF";
 #endif
 #if FELUCCA_ENG_WAVE
         if (c == (uint32_t)ARB_WAVE)
-            return "MEM FULL WAVE";
+            return "MEMORY FULL: WAVE SILENT";
 #endif
 #if FELUCCA_PUNCH_SW
         if (c == (uint32_t)ARB_PUNCH)
-            return "MEM FULL PUNCH";
+            return "MEMORY FULL: PUNCH OFF";
 #endif
 #if FELUCCA_ENG_FM6
         if (c == (uint32_t)ARB_FM6SIN)
-            return "MEM FULL FM6";
+            return "MEMORY FULL: FM6 SILENT";
 #endif
         if (c == (uint32_t)ARB_VIS)
-            return "MEM FULL SCOPE";
-#if FELUCCA_PLUGINS
-        if (c - (uint32_t)ARB_PTAB0 < FELUCCA_PLUGIN_SLOTS)
-            return "MEM FULL PLUGIN";
+            return "MEMORY FULL: SCOPE OFF";
+#if FELUCCA_DRUM_X909
+        if (c == (uint32_t)ARB_X909)
+            return "MEMORY FULL: 909 KIT OFF";      /* (its stand-in kit plays) */
 #endif
-        return "MEM FULL X0X";
+#if FELUCCA_DRUM_X808
+        if (c == (uint32_t)ARB_X808)
+            return "MEMORY FULL: 808 KIT OFF";
+#endif
+        return "MEMORY FULL";                           /* (a feature's block: core/feat_mem.c asks its own) */
     }
     return 0;
 }
@@ -403,6 +391,7 @@ static const char *arb_said(void)
 #define arb_poll() ((void)0)
 static int arb_pending(void) { return 0; }
 #define arb_said() ((const char *)0)
+#define arb_unsaid() 0u
 #endif
 #else
 #define arb_poll() ((void)0)

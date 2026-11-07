@@ -90,27 +90,6 @@ typedef struct {
     sst_rw_t rw;                         /* the reader's window */
 #endif
 } pst_state_t;
-#ifdef PLUG_BUILD
-/* a plugin (plugin/plug_unit.c): no RAM of its own, so the state is the part's engine memory (plug_api_t part_mem: 45 KB
- * of the arena a part on STRETCH), reached through M, which every function that touches it takes from its hook
- * (PST_M_DECL). Each part on the plugin has its own (the built-in's one instance passes between the parts: here a part
- * never sees another's owner, so each stretches on its own) */
-typedef struct {
-    int32_t a[2u * ST_M];                /* pst_a */
-    int32_t b[2u * ST_M + 2u];           /* pst_b */
-    int16_t buf[3][ST_HOP];              /* pst_buf */
-    pst_state_t x;                       /* pstx */
-} pst_mem_t;
-#define PST_MP pst_mem_t *M,
-#define PST_MV pst_mem_t *M
-#define PST_MA M,
-#define PST_MAV M
-#define PST_M_DECL(t) pst_mem_t *const M = (pst_mem_t *)PART_MEM_AT(pst_part(t));
-#define pstx (M->x)
-#define pst_a (M->a)
-#define pst_b (M->b)
-#define pst_buf (M->buf)
-#else
 static int32_t pst_a[2u * ST_M] IN_POOL;          /* the analysis: re, im (16 KB) */
 static int32_t pst_b[2u * ST_M + 2u] IN_POOL;     /* the voices' spectrum, bins 0..M (16 KB) */
 static int16_t pst_buf[3][ST_HOP] IN_POOL;        /* playing, the next, the tail (12 KB) */
@@ -120,7 +99,6 @@ static pst_state_t pstx;
 #define PST_MA
 #define PST_MAV
 #define PST_M_DECL(t)
-#endif
 
 /* one IMA ADPCM sample of the zone at pos (as GRAIN's gr_dec) */
 AINL int32_t pst_dec(const smp_zone_t *z, uint32_t pos, int32_t *pred, int32_t *idx)
@@ -848,7 +826,4 @@ static const engine_t ENG_STRETCH = {
     .macro = {P_E4, P_E3, P_E2, P_E7},
     .block = stretch_block,
     .post = stretch_post,
-#ifdef PLUG_BUILD
-    .part_bytes = sizeof(pst_mem_t),             /* (a plugin: its state in the part's memory) */
-#endif
 };

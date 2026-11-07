@@ -248,9 +248,17 @@ def checked_write(env, cmd, ours, yes, restart, what, unit=None, **kw):
     return True
 
 
+def mboot_version(text):
+    """"m-bootloader 1.4-8b171dd (fm1)" -> (1, 4); None when it says no version"""
+    m = re.match(r"m-bootloader (\d+)\.(\d+)", text)
+    return (int(m[1]), int(m[2])) if m else None
+
+
 def needs_mboot(env, info):
-    if info.get("bootloader", "").startswith("m-bootloader"):
-        env.say(f"bootloader: {info['bootloader']} found: kept")
+    found = info.get("bootloader", "")
+    pinned = tuple(int(p) for p in MF.MBOOT_RELEASE["version"].split("."))
+    if found.startswith("m-bootloader") and (mboot_version(found) or pinned) >= pinned:
+        env.say(f"bootloader: {found} found: kept")
         return False
     env.say(f"bootloader: {info.get('bootloader', '?')} -> m-bootloader {MF.MBOOT_RELEASE['version']} "
             "(the boot area 0x00000-0x03FFF only; the unit's configuration in it kept), after the firmware")
