@@ -136,7 +136,7 @@ static inline int auto_ev_ok(const auto_ev_t *e)
 {
     return !(e->place & 0x80u) && (!AUTO_PSEUDO(e->param) || ((e->place & AUTO_ONLY) ? auto_pseudo_ok(e->param, e->value) : auto_lfx_ok(e)));
 }
-static inline int auto_find(const auto_list_t *l, uint32_t place, uint32_t param)   /* its index, -1 none */
+static inline FAST_OOL(seq) int auto_find(const auto_list_t *l, uint32_t place, uint32_t param)   /* its index, -1 none */
 {
     uint32_t i;
     for (i = 0; i < l->n && i < AUTO_MAX; i++)
@@ -153,7 +153,7 @@ static inline void auto_del(auto_list_t *l, uint32_t i)                /* event 
     l->n--;
 }
 /* (place, param) set to v: its event's value, else a new one at the end; -1 the list is full */
-static inline int auto_put(auto_list_t *l, uint32_t place, uint32_t param, int32_t v)
+static inline FAST_OOL(seq) int auto_put(auto_list_t *l, uint32_t place, uint32_t param, int32_t v)
 {
     int i = auto_find(l, place, param);
     if (i < 0) {
@@ -167,7 +167,7 @@ static inline int auto_put(auto_list_t *l, uint32_t place, uint32_t param, int32
     return i;
 }
 /* the value of (place, param) into *v: 1 there is one */
-static inline int auto_get(const auto_list_t *l, uint32_t place, uint32_t param, int32_t *v)
+static inline FAST_OOL(seq) int auto_get(const auto_list_t *l, uint32_t place, uint32_t param, int32_t *v)
 {
     int i = auto_find(l, place, param);
     if (i >= 0)
@@ -186,13 +186,13 @@ static inline int auto_pseudo_set(auto_list_t *l, uint32_t step, uint32_t param,
     }
     return auto_put(l, pl, param, v) >= 0;
 }
-static inline int32_t auto_pseudo(const auto_list_t *l, uint32_t step, uint32_t param, int32_t none)
+static inline FAST_OOL(seq) int32_t auto_pseudo(const auto_list_t *l, uint32_t step, uint32_t param, int32_t none)
 {
     int32_t v;
     return auto_get(l, (step & AUTO_STEP) | AUTO_ONLY, param, &v) ? v : none;
 }
 /* an event's kind: AUTO_HOLDS, AUTO_ONLYS, or AUTO_LFXS a lane's FX (no step's: only a walk that names it takes it) */
-static inline uint32_t auto_kind_of(const auto_ev_t *e)
+static inline FAST_OOL(seq) uint32_t auto_kind_of(const auto_ev_t *e)
 {
     return AUTO_IS_LFX(e) ? AUTO_LFXS : e->place & AUTO_ONLY ? AUTO_ONLYS : AUTO_HOLDS;
 }
@@ -210,7 +210,7 @@ static inline uint32_t auto_drop_step(auto_list_t *l, uint32_t step, uint32_t wh
     l->n = (uint8_t)n;
     return k;
 }
-static inline uint32_t auto_drop_kind(auto_list_t *l, uint32_t which)   /* every event of the kinds `which` */
+static inline FAST_OOL(seq) uint32_t auto_drop_kind(auto_list_t *l, uint32_t which)   /* every event of the kinds `which` */
 {
     uint32_t i, n = 0, k = 0;
     for (i = 0; i < l->n; i++)
@@ -290,7 +290,7 @@ static inline uint32_t auto_to_stepx(stepx_t *x, const auto_list_t *l)
 
 /* ---- the stored forms. A track's list (a pattern record's chunk): n, n x (place, param, value) */
 #define AUTO_TRK_ENC_MAX (1u + 3u * AUTO_MAX)
-static inline uint32_t auto_enc_trk(const auto_list_t *l, uint8_t *o)
+static inline FAST_OOL(seq) uint32_t auto_enc_trk(const auto_list_t *l, uint8_t *o)
 {
     uint32_t i;
     o[0] = l->n;

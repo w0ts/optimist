@@ -203,6 +203,13 @@ enum { Q_OFF, Q_SNAP, Q_WHITE, Q_ALL, Q_SEQ };   /* P_QUANT (SCL › KEYS): seq.
 #define FAST_INL__(x) FAST_INL_##x
 #define FAST_INL_1 __attribute__((always_inline))
 #define FAST_INL_0
+/* FAST_OOL(name): a helper that many XIP callers share, out of line while that code is XIP (noinline: one copy, not one
+ * in each caller: flash); as before while it is RAM code (inlined there, so the RAM code never calls into the flash) */
+#define FAST_OOL(n) FAST_OOL_(FAST_RAM_##n)
+#define FAST_OOL_(x) FAST_OOL__(x)
+#define FAST_OOL__(x) FAST_OOL_##x
+#define FAST_OOL_1
+#define FAST_OOL_0 __attribute__((noinline))
 #define FAST_CALL(n, f) FAST_CALL_(FAST_RAM_##n, f)
 #define FAST_CALL_(x, f) FAST_CALL__(x, f)
 #define FAST_CALL__(x, f) FAST_CALL_##x(f)
