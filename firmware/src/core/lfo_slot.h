@@ -33,9 +33,9 @@ typedef struct {
 _Static_assert(sizeof(lfo_slot_t) == 2u, "a slot: two bytes");
 
 /* slot s acts (a destination and an amount) */
-static inline int lfo_slot_live(const lfo_slot_t *s) { return s->dest != LFO_DEST_OFF && s->amt != 0; }
+static inline __attribute__((noinline)) int lfo_slot_live(const lfo_slot_t *s) { return s->dest != LFO_DEST_OFF && s->amt != 0; }
 /* the LFO of these LFO_NSLOT slots is computed at all */
-static inline int lfo_slots_on(const lfo_slot_t *s)
+static inline __attribute__((noinline)) int lfo_slots_on(const lfo_slot_t *s)
 {
     uint32_t i;
     for (i = 0; i < LFO_NSLOT; i++)
@@ -104,7 +104,7 @@ static inline int32_t lfo_slew(uint32_t ph, uint32_t rnd)
     return a + (((b - a) * (int32_t)s) >> 15);
 }
 /* wave w at phase ph (Q15); rnd: S&H's value this cycle (the top 16 bits used); SLEW: lfo_slew_pair's */
-static inline int32_t lfo_shape(uint32_t w, uint32_t ph, uint32_t rnd)
+static inline __attribute__((noinline)) int32_t lfo_shape(uint32_t w, uint32_t ph, uint32_t rnd)
 {
     switch (w) {
     case LFO_WAVE_SLEW:
@@ -122,7 +122,7 @@ static inline int32_t lfo_shape(uint32_t w, uint32_t ph, uint32_t rnd)
     }
 }
 /* S&H's value for cycle c of LFO k: a hash, the same on every run and on either core (no rng() draw at a hit) */
-static inline uint32_t lfo_rnd_of(uint32_t c, uint32_t k)
+static inline __attribute__((noinline)) uint32_t lfo_rnd_of(uint32_t c, uint32_t k)
 {
     uint32_t x = c * 2654435761u ^ (k + 1u) * 0x9E3779B9u;
     x ^= x >> 15;
