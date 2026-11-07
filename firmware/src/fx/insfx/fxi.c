@@ -90,7 +90,7 @@ static uint32_t fxm_cp_room(uint32_t j);
 _Static_assert(FXI_TN0 <= FXI_IMAX && FXI_TN1 <= FXI_IMAX && FXI_TN2 <= FXI_IMAX && FXI_TN3 <= FXI_IMAX &&
                FXI_TN4 <= FXI_IMAX && FXI_TN5 <= FXI_IMAX && FXI_TN6 <= FXI_IMAX && FXI_NK <= 16u, "fxi_own: FXI_IMAX instances; fxi_full: an owner a bit");
 
-AINL uint32_t fxi_holds(uint32_t k, uint32_t ty)        /* owner k holds type ty in a slot (and it is built) */
+static inline uint32_t fxi_holds(uint32_t k, uint32_t ty)        /* owner k holds type ty in a slot (and it is built) */
 {
 #if FXZ_XDL_N > 1u
     if (ty == FXT_XDLY && fxsz_xoff)
@@ -107,13 +107,13 @@ AINL uint32_t fxi_holds(uint32_t k, uint32_t ty)        /* owner k holds type ty
     return k < NTRK && (ins_slot[k][0] == ty || ins_slot[k][1] == ty) && (FXT_BUILT >> ty & 1u);
 }
 /* send line s in a master slot */
-AINL uint32_t fxl_send_on(uint32_t s) { return FXS_HAS(s ? FXT_DLY : FXT_CHO); }
+static inline uint32_t fxl_send_on(uint32_t s) { return FXS_HAS(s ? FXT_DLY : FXT_CHO); }
 /* the region of unit u: a send line s (0, 1), or the own room (FXL_NS) */
-AINL uint32_t fxa_reg(uint32_t u) { return u < FXA_S ? 1u : u >= FXA_T ? FXL_CP : u >= FXA_N ? 0u : FXL_NS; }
+static inline uint32_t fxa_reg(uint32_t u) { return u < FXA_S ? 1u : u >= FXA_T ? FXL_CP : u >= FXA_N ? 0u : FXL_NS; }
 /* instance i of type j is on a send's line */
-AINL uint32_t fxi_onl(uint32_t j, uint32_t i) { return fxa_reg(fxa_u[j][i]) < FXL_NS; }
+static inline uint32_t fxi_onl(uint32_t j, uint32_t i) { return fxa_reg(fxa_u[j][i]) < FXL_NS; }
 /* send line s holds a line of type j (built, and its line no longer than the send's) */
-AINL uint32_t fxl_fits(uint32_t s, uint32_t j) { return FXI_TN[j] && FXA_SZ(j) <= FXL_HI(s) - FXL_LO(s); }
+static inline uint32_t fxl_fits(uint32_t s, uint32_t j) { return FXI_TN[j] && FXA_SZ(j) <= FXL_HI(s) - FXL_LO(s); }
 static uint32_t fxl_lends(uint32_t s)                   /* send line s can lend to a type built */
 {
     uint32_t j, n = 0;
@@ -122,7 +122,7 @@ static uint32_t fxl_lends(uint32_t s)                   /* send line s can lend 
     return n;
 }
 /* ---- The units (fxa_bm) */
-AINL uint32_t fxa_busy(uint32_t u) { return fxa_bm[u >> 5] >> (u & 31u) & 1u; }
+static inline uint32_t fxa_busy(uint32_t u) { return fxa_bm[u >> 5] >> (u & 31u) & 1u; }
 static void fxa_mark(uint32_t u, uint32_t n, uint32_t v)   /* units u .. u + n - 1 in use (v 1) or free (v 0) */
 {
     if (u >= FXA_T)
@@ -158,7 +158,7 @@ static uint32_t fxa_fits(uint32_t lo, uint32_t hi, uint32_t n)   /* how many lin
     return m;
 }
 /* send line s takes lines now (lent, not on its way back) */
-AINL uint32_t fxl_open(uint32_t s) { return fxl_st[s] == FXL_LENT && !fxl_send_on(s); }
+static inline uint32_t fxl_open(uint32_t s) { return fxl_st[s] == FXL_LENT && !fxl_send_on(s); }
 /* the own room is in memory: always without an arena; with one, only while its block is placed (fxa_ins). Its units
  * are marked taken while it is not (fxi_init, fxm_ins_post), so this is the guard behind that bitmap: a line is never
  * placed at fxa_ins 0 + its offset (the FM-1's crash 2026-10-29: fxi_init never ran at boot, every unit free) */
