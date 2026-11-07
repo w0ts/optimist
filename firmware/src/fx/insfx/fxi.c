@@ -90,6 +90,9 @@ static uint32_t fxm_cp_room(uint32_t j);
 _Static_assert(FXI_TN0 <= FXI_IMAX && FXI_TN1 <= FXI_IMAX && FXI_TN2 <= FXI_IMAX && FXI_TN3 <= FXI_IMAX &&
                FXI_TN4 <= FXI_IMAX && FXI_TN5 <= FXI_IMAX && FXI_TN6 <= FXI_IMAX && FXI_NK <= 16u, "fxi_own: FXI_IMAX instances; fxi_full: an owner a bit");
 
+/* fxi_kern.c ifx_lim_w for this file (main loop only): one copy, called; the kernels' own stays always inlined (AINL,
+ * for the effects' RAM code) */
+static inline __attribute__((noinline)) int32_t fxi_lim_w(uint32_t ty, uint32_t k) { return ifx_lim_w(ty, k); }
 static inline uint32_t fxi_holds(uint32_t k, uint32_t ty)        /* owner k holds type ty in a slot (and it is built) */
 {
 #if FXZ_XDL_N > 1u
@@ -320,7 +323,7 @@ static int fxi_room_quiet(void)
     for (j = 0; j < FXI_NL; j++)
         for (i = 0; i < FXI_TN[j]; i++)
             if (fxi_own[j][i] != FXI_NONE && fxa_reg(fxa_u[j][i]) == FXL_NS &&
-                ifx_lim_w(FXI_TY(j), fxi_aix(fxi_own[j][i])))
+                fxi_lim_w(FXI_TY(j), fxi_aix(fxi_own[j][i])))
                 return 0;
     return 1;
 }
@@ -332,7 +335,7 @@ static int fxi_cp_quiet(uint32_t c)
     for (j = 0; j < FXI_NL; j++)
         for (i = 0; i < FXI_TN[j]; i++)
             if (fxi_own[j][i] != FXI_NONE && fxa_u[j][i] == FXA_T + c)
-                return !ifx_lim_w(FXI_TY(j), fxi_aix(fxi_own[j][i]));
+                return !fxi_lim_w(FXI_TY(j), fxi_aix(fxi_own[j][i]));
     return 0;
 }
 #endif
@@ -364,7 +367,7 @@ static void fxi_sync(uint32_t j, int load)
         k = fxi_own[j][i];
         if (k == FXI_NONE || (want >> k & 1u))
             continue;
-        if (load || !ifx_lim_w(ty, fxi_aix(k)))
+        if (load || !fxi_lim_w(ty, fxi_aix(k)))
             fxi_give(j, i);
         else
             fxi_pend = 1;                               /* (fading out: the next pass) */
@@ -454,7 +457,7 @@ static uint32_t fxl_step(uint32_t s)
             if (k == FXI_NONE || fxa_reg(fxa_u[j][i]) != s)
                 continue;
             fxi_evict(j, i, fxl_st[s] == FXL_BACK);
-            if (fxl_st[s] == FXL_BACK && !ifx_lim_w(FXI_TY(j), fxi_aix(k)))
+            if (fxl_st[s] == FXL_BACK && !fxi_lim_w(FXI_TY(j), fxi_aix(k)))
                 fxi_give(j, i);                         /* (faded out: its units back) */
             else
                 held = 1;
