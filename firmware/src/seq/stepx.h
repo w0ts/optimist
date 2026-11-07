@@ -38,7 +38,7 @@ typedef struct {                         /* one track's extras: 2.4's FUN5 track
 _Static_assert(sizeof(plock_t) == 4u && sizeof(stepx_t) == 176u && __builtin_offsetof(stepx_t, lock) == 64u &&
                __builtin_offsetof(stepx_t, fill) == 160u, "SLOOP 2.4's track tail (FUN5 +764 / +828 / +924)");
 
-static inline void stepx_clear(stepx_t *x)            /* none: no nudge, every lock slot free, every step NORM */
+static inline __attribute__((noinline)) void stepx_clear(stepx_t *x)          /* none: no nudge, every lock slot free, every step NORM */
 {
     uint32_t i;
     for (i = 0; i < SX_NSTEP; i++)

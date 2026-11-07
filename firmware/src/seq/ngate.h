@@ -53,7 +53,7 @@ static inline void steps_load(track_t *t, uint32_t k, const pstep_t *s)
     }
 }
 /* note k of step s plays its own end (the step's notes: a NOTE step, no ratchet) */
-static inline FASTI(seq) uint32_t ngate_of(const step_t *s, uint32_t k)
+static inline FASTI(seq) FAST_OOL(seq) uint32_t ngate_of(const step_t *s, uint32_t k)
 {
     return s->time == ST_NOTE && k < s->n && k < 4u && !s->rat ? s->ngate[k] : 0u;
 }
@@ -133,7 +133,7 @@ static inline int dacc_any(const step_t *st)
     return 0;
 }
 /* the own ends a track's steps hold (the list's room: the live recording keeps one only while the list has room) */
-static inline uint32_t ngate_count(const step_t *st)
+static inline FAST_OOL(seq) uint32_t ngate_count(const step_t *st)
 {
     uint32_t i, j, n = 0;
     for (i = 0; i < NSTEP; i++)

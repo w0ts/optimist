@@ -444,7 +444,7 @@ static FASTI(seqev) uint32_t trk_grid(const track_t *t, uint32_t *into, uint32_t
     uint32_t div = trk_div(t);
     return grid_at(div, swings(div) ? swing_units(t->p[P_SSWING] + song.g[G_SWING], div_units(div)) : 0u, into, len);
 }
-static uint32_t trk_len(const track_t *t) { return t->p[P_SLEN] > 0 ? (uint32_t)t->p[P_SLEN] : 1u; }
+static FAST_OOL(seqev) uint32_t trk_len(const track_t *t) { return t->p[P_SLEN] > 0 ? (uint32_t)t->p[P_SLEN] : 1u; }
 /* the per-track patterns (storage/sections/pat.c: every build with the log reads them) */
 #define PAT_N 16u                                  /* slots a track */
 #define PAT_NONE 0xFFu                             /* a scene's track: empty; no slot */

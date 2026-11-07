@@ -35,7 +35,7 @@ static int32_t smute_key(uint32_t k)
     return k < 12u && T[k] >= 0 ? SMUTE_T0 + T[k] : -1;
 }
 static FASTI(seqev) int smute_trk_on(uint32_t k) { return (smute_trk >> (k & 3u)) & 1u; }
-static uint32_t smute_lbit(uint32_t l) { return l <= DRUM_ACC ? 1u << l : 0u; }   /* (lane DRUM_ACC: ACCENT) */
+static FAST_OOL(seqev) uint32_t smute_lbit(uint32_t l) { return l <= DRUM_ACC ? 1u << l : 0u; }   /* (lane DRUM_ACC: ACCENT) */
 static FASTI(seqev) int smute_lane_on(uint32_t l) { return (smute_lane & smute_lbit(l)) != 0u; }
 /* what the muted would have played since the UI last looked (the user, 2026-10-22: "muted track should also flash when there
  * are notes played, to indicate me there is something to unmute"): a bit per track, per lane; the mute mode's keys flash on
