@@ -23,7 +23,7 @@ static const uint8_t DS_XKIT_STANDIN[DS_NXKITS] = {DS_XKIT_STANDIN_LIST};  /* th
 #endif
 /* a synthesised kit's table by its UID (DRUM_IS_SYNTH; built: drum_kit_of). Without the 32 kits only 47.. are built:
  * their table alone, so DS_KITS is left out of the image (KAWA or PLAITS alone) */
-static FASTI(seq) const dkit_t *ds_kit(uint32_t k)
+static FASTI(seq) FAST_OOL(seq) const dkit_t *ds_kit(uint32_t k)
 {
 #if DS_NXKITS
     if (!FELUCCA_DRUM_SYNTH || k >= DRUM_UID_XKIT)
@@ -263,7 +263,7 @@ static FASTI(seqev) uint32_t dstep_rat(const dstep_t *s, uint32_t l)
 {
     return l == DRUM_ACC ? DACC_RAT(s->acc) : (s->rat[(l >> 2) & 3u] >> ((l & 3u) * 2u)) & 3u;
 }
-static FASTI(seqev) uint32_t dstep_mask(const dstep_t *s) { return ((uint32_t)s->on[0] | (uint32_t)s->on[1] << 8) & DRUM_LMASK; }
+static FASTI(seqev) FAST_OOL(seqev) uint32_t dstep_mask(const dstep_t *s) { return ((uint32_t)s->on[0] | (uint32_t)s->on[1] << 8) & DRUM_LMASK; }
 static uint32_t dstep_lanes(const dstep_t *s) { return dstep_mask(s) | (uint32_t)(s->acc & DACC_ON) << DRUM_ACC; }
 static void dstep_set(dstep_t *s, uint32_t l, uint32_t lvl, uint32_t rat)   /* lane on, with its level and ratchet */
 {
@@ -306,7 +306,7 @@ static FASTI(seqev) uint32_t dacc_vel(uint32_t vel, uint32_t acc, int32_t amt)
 }
 
 /* the velocity of a level: as played (LV_NORM: vel), ghost, soft, hard */
-static uint32_t lvl_vel(uint32_t lvl, uint32_t vel)
+static FAST_OOL(seqev) uint32_t lvl_vel(uint32_t lvl, uint32_t vel)
 {
     static const uint8_t V[4] = {0, 42, 72, 127};
     return lvl & 3u ? V[lvl & 3u] : vel;
