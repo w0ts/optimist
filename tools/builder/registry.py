@@ -1265,9 +1265,10 @@ _add("LAYOUT", "FELUCCA_LAYOUT", "flash layout: the MEMORY step (set by SD CARD 
 # docs/SD-MODE-DESIGN.md section 10): engines built as files (tools/plugin_build.py, the SD card zip's Optimist/Plugins)
 # and loaded from the card into the last KB of the app slot when a project names one the build misses. The KB come off
 # the code's room (tools/build.py plugin_region; core.py's fit cap). Two engine slots after the built-in ones.
-_add("PLUGINS", "FELUCCA_PLUGIN_KB", "engines as plugins: flash they are loaded into from the SD card", MEM, 453,
-     default=0, choices=((0, "off"), (64, "64 KB (one large engine, or several small)"), (128, "128 KB"), (192, "192 KB")),
-     shown_under="SD_MODE",                   # (listed under SD CARD MODE, where the user looks for it: 2026-11-06)
+_add("PLUGINS", "FELUCCA_PLUGIN_KB", "engines as plugins: loaded from the SD card into the flash left free", MEM, 453,
+     default=0, choices=((0, "off"), (1, "on: all the free flash")),   # 1 is the fill sentinel (tools/build.py plugin_kb:
+     # the build measures the flash the code leaves and makes the region that, up to 256 KB; never a size the user picks)
+     parent="SDCARD", shown_under="SD_MODE",  # a child of SD card mode (not also at the group's top level: 2026-11-07)
      experimental=True, target_only=True,
      tested="host-tested (tests/plugin_test.c, plugin_card_test.c), the emulator plays SID from the region and loads it from "
             "the card; on an FM-1 once (pink, 2026-11-06: SID placed in the region boots and renders)",
