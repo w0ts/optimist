@@ -30,7 +30,8 @@
 #ifdef PLAT_PLUG_HI                       /* the release (Optimist on fm1-base, plat.h): its app end is fm1-base's
                                            * (FM1B_APP_END, not this step's FL_APP_HI) and the region's size went to its
                                            * build (FM1B_PLUGIN_KB: tools/fm1base.py env_for, gen_optimist.py plugin_check) */
-#if FM1B_PLUGIN_KB != FELUCCA_PLUGIN_KB
+#if FM1B_PLUGIN_KB != FELUCCA_PLUGIN_KB && FELUCCA_PLUGIN_KB != 1u   /* 1 = "all the free flash" (the builder's PLUGINS
+/* on): the build measures what the code leaves and sets FM1B_PLUGIN_KB to that (tools/fm1base.py), so they differ */
 #error "FELUCCA_PLUGIN_KB is not fm1-base's FM1B_PLUGIN_KB (tools/fm1base.py env_for sets it from the configuration)"
 #endif
 #define FL_PLUG_HI PLAT_PLUG_HI

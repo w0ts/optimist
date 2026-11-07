@@ -5281,11 +5281,11 @@
    {
     "key": "PLUGINS",
     "flag": "FELUCCA_PLUGIN_KB",
-    "label": "engines as plugins: flash they are loaded into from the SD card",
+    "label": "engines as plugins: loaded from the SD card into the flash left free",
     "group": "Memory management",
     "bit": 453,
     "default": 0,
-    "parent": null,
+    "parent": "SDCARD",
     "desc": "A flash region of this size at the end of the code's room, into which the FM-1 writes an engine's plugin file from the SD card (Optimist/Plugins/<engine>.opl (lower case), every engine the card zip could build as one) the first time a project asks for an engine this build does not have; the placed engines play from there like built-in ones, and stay until the region is full (the oldest unused goes) or a firmware update rewrites the code's room. A plugin is built for one configuration's structs: another build's file is refused and loaded again from a card zip made for this build. Every engine but FM6 is a plugin (FM6 stays built in: its editor); the sample engines (SAMPLE, GRAIN, SLICE, STRETCH) in SD card mode with the card's streams only. Needs SDCARD to load from the card.",
     "experimental": true,
     "notice": "",
@@ -5302,16 +5302,8 @@
       "off"
      ],
      [
-      64,
-      "64 KB (one large engine, or several small)"
-     ],
-     [
-      128,
-      "128 KB"
-     ],
-     [
-      192,
-      "192 KB"
+      1,
+      "on: all the free flash"
      ]
     ],
     "dim_choice": {},
@@ -7056,7 +7048,6 @@
    "SD_MODE",
    "SMP_SLOTS",
    "PROJECTS",
-   "PLUGINS",
    "ARENA"
   ],
   "Reserve": [],

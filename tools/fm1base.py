@@ -145,11 +145,28 @@ def env_for(cfgfile, slot=None, measure=False):
 
 
 def plugin_kb(cfgfile):
-    """the configuration's PLUGINS region in KB (the builder item PLUGINS: FELUCCA_PLUGIN_KB, Optimist's core/plugin.h),
-    0 without one"""
+    """the configuration's PLUGINS item (FELUCCA_PLUGIN_KB, Optimist's core/plugin.h): 0 off, 1 "all the free flash"
+    (the build measures it: _fill_kb), else a fixed KB"""
     import configure
     cfg, _ = configure.parse(Path(cfgfile).read_text())
     return int(configure.flags(cfg)[0].get("FELUCCA_PLUGIN_KB", 0) or 0)
+
+
+def _fill_kb(cfgfile, out_dir):
+    """PLUGINS on: the flash the code leaves, as whole 4 KiB sectors, capped at 256 KB (the firmware's bitmap). The
+    region is [just above the code, the app area's tail]; a measurement build (no region) wrote out_dir/sizes.json"""
+    import json
+    APP_TAIL = 0xF24                                   # (tools/fm1pkg_make.py: after app.bin)
+    try:
+        img = int(json.loads((out_dir / "sizes.json").read_text())["flash"])
+    except Exception:
+        return 0
+    end = app_end(cfgfile)
+    hi = ((int(end, 0) if end else 0x93000) - APP_TAIL) & ~0xFFF   # the region's top (fm1_plug.h FL_PLUG_HI)
+    image_end = (0x4000 + img + 0xFFF) & ~0xFFF        # app.bin is [0x4000, 0x4000 + img), rounded up a sector
+    free = (hi - image_end) & ~0xFFF                   # whole sectors left
+    kb = max(0, min(256, free // 1024))
+    return kb - (kb % 4)
 
 
 def _app_value(name):
@@ -352,6 +369,10 @@ def build(cfgfile, bdir, python, run, release=None, name_stem="optimist", parall
         app, out_dir = slot_app(bdir) if parallel else (APP, OUT)
         cmd, env = command(python, release, app), env_for(cfgfile, parallel, measure)
         cmd = [python, "-c", ANNOUNCE, compiler_line(env), *cmd]    # (its first output line: the compiler)
+        if plugin_kb(cfgfile) == 1:                    # PLUGINS "on: all the free flash": build once with no region to
+            env["FM1B_PLUGIN_KB"] = "0"                # measure the code, then make the region the flash it leaves
+            rc0, _ = run(cmd, env)
+            env["FM1B_PLUGIN_KB"] = str(_fill_kb(cfgfile, out_dir) if rc0 == 0 else 0)
         for stale in (out_dir / "sizes.json", out_dir / "optimist.fwsc"):
             stale.unlink(missing_ok=True)
         rc, out = run(cmd, env)
