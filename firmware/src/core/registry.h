@@ -191,25 +191,7 @@
 #if NBUILT < 1
 #error "a build needs at least one synth engine"
 #endif
-/* Plugins (core/plugin.h, docs/SD-MODE-DESIGN.md section 10): FELUCCA_PLUGIN_SLOTS slots after the built-in engines,
- * each the engine placed in the flash's PLUGINS region whose UID plug_uid[] holds (0xFF: empty, ENGINES[] points at
- * engines.c's ENG_PLUG_NONE). core/plugin.c sets them at boot and at every install or forget. */
-#include "plugin.h"
-#if FELUCCA_PLUGINS
-#define NENGINES (NBUILT + FELUCCA_PLUGIN_SLOTS)
-static uint8_t plug_uid[FELUCCA_PLUGIN_SLOTS];
-static uint32_t plug_slot_of(uint32_t uid)   /* the plugin slot (0..SLOTS-1) that plays this UID, 0xFF = none */
-{
-    uint32_t k;
-    for (k = 0; k < FELUCCA_PLUGIN_SLOTS; k++)
-        if (plug_uid[k] == uid)
-            return k;
-    return 0xFFu;
-}
-#else
-#define NENGINES NBUILT
-#define plug_slot_of(uid) ((void)(uid), 0xFFu)
-#endif
+#define NENGINES NBUILT                    /* the engine slots: the built-in engines */
 #define ENG_HAS(N) (FELUCCA_ENG_##N)
 #define ENG_IS(e, N) (FELUCCA_ENG_##N && (e) == &ENG_##N)   /* folds to 0 when the engine is not built */
 
@@ -218,10 +200,10 @@ static uint32_t plug_slot_of(uint32_t uid)   /* the plugin slot (0..SLOTS-1) tha
 #define ENG_GONEE_(u, N, fb, s) FIF(FNOT(FELUCCA_ENG_##N))(ENG_SLOT_##N = 0xFF,)
 enum { ENGINE_LIST(ENG_SLOTE_) ENG_SLOT_END_ };
 enum { ENGINE_LIST(ENG_GONEE_) ENG_GONE_END_ };
-#define ENG_ALL (!FELUCCA_PLUGINS && NENGINES == ENG_UID_N)    /* every engine built: every mapping is the identity */
-/* the engines built are UIDs 0..NENGINES-1 (those left out come last: slot = UID); never with plugin slots */
+#define ENG_ALL (NENGINES == ENG_UID_N)    /* every engine built: every mapping is the identity */
+/* the engines built are UIDs 0..NENGINES-1 (those left out come last: slot = UID) */
 #define ENG_DENSEE_(u, N, fb, s) &&(ENG_SLOT_##N == (FELUCCA_ENG_##N ? (u) : 0xFF))
-#define ENG_DENSE (!FELUCCA_PLUGINS && (1 ENGINE_LIST(ENG_DENSEE_)))
+#define ENG_DENSE (1 ENGINE_LIST(ENG_DENSEE_))
 /* every engine of the default build with a factory preset in ui.c BANK is built (SLICE, ACID, CZ, JUNO, NOISE, DRONE, PLAITS,
  * Clipper's six, SID, PROPHET, CS80, STRETCH: optional) */
 #define ENG_BANK_ALL (NENGINES - FELUCCA_ENG_SLICE - FELUCCA_ENG_ACID - FELUCCA_ENG_CZ - FELUCCA_ENG_JUNO - FELUCCA_ENG_NOISE - \
@@ -239,26 +221,22 @@ static const uint8_t ENG_FALLBACK[ENG_UID_N] = {ENGINE_LIST(ENG_FBV_)};
 #define ENG_NAMEV_(u, N, fb, s) [u] = s,
 static const char *const ENG_UID_NAME[ENG_UID_N] = {ENGINE_LIST(ENG_NAMEV_)};   /* (the UI names an absent one) */
 
-/* slot -> UID (what projects, user presets and the drum lanes store); a plugin slot: the plugin's (0xFF: empty) */
+/* slot -> UID (what projects, user presets and the drum lanes store) */
 static uint32_t eng_uid(uint32_t slot)
 {
     slot %= NENGINES;
-#if FELUCCA_PLUGINS
-    if (slot >= NBUILT)
-        return plug_uid[slot - NBUILT];
-#endif
     return ENG_DENSE ? slot : ENG_UID[slot];
 }
-/* the slot of this UID when it is built in or placed as a plugin, 0xFF when neither */
+/* the slot of this UID when it is built in, 0xFF when not */
 static uint32_t eng_slot_of(uint32_t uid)
 {
     if (ENG_DENSE)
         return uid < NENGINES ? uid : 0xFFu;
     if (uid < ENG_UID_N && ENG_SLOT_OF[uid] != 0xFFu)
         return ENG_SLOT_OF[uid];
-    return plug_slot_of(uid) == 0xFFu ? 0xFFu : NBUILT + plug_slot_of(uid);
+    return 0xFFu;
 }
-/* the engine of this UID is built (or placed) */
+/* the engine of this UID is built */
 static int eng_built(uint32_t uid) { return eng_slot_of(uid) != 0xFFu; }
 /* UID -> the slot that plays it: its own, else its fallback's (registry.h), else slot 0. With every engine
  * built, as before: any byte modulo NENGINES */

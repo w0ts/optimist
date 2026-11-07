@@ -382,7 +382,7 @@ delay, verb etc."; ruled per FX, per project). Only with the effects' lines in t
 | FREE | the arena's room, KB (a read-out, its bar) |
 
 A size the build does not offer shows FULL alone. A turn applies at once: the line is given back (its effect silent a few
-blocks) and placed again at the new size; XDLY's owners let go and take theirs again. No room for it: MEM FULL as any refused
+blocks) and placed again at the new size; XDLY's owners let go and take theirs again. No room for it: MEMORY FULL: DELAY OFF (REVERB ...) as any refused
 line. The project keeps the sizes (the FX record's `FXZ_TLV`; a project from before, or a new one: FULL). A delay TIME longer
 than a short line plays at a half, a quarter.. of it (still on the beat); the message line says so once (*Dly line 0.19s:
 time /2*). The panel: the arena as a bar (the effects' lines bright, the rest of what is used grey, the room outlined), *Arena
@@ -475,8 +475,8 @@ popup, and picking moves it to SAMPLE or SLICE. The drum track: the picked lane'
 SYSTEM > SD card (4.7): CARD (READY, PREPARING, NOT FAT or NONE, the card's size; YES mounts it again, its folders and
 the samples' index), SAMPLES INDEX (YES: the pass again), CLOCK (the card's SPI clock, read-only). A project keeps 25
 versions, no setting (the user, 2026-11-06). Streaming (SD_RING) has no setting here: a sample's preload is one ring's (the
-user, 2026-11-06 evening; the PRE-BUFFER cell is gone). The streams' memory short: *MEM FULL CARD*, a part's drop asked
-with the one confirm (*Drop T2 FM6?*, one at a time), then *MEM FULL CARD* once. Tests: `tests/ui_optimist_sdcard.h`.
+user, 2026-11-06 evening; the PRE-BUFFER cell is gone). The streams' memory short: *No memory for card sounds*, a part's drop asked
+with the one confirm (*Drop T2 FM6?*, one at a time), then *No memory for card sounds* once. Tests: `tests/ui_optimist_sdcard.h`.
 
 ### 4.13 The Wi-Fi password entry
 
@@ -501,7 +501,7 @@ Opens from SYSTEM > WI-FI when SAVE is tapped on a new WPA2-PSK network (`op_wif
 - **PUNCH** (TEMPO's REC 2 / GLOBAL's Tune, per project, saved in the G_INFO slot, bit 1 = ON; only in a build with the
   arena's extras, `FELUCCA_PUNCH_SW`, the SD card mode): the punch-in FX's ring of the mix is held in the arena while it
   is ON (docs/SD-MODE-DESIGN.md 6b). OFF (a new project's, an older project's): FX + a white key plays nothing, *PUNCH
-  OFF*; no room for the ring: *MEM FULL PUNCH*, the punch bypassed until there is room. Other builds: the ring is
+  OFF*; no room for the ring: *Memory full: punch off*, the punch bypassed until there is room. Other builds: the ring is
   static, the punch always there, no switch.
 - **REC QUANTIZE** (TEMPO / GLOBAL's Tune, per project, saved in the G_INFO slot, bit 0 = OFF): ON (default) snaps a recorded note's start and length to whole steps. OFF keeps the start as the step's nudge (own steps only, with MICRO) and the length as TIE steps plus a GATE lock on the last step (`rec_len_end`): a NOTE plays GATE / 128 of a step. Within 4 of the track's GATE: no lock.
 - **Overlapping notes** (POLY): a note keeps sounding while others are played over it. The new step becomes a chord of the new note and the held ones with the step flag `SF_CARRY` (`step_t.flags` bit 7; chance uses bits 2..6): carried notes already sounding go on, not struck again. MONO / LEGATO / UNISON keep one note a step.

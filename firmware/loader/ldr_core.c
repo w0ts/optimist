@@ -337,34 +337,6 @@ static int ldr_same(const uint8_t *b, const uint8_t *t)
     return ota_crc16(b, 0x1000u, 0) == ota_rd16(t) && ldr_crc32(b, 0x1000u) == ota_rd32(t + 2);
 }
 
-/* The PLUGINS region (core/plugin.h, docs/SD-MODE-DESIGN.md 10): the app slot's last sectors, where the firmware writes
- * the engines it loads from the SD card. A package leaves them erased (0xFF); an update must not take them. A sector
- * erased in the package whose device bytes, decrypted, begin an occupant ("OPLG", its length at 20) is kept, with the
- * occupant's sectors after it while the package leaves them erased too; a stale occupant is the firmware's to drop at
- * boot (its API word). "Erased in the package" is a sector that decrypts to 0xFF: the app area is SFC-encrypted, so
- * its bytes are the cipher's stream for that address (tools/fm1pkg_make.py sfc), whose CRCs the host's table carries;
- * b: a sector buffer to make the stream in */
-static int ldr_erased_in_pkg(const uint8_t *t, uint8_t *b, uint32_t s, uint32_t key)
-{
-    uint32_t i;
-    for (i = 0; i < 0x1000u; i++)
-        b[i] = 0xFF;
-    ldr_sfc(b, 0x1000u, s - LDR_APP_LO, key);
-    return ldr_same(b, t);
-}
-static uint32_t ldr_occupant(const uint8_t *cur, uint32_t s, uint32_t key)   /* the occupant's sectors, 0 none */
-{
-    uint8_t h[24];
-    uint32_t len, i;
-    for (i = 0; i < 24u; i++)
-        h[i] = cur[i];
-    ldr_sfc(h, 24, s - LDR_APP_LO, key);
-    if (ota_rd32(h) != 0x474C504Fu)
-        return 0;
-    len = ota_rd32(h + 20);
-    return len < 0x100000u ? (64u + len + 0xFFFu) >> 12 : 0u;
-}
-
 /* one sector from the host, as the table says, while its erase runs */
 static int ldr_fetch(uint32_t src, uint8_t *b, const uint8_t *t)
 {
@@ -381,7 +353,7 @@ static int ldr_fetch(uint32_t src, uint8_t *b, const uint8_t *t)
 static int ldr_pass_fast(void)
 {
     static uint8_t hdr[0x400], sec[0x1000], cur[0x1000], tbl[LDR_NALL * 6u];
-    uint32_t fl_off, key, s, want, done = 0, keep = 0;   /* (keep: sectors left of a kept occupant) */
+    uint32_t fl_off, key, s, want, done = 0;
     int rc;
     if ((rc = ldr_head(hdr, sec, &fl_off, &want, &key)) != 0)
         return rc;
@@ -396,17 +368,6 @@ static int ldr_pass_fast(void)
         const uint8_t *t = tbl + (s >> 12) * 6u;
         if (ldr_fread(s, cur, 0x1000u))
             return -8;
-        if (ldr_erased_in_pkg(t, sec, s, key)) {         /* the PLUGINS region's occupants stay (above) */
-            if (!keep)
-                keep = ldr_occupant(cur, s, key);
-            if (keep) {
-                keep--;
-                done += 0x1000u;
-                ldr_progress(done, LDR_APP_HI - LDR_APP_LO);
-                continue;
-            }
-        } else
-            keep = 0;
         if (!ldr_same(cur, t)) {
             if (ldr_erase_begin(s))
                 return -9;

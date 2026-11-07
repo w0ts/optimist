@@ -81,7 +81,7 @@ def apply(target, secs, yes, st, restart, folder):
         save(st)
         print("Running: the FM-1 is on USB MIDI")
     if st.pop("wrote", None) == "boot":
-        st["bootloader"] = "m-bootloader 2.1-861e43d (fm1)"
+        st["bootloader"] = "m-bootloader 2.2-64f7c9c (fm1)"
         save(st)
     return 0, answer
 

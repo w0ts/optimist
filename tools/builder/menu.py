@@ -86,7 +86,7 @@ class Pick(ModalScreen):
     def __init__(self, title, options, cb, start=0, disabled=(), on_cancel=None):
         super().__init__()
         self.title_, self.options, self.cb = title, options, cb
-        self.start, self.disabled, self.on_cancel = start, frozenset(disabled), on_cancel
+        self.start, self.off_rows, self.on_cancel = start, frozenset(disabled), on_cancel   # (not self.disabled: a Widget's own, it would disable the box)
 
     def action_cancel(self):
         self.app.pop_screen()
@@ -96,11 +96,11 @@ class Pick(ModalScreen):
     def compose(self) -> ComposeResult:
         with Vertical(id="modal"):
             yield Label(self.title_)
-            yield OptionList(*(Option(Text(o), disabled=i in self.disabled) for i, o in enumerate(self.options)),
+            yield OptionList(*(Option(Text(o), disabled=i in self.off_rows) for i, o in enumerate(self.options)),
                              id="pick")
 
     def on_mount(self):
-        if 0 <= self.start < len(self.options) and self.start not in self.disabled:
+        if 0 <= self.start < len(self.options) and self.start not in self.off_rows:
             self.query_one("#pick", OptionList).highlighted = self.start
 
     def on_option_list_option_selected(self, ev):

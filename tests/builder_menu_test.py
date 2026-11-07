@@ -247,6 +247,21 @@ async def dialog_wrap_test():
         check("dialog: a long line wraps inside the box", lab.size.width <= box.size.width and lab.size.height >= 4)
 
 
+async def dialog_disabled_row_test():
+    """a list with a row that can't be picked (the SD card box: a remembered card not mounted) still takes the keys:
+    self.disabled on the screen was Textual's own and switched the whole box off"""
+    got = []
+    app = M.Builder(C.defaults(), "default")
+    async with app.run_test(size=(100, 40)) as pilot:
+        await pilot.pause()
+        app.push_screen(M.Pick("SD card", ["BLACK not mounted", "PINK", "Cancel"], got.append, disabled=[0]))
+        await pilot.pause()
+        check("dialog: a disabled row leaves the list focused", app.screen.focused is not None)
+        await pilot.press("enter")
+        await pilot.pause()
+        check("dialog: enter picks the first row that can be picked", got == ["PINK"])
+
+
 async def wait_for(pilot, cond, n=80):
     for _ in range(n):
         await pilot.pause(0.05)
@@ -387,6 +402,7 @@ async def main():
     await sdcard_test()
     await sort_test()
     await dialog_wrap_test()
+    await dialog_disabled_row_test()
     await memory_menu_test()
     await back_test()
     await drums_head_test()

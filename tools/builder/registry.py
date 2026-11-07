@@ -45,6 +45,8 @@ MERGED = {
 
 # Dropped items: a .config naming one still loads; the setting is ignored with a warning (configure.py parse)
 RETIRED = {
+    "PLUGINS": "engines as plugin files loaded from the SD card into a flash region were dropped (retired 2026-11-07, bit 453; the user: \"writing in flash make everything slow. delete everything plugin in flash\"); any old PLUGINS value is ignored, every engine is built in or left out",
+    "HEADS_FLASH": "the card samples' preload in the plugins' flash region went with the plugins (retired 2026-11-07, bit 454, never built); any old HEADS_FLASH value is ignored, the preload stays in the arena",
     "COMPILER": "pi32v2-llvm (Julius Vitkauskas's LLVM with a pi32v2 target) is the only compiler, run natively on the build host: JieLi's clang 4 and the Docker, image and WSL ways to run it are gone (retired 2026-11-03, bit 442; the user: \"remove all the docker and JieLi\"); any old COMPILER value is ignored",
     "MIX_FINE": "a part goes into the mix as a 64-bit product, no bit dropped (fx.c MIX_PAN; retired 2026-10-31, bit 426; the user, after weeks on the FM-1: \"tested? then make it default and remove option\"); any old MIX_FINE value is ignored",
     "MIX_EXACT": "the parts reach the mix and the mix reaches the master volume as 64-bit products, the master's 7 bits under the output kept for the DAC (fx.c MIX_PAN MASTER_VOL; retired 2026-10-31, bit 439, with MIX_FINE; the user: \"tested? then make it default and remove option\"); any old MIX_EXACT value is ignored",
@@ -479,14 +481,6 @@ _add("EX_SQUARE", "FELUCCA_EX_SQUARE", "SQUARE: the example engine (a pulse, its
 # ---- drums: first the drum synths, the kits made by synthesis (any of them is a drum source on its own; the drum
 # track needs one of these or a sampled kit), then the sampled drums and the drum options (one group: the user,
 # 2026-10-20, "drum synths should be under drums")
-# an engine not built in (2026-11-06, the user: "instead of off ... load from sd"): with PLUGINS and the SD card, a project
-# that names it loads its plugin file from the card into the flash (core/plugin_card.c, the card zip's Optimist/Plugins);
-# without them its fallback engine plays (registry.h ENGINE_LIST). The off text of every engine item says so.
-for _it in _ITEMS:
-    if _it.group == E and _it.key.startswith("ENG_") and not _it.off_warning:
-        _it.off_warning = ("not built in: with PLUGINS and SDCARD on, a project that names this engine loads it from the SD "
-                           "card (Optimist/Plugins) into the flash the first time; without them its fallback engine plays")
-
 D = "Drums"
 # Three drum synths, independent of each other (the user, 2026-10-22): the 32 kits, KAWA, PLAITS. Tick any of them; the
 # code they share (drum_synth.c's voice, the sound table: registry.h DRUM_DS) is built with any one and counted once
@@ -1261,23 +1255,7 @@ _add("LAYOUT", "FELUCCA_LAYOUT", "flash layout: the MEMORY step (set by SD CARD 
           "ERASES what the two keep in different places (the projects in flash always; the update loader clears the "
           "other step's sectors first): back up with the web editor before. The first install of a step needs a normal "
           "build of this version first (an older updater refuses its size).")
-# bit 453 (2026-11-06): the next free one after CANVAS_STRIP's 452; the PLUGINS region (core/plugin.h, core/plugin.c,
-# docs/SD-MODE-DESIGN.md section 10): engines built as files (tools/plugin_build.py, the SD card zip's Optimist/Plugins)
-# and loaded from the card into the last KB of the app slot when a project names one the build misses. The KB come off
-# the code's room (tools/build.py plugin_region; core.py's fit cap). Two engine slots after the built-in ones.
-_add("PLUGINS", "FELUCCA_PLUGIN_KB", "engines as plugins: flash they are loaded into from the SD card", MEM, 453,
-     default=0, choices=((0, "off"), (64, "64 KB (one large engine, or several small)"), (128, "128 KB"), (192, "192 KB")),
-     experimental=True, target_only=True,
-     tested="host-tested (tests/plugin_test.c, plugin_card_test.c), the emulator plays SID from the region and loads it from "
-            "the card; on an FM-1 once (pink, 2026-11-06: SID placed in the region boots and renders)",
-     desc="A flash region of this size at the end of the code's room, into which the FM-1 writes an engine's plugin "
-          "file from the SD card (Optimist/Plugins/<ENGINE>.opl, every engine the card zip could build as one) the "
-          "first time a project asks for an engine this build does not have; the placed engines play from there like "
-          "built-in ones, and stay until the region is full (the oldest unused goes) or a firmware update rewrites the "
-          "code's room. A plugin is built for one configuration's structs: another build's file is refused and loaded "
-          "again from a card zip made for this build. Every engine but FM6 is a plugin (FM6 stays built in: its editor); "
-          "the sample engines (SAMPLE, GRAIN, SLICE, STRETCH) in SD card mode with the card's streams only. Needs "
-          "SDCARD to load from the card.")
+# (bit 453, PLUGINS, retired 2026-11-07: RETIRED; never reuse it)
 # bit 411 (2026-10-25): the next free one after LAYOUT's 410; the arena (core/arena.c, fx/fx_arena.c, docs/SD-MODE-DESIGN.md
 # 6b): KB, 0 the fixed memories as before. The core (every build it is set in): the parts' engine states placed by need,
 # the edit's one confirm for what to drop, a load's refusals on it one by one; the extras only in the SD card mode
@@ -1343,21 +1321,7 @@ _add("SD_REC", "FELUCCA_SD_REC_KB", "record the master output to the SD card: th
           "does nothing else: samples from the card wait, the card's lists and saves say the card is busy. "
           "Needs LAYOUT (full FatFs) and SDCARD. The buffer is RAM of the pool for as long as the build has it.",
      off_warning="no recording to the card")
-# bit 454 (2026-11-06 evening, the next free after PLUGINS' 453; the user: "we move the pre buffer in flash, builder
-# setting"): the card samples' pre-buffer heads written into the PLUGINS region at kit load, read in place (XIP), the arena
-# kept for the rings (docs/SD-CARD-DESIGN.md section 7, the streaming buffers; core/plugin.c plug_install, one more KIND)
-_add("HEADS_FLASH", "FELUCCA_HEADS_FLASH", "card samples' pre-buffer in flash (the plugins' region), not in RAM", MEM, 454,
-     default=0, parent="SDCARD", shown_under="SD_MODE",
-     experimental=True, target_only=True,
-     tested="designed only (2026-11-06): the item, its rule and the planner's hook; the flash path is written when the "
-            "plugins' writer has run from the card on an FM-1",
-     desc="Each card sample's first moments (the PRE-BUFFER, 25 to 200 ms) are written into the plugins' flash region when "
-          "a kit or a project is placed, and read from there like a built-in table, instead of being kept in the arena: "
-          "the arena then holds the rings alone, so ten 8 KB rings and a 200 ms pre-buffer fit together (measured "
-          "2026-11-06: in RAM a 200 ms pre-buffer left room for five rings, and 25 ms let voices run dry). The heads of "
-          "one kit are one occupant of the region, rewritten when the kit changes (about a second of sliced erasing "
-          "while the audio keeps running); a region too full refuses and the heads stay in RAM as before. Needs "
-          "PLUGINS (the region) and SD_RING (the streams).")
+# (bit 454, HEADS_FLASH, retired 2026-11-07 with PLUGINS: RETIRED; never reuse it)
 # (bit 412, OVERLAY, retired 2026-10-30: RETIRED; never reuse it)
 _add("CPU_GUARD", "FELUCCA_CPU_GUARD", "predictive CPU guard (ease back before shedding)", Y, 61, default=0,
      provenance=FLOWSTATE_GUARD,
@@ -1427,7 +1391,7 @@ _add("CANVAS_STRIP", "FELUCCA_CANVAS_STRIP", "the screen's drawing canvas: small
 # bit 443 (2026-10-30, the next free after 442): a flash-step setting, not firmware (no_image: nothing in
 # the image, its hash or its costs). tools/build.py writes it beside the package (PACKAGE.install.json,
 # tools/install_meta.py); the installers read it from there and show it (docs/INSTALL-PATHS.md)
-M_BOOTLOADER = Provenance("m-bootloader", "Julius Vitkauskas", "MIT", "v2.1 f7eb4a2",
+M_BOOTLOADER = Provenance("m-bootloader", "Julius Vitkauskas", "MIT", "v2.2 64f7c9c",
                           "https://github.com/jvitkauskas/m-bootloader")
 _add("BOOTLOADER", "", "bootloader: keep it, or install m-bootloader", Y, 443, default=1, no_image=True,
      choices=((0, "keep (as it is)"), (1, "m-bootloader")), provenance=M_BOOTLOADER,

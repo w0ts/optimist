@@ -23,7 +23,8 @@ from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
 ROOT = HERE.parent
-DIR = ROOT / "fm1base"
+DIR = Path(os.environ["OPTIMIST_FM1BASE"]).resolve() if os.environ.get("OPTIMIST_FM1BASE") else ROOT / "fm1base"   # (a
+# worktree of the submodule for a build of a change to it, outside the shared checkout: OPTIMIST_FM1BASE=<dir>)
 APP = DIR / "optimist"
 OUT = APP / "build"
 BUILD_PY = DIR / "tools" / "build.py"
@@ -133,6 +134,7 @@ def env_for(cfgfile, slot=None, measure=False):
         env["FM1B_JOBS"] = "2"       # (builds side by side: each one's compile pool small)
     env.pop("OPT_PROFILE", None)
     env.pop("FM1B_APP_END", None)
+    env.pop("FM1B_PLUGIN_KB", None)   # (no PLUGINS region: plugins in flash dropped 2026-11-07, an inherited value never asks for one)
     end = app_end(cfgfile)
     if end:
         env["FM1B_APP_END"] = end

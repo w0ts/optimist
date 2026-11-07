@@ -132,11 +132,13 @@ def code_limit(layout: int) -> int:
 
 
 def layout_of(flash_len: int) -> int:
-    """the layout whose flash.bin is flash_len bytes long (a package's flash entry)"""
-    for k, v in APP_HI.items():
-        if v == flash_len:
+    """the layout whose flash.bin is flash_len bytes long (a package's flash entry): a classic end (STEPS[k].end) or a
+    release end (STEPS[k].release_end: the release's L1 ends at 0xCE000, not the classic 0xD0000; 2026-11-07)"""
+    for k, s in STEPS.items():
+        if flash_len in (s.end, s.release_end):
             return k
-    raise ValueError(f"a flash.bin of {flash_len:#x} B matches no layout ({', '.join(hex(v) for v in APP_HI.values())})")
+    ends = sorted({s.end for s in STEPS.values()} | {s.release_end for s in STEPS.values()})
+    raise ValueError(f"a flash.bin of {flash_len:#x} B matches no layout ({', '.join(hex(v) for v in ends)})")
 
 
 def known_ends() -> dict:

@@ -36,9 +36,7 @@
 #define ACID_PARTS 3
 _Static_assert(sizeof(bass303_t) <= ACID_MEM_BYTES, "acid_mem.h ACID_MEM_BYTES: a part's engine memory holds a bass303_t");
 /* a part's state besides its bass303_t: its 303 set up (ready), a note sounding (gate), a note's start waiting for the
- * part's next render (pend: acid_start below). Built in: one static instance a part (66 B, as the three arrays before);
- * a plugin (PLUG_ENG_ACID): in the part's engine memory after the bass303_t and the shared coefficients' copy
- * (acid_mem.h ACID_PLUG_BYTES), zeroed when the part comes to the plugin (as acid_forget) */
+ * part's next render (pend: acid_start below): one static instance a part (66 B, as the three arrays before) */
 typedef struct {
     uint8_t ready, gate;
     struct acid_pend_s {
@@ -46,14 +44,8 @@ typedef struct {
         int16_t e[8];
     } pend;
 } acid_st_t;
-#if defined(PLUG_ENG_ACID)
-#define ACID_ST(k) ((acid_st_t *)((uint8_t *)acid_mem(k) + ACID_MEM_BYTES + sizeof(bass303_fixed_t)))
-_Static_assert(ACID_MEM_BYTES + sizeof(bass303_fixed_t) + sizeof(acid_st_t) <= ACID_PLUG_BYTES,
-               "acid_mem.h ACID_PLUG_BYTES: a plugin's part memory holds the bass303_t, the coefficients and acid_st_t");
-#else
 static acid_st_t acid_st[ACID_PARTS];
 #define ACID_ST(k) (&acid_st[k])
-#endif
 
 void acid_forget(int k)                            /* (engines.c part_mem_claim: another engine had the memory) */
 {

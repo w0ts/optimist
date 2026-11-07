@@ -214,9 +214,53 @@ static void op_undo(int redo)
     ui_message(b);
 }
 
+#if FXM_NEED
+/* an effect's line or another buffer refused (fx/fx_arena.c, core/arena_bufs.c: bypassed until there is room): said
+ * only once the refusal has stood MEM_SAY_MS, and only if it still stands then. The blocks are placed in turns (a
+ * load, a boot: the parts, the effects, the card's sounds, the features), so a refusal the next pass's retry places
+ * is no news (the user, 2026-11-07, on pink at power-on: "same silly error message i cannot understand"). Said in
+ * plain words: what is off, and why */
+#define MEM_SAY_MS 2000u
+static uint32_t mem_news_ms;                            /* fm1_ms when the refusals waiting began (mem_news_on) */
+static uint8_t mem_news_on;
+static void mem_news_tick(void)
+{
+    uint32_t news;
+    if (op_armed())
+        return;
+    fxm_news &= fxm_full;                               /* (placed meanwhile: not said) */
+    news = fxm_news | arb_unsaid();
+    if (!news) {
+        const char *m;
+        mem_news_on = 0;
+        m = arb_said();                                 /* (PUNCH OFF; refusals placed meanwhile forgotten) */
+        if (m)
+            ui_message(m);
+        return;
+    }
+    if (!mem_news_on) {
+        mem_news_on = 1, mem_news_ms = fm1_ms;
+        return;
+    }
+    if (fm1_ms - mem_news_ms < MEM_SAY_MS)
+        return;
+    mem_news_on = 0;
+    if (fxm_news) {
+        ui_message(fxm_news & 1u ? "MEMORY FULL: CHORUS OFF" : fxm_news & 2u ? "MEMORY FULL: DELAY OFF" :
+                   fxm_news & 4u ? "MEMORY FULL: REVERB OFF" : "MEMORY FULL: INSERT FX OFF");
+        fxm_news = 0;
+    } else {
+        const char *m = arb_said();
+        if (m)
+            ui_message(m);
+    }
+}
+#endif
+
 /* ---- memory short (engines.c part_mem_refused, model.c mem_offer): "DROP T2 FM6?" with the one confirm, red (it replaces
  * a part's sound with the silent placeholder); YES drops it and the change is tried again once its switch is done; a
- * confirm let go without YES (NO, another row, 3 s) passes to the next part; none left: MEM FULL, given up */
+ * confirm let go without YES (NO, another row, 3 s) passes to the next part; none left: MEMORY FULL: SOUND NOT LOADED,
+ * given up */
 static void mem_tick(void)
 {
     fxz_tick();                                         /* (FX MEMORY: a TIME halved to fit a short DLY MEM, op_fxmem.c) */
@@ -226,15 +270,7 @@ static void mem_tick(void)
     if (!part_mem_refused.on)
         lno.on = 0;                                     /* (the list entry that was refused: settled, op_edits.c) */
 #if FXM_NEED
-    if (fxm_news && !op_armed()) {                      /* an effect refused (fx/fx_arena.c): bypassed until there is room */
-        ui_message(fxm_news & 1u ? "MEM FULL CHO" : fxm_news & 2u ? "MEM FULL DLY" : fxm_news & 4u ? "MEM FULL REV" :
-                   "MEM FULL INSERTS");
-        fxm_news = 0;
-    } else if (!op_armed()) {
-        const char *m = arb_said();                     /* (another buffer refused, core/arena_bufs.c: bypassed) */
-        if (m)
-            ui_message(m);
-    }
+    mem_news_tick();
 #endif
 #if FMEM_ANY
     {                                                   /* a feature switched on with no room: its question (feat_mem.c) */
@@ -271,7 +307,7 @@ static void mem_tick(void)
 #endif
     if (!mem_offer(&k)) {
         part_mem_refused.on = 0;
-        ui_message("MEM FULL");
+        ui_message("MEMORY FULL: SOUND NOT LOADED");
         return;
     }
 #if FXM_NEED

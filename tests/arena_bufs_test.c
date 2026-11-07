@@ -8,7 +8,7 @@
  *   3. WAVE on part 2: its table placed, built by wt_service, heard; another engine: given back
  *   4. the X0X 909 kit: its machine placed, a hit plays on it; a lane on an 808 voice: the 808 placed too; the kit and
  *      the lane elsewhere: both given back once their voices are silent
- *   5. refused: a second STUT track finds no room: bypassed (never a repeat), MEM FULL SLICER said once, its card FULL,
+ *   5. refused: a second STUT track finds no room: bypassed (never a repeat), MEMORY FULL: SLICER OFF said once, its card FULL,
  *      kept in the project; placed by itself once the first track's is given back; never while a part's refused change
  *      waits. A change to WAVE with no room for its table: refused as any engine change, a part proposed and dropped,
  *      then on WAVE with its table; on a load: the list page (the table its need, FITS with a part dropped). The X0X kit with no room:
@@ -318,9 +318,9 @@ int main(void)
     {
         const char *m = arb_said();
         CHECK(arb_st[ARB_SL0 + 2] == FXM_NONE && !sl_bp[2] && sl_mode(t2) == SL_OFF && (arb_full >> (ARB_SL0 + 2) & 1u) &&
-              t2->p[P_SLCR] == SL_STUT && m && !strcmp(m, "MEM FULL SLICER") && arb_sl_refused(&t2->p[P_SLCR]) &&
+              t2->p[P_SLCR] == SL_STUT && m && !strcmp(m, "MEMORY FULL: SLICER OFF") && arb_sl_refused(&t2->p[P_SLCR]) &&
               !arb_sl_refused(&t0->p[P_SLCR]),
-              "STUT on track 3: no room: refused, bypassed (OFF), MEM FULL SLICER, its card FULL, kept in the project");
+              "STUT on track 3: no room: refused, bypassed (OFF), MEMORY FULL: SLICER OFF, its card FULL, kept in the project");
     }
     pass();
     CHECK(!arb_said() && (arb_full >> (ARB_SL0 + 2) & 1u), "... tried again every pass, said once only");
@@ -388,7 +388,7 @@ int main(void)
     settle(8);
     CHECK(!part_mem_refused.on && t1->engine == ENG_WAVE && t2->silent && wt_mip && wt_have == (int16_t)wt_wanted() &&
           !arb_full && !arb_said() && arena_ok(), "part 3 dropped (a placeholder): part 2 on WAVE, its table placed and "
-          "built, no MEM FULL");
+          "built, no MEMORY FULL");
     set_engine_of(t2, eng_silent_slot());
     blocks(64);
     settle(2);
@@ -441,8 +441,8 @@ int main(void)
     {
         const char *m = arb_said();
         uint32_t live;
-        CHECK(k < X9 && !x909_p && (arb_full >> ARB_X909 & 1u) && m && !strcmp(m, "MEM FULL X0X"),
-              "the X0X 909 kit with no room (%u B free): refused, MEM FULL X0X", (unsigned)k);
+        CHECK(k < X9 && !x909_p && (arb_full >> ARB_X909 & 1u) && m && !strcmp(m, "MEMORY FULL: 909 KIT OFF"),
+              "the X0X 909 kit with no room (%u B free): refused, MEMORY FULL: 909 KIT OFF", (unsigned)k);
         live = drum_hits(36, 2);
         CHECK(!live && energy() >= 0, "... its kick plays the stand-in kit (no X0X channel)");
     }
@@ -558,7 +558,7 @@ int main(void)
             else if (op == 7u)
                 trk_note_on(&trk[a % NPART], 60u + a, 100), trk_note_off(&trk[(a + 1u) % NPART], 60u + (a + 1u));
             if (part_mem_refused.on && (r >> 20) & 1u)
-                part_mem_refused.on = 0;                /* (given up, as MEM FULL) */
+                part_mem_refused.on = 0;                /* (given up, as MEMORY FULL: SOUND NOT LOADED) */
             if (part_mem_refused.lmask && (r >> 21) & 1u)
                 mem_load_cancel();                      /* (a switch that found no room, engines.c part_mem_unplaced:
                                                          * the list page, HOME; else nothing is placed again while it

@@ -47,11 +47,11 @@ _od = C.dump(_om)
 check("memory menu: an old .config with LAYOUT SDCARD RAM_PACKED and a retired FAR_OK=0 loads, MEMORY reads SD card mode, the dump names the two, not MEMORY or FAR_OK",
       _om["MEMORY"] == 2 and (_om["LAYOUT"], _om["SDCARD"], _om["RAM_PACKED"]) == (1, 1, 1) and "FAR_OK" not in _om
       and all(f"{k}=1" in _od.splitlines() for k in ("LAYOUT", "SDCARD")) and "MEMORY" not in _od and "FAR_OK" not in _od)
-check("... the menu lists SD CARD MODE, SAMPLE SLOTS, PROJECTS in the group's top level, SD_RING / SD_REC / HEADS_FLASH under SD CARD MODE; "
+check("... the menu lists SD CARD MODE, SAMPLE SLOTS, PROJECTS in the group's top level, SD_RING / SD_REC under SD CARD MODE; "
       "MEMORY and the others are hidden but real items",
       [it.key for it in R.top_level("Memory management") if it.key in ("MEMORY", "SD_MODE", "SMP_SLOTS", "PROJECTS", "RAM_PACKED",
                                                                         "SDCARD", "LAYOUT")] == ["SD_MODE", "SMP_SLOTS", "PROJECTS"]
-      and R.ITEMS["SD_MODE"].menu_children == ["SD_RING", "SD_REC", "HEADS_FLASH"] and R.ITEMS["SDCARD"].menu_children == [] and R.ITEMS["MEMORY"].hidden
+      and R.ITEMS["SD_MODE"].menu_children == ["SD_RING", "SD_REC"] and R.ITEMS["SDCARD"].menu_children == [] and R.ITEMS["MEMORY"].hidden
       and all(R.ITEMS[k].hidden for k in ("RAM_PACKED", "SDCARD", "LAYOUT")) and "FAR_OK" not in R.ITEMS and "FAR_OK" in R.RETIRED and R.ITEMS["RAM_PACKED"].bit == 437
       and R.ITEMS["SD_RING"].parent == "SDCARD" and R.ITEMS["SD_RING"].shown_under == "SD_MODE")
 check("backported items (SPRING, PUNCH_LATCH, UP_FM6, GRIDS_*) are in their parent's menu_children, like any option, in the children's order",
@@ -256,10 +256,11 @@ check("the header: a switch off, the name, the hash, the bits",
       "#define FELUCCA_ENG_FM6 0" in h and 'FELUCCA_CFG_NAME "test"' in h and "FELUCCA_CFG_BITS {" in h)
 bad = dict(C.defaults(), **{k: 0 for k in items if items[k].group == "Synth engines" and not items[k].parent})
 check("no synth engine: an error", any("synth engine" in e for e in C.validate(bad)[0]))
-_hf = dict(C.defaults(), SDCARD=1, LAYOUT=1, HEADS_FLASH=1)   # (2026-11-06: the pre-buffer in flash needs the region and the streams)
-check("HEADS_FLASH without PLUGINS or SD_RING: an error; with both none from it",
-      any("HEADS_FLASH" in e.keys for e in C.validate(_hf)[0])
-      and not any("HEADS_FLASH" in e.keys for e in C.validate(dict(_hf, PLUGINS=64, SD_RING=4, ARENA=96, ENG_SAMPLE=1))[0]))
+check("PLUGINS and HEADS_FLASH retired (2026-11-07, bits 453 and 454): no item, in RETIRED, and a .config naming them "
+      "still loads with the settings ignored",
+      all(k not in R.ITEMS and k in R.RETIRED for k in ("PLUGINS", "HEADS_FLASH"))
+      and all(it.bit not in (453, 454) for it in R.ITEMS.values())
+      and C.parse("# name: old\nSDCARD=1\nLAYOUT=1\nPLUGINS=1\nHEADS_FLASH=1\n", reject_unknown=True)[0]["SDCARD"] == 1)
 _sd60 = dict(C.defaults(), SDCARD=1, LCD_BAUD=0)         # (2026-11-06: the card board's resistors leave the panel black at 60 MHz)
 check("SDCARD with the screen at 60 MHz (LCD_BAUD 0): an error; at 30 MHz none from it",
       any("LCD_BAUD" in e.keys for e in C.validate(_sd60)[0])

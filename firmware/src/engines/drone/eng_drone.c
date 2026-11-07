@@ -43,12 +43,8 @@ static const param_desc_t DRONE_BEAT_OFF = PN("BEAT", F_INT, 0, 127, 0, N_DRONE_
 #define DRONE_MAXINC 0x60000000                 /* (a generator's increment at most: 0.375 of FS) */
 
 #include "drone_mem.h"
-#if FELUCCA_PLUGIN_UNIT
-#define DRONE_MEM(k) ((drone_mem_t *)PART_MEM_AT(k))
-#else
 static drone_mem_t drone_st[NPART];
 #define DRONE_MEM(k) (&drone_st[k])
-#endif
 
 static const param_desc_t *drone_desc(const track_t *t, uint32_t k)
 {
@@ -258,6 +254,4 @@ static const engine_t ENG_DRONE = {
     .poly = 1,                                   /* (one network a part; with BEAT two ears of four generators) */
     .desc = drone_desc,
     .block = drone_block,
-    .part_bytes = sizeof(drone_mem_t),
-    .traits = ENG_T_DRONE,
 };

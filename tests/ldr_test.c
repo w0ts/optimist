@@ -582,57 +582,6 @@ int main(int argc, char **argv)
         printf("  resumed: rc %d, %u requests, %u erases\n", rc, requests, erases);
         bad += check("fast: the resumed install completes and matches the package", rc == 0 && record_cleared &&
                      !memcmp(nor + 0x4000, logical + nfo + 0x4000, LDR_APP_HI - 0x4000));
-        /* the PLUGINS region's occupant (core/plugin.h: "OPLG" at a sector's start, its length at 20; the firmware wrote
-         * it there from the SD card) is kept where the package leaves the sectors erased (they decrypt to 0xFF: the app
-         * area is SFC-encrypted); where the package has bytes in one of its sectors, that sector is written (the firmware
-         * drops the broken occupant at boot) */
-        {
-            uint32_t s, n0 = 0, k;
-            uint8_t occ[64];
-            static uint8_t pl[0x3000];
-            for (s = LDR_APP_HI - 0x3000u; s > 0x8000u; s -= 0x1000u) {   /* two erased sectors then one with bytes */
-                memcpy(pl, logical + nfo + s, 0x3000u);
-                ldr_sfc(pl, 0x3000u, s - 0x4000u, 0x980Fu);
-                for (k = 0; k < 0x2000u && pl[k] == 0xFF; k++)
-                    ;
-                if (k == 0x2000u) {                          /* (then a third sector with any byte in it) */
-                    for (k = 0x2000u; k < 0x3000u && pl[k] == 0xFF; k++)
-                        ;
-                    if (k == 0x3000u)
-                        continue;
-                    k = 0x2000u;
-                }
-                if (k == 0x2000u) {
-                    n0 = s;
-                    break;
-                }
-            }
-            if (n0) {
-                memset(occ, 0, sizeof occ);
-                occ[0] = 'O', occ[1] = 'P', occ[2] = 'L', occ[3] = 'G';
-                occ[20] = 0x10, occ[21] = 0x10;              /* len 0x1010: two sectors with the header */
-                ldr_sfc(occ, 64, n0 - 0x4000u, 0x980Fu);     /* as the firmware programs it: the app area's cipher */
-                memcpy(nor + n0, occ, 64);
-                memset(nor + n0 + 64, 0x5A, 0x2000u - 64u);
-                erases = 0, requests = 0;
-                rc = session();
-                bad += check("fast: a PLUGINS occupant the package leaves erased is kept, both sectors, nothing erased",
-                             rc == 0 && erases == 0 && !memcmp(nor + n0, occ, 64) && nor[n0 + 0x1FFF] == 0x5A);
-                memcpy(nor + n0, logical + nfo + n0, 0x2000u);
-                ldr_sfc(occ, 64, n0 - 0x4000u, 0x980Fu);     /* plain again */
-                ldr_sfc(occ, 64, n0 + 0x1000u - 0x4000u, 0x980Fu);   /* the same occupant a sector up: its second sector
-                                                                      * is one the package has bytes in */
-                memcpy(nor + n0 + 0x1000u, occ, 64);
-                memset(nor + n0 + 0x1000u + 64, 0x5A, 0x2000u - 64u);
-                erases = 0;
-                rc = session();
-                bad += check("fast: the occupant's sector with package bytes is written, its first sector kept",
-                             rc == 0 && erases == 1 && !memcmp(nor + n0 + 0x1000u, occ, 64) &&
-                             !memcmp(nor + n0 + 0x2000u, logical + nfo + n0 + 0x2000u, 0x1000u));
-                memcpy(nor + n0, logical + nfo + n0, 0x3000u);
-            } else
-                printf("  (no erased pair before a sector with bytes in the package's app area: the occupant case skipped)\n");
-        }
     }
 #endif
     /* a package for another chip key is refused before any erase */

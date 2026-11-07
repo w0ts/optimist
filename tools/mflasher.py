@@ -1,12 +1,12 @@
 # SPDX-License-Identifier: GPL-3.0-only
 """M-Flasher's command line, as Optimist's installers call it (tools/fm1_anyflash.py): where the program is, how
 setup fetches the pinned release, and the exact command lines. M-Flasher (Julius Vitkauskas, MIT,
-third_party/m-flasher, pinned at v0.7.0 0c5d50f) talks to the chip's USB download mode; its docs/usage.md is the
+third_party/m-flasher, pinned at v0.9.2 1309094) talks to the chip's USB download mode; its docs/usage.md is the
 reference for the commands. Nothing here talks to a device: run() starts the program, the tests replace it with a
 fake executable that records its arguments.
 
   binary()            the M-Flasher to run, or None: $M_FLASHER, the pinned release fetched by setup
-                      (build/m-flasher/m-flasher-0.7.0 in the repo), M-Flasher.app in /Applications, m-flasher on the PATH
+                      (build/m-flasher/m-flasher-0.9.2 in the repo), M-Flasher.app in /Applications, m-flasher on the PATH
   fetch()             the pinned release for this system, checked by its SHA-256 (as tools/deps.py does pi32v2-llvm)
   build_from_source() cargo build --release in third_party/m-flasher (when there is no release for this system)
   argv(...)           the command lines: never --wipe-settings (it would erase the region an Optimist or fm1-base
@@ -32,32 +32,32 @@ import repo_root
 HERE = Path(__file__).resolve().parent
 ROOT = HERE.parent
 SUBMODULE = ROOT / "third_party" / "m-flasher"
-VERSION = "0.7.0"
-COMMIT = "0c5d50fe40a1c913c3408b9dafb33fbb88ad5d69"
+VERSION = "0.9.2"
+COMMIT = "1309094869fc860f57671b466fce7769af7e1a18"
 RELEASE = f"https://github.com/jvitkauskas/m-flasher/releases/download/v{VERSION}/"
 REPO = "jvitkauskas/m-flasher"
 PAGE = f"https://github.com/{REPO}/releases/tag/v{VERSION}"
-# the release's files (GitHub's digests, 2026-10-30): the ONE place the version, names, sizes and SHA-256 are written.
+# the release's files (GitHub's digests, 2026-11-07): the ONE place the version, names, sizes and SHA-256 are written.
 # The web installer and the Mirror app get site_data() of it, generated at build time (tools/sync_mflasher.py,
 # web/make_site.py); tests/mflasher_get_test.py checks that they agree. os: macos / windows / linux; arch: any (one
 # build for the OS) or x86_64 / aarch64; kind: how it installs (dmg, zip, tar.gz run from a folder; deb, rpm are packages)
 RELEASE_FILES = (
-    {"name": f"M-Flasher-{VERSION}-macos.dmg", "os": "macos", "arch": "any", "kind": "dmg", "size": 7361372,
-     "sha256": "a75f2dc0f2a4a5f2545320b925f265303fd8a2d3927dcb181a909a535fb67f0e"},
-    {"name": f"M-Flasher-{VERSION}-windows.zip", "os": "windows", "arch": "any", "kind": "zip", "size": 3147567,
-     "sha256": "520b83b01b41b7a24b0ced9ee5ee565d579b56f5649a26f509602d8182214538"},
-    {"name": f"m-flasher_{VERSION}-1_amd64.deb", "os": "linux", "arch": "x86_64", "kind": "deb", "size": 4041996,
-     "sha256": "9c03a8e3a23ab9365f827b32cf75be6207fd5fda5e2e3891288542035c634584"},
-    {"name": f"m-flasher-{VERSION}-1.x86_64.rpm", "os": "linux", "arch": "x86_64", "kind": "rpm", "size": 4146963,
-     "sha256": "04d62eb2f1ca43317c9749d7eb32822db14fd2440c5197aaa5045e5b8cd573e0"},
-    {"name": f"m-flasher-{VERSION}-linux-x86_64.tar.gz", "os": "linux", "arch": "x86_64", "kind": "tar.gz", "size": 3974627,
-     "sha256": "4080858a224a7e2a25948da3b35fb6a2e74c4bd603f5eef73ddcb5dc4177047f"},
-    {"name": f"m-flasher_{VERSION}-1_arm64.deb", "os": "linux", "arch": "aarch64", "kind": "deb", "size": 3746258,
-     "sha256": "6f79dd1cacdf34cd536ff7b97adffdc37d99e7d3dde24d4b812ab48f7097e5f0"},
-    {"name": f"m-flasher-{VERSION}-1.aarch64.rpm", "os": "linux", "arch": "aarch64", "kind": "rpm", "size": 3818838,
-     "sha256": "d0807d9c896bba6bd8d04e78e91aa81d7ca5f66ad6d4c44d5d51bd0fd178e50d"},
-    {"name": f"m-flasher-{VERSION}-linux-aarch64.tar.gz", "os": "linux", "arch": "aarch64", "kind": "tar.gz", "size": 3625153,
-     "sha256": "342d9ca6af0fd63c6c46539455c9ab2f507a26b83863938159019ed092b58e2e"},
+    {"name": f"M-Flasher-{VERSION}-macos.dmg", "os": "macos", "arch": "any", "kind": "dmg", "size": 7418305,
+     "sha256": "f44204478e6fb2237ad1cb98b9c9797fc303d1ae427520656dd2263c4822d61d"},
+    {"name": f"M-Flasher-{VERSION}-windows.zip", "os": "windows", "arch": "any", "kind": "zip", "size": 3167039,
+     "sha256": "541c1e7eaba809e6c49e5748dd660f4efaa9f75e20dd8524ee9b5e95a689066d"},
+    {"name": f"m-flasher_{VERSION}-1_amd64.deb", "os": "linux", "arch": "x86_64", "kind": "deb", "size": 4063902,
+     "sha256": "5713540e524107c567e20f2d1a3d8a9e12bec22cd607be23f1d58b7fe11e09c4"},
+    {"name": f"m-flasher-{VERSION}-1.x86_64.rpm", "os": "linux", "arch": "x86_64", "kind": "rpm", "size": 4172030,
+     "sha256": "56c05b328853339ddf633be3fc81ab17d7b1ae1c3b01892e8a86d52668ca2f37"},
+    {"name": f"m-flasher-{VERSION}-linux-x86_64.tar.gz", "os": "linux", "arch": "x86_64", "kind": "tar.gz", "size": 3994454,
+     "sha256": "ed152205734312190364c029e2a6bf1413831341ce2b047e31b77d02efc4bb24"},
+    {"name": f"m-flasher_{VERSION}-1_arm64.deb", "os": "linux", "arch": "aarch64", "kind": "deb", "size": 3763218,
+     "sha256": "69776d4a90584e4c4f165a2c366c19fc54d7362f67b8088d15f791c6b98b2a9f"},
+    {"name": f"m-flasher-{VERSION}-1.aarch64.rpm", "os": "linux", "arch": "aarch64", "kind": "rpm", "size": 3837926,
+     "sha256": "6f2167aa32a48554c4ab366e9bc19564060c6a7512594b28d5eed1e8a443f500"},
+    {"name": f"m-flasher-{VERSION}-linux-aarch64.tar.gz", "os": "linux", "arch": "aarch64", "kind": "tar.gz", "size": 3644334,
+     "sha256": "03c789e36e592ee96d511f416cedcdd78a51e5b238827720bc77e3f7ad93dfb4"},
 )
 SYSTEMS = {"macos": "Darwin", "windows": "Windows", "linux": "Linux"}
 OS_LABEL = {"Darwin": "macOS", "Windows": "Windows", "Linux": "Linux"}
@@ -65,11 +65,12 @@ OS_LABEL = {"Darwin": "macOS", "Windows": "Windows", "Linux": "Linux"}
 INSIDE = {"dmg": "M-Flasher.app/Contents/MacOS/M-Flasher", "zip": "M-Flasher.exe", "tar.gz": "m-flasher/m-flasher"}
 ASSETS = {(SYSTEMS[f["os"]], f["arch"]): (f["name"], f["sha256"], INSIDE[f["kind"]])
           for f in RELEASE_FILES if f["kind"] in INSIDE}
-# m-bootloader 2.1, the official release (jvitkauskas/m-bootloader v2.1, f7eb4a2): its fm1-uboot packages, the SHA-256 of its
-# SHA256SUMS. M-Flasher's own bundled build is older, so installers pass --file.
-MBOOT_RELEASE = {"version": "2.1", "commit": "f7eb4a29d35e24088b0b0f24149f1178190488e8",
-                 "fm1-uboot.boot": "ef160139f731cb8190c9bb6c3fc4e3b6ecf4ef107ce35e412132f6c2aea65a35",
-                 "fm1-uboot.fwsc": "413fc2d4bab4f0f0668a35ca3266125aa24acedf0771842342727261e35dbe0c"}
+# m-bootloader: Julius's own v2.2 release, as he built it (its SHA256SUMS). 2.0 on has MIDI mode, 2.2 backs up and runs RAM
+# apps over MIDI (docs/INSTALL-PATHS.md); it replaces our fork, whose SD card item is in his main. M-Flasher 0.9.2 bundles
+# this same version, installers still pass --file so that the file is the one pinned here.
+MBOOT_RELEASE = {"version": "2.2", "commit": "64f7c9cad1580bea870fc4a9e9bd61583fee3aef",
+                 "fm1-uboot.boot": "cedc9c17648bdeecda5c8d0ffffe2211849f8a36ab615fe49d6cc46d249baf44",
+                 "fm1-uboot.fwsc": "cb6128ee753a1661e6399002317464959231854024f259520755621954438981"}
 MBOOT_DIR = ROOT / "web" / "fm1base" / "m-bootloader"
 MBOOT_BOOT = MBOOT_DIR / f"fm1-uboot-{MBOOT_RELEASE['version']}.boot"
 MBOOT_COPIES = {MBOOT_BOOT: "fm1-uboot.boot",
