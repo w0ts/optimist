@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: GPL-3.0-only
 # Shortcuts for tools/optimist.py (which works without make: BUILDING.md). `make help` lists them.
 .DEFAULT_GOAL := help
-.PHONY: help setup sdk builder build classic package sd-zip sdcard stage2 flash profiles publish unpublish share delete web site emu emu-list emu-update test costs costs-all gate emu-check mirror
+.PHONY: help setup sdk builder build classic package sd-zip sdcard sdcard-firmwares stage2 flash profiles publish unpublish share delete web site emu emu-list emu-update test costs costs-all gate emu-check mirror
 
 PY ?= python3
 PROFILE ?= mots-config
@@ -27,6 +27,8 @@ help:
 	@echo "                              mode: the FM-1's folders and that zip's factory presets, kits and samples (replaced"
 	@echo "                              where they changed); your own files never touched. No CARD: it asks which card (the"
 	@echo "                              last used first) and asks before it writes. The builder menu's c does the same"
+	@echo "make sdcard-firmwares [CARD=/Volumes/<name>]  the latest firmwares into build/sd-firmwares/ and onto the SD card's"
+	@echo "                              /FIRMWARES for the SD flasher: the card is found by itself (several: it asks); packages added by hand stay"
 	@echo "make flash   [PKG=file.fwsc] [KEEP_BOOTLOADER=1] [FM1=NAME|all]   build $(PROFILE) and install it (or PKG as it is); shows the identities, the route and the bootloader, and asks (several FM-1s: which one, or all, one after the other)"
 	@echo "make profiles                  the profiles: published (CI builds them), shipped, mine"
 	@echo "make publish   PROFILE=name    CI builds this shipped profile (# publish: yes; commit it)"
@@ -84,6 +86,10 @@ sd-zip:
 # (the user runs it: it writes to the card it is given or picks; never run by an agent on a real card)
 sdcard:
 	$(PY) tools/optimist.py sdcard $(if $(CARD),--card "$(CARD)") $(if $(YES),--yes) $(if $(DRY),--dry-run) $(SD_CFG)
+
+# (the user runs it: it writes to the card it finds; never run by an agent with a real card in)
+sdcard-firmwares:
+	$(PY) tools/sd_firmwares.py $(if $(CARD),--card "$(CARD)")
 
 # MENU.BIN, the SD flasher (docs/SD-CARD-DESIGN.md "Flashing from the card"), in build/stage2/
 stage2:
