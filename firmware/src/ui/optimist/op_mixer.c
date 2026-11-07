@@ -209,7 +209,7 @@ static uint16_t mx_col(uint32_t r)                      /* the row's colour: its
     return r == MXR_MASTER || mx_is_usb(r) || mx_is_ret(r) ? C_HI : mx_is_lane(r) ? op_lane_col(r - MXR_LANE0) : trk_col(mx_trk_of(r));
 }
 
-static uint32_t mx_add(mitem_t *it, uint32_t n, uint32_t grp, const char *label, uint32_t kind, uint32_t id)
+static __attribute__((noinline)) uint32_t mx_add(mitem_t *it, uint32_t n, uint32_t grp, const char *label, uint32_t kind, uint32_t id)
 {
     if (n < MX_MAXI) {
         it[n].label = label;

@@ -53,7 +53,7 @@ static const char *sdm_card_label(uint32_t k);          /* (storage/sd/sd_mode.c
 static __attribute__((noinline)) void cell_val(cell_t *c, const char *s) { str_cpy(c->val, s, 14); }   /* (42 sites; 13 characters, the field of a WIFI_UI build too: WI-FI's SIGNAL fills it whole) */
 /* an action's card: the verb is its val when set, else its label (the list's narrow columns draw the label); the small
  * label above is obj, else the label over a val, else none (op_draw.c act_text) */
-static void cell_act(cell_t *c, const char *obj, const char *label, const char *verb, uint32_t danger)
+static __attribute__((noinline)) void cell_act(cell_t *c, const char *obj, const char *label, const char *verb, uint32_t danger)
 {
     c->kind = CK_ACT;
     c->obj = obj;

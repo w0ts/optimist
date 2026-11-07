@@ -8,7 +8,7 @@
  * 5 The drum track). The pick (SHIFT2 + a lane key) sets it; the mixer, SOUND rows and STEP show and edit that
  * lane. The SEQ layer's lane is the one played last (seq.c pen_lane) */
 static uint8_t lane_sel;
-static uint32_t lane_selected(void) { return lane_sel > DRUM_ACC ? 0u : lane_sel; }
+static __attribute__((noinline)) uint32_t lane_selected(void) { return lane_sel > DRUM_ACC ? 0u : lane_sel; }
 static void lane_select(uint32_t l) { lane_sel = (uint8_t)(l > DRUM_ACC ? l % DRUM_LANES : l); }   /* (16: the ACCENT lane, no sound) */
 
 #define DL_UI DL_ANY
