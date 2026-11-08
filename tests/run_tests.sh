@@ -1785,6 +1785,14 @@ for m in 0 1; do
         ) >"$U.out" 2>&1 & jobbg
     done
 done
+job; ( jobin   # autosave_tick as the main loop drives it, the sequencer playing, then a power cycle (storage/autosave.c)
+    $CC -O2 -w -I"$HGEN" -Ifirmware/src -DFELUCCA_LIVE_SAVE=0 -o "$OUT/autosave_test0" tests/autosave_test.c -lm
+    run "autosave without LIVE_SAVE: an edit written once settled, stopped and silent only; back after a power cycle" "$OUT/autosave_test0"
+    $CC -O2 -w -I"$HGEN" -Ifirmware/src -DFELUCCA_LIVE_SAVE=1 -o "$OUT/autosave_test1" tests/autosave_test.c -lm
+    run "autosave with LIVE_SAVE: an edit written while playing or sounding too (not recording, not after a held erase); back after a power cycle" "$OUT/autosave_test1"
+    $CC -O2 -w -I"$HGEN" -Ifirmware/src -DFELUCCA_LIVE_SAVE=1 -DFELUCCA_PATTERNS=1 -DFELUCCA_MOTION=1 -o "$OUT/autosave_test_pat" tests/autosave_test.c -lm
+    run "autosave with LIVE_SAVE, patterns and motion: the same" "$OUT/autosave_test_pat"
+) >"$U.out" 2>&1 & jobbg
 job; ( jobin
     $CC -O2 -w -I"$HGEN" -Ifirmware/src $FM6_PACKS_ON -o "$OUT/fm6_test" tests/fm6_test.c -lm
     run "FM6: DX7 algorithms, voices (INIT VOICE and every pack's), pitch, levels, envelopes, modulation, SysEx in (the ISR side)" "$OUT/fm6_test"
