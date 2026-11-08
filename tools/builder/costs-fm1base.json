@@ -114,7 +114,7 @@
   },
   "ENG_PHASE": {
    "0": {
-    "flash": -1732,
+    "flash": -1728,
     "ram": -288,
     "pool": 0,
     "ramtext": -2168
@@ -352,7 +352,7 @@
   },
   "ENG_WSEQ": {
    "1": {
-    "flash": 5372,
+    "flash": 5368,
     "ram": 32,
     "pool": 0,
     "ramtext": 0
@@ -492,7 +492,7 @@
   },
   "KIT_ACOUSTIC": {
    "0": {
-    "flash": 20,
+    "flash": 16,
     "ram": 0,
     "pool": 0,
     "ramtext": 0
@@ -516,7 +516,7 @@
   },
   "KIT_BRIGHT": {
    "0": {
-    "flash": 12,
+    "flash": 16,
     "ram": 0,
     "pool": 0,
     "ramtext": 0
@@ -786,7 +786,7 @@
   },
   "TFLT_RESO": {
    "0": {
-    "flash": -68,
+    "flash": -72,
     "ram": -24,
     "pool": 0,
     "ramtext": -104
@@ -898,7 +898,7 @@
   },
   "EX_GAIN": {
    "1": {
-    "flash": -8,
+    "flash": -4,
     "ram": 88,
     "pool": 0,
     "ramtext": 196
@@ -946,7 +946,7 @@
   },
   "XDLY_LEN": {
    "8192": {
-    "flash": 40,
+    "flash": 44,
     "ram": -16,
     "pool": 0,
     "ramtext": 16
@@ -970,7 +970,7 @@
   },
   "SECTIONS": {
    "8": {
-    "flash": 4,
+    "flash": 8,
     "ram": 0,
     "pool": 0,
     "ramtext": 0
@@ -1068,8 +1068,8 @@
   },
   "USB_CONSOLE": {
    "1": {
-    "flash": 1416,
-    "ram": -7012,
+    "flash": 1480,
+    "ram": -7008,
     "pool": -16384,
     "ramtext": 8
    }
@@ -1346,7 +1346,7 @@
   },
   "SDCARD": {
    "1": {
-    "flash": 1292,
+    "flash": 1288,
     "ram": 528,
     "pool": 556,
     "ramtext": 0
@@ -1768,7 +1768,7 @@
   },
   "WIFI_LINK": {
    "1": {
-    "flash": 38164,
+    "flash": 38368,
     "ram": 7396,
     "pool": 0,
     "ramtext": 8
@@ -1776,7 +1776,7 @@
   },
   "WIFI_AP": {
    "1": {
-    "flash": 9008,
+    "flash": 9012,
     "ram": 48,
     "pool": 1776,
     "ramtext": 0
@@ -1808,25 +1808,25 @@
   },
   "SD_RING": {
    "4": {
-    "flash": 46916,
+    "flash": 46920,
     "ram": 6604,
     "pool": 40548,
     "ramtext": 2400
    },
    "8": {
-    "flash": 46920,
+    "flash": 46924,
     "ram": 6604,
     "pool": 40548,
     "ramtext": 2400
    },
    "12": {
-    "flash": 46920,
+    "flash": 46924,
     "ram": 6604,
     "pool": 40548,
     "ramtext": 2400
    },
    "16": {
-    "flash": 46920,
+    "flash": 46924,
     "ram": 6604,
     "pool": 40548,
     "ramtext": 2400
@@ -1853,7 +1853,7 @@
    }
   }
  },
- "measured": "2026-11-08 20:21",
+ "measured": "2026-11-08 22:19",
  "cpu": {
   "scale_pct": 104,
   "calibrated": "2026-10-06, emulator at 96 MHz, bench.c scenarios 1 2 3 7 8 (docs/CPU-GUARD.md); X0X: 2026-10-07, scenario 8 on the X0X 909 and 808 kits (x0x-drums)",
@@ -1968,8 +1968,8 @@
    },
    "built_hash": "372b8c74",
    "sizes": {
-    "flash": 633336,
-    "ram": 126640,
+    "flash": 633412,
+    "ram": 126644,
     "pool": 266996,
     "ramtext": 56108
    },
@@ -2272,7 +2272,7 @@
    },
    "built_hash": "0c135b71",
    "sizes": {
-    "flash": 821448,
+    "flash": 821636,
     "ram": 123796,
     "pool": 49920,
     "ramtext": 59236
@@ -2390,7 +2390,7 @@
    },
    "built_hash": "64ca8ba4",
    "sizes": {
-    "flash": 819904,
+    "flash": 820112,
     "ram": 134916,
     "pool": 131816,
     "ramtext": 81792
@@ -2493,8 +2493,8 @@
    },
    "built_hash": "43f27d50",
    "sizes": {
-    "flash": 709280,
-    "ram": 128044,
+    "flash": 709364,
+    "ram": 128048,
     "pool": 280628,
     "ramtext": 55752
    },
@@ -2503,7 +2503,7 @@
      "from": 1,
      "to": 0,
      "delta": {
-      "flash": -41764,
+      "flash": -41820,
       "ram": -3456,
       "pool": -10068,
       "ramtext": 0
@@ -2717,8 +2717,8 @@
    },
    "built_hash": "54d5608a",
    "sizes": {
-    "flash": 667332,
-    "ram": 124588,
+    "flash": 667396,
+    "ram": 124592,
     "pool": 270560,
     "ramtext": 55752
    },
@@ -3010,8 +3010,8 @@
    },
    "built_hash": "2f00cd45",
    "sizes": {
-    "flash": 635104,
-    "ram": 144164,
+    "flash": 635160,
+    "ram": 144168,
     "pool": 234228,
     "ramtext": 56480
    },
@@ -3307,7 +3307,7 @@
    },
    "built_hash": "739a5594",
    "sizes": {
-    "flash": 776424,
+    "flash": 776636,
     "ram": 115600,
     "pool": 43308,
     "ramtext": 58728
@@ -3423,7 +3423,7 @@
    },
    "built_hash": "53e30b3d",
    "sizes": {
-    "flash": 831244,
+    "flash": 831452,
     "ram": 137092,
     "pool": 132288,
     "ramtext": 81648
@@ -3528,8 +3528,8 @@
    },
    "built_hash": "3e98b232",
    "sizes": {
-    "flash": 709272,
-    "ram": 122284,
+    "flash": 709352,
+    "ram": 122288,
     "pool": 280628,
     "ramtext": 55752
    },
@@ -3538,7 +3538,7 @@
      "from": 1,
      "to": 0,
      "delta": {
-      "flash": -41784,
+      "flash": -41800,
       "ram": -3452,
       "pool": -10068,
       "ramtext": 0
@@ -3752,8 +3752,8 @@
    },
    "built_hash": "086b84f9",
    "sizes": {
-    "flash": 666300,
-    "ram": 123812,
+    "flash": 666360,
+    "ram": 123816,
     "pool": 270696,
     "ramtext": 53172
    },
@@ -4062,7 +4062,7 @@
    "ramtext": 0
   },
   "BLE=1,USB_CONSOLE=1": {
-   "flash": 136,
+   "flash": 140,
    "ram": -64,
    "pool": 0,
    "ramtext": 0
@@ -4110,7 +4110,7 @@
    "ramtext": 0
   },
   "BLE=1,BLE_BOND=1,BLE_CENTRAL=1,USB_CONSOLE=1": {
-   "flash": -8,
+   "flash": -16,
    "ram": 32,
    "pool": 0,
    "ramtext": 0
@@ -4122,13 +4122,13 @@
    "ramtext": 0
   },
   "BLE=1,BT_AUDIO=1": {
-   "flash": -31684,
+   "flash": -31680,
    "ram": -7712,
    "pool": 0,
    "ramtext": -32
   },
   "BLE=1,BLE_CENTRAL=1,BT_AUDIO=1": {
-   "flash": -1688,
+   "flash": -1692,
    "ram": 20,
    "pool": 0,
    "ramtext": 0
@@ -4140,7 +4140,7 @@
    "ramtext": 0
   },
   "BLE=1,BLE_CENTRAL=3,BT_AUDIO=1": {
-   "flash": -1684,
+   "flash": -1688,
    "ram": 52,
    "pool": 0,
    "ramtext": 0
@@ -4152,7 +4152,7 @@
    "ramtext": -24
   },
   "BT_AUDIO=1,USB_CONSOLE=1": {
-   "flash": 96,
+   "flash": 112,
    "ram": 0,
    "pool": 0,
    "ramtext": 0
@@ -4242,13 +4242,13 @@
    "ramtext": 0
   },
   "SDCARD=1,LAYOUT=1,ENG_SAMPLE=0,DRUM_USR=0,SNAPSHOTS=0,PATTERNS=1": {
-   "flash": 44468,
+   "flash": 44472,
    "ram": 2372,
    "pool": 9072,
    "ramtext": -88
   },
   "SDCARD=1,USB_CONSOLE=1": {
-   "flash": 2788,
+   "flash": 2800,
    "ram": 588,
    "pool": 0,
    "ramtext": 0
