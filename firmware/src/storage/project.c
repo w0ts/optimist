@@ -1536,7 +1536,7 @@ static void project_load(uint32_t slot)
  * boot (the .noinit copies are garbage after a power-off). */
 #include "../core/meters.h"                  /* METERS (kept in the settings record: rsv_pj[2]) */
 #include "../core/dbgstats.h"                /* DEBUG STATS (kept in the settings record: rsv_pj[1]) */
-#include "../core/sdring.h"                  /* SD CARD > RING (kept in the settings record: rsv_pj[1] bits 1..3) */
+#include "../core/sdring.h"                  /* SD CARD > SMPL RING (kept in the settings record: rsv_pj[1] bits 1..3) */
 #include "settings_word.c"                 /* bp23_word / bp23_from_word: the settings word */
 #if BP23_SET
 /* the settings word changed by something that is no menu (a page, the editor): saved as the menu's are, at once when
@@ -1737,7 +1737,7 @@ static void persist_boot(void)                    /* before settings_init / pane
             persist_ext_load(&p);
             meters_from_rec(p.rsv_pj[2]);            /* (METERS: mode + 1, rsv_pj[2]; a record from before reads 0: CPUS) */
             dbg_stats_set(p.rsv_pj[1] & 1u);         /* (DEBUG STATS, core/dbgstats.h: a record from before reads OFF) */
-            sd_ring_from_rec((p.rsv_pj[1] >> 1) & 7u);   /* (SD CARD > RING, core/sdring.h: bits 1..3, a record from before: the build's) */
+            sd_ring_from_rec((p.rsv_pj[1] >> 1) & 7u);   /* (SD CARD > SMPL RING, core/sdring.h: bits 1..3, a record from before: the build's) */
             persist_saved = p;
         } else if (n == (int)(8u + sizeof(panel_t)) && p3.magic == 0x50455231u) {   /* "PER1": palette, panel */
             const uint32_t *w = (const uint32_t *)&p3;
@@ -1825,7 +1825,7 @@ static void settings_save(void)
     persist_ext_save(&p);
     p.rsv_pj[2] = meters_to_rec();                 /* (METERS: mode + 1) */
     p.rsv_pj[0] = 0;                               /* (retired: was VU FLOOR, now fixed at -40; old records' byte is ignored) */
-    p.rsv_pj[1] = (uint8_t)((p.rsv_pj[1] & ~0x0Fu) | dbg_stats | sd_ring_to_rec() << 1);   /* (DEBUG STATS: bit 0; SD CARD > RING: bits 1..3; the rest kept) */
+    p.rsv_pj[1] = (uint8_t)((p.rsv_pj[1] & ~0x0Fu) | dbg_stats | sd_ring_to_rec() << 1);   /* (DEBUG STATS: bit 0; SD CARD > SMPL RING: bits 1..3; the rest kept) */
 #if FELUCCA_FAVORITES
     persist_fav_save(&p);
 #endif

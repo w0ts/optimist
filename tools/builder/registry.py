@@ -1299,7 +1299,7 @@ _add("SD_RING", "FELUCCA_SD_RING_KB", "samples streamed from the SD card (SAMPLE
      "a card model with stalls, an interrupt-driven audio clock); no FM-1 has the card yet",
      desc="SAMPLE's SET gets a last value, CARD: the part plays its sample from the SD card (a WAV of 8 or 16 bits, mono "
           "or stereo, up to 176 kHz), streamed, not loaded. Every voice that streams owns a ring, always, the same size "
-          "for all: SYSTEM > SD CARD > RING sets it on the FM-1 (4, 8, 12 or 16 KB, kept with the device's settings, not the "
+          "for all: SYSTEM > SD CARD > SMPL RING sets it on the FM-1 (4, 8, 12 or 16 KB, kept with the device's settings, not the "
           "project; this is the size a fresh FM-1 starts with; the slot tags and the SAMPLES list's preview ring are "
           "sized for 16 KB in every build), and each sample's first bytes are preloaded in memory, exactly one ring's worth "
           "(a sample shorter than that: whole), so a note starts at once while the card's "

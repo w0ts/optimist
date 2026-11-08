@@ -1942,11 +1942,11 @@ static void sdcard_tests(void)
         }
         sys_cell(r, 3, &c);
 #if FELUCCA_SD_STREAM
-        {   /* SD CARD > RING (core/sdring.h): the build's size first, a knob step the next, the record's bits 1..3, OP_RESET
+        {   /* SD CARD > SMPL RING (core/sdring.h): the build's size first, a knob step the next, the record's bits 1..3, OP_RESET
              * the build's again */
             char want[8];
             snprintf(want, sizeof want, "%u KB", (unsigned)sd_ring_kb());
-            check(!strcmp(c.label, "RING") && !strcmp(c.val, want) && sd_ring_sel == 0u, "SD CARD: RING, the build's size first");
+            check(!strcmp(c.label, "SMPL RING") && !strcmp(c.val, want) && sd_ring_sel == 0u, "SD CARD: SMPL RING, the build's size first");
             sd_ring_set_pos(0);
             sys_turn(r, 3, 1, 0);
             sys_cell(r, 3, &c);

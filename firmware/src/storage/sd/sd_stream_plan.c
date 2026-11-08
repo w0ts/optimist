@@ -616,7 +616,7 @@ static void sst_plan_poll(void)
     if (sstp.state == SSTP_PLACED && sst_nring() != sstp.nring_want)
         sstp.dirty = 1;                              /* (a CARD part's voices changed: its rings) */
     if (sst_k != sd_ring_kb() * 2u && sstp.state != SSTP_GATED && !sst_pv.act && sst_pv.cmd != SPV_START)
-        sstp.dirty = 1;                              /* (SYSTEM > SD CARD > RING changed: placed again at that size; the
+        sstp.dirty = 1;                              /* (SYSTEM > SD CARD > SMPL RING changed: placed again at that size; the
                                                       * SAMPLES list's preview shares sst_k, so not while it plays) */
     if (sstp.dirty) {
         sstp.dirty = 0;
