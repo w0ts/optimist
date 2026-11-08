@@ -1,9 +1,9 @@
 {
  "base": {
-  "flash": 708612,
-  "ram": 80548,
-  "pool": 332776,
-  "ramtext": 41360
+  "flash": 708248,
+  "ram": 83180,
+  "pool": 333676,
+  "ramtext": 42772
  },
  "limits": {
   "flash": 581564,
@@ -168,16 +168,16 @@
   },
   "ENG_DRAWBAR": {
    "0": {
-    "flash": -1840,
-    "ram": -36,
-    "pool": 4,
-    "ramtext": -1384
+    "flash": -1832,
+    "ram": -32,
+    "pool": -4,
+    "ramtext": -1388
    },
    "2": {
-    "flash": 288,
-    "ram": -24,
+    "flash": 276,
+    "ram": -20,
     "pool": 0,
-    "ramtext": -1384
+    "ramtext": -1388
    }
   },
   "ENG_GRAIN": {
@@ -422,8 +422,8 @@
   },
   "DS_PLAITS": {
    "0": {
-    "flash": -4908,
-    "ram": -732,
+    "flash": -4828,
+    "ram": -1116,
     "pool": 0,
     "ramtext": -2724
    }
@@ -834,7 +834,7 @@
   },
   "INS_RECT": {
    "1": {
-    "flash": 672,
+    "flash": 668,
     "ram": 1160,
     "pool": 0,
     "ramtext": 0
@@ -1116,7 +1116,7 @@
   },
   "FAVORITES": {
    "0": {
-    "flash": -1900,
+    "flash": -1916,
     "ram": 0,
     "pool": -136,
     "ramtext": 0
@@ -1846,7 +1846,7 @@
    }
   }
  },
- "measured": "2026-11-05 12:45",
+ "measured": "2026-11-08 09:46",
  "cpu": {
   "scale_pct": 104,
   "calibrated": "2026-10-06, emulator at 96 MHz, bench.c scenarios 1 2 3 7 8 (docs/CPU-GUARD.md); X0X: 2026-10-07, scenario 8 on the X0X 909 and 808 kits (x0x-drums)",
@@ -1961,23 +1961,12 @@
    },
    "built_hash": "372b8c74",
    "sizes": {
-    "flash": 589872,
-    "ram": 97820,
-    "pool": 294864,
-    "ramtext": 30612
+    "flash": 588060,
+    "ram": 100320,
+    "pool": 295760,
+    "ramtext": 32048
    },
-   "contexts": {
-    "SDCARD": {
-     "from": 0,
-     "to": 1,
-     "delta": {
-      "flash": 13112,
-      "ram": 80,
-      "pool": 556,
-      "ramtext": 0
-     }
-    }
-   }
+   "contexts": {}
   },
   "dev": {
    "hash": "59e3145b",
@@ -2075,23 +2064,12 @@
    },
    "built_hash": "21a7f7f0",
    "sizes": {
-    "flash": 627820,
-    "ram": 98432,
-    "pool": 311236,
-    "ramtext": 29216
+    "flash": 625808,
+    "ram": 101044,
+    "pool": 312260,
+    "ramtext": 30772
    },
-   "contexts": {
-    "SDCARD": {
-     "from": 0,
-     "to": 1,
-     "delta": {
-      "flash": 4156,
-      "ram": 48,
-      "pool": 556,
-      "ramtext": 0
-     }
-    }
-   }
+   "contexts": {}
   },
   "drum-machines": {
    "hash": "07ba645e",
@@ -2162,23 +2140,12 @@
    },
    "built_hash": "6c16c0e4",
    "sizes": {
-    "flash": 616824,
-    "ram": 84172,
-    "pool": 199576,
-    "ramtext": 22608
+    "flash": 615428,
+    "ram": 86812,
+    "pool": 200592,
+    "ramtext": 23820
    },
-   "contexts": {
-    "SDCARD": {
-     "from": 0,
-     "to": 1,
-     "delta": {
-      "flash": 4152,
-      "ram": 64,
-      "pool": 556,
-      "ramtext": 0
-     }
-    }
-   }
+   "contexts": {}
   },
   "mots-config": {
    "hash": "4e721334",
@@ -2295,37 +2262,32 @@
    },
    "built_hash": "606907f0",
    "sizes": {
-    "flash": 719036,
-    "ram": 111096,
-    "pool": 108356,
-    "ramtext": 24592
+    "flash": 717220,
+    "ram": 113792,
+    "pool": 109380,
+    "ramtext": 25984
    },
-   "contexts": {
-    "SDCARD": {
-     "from": 0,
-     "to": 1,
-     "delta": {
-      "flash": 35816,
-      "ram": 5252,
-      "pool": 15616,
-      "ramtext": 0
-     }
-    }
-   }
+   "contexts": {}
   },
   "sd-card-mots": {
-   "hash": "24ee5941",
+   "hash": "0dd9af48",
    "cfg": {
     "A2_LADR": 1,
     "A2_OTA": 1,
     "A2_DIOD": 1,
     "A2_MS20": 1,
-    "ENG_SLICE": 1,
-    "ENG_DRONE": 1,
-    "ENG_STRINGS": 2,
-    "ENG_VPS": 1,
-    "ENG_TERRAIN": 1,
-    "ENG_WSEQ": 1,
+    "ENG_DIGITAL": 2,
+    "DIG_TONE": 1,
+    "ENG_PHASE": 0,
+    "ENG_LOFI": 0,
+    "ENG_SAMPLE": 2,
+    "ENG_FORMANT": 0,
+    "ENG_TRIO": 0,
+    "ENG_DRAWBAR": 0,
+    "ENG_GRAIN": 0,
+    "ENG_PLAITS": 2,
+    "ENG_PROPHET": 2,
+    "ENG_CS80": 1,
     "DRUM_X0X909": 1,
     "X909_CYM": 0,
     "X909_HAT": 0,
@@ -2341,9 +2303,10 @@
     "SET_FLUTE": 0,
     "SET_SCRCH": 0,
     "DLY_LEN": 16384,
-    "REV_ROOM": 0,
+    "REV_PLATE": 1,
     "REV_FDN8": 1,
     "REV_POOL": 1,
+    "REV_AIRWIN": 1,
     "FX_SLICER": 0,
     "FX_PUNCH": 0,
     "FX_DJF": 0,
@@ -2351,10 +2314,13 @@
     "TRK_FILT": 1,
     "INS_FOLD": 1,
     "INS_FUZZ": 1,
+    "INS_PHASER": 1,
     "INS_WIDTH": 1,
     "INS_SFOLD": 1,
     "INS_HARM": 1,
+    "INS_RING": 1,
     "INS_SUBOCT": 1,
+    "INS_TAPE": 1,
     "INS_DELAY": 1,
     "INS_JCHORUS": 1,
     "INS_FLANGER": 1,
@@ -2366,24 +2332,34 @@
     "PATTERNS": 1,
     "REC_PLAIN": 1,
     "NOTEGEN": 1,
-    "USB_AUDIO": 1,
     "MIDI_EXPR": 0,
-    "LCD_BAUD": 0,
+    "MIDI_NOTEOUT": 0,
+    "FAVORITES": 0,
+    "PARAM_HELP": 1,
+    "SYS_TOP": 1,
+    "BACKUP": 0,
+    "LIBRARIAN": 0,
+    "ED_MIX": 0,
+    "ED_SEQ": 0,
+    "ED_SCREENS": 0,
     "ED_MIRROR": 1,
     "LIVE_SAVE": 1,
     "SDCARD": 1,
     "LAYOUT": 1,
     "ARENA": 1,
     "SD_RING": 4,
+    "SD_REC": 16,
     "CPU_GUARD": 1,
     "CACHE_RAM": 2,
+    "SEQ_RAM": 1,
     "BLE": 1,
     "BT_AUDIO": 1,
     "CHANCE": 1,
     "QNT_SEQ": 1,
+    "SPRING": 1,
     "MOTION": 1,
-    "ENG_NOISE": 1,
-    "ENG_CZ": 2,
+    "ENG_PHYS": 2,
+    "ENG_ACID": 2,
     "ENG_JUNO": 2,
     "REC_MODES": 1,
     "DIV_ORDER": 1,
@@ -2401,17 +2377,17 @@
     "GRIDS_LFO": 1,
     "GRIDS_VEL": 1
    },
-   "built_hash": "3e016d81",
+   "built_hash": "25d7af27",
    "sizes": {
-    "flash": 759876,
-    "ram": 117992,
-    "pool": 152348,
-    "ramtext": 42116
+    "flash": 723140,
+    "ram": 120060,
+    "pool": 155392,
+    "ramtext": 47348
    },
    "contexts": {}
   },
   "sd-card": {
-   "hash": "75f2f38d",
+   "hash": "3a3cb316",
    "cfg": {
     "A2_LADR": 1,
     "A2_OTA": 1,
@@ -2470,7 +2446,6 @@
     "MIDI_EXPR": 0,
     "MIDI_NOTEOUT": 0,
     "FAVORITES": 0,
-    "LCD_BAUD": 0,
     "ED_LIVE": 0,
     "ED_MIX": 0,
     "ED_SEQ": 0,
@@ -2505,20 +2480,20 @@
     "GRIDS_LFO": 1,
     "GRIDS_VEL": 1
    },
-   "built_hash": "6a9a8dfb",
+   "built_hash": "43f27d50",
    "sizes": {
-    "flash": 677768,
-    "ram": 104472,
-    "pool": 312796,
-    "ramtext": 28420
+    "flash": 675288,
+    "ram": 106932,
+    "pool": 313692,
+    "ramtext": 29864
    },
    "contexts": {
     "SDCARD": {
      "from": 1,
      "to": 0,
      "delta": {
-      "flash": -47788,
-      "ram": -5416,
+      "flash": -47036,
+      "ram": -5384,
       "pool": -15892,
       "ramtext": 0
      }
@@ -2624,23 +2599,12 @@
    },
    "built_hash": "5ce56801",
    "sizes": {
-    "flash": 628356,
-    "ram": 98864,
-    "pool": 311236,
-    "ramtext": 29216
+    "flash": 626360,
+    "ram": 101412,
+    "pool": 312260,
+    "ramtext": 30772
    },
-   "contexts": {
-    "SDCARD": {
-     "from": 0,
-     "to": 1,
-     "delta": {
-      "flash": 4160,
-      "ram": 60,
-      "pool": 560,
-      "ramtext": 0
-     }
-    }
-   }
+   "contexts": {}
   },
   "sd-mode-probe": {
    "hash": "52b2bf05",
@@ -2742,23 +2706,12 @@
    },
    "built_hash": "54d5608a",
    "sizes": {
-    "flash": 629840,
-    "ram": 99056,
-    "pool": 296904,
-    "ramtext": 28420
+    "flash": 628096,
+    "ram": 101548,
+    "pool": 297800,
+    "ramtext": 29864
    },
-   "contexts": {
-    "SDCARD": {
-     "from": 0,
-     "to": 1,
-     "delta": {
-      "flash": 47776,
-      "ram": 5412,
-      "pool": 15888,
-      "ramtext": 0
-     }
-    }
-   }
+   "contexts": {}
   },
   "synths-2": {
    "hash": "300b5f7b",
@@ -2848,23 +2801,12 @@
    },
    "built_hash": "7038cad7",
    "sizes": {
-    "flash": 565144,
-    "ram": 72728,
+    "flash": 563488,
+    "ram": 72692,
     "pool": 299920,
-    "ramtext": 13452
+    "ramtext": 13448
    },
-   "contexts": {
-    "SDCARD": {
-     "from": 0,
-     "to": 1,
-     "delta": {
-      "flash": 4156,
-      "ram": 32,
-      "pool": 556,
-      "ramtext": 0
-     }
-    }
-   }
+   "contexts": {}
   },
   "synths": {
    "hash": "46068bc7",
@@ -2957,23 +2899,12 @@
    },
    "built_hash": "170e731d",
    "sizes": {
-    "flash": 540084,
-    "ram": 80940,
-    "pool": 237672,
-    "ramtext": 26732
+    "flash": 538388,
+    "ram": 82960,
+    "pool": 238572,
+    "ramtext": 28268
    },
-   "contexts": {
-    "SDCARD": {
-     "from": 0,
-     "to": 1,
-     "delta": {
-      "flash": 4152,
-      "ram": 32,
-      "pool": 556,
-      "ramtext": 0
-     }
-    }
-   }
+   "contexts": {}
   },
   "mots-config+ble-test": {
    "hash": "7aca5fa5",
@@ -3078,23 +3009,12 @@
    },
    "built_hash": "490e3942",
    "sizes": {
-    "flash": 653912,
-    "ram": 103388,
-    "pool": 71548,
-    "ramtext": 24528
+    "flash": 653184,
+    "ram": 106068,
+    "pool": 72572,
+    "ramtext": 25856
    },
-   "contexts": {
-    "SDCARD": {
-     "from": 0,
-     "to": 1,
-     "delta": {
-      "flash": 37120,
-      "ram": 5244,
-      "pool": 15608,
-      "ramtext": 0
-     }
-    }
-   }
+   "contexts": {}
   },
   "mots-config+ble-full": {
    "hash": "7a764ac5",
@@ -3199,23 +3119,12 @@
    },
    "built_hash": "727b3d1a",
    "sizes": {
-    "flash": 657444,
-    "ram": 101028,
-    "pool": 57548,
-    "ramtext": 23648
+    "flash": 656824,
+    "ram": 103564,
+    "pool": 58444,
+    "ramtext": 25008
    },
-   "contexts": {
-    "SDCARD": {
-     "from": 0,
-     "to": 1,
-     "delta": {
-      "flash": 44016,
-      "ram": 5288,
-      "pool": 15912,
-      "ramtext": 0
-     }
-    }
-   }
+   "contexts": {}
   },
   "bt-debug~": {
    "hash": "025a2039",
@@ -3310,23 +3219,12 @@
    },
    "built_hash": "2f00cd45",
    "sizes": {
-    "flash": 591632,
-    "ram": 115704,
-    "pool": 262100,
-    "ramtext": 30620
+    "flash": 589804,
+    "ram": 118176,
+    "pool": 262996,
+    "ramtext": 32020
    },
-   "contexts": {
-    "SDCARD": {
-     "from": 0,
-     "to": 1,
-     "delta": {
-      "flash": 13100,
-      "ram": 76,
-      "pool": 552,
-      "ramtext": 0
-     }
-    }
-   }
+   "contexts": {}
   },
   "dev~": {
    "hash": "031b610c",
@@ -3424,23 +3322,12 @@
    },
    "built_hash": "38441ac7",
    "sizes": {
-    "flash": 607924,
-    "ram": 98248,
-    "pool": 307864,
-    "ramtext": 38012
+    "flash": 606620,
+    "ram": 100856,
+    "pool": 308888,
+    "ramtext": 39572
    },
-   "contexts": {
-    "SDCARD": {
-     "from": 0,
-     "to": 1,
-     "delta": {
-      "flash": 4156,
-      "ram": 64,
-      "pool": 556,
-      "ramtext": 0
-     }
-    }
-   }
+   "contexts": {}
   },
   "drum-machines~": {
    "hash": "343d6194",
@@ -3509,23 +3396,12 @@
    },
    "built_hash": "141cf964",
    "sizes": {
-    "flash": 576452,
-    "ram": 84144,
-    "pool": 194232,
-    "ramtext": 22660
+    "flash": 575108,
+    "ram": 86772,
+    "pool": 195248,
+    "ramtext": 23884
    },
-   "contexts": {
-    "SDCARD": {
-     "from": 0,
-     "to": 1,
-     "delta": {
-      "flash": 4152,
-      "ram": 64,
-      "pool": 556,
-      "ramtext": 0
-     }
-    }
-   }
+   "contexts": {}
   },
   "mots-config~": {
    "hash": "7d13be2c",
@@ -3637,38 +3513,31 @@
    },
    "built_hash": "79877985",
    "sizes": {
-    "flash": 676772,
-    "ram": 105556,
-    "pool": 76176,
-    "ramtext": 24532
+    "flash": 674988,
+    "ram": 108252,
+    "pool": 77200,
+    "ramtext": 25860
    },
-   "contexts": {
-    "SDCARD": {
-     "from": 0,
-     "to": 1,
-     "delta": {
-      "flash": 36224,
-      "ram": 5272,
-      "pool": 15612,
-      "ramtext": 0
-     }
-    }
-   }
+   "contexts": {}
   },
   "sd-card-mots~": {
-   "hash": "5ed20bc0",
+   "hash": "705bf539",
    "cfg": {
     "A2_LADR": 1,
     "A2_OTA": 1,
     "A2_DIOD": 1,
     "A2_MS20": 1,
-    "ENG_GRAIN": 0,
-    "ENG_SLICE": 1,
-    "ENG_DRONE": 1,
-    "ENG_STRINGS": 2,
-    "ENG_VPS": 1,
-    "ENG_TERRAIN": 1,
-    "ENG_WSEQ": 1,
+    "ENG_DIGITAL": 2,
+    "DIG_TONE": 1,
+    "ENG_PHASE": 0,
+    "ENG_LOFI": 0,
+    "ENG_SAMPLE": 2,
+    "ENG_FORMANT": 0,
+    "ENG_TRIO": 0,
+    "ENG_DRAWBAR": 0,
+    "ENG_PLAITS": 2,
+    "ENG_PROPHET": 2,
+    "ENG_CS80": 1,
     "DRUM_X0X909": 1,
     "X909_CYM": 0,
     "X909_HAT": 0,
@@ -3684,9 +3553,10 @@
     "SET_FLUTE": 0,
     "SET_SCRCH": 0,
     "DLY_LEN": 16384,
-    "REV_ROOM": 0,
+    "REV_PLATE": 1,
     "REV_FDN8": 1,
     "REV_POOL": 1,
+    "REV_AIRWIN": 1,
     "FX_SLICER": 0,
     "FX_PUNCH": 0,
     "FX_DJF": 0,
@@ -3694,10 +3564,13 @@
     "TRK_FILT": 1,
     "INS_FOLD": 1,
     "INS_FUZZ": 1,
+    "INS_PHASER": 1,
     "INS_WIDTH": 1,
     "INS_SFOLD": 1,
     "INS_HARM": 1,
+    "INS_RING": 1,
     "INS_SUBOCT": 1,
+    "INS_TAPE": 1,
     "INS_DELAY": 1,
     "INS_JCHORUS": 1,
     "INS_FLANGER": 1,
@@ -3708,22 +3581,34 @@
     "PATTERNS": 1,
     "REC_PLAIN": 1,
     "NOTEGEN": 1,
-    "USB_AUDIO": 1,
     "MIDI_EXPR": 0,
-    "LCD_BAUD": 0,
+    "MIDI_NOTEOUT": 0,
+    "FAVORITES": 0,
+    "PARAM_HELP": 1,
+    "SYS_TOP": 1,
+    "BACKUP": 0,
+    "LIBRARIAN": 0,
+    "ED_MIX": 0,
+    "ED_SEQ": 0,
+    "ED_SCREENS": 0,
     "ED_MIRROR": 1,
     "LIVE_SAVE": 1,
     "SDCARD": 1,
     "LAYOUT": 1,
     "ARENA": 1,
     "SD_RING": 4,
+    "SD_REC": 16,
     "CPU_GUARD": 1,
     "CACHE_RAM": 2,
+    "SEQ_RAM": 1,
     "BLE": 1,
     "BT_AUDIO": 1,
     "CHANCE": 1,
+    "SPRING": 1,
     "MOTION": 1,
-    "ENG_CZ": 2,
+    "ENG_PHYS": 2,
+    "ENG_ACID": 2,
+    "ENG_NOISE": 1,
     "ENG_JUNO": 2,
     "REC_MODES": 1,
     "DIV_ORDER": 1,
@@ -3741,17 +3626,17 @@
     "GRIDS_LFO": 1,
     "GRIDS_VEL": 1
    },
-   "built_hash": "481cac00",
+   "built_hash": "7f06bbf4",
    "sizes": {
-    "flash": 749372,
-    "ram": 115960,
-    "pool": 151792,
-    "ramtext": 42096
+    "flash": 733960,
+    "ram": 122224,
+    "pool": 155872,
+    "ramtext": 47240
    },
    "contexts": {}
   },
   "sd-card~": {
-   "hash": "4140371f",
+   "hash": "0286db7c",
    "cfg": {
     "A2_LADR": 1,
     "A2_OTA": 1,
@@ -3810,6 +3695,7 @@
     "MIDI_EXPR": 0,
     "MIDI_NOTEOUT": 0,
     "FAVORITES": 0,
+    "LCD_BAUD": 4,
     "FONT_CACHE": 1,
     "ED_LIVE": 0,
     "ED_MIX": 0,
@@ -3845,20 +3731,20 @@
     "GRIDS_LFO": 1,
     "GRIDS_VEL": 1
    },
-   "built_hash": "0706a771",
+   "built_hash": "3e98b232",
    "sizes": {
-    "flash": 677768,
-    "ram": 104472,
-    "pool": 312796,
-    "ramtext": 28420
+    "flash": 675292,
+    "ram": 106932,
+    "pool": 313692,
+    "ramtext": 29864
    },
    "contexts": {
     "SDCARD": {
      "from": 1,
      "to": 0,
      "delta": {
-      "flash": -47780,
-      "ram": -5416,
+      "flash": -47044,
+      "ram": -5384,
       "pool": -15892,
       "ramtext": 0
      }
@@ -3963,23 +3849,12 @@
    },
    "built_hash": "5f9e3222",
    "sizes": {
-    "flash": 619472,
-    "ram": 94448,
-    "pool": 278220,
-    "ramtext": 30724
+    "flash": 617412,
+    "ram": 97088,
+    "pool": 279244,
+    "ramtext": 32188
    },
-   "contexts": {
-    "SDCARD": {
-     "from": 0,
-     "to": 1,
-     "delta": {
-      "flash": 4156,
-      "ram": 48,
-      "pool": 556,
-      "ramtext": 0
-     }
-    }
-   }
+   "contexts": {}
   },
   "sd-mode-probe~": {
    "hash": "0eceb4ae",
@@ -4082,23 +3957,12 @@
    },
    "built_hash": "086b84f9",
    "sizes": {
-    "flash": 628728,
-    "ram": 98896,
-    "pool": 297036,
-    "ramtext": 25592
+    "flash": 626892,
+    "ram": 100940,
+    "pool": 297932,
+    "ramtext": 27084
    },
-   "contexts": {
-    "SDCARD": {
-     "from": 0,
-     "to": 1,
-     "delta": {
-      "flash": 45952,
-      "ram": 5396,
-      "pool": 15760,
-      "ramtext": 0
-     }
-    }
-   }
+   "contexts": {}
   },
   "synths-2~": {
    "hash": "75a72a9f",
@@ -4184,23 +4048,12 @@
    },
    "built_hash": "7e64b02f",
    "sizes": {
-    "flash": 559560,
-    "ram": 73280,
+    "flash": 558332,
+    "ram": 73308,
     "pool": 301912,
-    "ramtext": 13552
+    "ramtext": 13548
    },
-   "contexts": {
-    "SDCARD": {
-     "from": 0,
-     "to": 1,
-     "delta": {
-      "flash": 4168,
-      "ram": 96,
-      "pool": 556,
-      "ramtext": 0
-     }
-    }
-   }
+   "contexts": {}
   },
   "synths~": {
    "hash": "3f40b260",
@@ -4296,23 +4149,12 @@
    },
    "built_hash": "19684c78",
    "sizes": {
-    "flash": 553532,
-    "ram": 89728,
-    "pool": 251672,
-    "ramtext": 27280
+    "flash": 551804,
+    "ram": 91716,
+    "pool": 252696,
+    "ramtext": 28852
    },
-   "contexts": {
-    "SDCARD": {
-     "from": 0,
-     "to": 1,
-     "delta": {
-      "flash": 4152,
-      "ram": 48,
-      "pool": 556,
-      "ramtext": 0
-     }
-    }
-   }
+   "contexts": {}
   },
   "mots-config+ble-test~": {
    "hash": "7c4622c0",
@@ -4418,23 +4260,12 @@
    },
    "built_hash": "5364f88b",
    "sizes": {
-    "flash": 653868,
-    "ram": 104452,
-    "pool": 93624,
-    "ramtext": 24668
+    "flash": 653164,
+    "ram": 107136,
+    "pool": 94652,
+    "ramtext": 26172
    },
-   "contexts": {
-    "SDCARD": {
-     "from": 0,
-     "to": 1,
-     "delta": {
-      "flash": 36664,
-      "ram": 5280,
-      "pool": 15612,
-      "ramtext": 0
-     }
-    }
-   }
+   "contexts": {}
   },
   "mots-config+ble-full~": {
    "hash": "479a3a0f",
@@ -4537,23 +4368,12 @@
    },
    "built_hash": "6427fcb0",
    "sizes": {
-    "flash": 704384,
-    "ram": 101612,
-    "pool": 63312,
-    "ramtext": 23112
+    "flash": 702748,
+    "ram": 104136,
+    "pool": 64208,
+    "ramtext": 24556
    },
-   "contexts": {
-    "SDCARD": {
-     "from": 0,
-     "to": 1,
-     "delta": {
-      "flash": 19408,
-      "ram": 5304,
-      "pool": 15912,
-      "ramtext": -80
-     }
-    }
-   }
+   "contexts": {}
   }
  },
  "pairs": {
@@ -4624,10 +4444,10 @@
    "ramtext": -104
   },
   "DRUM_SYNTH=0,DS_KAWA=0,DS_PLAITS=0": {
-   "flash": -6792,
-   "ram": 12,
+   "flash": -6724,
+   "ram": -76,
    "pool": 0,
-   "ramtext": -12
+   "ramtext": 76
   },
   "SET_PIANO=0,SET_BASS=0,SET_VIBES=0,SET_HORNS=0,SET_STRGS=0,SET_FLUTE=0,SET_SCRCH=0": {
    "flash": -1324,
@@ -4935,24 +4755,6 @@
     "ramtext": 0
    }
   },
-  "INS_SHAPE": {
-   "members": [
-    "INS_FOLD",
-    "INS_FUZZ",
-    "INS_SFOLD",
-    "INS_RECT",
-    "INS_HARM",
-    "INS_RING",
-    "INS_SUBOCT",
-    "INS_SLEW"
-   ],
-   "shared": {
-    "flash": 411,
-    "ram": 474,
-    "pool": 0,
-    "ramtext": 0
-   }
-  },
   "AUTO": {
    "members": [
     "MOTION",
@@ -5008,6 +4810,24 @@
     "ram": -19,
     "pool": 0,
     "ramtext": 467
+   }
+  },
+  "INS_SHAPE": {
+   "members": [
+    "INS_FOLD",
+    "INS_FUZZ",
+    "INS_SFOLD",
+    "INS_RECT",
+    "INS_HARM",
+    "INS_RING",
+    "INS_SUBOCT",
+    "INS_SLEW"
+   ],
+   "shared": {
+    "flash": 410,
+    "ram": 483,
+    "pool": 0,
+    "ramtext": 0
    }
   }
  }
