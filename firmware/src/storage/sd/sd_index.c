@@ -80,6 +80,12 @@ typedef struct {
  * records are written ("OPIP"); the next pass keeps that file as index.prt and takes from it each walked file's record
  * when the file is unchanged (path, size, date), as from the old index, so only the rest is hashed; gone when a pass ends */
 #define SDX_PART SDL_ROOT "/System/index.prt"
+/* a walked file not the old index's next record is looked for in the SDX_SCAN_MAX records from there, not the whole index: the
+ * walk's order is the last pass's, so a file kept is near; a new one cost a read of every record (5,511 new WAVs over an
+ * index of ~500: 170 ms a file, 2026-11-08, sd index on pink). One further away is hashed again: its hash is still right */
+#ifndef SDX_SCAN_MAX
+#define SDX_SCAN_MAX 16u
+#endif
 #ifndef SDX_CKPT_MS
 #define SDX_CKPT_MS 30000u
 #endif
@@ -109,6 +115,23 @@ static struct {
     sdx_rec rec;                                     /* (the pass's: sdx.rec and sdx.f are the lookups', between slices) */
     FIL nf;                                          /* index.tmp */
 } sdxp IN_POOL;
+
+#include "../../core/console_on.h"
+#define SDX_STATS FELUCCA_CONSOLE
+#if SDX_STATS
+/* where a pass's time goes (console builds only: sd index, fm1-base optimist/ui/opt_console.h; the user, 2026-11-08: a first
+ * index of 5,511 WAVs at ~1 % a minute). DIR the walk's units (a directory entry, the old index's record, and the file's open
+ * and WAV header when it is to be hashed: open_us, inside DIR), READ the hashing's chunks (bytes: what they read), PUT a
+ * record written (and a checkpoint), OTHER the rest (the count, the files made and renamed); us each; t0 the pass's start */
+enum { SXS_DIR, SXS_READ, SXS_PUT, SXS_OTHER, SXS_N };
+static struct { DWORD t0; uint32_t slices, us[SXS_N], open_us, bytes; } sxs;
+static void sxs_add(uint32_t st, uint32_t ticks, uint32_t bytes)
+{
+    uint32_t b = st == SDXP_WALK || st == SDXP_SCAN ? SXS_DIR : st == SDXP_HASH ? SXS_READ : st == SDXP_PUT ? SXS_PUT : SXS_OTHER;
+    sxs.us[b] += ticks * 1000u / SD_TICKS_MS;
+    sxs.bytes += bytes;
+}
+#endif
 
 typedef struct {
     char magic[4];                                   /* "OPSG" */
@@ -435,6 +458,10 @@ static int sdx_pass_begin(int force)
     if (!force && sdx_unchanged())
         return 0;
     sdxp.n = sdxp.k = sdxp.cap = sdxp.oldn = sdxp.cursor = 0;
+#if SDX_STATS
+    memset(&sxs, 0, sizeof sxs);
+    sxs.t0 = SD_NOW();
+#endif
     sdxp.root = 0;
     sdxp.st = SDXP_START;
     return 1;
@@ -602,6 +629,9 @@ static FRESULT sdx_matched(int32_t at, uint8_t *buf)
         return FR_OK;
     }
     memset(&sdxp.rec, 0, sizeof sdxp.rec);
+#if SDX_STATS
+    DWORD o0 = SD_NOW();
+#endif
     if ((r = f_open(&sdx.smp, sdx.walk.path, FA_READ)) != FR_OK)
         return r;
     sdxp.smp_open = 1;
@@ -610,7 +640,11 @@ static FRESULT sdx_matched(int32_t at, uint8_t *buf)
         sdxp.left = 0;
         return sdx_id_of(&sdx.smp, &sdxp.rec, buf);
     }
-    return sdh_begin(&sdx.smp, buf, &sdxp.hs, &sdxp.left, &sdxp.rec.hlen);
+    r = sdh_begin(&sdx.smp, buf, &sdxp.hs, &sdxp.left, &sdxp.rec.hlen);
+#if SDX_STATS
+    sxs.open_us += (uint32_t)(SD_NOW() - o0) * 1000u / SD_TICKS_MS;
+#endif
+    return r;
 }
 
 static FRESULT sdx_u_walk(uint8_t *buf)              /* the next file: its old record the next one, or a scan begun */
@@ -635,6 +669,13 @@ static FRESULT sdx_u_walk(uint8_t *buf)              /* the next file: its old r
         return FR_OK;
     if (sdxp.cursor < sdxp.oldn && sdx_read_in(&sdx.old, sdxp.cursor, &sdxp.rec) == FR_OK && !sdl_cmp(sdxp.rec.path, rel))
         return sdx_matched((int32_t)sdxp.cursor, buf);  /* (the last pass's order: the next record) */
+    if (sdx_part_hit(&sdxp.rec)) {                   /* (a cut pass hashed it, unchanged: before any search, one read; the
+                                                      * user, 2026-11-08: "MUCH faster for already scanned samples") */
+        sdx.files++;
+        sdx.kept++;
+        sdxp.st = SDXP_PUT;
+        return FR_OK;
+    }
     if (!sdxp.oldn)
         return sdx_matched(-1, buf);
     sdxp.scan = 0;
@@ -649,7 +690,7 @@ static FRESULT sdx_u_scan(uint8_t *buf)              /* a record of the old inde
         return sdx_matched(-1, buf);
     if (!sdl_cmp(sdxp.rec.path, sdx.walk.path + SDX_SKIP))
         return sdx_matched((int32_t)no, buf);
-    return ++sdxp.scan < sdxp.oldn ? FR_OK : sdx_matched(-1, buf);
+    return ++sdxp.scan < sdxp.oldn && sdxp.scan < SDX_SCAN_MAX ? FR_OK : sdx_matched(-1, buf);   /* (beyond: new, hashed) */
 }
 
 static FRESULT sdx_u_hash(uint8_t *buf, uint32_t bufn)   /* a chunk; the file's end */
@@ -772,8 +813,20 @@ static FRESULT sdx_pass_step(uint8_t *buf, uint32_t bufn, uint32_t ms)
         (void)sdx_pass_begin(1);
     if (sd_wr.state != SDW_IDLE)
         return FR_OK;                                /* (a recording's CMD25 open: no other command) */
-    while (sdxp.st != SDXP_OFF && r == FR_OK && sd_ms_since(t0) < ms)
+#if SDX_STATS
+    if (sdxp.st != SDXP_OFF)
+        sxs.slices++;
+#endif
+    while (sdxp.st != SDXP_OFF && r == FR_OK && sd_ms_since(t0) < ms) {
+#if SDX_STATS
+        uint32_t st = sdxp.st, left = sdxp.left;
+        DWORD u0 = SD_NOW();
+#endif
         r = sdx_unit(buf, bufn);
+#if SDX_STATS
+        sxs_add(st, (uint32_t)(SD_NOW() - u0), st == SDXP_HASH && left ? left - sdxp.left : 0u);
+#endif
+    }
     if (r != FR_OK)
         sdx_pass_cancel();
     return r;
