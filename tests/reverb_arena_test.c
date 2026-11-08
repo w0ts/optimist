@@ -1,6 +1,6 @@
 /* SPDX-License-Identifier: GPL-3.0-only */
 /* The reverb in the arena while it plays (2026-10-29, the user on the FM-1: "the FDN8 reverb stops working randomly";
- * the release profile has ARENA, FDN8 in the pool and the CPU guard): built as tests/arena_frag_test.c (the jam
+ * the release profile has ARENA, FDN8 in the pool and the CPU guard): built as tests/arena_frag_test.c (the jank
  * profile's engines, the limited inserts, the three sends, an arena of FELUCCA_ARENA_BYTES; run_tests.sh), part 1
  * playing a pattern with REV sent and the reverb's send in its master slot all along, while the rest changes at random
  * through the firmware's own paths: the other parts' engines (model.c set_engine_of, mem_retry; refusals given up),

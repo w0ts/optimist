@@ -93,7 +93,7 @@ DESC["FELUCCA_SL24_SAFE"] = (
     "each firmware finds its own after a switch. OFF RISKS SLOOP'S DATA ON AN FM-1 THAT RAN SLOOP: the first start "
     "erases its four project slots (sec_migrate), the second autosave writes over its autosave, the first drum record "
     "saved erases its FM6 bank (0xE5000), a user kit save erases the tail of a long USR3 sample and UP_FM6 the head of "
-    "USR4, and the settings save writes over its settings. Costs about 1.8 KB of flash (1,884 B measured in the jam "
+    "USR4, and the settings save writes over its settings. Costs about 1.8 KB of flash (1,884 B measured in the jank "
     "release build, 0.7 KB on its own in the older estimate). Not built without DRUMS.")
 DESC["FELUCCA_SL24_XSTEP"] = (
     "Keeps SLOOP 2.4's per-step extras with every project: each step's nudge (micro timing), its parameter locks and "

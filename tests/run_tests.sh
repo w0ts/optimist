@@ -645,8 +645,8 @@ job; ( jobin
     run "editor cmd 112 (Wi-Fi networks): state, mode, forget, join (password wiped, never echoed), refusals" "$OUT/ed_wifi_test"
     $CC -O2 -w -Ifirmware/src -DFELUCCA_WIFI_AP=1 -o "$OUT/ed_wifiap_test" tests/ed_wifi_test.c
     run "editor cmd 112 with MODE AP: the AP block of the state, MODE 3, the AP's password (wiped, refusals), the channel, the key cleared" "$OUT/ed_wifiap_test"
-    $CC -O2 -w -Ifirmware/src -DWIFI_ON_FM1B -DFELUCCA_WIFI_AP=1 -o "$OUT/ed_wifijam_test" tests/ed_wifi_test.c
-    run "editor cmd 112 with MODE JAM (the release's Wi-Fi stack): MODE 7, an older editor's 5 and 6 are JAM, GROUP (op 9) 1..9, the state's group and hosting" "$OUT/ed_wifijam_test"
+    $CC -O2 -w -Ifirmware/src -DWIFI_ON_FM1B -DFELUCCA_WIFI_AP=1 -o "$OUT/ed_wifijank_test" tests/ed_wifi_test.c
+    run "editor cmd 112 with MODE JANK (the release's Wi-Fi stack): MODE 7, an older editor's 5 and 6 are JANK, GROUP (op 9) 1..9, the state's group and hosting" "$OUT/ed_wifijank_test"
 ) >"$U.out" 2>&1 & jobbg
 job; ( jobin
     $CC -O2 -w -I"$HGEN" -Ifirmware/src -o "$OUT/clock_out_test" tests/clock_out_test.c -lm
@@ -1190,7 +1190,7 @@ job; ( jobin   # the arena (core/arena.c, docs/SD-MODE-DESIGN.md 6b): first fit 
     $CC -O2 -w -Ifirmware/src -DARN_MOVES=0xFu -DARN_MV_STEP -DARN_MV_CHUNK=256u -o "$OUT/arena_pack_test" tests/arena_test.c
     run "arena packing (core/arena.c arn_pack, the user 2026-10-29): a refusal the free room holds moves the parts' blocks together (the fewest moves, in windows of 256 B, the moving block gated, its contents kept, a reservation meanwhile never over it), a fixed place cleared, a load's pack after its switches" "$OUT/arena_pack_test"
 ) >"$U.out" 2>&1 & jobbg
-job; ( jobin   # the arena's fragmentation (tests/arena_frag_test.c): the jam profile's engines, sends and inserts in 96 KB
+job; ( jobin   # the arena's fragmentation (tests/arena_frag_test.c): the jank profile's engines, sends and inserts in 96 KB
     FRG="-DFELUCCA_ENG_FM6=1 -DFELUCCA_ENG_PHYS=1 -DFELUCCA_ENG_ACID=1 -DFELUCCA_ENG_PLAITS=1 -DFELUCCA_ENG_CZ=1 -DFELUCCA_ENG_JUNO=1 -DFELUCCA_FX_ARENA=1 -DFELUCCA_INS_DELAY=1 -DFELUCCA_INS_JCHORUS=1 -DFELUCCA_INS_FLANGER=1 -DFELUCCA_INS_XDLY=1 -DFELUCCA_XDLY_LEN=8192 -DFELUCCA_DLY_LEN=16384u -DFELUCCA_REV_FDN8=1 -DFELUCCA_REV_POOL=1 -DFELUCCA_FX_SLICER=0"
     $CC -O2 -w -I"$HGEN" -Ifirmware/src -Ifirmware/hal $SEC4 $FRG "-DFELUCCA_ARENA_BYTES=(96u * 1024u)" -o "$OUT/arena_frag_test" tests/arena_frag_test.c -lm
     run "arena fragmentation, 20000 random steps (engines, inserts, sends, loads; nothing dropped): no overlap, nothing a move copies lost, few refusals a packed layout would place" "$OUT/arena_frag_test"
@@ -1928,7 +1928,7 @@ job; ( jobin   # the reverb fuzzed (tests/reverb_fuzz_test.c, 2026-10-29: "the F
     run "reverb fuzz, 4 min of the bus (every SIZE / DAMP, full scale, DC, +-2^21, TYPE / RET / mute / guard switches mid-tail) and 1 min of the mix: its state bounded, heard whenever it is sent and on, rings out to exactly 0" "$OUT/reverb_fuzz_test" 240 1
     FRV="-DFELUCCA_ENG_FM6=1 -DFELUCCA_ENG_PHYS=1 -DFELUCCA_ENG_ACID=1 -DFELUCCA_ENG_PLAITS=1 -DFELUCCA_ENG_CZ=1 -DFELUCCA_ENG_JUNO=1 -DFELUCCA_FX_ARENA=1 -DFELUCCA_INS_DELAY=1 -DFELUCCA_INS_JCHORUS=1 -DFELUCCA_INS_FLANGER=1 -DFELUCCA_INS_XDLY=1 -DFELUCCA_XDLY_LEN=8192 -DFELUCCA_DLY_LEN=16384u -DFELUCCA_REV_FDN8=1 -DFELUCCA_REV_POOL=1 -DFELUCCA_FX_SLICER=0"
     $CC -O2 -w -I"$HGEN" -Ifirmware/src -Ifirmware/hal $SEC4 $FRV "-DFELUCCA_ARENA_BYTES=(96u * 1024u)" -o "$OUT/reverb_arena_test" tests/reverb_arena_test.c -lm
-    run "the reverb in the arena while it plays (the jam profile's engines, inserts and sends, 96 KB): its line placed all along, a gate short and only while silent, heard whenever it is on" "$OUT/reverb_arena_test" 8000 1
+    run "the reverb in the arena while it plays (the jank profile's engines, inserts and sends, 96 KB): its line placed all along, a gate short and only while silent, heard whenever it is on" "$OUT/reverb_arena_test" 8000 1
 ) >"$U.out" 2>&1 & jobbg
 job; ( jobin
     run "CPU guard: its cost model is the one tests/cpu_baseline.txt and costs.json give" python3 tools/builder/cpu_costs.py --check

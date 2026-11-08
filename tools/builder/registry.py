@@ -1525,7 +1525,7 @@ _add("USB_HOST", "FELUCCA_USB_HOST", "USB MIDI host: a USB-MIDI keyboard, contro
 # (core.h FAST_RAM_<name>, through FAST): FAST_NAMES. Defaults: where each ran until then (FAST_RAM:
 # ANALOG 2 with SUPER, PHASE, DIGITAL, TRIO, FORMANT, DRAWBAR, LOFI, SAMPLE; the rest from the flash). The values are
 # 0 / 2 / 3: a .config's 1 (an engine "on" before) reads as the engine's place by default (core.parse), so an old
-# profile builds what it built. FAST_BYTES: the render path's code, bytes (the release's ELF, fm1-next 0efe7cd6, jam
+# profile builds what it built. FAST_BYTES: the render path's code, bytes (the release's ELF, fm1-next 0efe7cd6, jank
 # configuration, each engine moved alone; tools/builder/core.py's estimate for a place costs.json has not measured)
 ENG_OFF, ENG_ON, ENG_RAM = 0, 2, 3
 ENG_LEGACY_ON = 1
@@ -1541,7 +1541,7 @@ FAST_BYTES = {"ENG_ANALOG": 5132, "ENG_PHASE": 2260, "ENG_DIGITAL": 1314, "ENG_T
               "ENG_PLAITS": 6408, "ENG_PHYS": 8904, "ENG_PROPHET": 3344, "ENG_JUNO": 2596, "ENG_CZ": 3832,
               "ENG_STRINGS": 1552}
 # the flash an engine's render path in RAM saves over the same in XIP, measured where FAST_BYTES was (release builds of
-# the jam configuration, fm1-next 0efe7cd6 + this branch, the engine moved alone); else FAST_FLASH_RAM's model
+# the jank configuration, fm1-next 0efe7cd6 + this branch, the engine moved alone); else FAST_FLASH_RAM's model
 FAST_FLASH_SAVED = {"ENG_ANALOG": 1776, "ENG_FM6": 600, "ENG_ACID": 4616, "ENG_PLAITS": 1572, "ENG_PHYS": 2444,
                     "ENG_PROPHET": 1160, "ENG_JUNO": 664, "ENG_CZ": 876, "ENG_STRINGS": 488}
 FAST_FLASH_RAM = 0.67    # flash a RAM-code byte takes (the boot stream's coding; measured 0.665 and 0.705, probe B, D)

@@ -68,10 +68,10 @@ static void wa_set_channel(uint32_t ch) { wa_chsets++; wn_ap_set_channel(&wn_st,
 #define APB 2u                                             /* a build without MODE AP: cap 0 */
 #endif
 static uint32_t test_peers = 2;
-#define JAMB 2u                                            /* the state's end: MODE JAM's group and the FM-1s heard (0, 0 without JAM) */
-#ifdef WIFI_ON_FM1B                                        /* (the trial's stack: MODE JAM and its GROUP, op 9) */
+#define JANKB 2u                                            /* the state's end: MODE JANK's group and the FM-1s heard (0, 0 without JANK) */
+#ifdef WIFI_ON_FM1B                                        /* (the trial's stack: MODE JANK and its GROUP, op 9) */
 static int test_group = 3, test_heard;
-static int plat_wifi_jam(void) { return test_heard; }
+static int plat_wifi_jank(void) { return test_heard; }
 static int plat_wifi_group(void) { return test_group; }
 static void plat_wifi_set_group(int g) { test_group = g; }
 #endif
@@ -151,7 +151,7 @@ int main(void)
     reset();
     q[0] = 0;
     ok(cmd(q, 1) == 1 && ed_out[0] == 0, "STATE answers");
-    ok(ed_n == 4 + 2 + 5 + 1 + 1 + APB + JAMB, "STATE with nothing saved: header, ip, n, no current");
+    ok(ed_n == 4 + 2 + 5 + 1 + 1 + APB + JANKB, "STATE with nothing saved: header, ip, n, no current");
     ok(ed_out[1] == WN_MODE_AUTO || ed_out[1] == wn_st.mode, "STATE: mode");
     /* two saved networks, one with high and control bytes, the second joined */
     save((const uint8_t *)"HOME", 4, 0x5A);
@@ -175,7 +175,7 @@ int main(void)
         ok(ed_out[p] == 1 && ed_out[p + 1] == 4 && ed_unpack7(ed_out + p + 2, 5, back, 16) == 4 && !memcmp(back, "HOME", 4),
            "STATE: the second row");
         p += 2 + 5;
-        ok(ed_out[p] == 10 && ed_n == p + 1 + 12 + APB + JAMB, "STATE: the current network, then the end");
+        ok(ed_out[p] == 10 && ed_n == p + 1 + 12 + APB + JANKB, "STATE: the current network, then the end");
     }
     for (i = 0; i < ed_n; i++)
         if (ed_out[i] == 0x5A || ed_out[i] == 0x25)
@@ -191,7 +191,7 @@ int main(void)
     wc_req.ssid_len = 3;
     memcpy(wc_req.ssid, "ABC", 3);
     cmd(q, 1);
-    p = ed_n - JAMB - APB - 1 - 4;
+    p = ed_n - JANKB - APB - 1 - 4;
     ok(ed_out[p] == 3, "STATE: the SSID being looked for during a request");
 
     /* MODE */
@@ -208,24 +208,24 @@ int main(void)
     ok(ed_out[1] == 1 && wn_st.mode == WN_MODE_OFF, "MODE 6 refused");
     q[0] = 0;
     cmd(q, 1);
-    ok(ed_out[ed_n - 2] == 0 && ed_out[ed_n - 1] == 0, "STATE ends with group 0, host 0: no JAM in this build");
+    ok(ed_out[ed_n - 2] == 0 && ed_out[ed_n - 1] == 0, "STATE ends with group 0, host 0: no JANK in this build");
     q[0] = 9; q[1] = 2;
-    ok(cmd(q, 2) == 0, "GROUP (op 9): not an op without JAM");
+    ok(cmd(q, 2) == 0, "GROUP (op 9): not an op without JANK");
     q[0] = 1;
 #else
-    q[1] = WN_MODE_JAM_AUTO;
-    ok(cmd(q, 2) == 1 && ed_out[1] == 0 && ed_out[2] == WN_MODE_JAM_AUTO && wn_st.mode == WN_MODE_JAM_AUTO, "MODE JAM (7): accepted");
-    q[1] = WN_MODE_JAM;
-    ok(cmd(q, 2) == 1 && ed_out[1] == 0 && wn_st.mode == WN_MODE_JAM_AUTO, "an older editor's JAM JOIN (5) is JAM (7)");
-    q[1] = WN_MODE_JAM_HOST;
-    ok(cmd(q, 2) == 1 && ed_out[1] == 0 && wn_st.mode == WN_MODE_JAM_AUTO, "an older editor's JAM HOST (6) is JAM (7)");
+    q[1] = WN_MODE_JANK_AUTO;
+    ok(cmd(q, 2) == 1 && ed_out[1] == 0 && ed_out[2] == WN_MODE_JANK_AUTO && wn_st.mode == WN_MODE_JANK_AUTO, "MODE JANK (7): accepted");
+    q[1] = WN_MODE_JANK;
+    ok(cmd(q, 2) == 1 && ed_out[1] == 0 && wn_st.mode == WN_MODE_JANK_AUTO, "an older editor's JANK JOIN (5) is JANK (7)");
+    q[1] = WN_MODE_JANK_HOST;
+    ok(cmd(q, 2) == 1 && ed_out[1] == 0 && wn_st.mode == WN_MODE_JANK_AUTO, "an older editor's JANK HOST (6) is JANK (7)");
     q[0] = 0;
     test_heard = -1;
     cmd(q, 1);
     ok(ed_out[ed_n - 1] == 0, "STATE: not on the air yet: 0 heard");
     test_heard = 2;
     cmd(q, 1);
-    ok(ed_out[1] == WN_MODE_JAM_AUTO && ed_out[ed_n - 2] == 3 && ed_out[ed_n - 1] == 2, "STATE ends with the group (3) and the FM-1s heard (2)");
+    ok(ed_out[1] == WN_MODE_JANK_AUTO && ed_out[ed_n - 2] == 3 && ed_out[ed_n - 1] == 2, "STATE ends with the group (3) and the FM-1s heard (2)");
     test_heard = 0;
     q[0] = 9; q[1] = 7;
     ok(cmd(q, 2) == 1 && ed_out[0] == 9 && ed_out[1] == 0 && ed_out[2] == 7 && test_group == 7 && settings_later, "GROUP 7: set, saved");
@@ -327,8 +327,8 @@ int main(void)
     wn_st.ap.ch = 11;
     q[0] = 0;
     cmd(q, 1);
-    ok(ed_out[ed_n - 1 - JAMB] == 2, "STATE: the Link peers (2) after the AP block");
-    p = ed_n - JAMB - APB;
+    ok(ed_out[ed_n - 1 - JANKB] == 2, "STATE: the Link peers (2) after the AP block");
+    p = ed_n - JANKB - APB;
     ok(ed_out[1] == WN_MODE_AP, "STATE: mode AP");
     ok(ed_out[p] == 1 && ed_out[p + 1] == 1 && ed_out[p + 2] == WAS_UP && ed_out[p + 3] == 2 && ed_out[p + 4] == 11, "STATE: the AP block: cap, key kept, ACTIVE, 2 clients, channel 11");
     {
@@ -343,7 +343,7 @@ int main(void)
     wn_st.ap.ch = 0;
     wa_stat = WAS_NOKEY;
     cmd(q, 1);
-    p = ed_n - JAMB - APB;
+    p = ed_n - JANKB - APB;
     ok(ed_out[p + 1] == 0 && ed_out[p + 2] == WAS_NOKEY && ed_out[p + 4] == 6, "STATE: no key kept, NO PASSWORD, the default channel 6");
     /* MODE 3 */
     reset();
@@ -353,7 +353,7 @@ int main(void)
     enabled = 1;
     cmd(q, 2);
     ok(ed_out[1] == 0 && wn_st.mode == WN_MODE_AP_MAN && enabled == 0, "MODE AP MAN (4): accepted, the station manager stopped");
-#ifndef WIFI_ON_FM1B                                        /* (JAM's builds: 5 is JAM) */
+#ifndef WIFI_ON_FM1B                                        /* (JANK's builds: 5 is JANK) */
     q[1] = 5;
     cmd(q, 2);
     ok(ed_out[1] == 1 && wn_st.mode == WN_MODE_AP_MAN, "MODE 5 refused");

@@ -3,7 +3,7 @@
  * host stress test through the firmware's own paths (model.c set_engine_of mem_retry, fx_slots.c ins_put fxs_load, a
  * project's load, fx/fx_arena.c fxm_poll, fx/insfx/fxi.c fxi_poll, core/arena_bufs.c, core/arena.c's packing), built
  * with every engine that keeps a part's memory the build has, the five limited inserts, the three sends and an arena
- * of FELUCCA_ARENA_BYTES (run_tests.sh: the jam profile's 96 KB, its sends: the delay's line 16384 samples, FDN8 in
+ * of FELUCCA_ARENA_BYTES (run_tests.sh: the jank profile's 96 KB, its sends: the delay's line 16384 samples, FDN8 in
  * the pool; XDLY_LEN 8192). Random steps: a part's engine (any, or one that keeps nothing), a track's insert slot (any
  * limited type, or none), a master slot's send in or out, now and then a project's load; refusals given up (MEM FULL)
  * or a load's list cancelled (placeholders), as a user who does not drop anything. After every step:
@@ -72,7 +72,7 @@ static void up_name(uint32_t k, char *b) { (void)k; b[0] = 0; }
 #ifndef FRAG_MAX
 #define FRAG_MAX 0.035                                  /* (the share of steps with a refusal a packed layout would place:
                                                          * 2.0 .. 2.8 % measured on the farm, 2026-10-29, 96 KB and the
-                                                         * jam profile's free RAM) */
+                                                         * jank profile's free RAM) */
 #endif
 
 static int bad, checks;

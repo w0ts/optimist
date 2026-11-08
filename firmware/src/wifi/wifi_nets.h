@@ -11,12 +11,12 @@
 #include <stdint.h>
 
 #define WN_SLOTS 4u
-#define WN_GROUPS 9u                     /* JAM groups 1..WN_GROUPS */
+#define WN_GROUPS 9u                     /* JANK groups 1..WN_GROUPS */
 #define WN_SSID_MAX 32u
 #define WN_MARK 0xA7u                    /* a valid store */
 #define WN_VER 2u                        /* 1: the saved networks only (a record of 268 octets, read as the first part of this) */
 #define WN_STORE_SIZE 336u               /* header 4 + 4 entries x 66 + the access point's 68 */
-enum { WN_MODE_OFF = 0, WN_MODE_AUTO = 1, WN_MODE_MAN = 2, WN_MODE_AP = 3, WN_MODE_AP_MAN = 4, WN_MODE_JAM = 5, WN_MODE_JAM_HOST = 6, WN_MODE_JAM_AUTO = 7 };   /* JAM_AUTO: JAM that also becomes the host when none of its group is heard (the trial's stack only) */   /* JAM_HOST: AP AUTO under the automatic name FM1-xxxx and its default password only (never a typed one: so JAM finds and joins it), Link kept on (the user, 2026-11-03) */   /* JAM: AUTO, and an Optimist access point (FM1-xxxx) is joined with its default password when no saved network is heard (the trial's stack only) */   /* as the Bluetooth pages: OFF the radio stays off;
+enum { WN_MODE_OFF = 0, WN_MODE_AUTO = 1, WN_MODE_MAN = 2, WN_MODE_AP = 3, WN_MODE_AP_MAN = 4, WN_MODE_JANK = 5, WN_MODE_JANK_HOST = 6, WN_MODE_JANK_AUTO = 7 };   /* JANK_AUTO: JANK that also becomes the host when none of its group is heard (the trial's stack only) */   /* JANK_HOST: AP AUTO under the automatic name FM1-xxxx and its default password only (never a typed one: so JANK finds and joins it), Link kept on (the user, 2026-11-03) */   /* JANK: AUTO, and an Optimist access point (FM1-xxxx) is joined with its default password when no saved network is heard (the trial's stack only) */   /* as the Bluetooth pages: OFF the radio stays off;
                                                                   * MAN it joins when told (the page's SAVE); AUTO the best saved network
                                                                   * heard, at start-up and when none is joined; AP the FM-1 is the
                                                                   * access point (wifi/wifi_apd.c), at power-on and
@@ -32,7 +32,7 @@ struct wn_apcfg {                        /* MODE AP's network: the name, the cha
     uint8_t set;                         /* 1: a key is kept (no access point is run without one) */
     uint8_t ch;                          /* 1..13; 0: the default (6) */
     uint8_t ssid_len;                    /* 0: the automatic name (FM1- and the last four digits of the radio's address) */
-    uint8_t grp;                         /* the JAM group, 1..9 (0: 1; the trial's stack: FM1-xxxx-N for 2..9) */
+    uint8_t grp;                         /* the JANK group, 1..9 (0: 1; the trial's stack: FM1-xxxx-N for 2..9) */
     uint8_t ssid[WN_SSID_MAX];
     uint8_t pmk[32];
 };

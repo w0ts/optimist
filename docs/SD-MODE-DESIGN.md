@@ -423,9 +423,9 @@ fragmentation", "arena first, undo gets the rest", "never a drop-out while it pl
   ~10 s's most in use, the dim one the most since boot (system/overload.h's RAM ring, sampled with the CPU's). Without an
   arena the SRAM in use at link. The stacks: the label amber and STACK LOW when one has had under 1 KB left. The page has four lines (CPU0, CPU1, RAM,
   UNDERRUNS); the moves' times (`arn_probe`) are on SYSTEM > TOP and in the console, not on INFO (2026-11-04).
-- **The stress test** (`tests/arena_frag_test.c` on gpufarm: the jam profile's engines, sends and inserts, `DLY_ARENA` 64;
+- **The stress test** (`tests/arena_frag_test.c` on gpufarm: the jank profile's engines, sends and inserts, `DLY_ARENA` 64;
   20,000 random steps with step edits and undos, 3 seeds summed; fm1-next 1451bf56 against this; at 64 KB the delay's
-  line 8192 samples in both). 103,680 B and 104,704 B are the arena the jam profile (crashhist) and sd-card-mots get on
+  line 8192 samples in both). 103,680 B and 104,704 B are the arena the jank profile (crashhist) and sd-card-mots get on
   this firmware (the free SRAM of their builds less the spare and the undo's 16 KB), 179,968 B the dev profile with
   ARENA. fm1-next at those sizes is its arena of that many bytes (its undo ring: what its link leaves free, apart).
 
