@@ -1396,7 +1396,7 @@ _add("CANVAS_STRIP", "FELUCCA_CANVAS_STRIP", "the screen's drawing canvas: small
 # bit 443 (2026-10-30, the next free after 442): a flash-step setting, not firmware (no_image: nothing in
 # the image, its hash or its costs). tools/build.py writes it beside the package (PACKAGE.install.json,
 # tools/install_meta.py); the installers read it from there and show it (docs/INSTALL-PATHS.md)
-M_BOOTLOADER = Provenance("m-bootloader", "Julius Vitkauskas", "MIT", "v2.2 64f7c9c",
+M_BOOTLOADER = Provenance("m-bootloader", "Julius Vitkauskas", "MIT", "v2.3 6bc8f45",
                           "https://github.com/jvitkauskas/m-bootloader")
 _add("BOOTLOADER", "", "bootloader: keep it, or install m-bootloader", Y, 443, default=1, no_image=True,
      choices=((0, "keep (as it is)"), (1, "m-bootloader")), provenance=M_BOOTLOADER,
