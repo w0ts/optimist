@@ -172,13 +172,14 @@ def check_package(path):
     return product
 
 
-SOURCE_RE = re.compile(r"at ([0-9a-f]{7,40})( \(with uncommitted changes\))?.*\nbuild configuration: (\S+)"
+SOURCE_RE = re.compile(r"at ([0-9a-f]{7,40}|unknown)( \(with uncommitted changes\))?.*\nbuild configuration: (\S+)"
                        r"(?: hash ([0-9a-f]{8}))?")
 
 
 def package_source(path):
     """-> {"commit", "dirty", "name", "hash"} of a build's package, read from the SOURCE.txt of the -ui.zip that
-    tools/build.py leaves beside it, or None (no sidecar: a download, a copy)"""
+    tools/build.py leaves beside it, or None (no sidecar: a download, a copy). A tree that is not a git repository of its
+    own (an export on the farm) names its commit "unknown" (srcgit.py): the sidecar is there, its commit "unknown" """
     p = Path(path)
     ui = p.with_name(p.stem + "-ui.zip")
     try:
@@ -200,6 +201,8 @@ def source_notes(path, root=ROOT):
         return ["built:    (unknown: no -ui.zip beside the package)"]
     out = [f"built:    {src['name']} (config {src['hash'] or '?'}) from {src['commit'][:7]}"
            + (" with uncommitted changes" if src["dirty"] else "")]
+    if src["commit"] == "unknown":                      # (nothing to compare the checkout with)
+        return out
     now = stamp.head(root)[0]
     if now and not now.startswith(src["commit"]):
         behind = stamp.git(root, "rev-list", "--count", f"{src['commit']}..{now}")
