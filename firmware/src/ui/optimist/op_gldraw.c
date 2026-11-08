@@ -128,6 +128,8 @@ static void gl_line_draw(uint32_t k, int32_t y, const cell_t *c, uint32_t on)
         if (g.gk == GK_PILL)
             g.gk = GK_DOTS;                             /* (a two-way choice: two segments, the chosen one lit) */
         draw_gauge(GL_BX, by, GL_BW, GL_BH, &g, ink, C_LINE);
+        if (c->ak)                                      /* (PAGE_LINES: the value now, a modulation moving it, 2 px under the bar as the cards' second one) */
+            effv_bar(GL_BX, by + GL_BH + 1, GL_BW, c, on);
         if (c->pkbar && c->hold[0] > 0)                 /* (SD STREAM: the peak of the last 10 s on a bar of 0 .. 100, as INFO's CPU lines' tick) */
             cv_rect(GL_BX + c->hold[0] * (GL_BW - GL_PK_TK) / 100, by - GL_PK_TK, GL_PK_TK, GL_BH + 2 * GL_PK_TK, C_WHITE);
     }
@@ -435,10 +437,28 @@ static void pl_draw(void)
                       knob_colors);
     for (k = 0; k < 4u; k++) {
         SCR->cell(row, k, &pl_c[k]);
-        sig = hc(sig, &pl_c[k]);
+        effv_take(k, &pl_c[k]);                         /* (op_effval.c: the value as a modulation moves it, as the cards) */
+        sig = hu(hc(sig, &pl_c[k]), (pl_c[k].ak | (uint32_t)(uint16_t)pl_c[k].amin << 4) ^ (uint32_t)(uint16_t)pl_c[k].amax << 16);
     }
-    if (sig == ui.sig[2])
+    if (sig == ui.sig[2]) {
+        if (fm1_ms - ev.t < EFFV_MS)
+            return;
+        for (k = 0; k < 4u; k++) {                      /* the moving bar alone, a 2 px strip (the cards' effv_strips) */
+            if (!pl_c[k].ak || pl_c[k].av == ev.av[k])
+                continue;
+            gl_lrow_t r;
+            gl_lrow(&pl_c[k], gl_y0() + (int32_t)k * gl_pitch(), &r);
+            cv_begin(GL_BW, 2, OP_SURF);
+            effv_bar(0, 0, GL_BW, &pl_c[k], ui.hot_lit && ui.hot == k);
+            cv_blit(GL_BX, (uint32_t)(GL_TOP + r.by + GL_BH + 1));
+            ev.av[k] = pl_c[k].av;
+        }
+        ev.t = fm1_ms;
         return;
+    }
+    for (k = 0; k < 4u; k++)
+        ev.av[k] = pl_c[k].av;
+    ev.t = fm1_ms;
     ui.sig[2] = sig;
     gld.bar = trk_col(song.sel);
     cv_tall(GL_TOP, GL_BAND, C_BLACK, pl_paint);

@@ -129,6 +129,47 @@ static void plines_tests(void)
         check(pl_on() && !song_tbl_on(), "... SETTINGS (MODE): four lines");
     }
 #endif
+    {   /* a synth CUT with the LFO on it: the four-line page shows the actual value as the cards' second bar, moving */
+        track_t *t = &trk[0], keep = *t;
+        uint32_t row, i = 0, moved, still, y, n;
+        uint16_t b0[GL_BW], b1[GL_BW];
+        reset_ui();
+        song.sel = 0;
+        set_engine_of(t, 0);
+        t->engine = t->eng_req, t->xf_on = 0, t->xf = 0;
+        t->p[P_E4] = 64, t->p[P_L1DA] = LT_FLT, t->p[P_L1AA] = 100, t->p[P_LRATE] = 110, t->p[P_LWAVE] = 0, t->p[P_LFADE] = 0;
+        op_enter(SCR_SOUND);
+        for (row = 0, n = SCR->rows(); row < n; row++) {
+            const page_t *pg = snd_page(row);
+            for (i = 0; pg && i < 4u && pg->id[i] != P_E4; i++)
+                ;
+            if (pg && i < 4u)
+                break;
+        }
+        ui.row[SCR_SOUND] = (uint8_t)row;
+        ui.force = 1;
+        frames(3);
+        {
+            gl_lrow_t lr;
+            SCR->cell(row, i, &c);
+            gl_lrow(&c, gl_y0() + (int32_t)(i * pitch), &lr);
+            y = (uint32_t)(OH_HEAD + lr.by + GL_BH + 1);
+        }
+        check(row < n && pl_on(), "PAGE_LINES, a synth CUT with an LFO on it: the CUT page is lines");
+        memcpy(b0, &screen[y * 240u + GL_BX], sizeof b0);
+        frames(9);
+        memcpy(b1, &screen[y * 240u + GL_BX], sizeof b1);
+        moved = memcmp(b0, b1, sizeof b0) != 0;
+        t->p[P_L1AA] = 0;                               /* (no amount: nothing moves the cutoff, one bar) */
+        ui.force = 1;
+        frames(3);
+        memcpy(b0, &screen[y * 240u + GL_BX], sizeof b0);
+        frames(9);
+        memcpy(b1, &screen[y * 240u + GL_BX], sizeof b1);
+        still = memcmp(b0, b1, sizeof b0) == 0;
+        check(moved && still, "... the actual value's 2 px bar under the line's bar moves with the LFO (as the cards'), and is not there without");
+        *t = keep;
+    }
     reset_ui();
     {   /* a sound picked from the popup list: the PRESET line of EDIT's first page shows it once the popup is gone */
         uint32_t i, before = 0, after = 0;
