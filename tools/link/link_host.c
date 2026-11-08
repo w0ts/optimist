@@ -1,5 +1,5 @@
 /* SPDX-License-Identifier: GPL-3.0-only */
-/* firmware/src/link/link.c on a computer (macOS / Linux), over real sockets: the FM-1's Link peer, before the
+/* fm1base/link/link.c on a computer (macOS / Linux), over real sockets: the FM-1's Link peer, before the
  * FM-1 has a network. tools/link/interop.sh runs it beside ref_peer (Ableton's library) and compares the two.
  *   link_host [-ip A.B.C.D] [-bpm B] [-for S] [-at S:tempo=B] [-at S:play=0|1] [-q Q]
  * -ip: the interface to use (127.0.0.1: peers on this computer; a LAN address: Live on another one).
@@ -19,7 +19,7 @@
 #ifdef __APPLE__
 #include <mach/mach_time.h>
 #endif
-#include "../../firmware/src/link/link.h"
+#include "../../fm1base/link/link.h"
 
 static int64_t now_us(void)                        /* Link's own clock (platforms/darwin/Clock.hpp) */
 {

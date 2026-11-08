@@ -10,7 +10,7 @@
 #include "../firmware/src/wifi/wifi_ap.c"
 #include "../firmware/src/wifi/wifi_ap_dhcp.c"
 #include "../firmware/src/wifi/wifi_ip.c"
-#include "../firmware/src/link/link.c"
+#include "../fm1base/link/link.c"
 
 static int fails, checks;
 static void check(int ok, const char *what)

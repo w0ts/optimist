@@ -227,7 +227,7 @@ static void con_trims(const struct ble_rf_trims *t, uint8_t have)
 #include "../wifi/wifi_crypto.c"                      /* (the station: used by wifijoin only, so far) */
 #include "../wifi/wifi_sta.c"
 #include "../wifi/wifi_ip.c"                          /* ARP, DHCP, IGMP, UDP; the early filter */
-#include "../link/link.c"                             /* Ableton Link (the sync part) */
+#include "../../../fm1base/link/link.c"                           /* Ableton Link (the sync part) */
 
 #define CON_WIFI_MAX 1024u                                /* the largest frame taken, with its 16-byte receive header: Link's datagrams are at most 512 B,
                                                            * DHCP and EAPOL under 700, a beacon about 600; a larger one is not for us and is dropped by the

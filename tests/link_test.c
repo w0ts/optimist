@@ -1,5 +1,5 @@
 /* SPDX-License-Identifier: GPL-3.0-only */
-/* Ableton Link peer (firmware/src/link/link.c) on the host: nodes on a simulated network (a delay each way,
+/* Ableton Link peer (fm1base/link/link.c) on the host: nodes on a simulated network (a delay each way,
  * jitter, each node its own host clock), no sockets.
  *   wire      an ALIVE's bytes as Ableton's library writes them (discovery/v1/Messages.hpp, PayloadEntries)
  *   math      lk_us_to_ub / lk_ub_to_us = Link's llround of doubles, lk_phase
@@ -13,7 +13,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include "../firmware/src/link/link.c"
+#include "../fm1base/link/link.c"
 
 static int fails, checks;
 #define CHECK(c, ...)                                                                                              \

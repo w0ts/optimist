@@ -167,7 +167,7 @@ no TCP). In practice that means the big-flash / SD card build (branch `sdcard`, 
    facts). Check: associated with an open test AP; DHCP lease.
 4. **WPA2-PSK.** PBKDF2 (4096 SHA-1 rounds: time on the FM-1 not measured), the 4-way handshake, keys into the MAC.
 5. **UDP/IP.** ARP, DHCP, IGMP join, UDP: our own small layer or lwIP's raw API (to compare in size).
-   Then `firmware/src/link/` on top, power save off (LINK-DESIGN §2).
+   Then `fm1base/link/` on top, power save off (LINK-DESIGN §2).
 6. **Coexistence with BT.** One RF front end for both (BLE-HW-FACTS §5.2): Wi-Fi alone first; BT + Wi-Fi only if
    the SDK's own coexistence logic can be read.
 

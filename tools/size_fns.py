@@ -97,7 +97,7 @@ SIZE_FILES += ["storage/sd/sdcard.c", "storage/sd/sd_mmc.c", "storage/sd/pff.c",
                "storage/sd/sd_stream.c", "storage/sd/sd_stream_rc.c", "storage/sd/sd_slice.c", "storage/sd/sd_stream_plan.c",
                "storage/sd/sd_browse.c", "storage/sd/sd_save.c", "storage/sd/sd_rec.c", "storage/sd/sd_mode.c", "storage/sd/sd_mon.c", "storage/sd/sd_pvw.c", "ui/optimist/op_sdmon.c"]
 # Wi-Fi + Link (WIFI_LINK, WIFI_AP)
-SIZE_FILES += ["wifi/wifi_crypto.c", "wifi/wifi_sta.c", "wifi/wifi_ip.c", "wifi/wifi_link.c", "link/link.c",
+SIZE_FILES += ["wifi/wifi_crypto.c", "wifi/wifi_sta.c", "wifi/wifi_ip.c", "wifi/wifi_link.c", "../../fm1base/link/link.c",   # (the Link peer is fm1-base's, included by io/console.c)
                "wifi/wifi_conn.c", "wifi/wifi_nets.c", "wifi/wifi_saved.c", "wifi/wifi_ap.c", "wifi/wifi_ap_dhcp.c", "wifi/wifi_apd.c",
                "io/editor/ed_wifi.c", "ui/optimist/op_wifi.c"]
 # the sound side: what the audio ISR, the second core and the voices run (never minsize)
@@ -235,7 +235,7 @@ def check():
                   if p.relative_to(SRC).as_posix() not in FLOAT_UNITS)
     bad = [f"{f}: in no list (SIZE_FILES for main-loop code)" for f in have if f not in lists]
     bad += [f"{f}: in two lists" for f in sorted(set(lists)) if lists.count(f) > 1]
-    bad += [f"{f}: listed, not in firmware/src" for f in sorted(set(lists)) if f not in have]
+    bad += [f"{f}: listed, not in firmware/src" for f in sorted(set(lists)) if f not in have and not (f.startswith("../") and (SRC / f).exists())]
     print("\n".join(bad) or f"size: {len(have)} sources, each in one list")
     return 1 if bad else 0
 

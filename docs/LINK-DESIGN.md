@@ -8,7 +8,7 @@ outside this project); everything above the driver is ready and tested on a comp
 
 | Part | File | State |
 | --- | --- | --- |
-| Link peer: discovery, measurement, sessions, tempo, start / stop | `firmware/src/link/link.c`, `link.h` | written; host-tested |
+| Link peer: discovery, measurement, sessions, tempo, start / stop | `fm1base/link/link.c`, `link.h` (fm1-base's copy is the one, for the release and the classic build alike) | written; host-tested |
 | Simulated network test (3 nodes, own clocks, delay + jitter) | `tests/link_test.c` (in `run_tests.sh`) | 151 checks pass |
 | The peer over real sockets on a Mac / Linux | `tools/link/link_host.c` | builds |
 | A reference peer on Ableton's own library | `tools/link/ref_peer.cpp` | agrees with ours to 0.003 ms of phase in Live's session (§4) |
@@ -17,7 +17,7 @@ outside this project); everything above the driver is ready and tested on a comp
 same wire format (`_asdp_v` 1 discovery on 224.76.78.75:20808, `_link_v` 1 ping / pong), the same timings
 (ALIVE every 250 ms with ttl 5 s, pings 50 ms apart, 100 points then the median, a new measurement every 30 s), and the
 same session rules (the older session wins by ghost time, ties within 0.5 s go to the smaller id; the later
-beat origin wins; the later start / stop time stamp wins). The file each rule comes from is named in the code.
+beat origin wins; the later start / stop time stamp wins). The file each rule comes from is named in the code. One rule is ours, for the air (2026-11-08): the member measured with is the one heard last that has not failed a measurement, not the session's first peer, and a failed one gives way to the next member before the session is forgotten. On a LAN the two agree; in MODE JANK a founder at the edge of range (an ALIVE in three lands, its pongs do not) otherwise stalls the join and leaves the clock unrefreshed (`tests/wifi/jank_air_test.c`: 6.3 ms of drift in 4 minutes at 30 ppm, 1.4 ms with the rule).
 
 Firmware fit, as measured: `pi32v2` clang `-Os` compiles it with no runtime calls but `memcpy` (no 64-bit
 division: its own 64/32 shift divide); about 6 KB of code as a single object (before the unity build), and
