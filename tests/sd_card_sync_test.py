@@ -117,6 +117,52 @@ def sync_tests(out):
           sorted(p.as_posix() for p in card.rglob("*")) == before)
 
 
+def samples_test(out):
+    """--samples: the user's library sorted by type into Optimist/Samples/<Type>/, added and replaced, never removed,
+    remembered; a factory folder's name refused; --no-samples skips the remembered one"""
+    card, lib = out / "SCARD", out / "lib"
+    zp, last = out / "fake-s.zip", out / "last-s.json"
+    write_zip(zp, FAKE)
+    vols = [vol(card, "OPTIMIST", "UUID-S")]
+    card.mkdir()
+    for rel, b in {"Kick/909 kick 01.wav": b"RIFF k1", "Kick/909 kick 02.wav": b"RIFF k2", "HH/808 ch.wav": b"RIFF hh",
+                   "sort-report.csv": b"type,written"}.items():
+        (lib / rel).parent.mkdir(parents=True, exist_ok=True)
+        (lib / rel).write_bytes(b)
+    (card / "Optimist/Samples/Kick").mkdir(parents=True)
+    (card / "Optimist/Samples/Kick/my own kick.wav").write_bytes(b"RIFF mine")
+    sc = Script([])
+    r = S.run(["--card", str(card), "--samples", str(lib)], sc.ask, sc.say, False, vols, last, zp)
+    check("--samples copies each type folder's WAVs into Optimist/Samples/<Type>/ (the report not)", r == 0 and
+          (card / "Optimist/Samples/Kick/909 kick 02.wav").read_bytes() == b"RIFF k2" and
+          (card / "Optimist/Samples/HH/808 ch.wav").is_file() and not (card / "Optimist/Samples/sort-report.csv").exists()
+          and "3 to add, 0 to replace, 0 unchanged" in sc.text())
+    check("... remembered (SAMPLES_FILE), the card's own files beside them kept",
+          S.SAMPLES_FILE.read_text().strip() == str(lib) and
+          (card / "Optimist/Samples/Kick/my own kick.wav").read_bytes() == b"RIFF mine")
+    (lib / "Kick/909 kick 01.wav").write_bytes(b"RIFF k1, longer")
+    (lib / "HH/808 ch.wav").unlink()
+    sc = Script([])
+    S.run(["--card", str(card)], sc.ask, sc.say, False, vols, last, zp)
+    check("a later run without --samples: the remembered library, a changed file replaced, a deleted one kept",
+          "0 to add, 1 to replace, 1 unchanged" in sc.text() and
+          (card / "Optimist/Samples/Kick/909 kick 01.wav").read_bytes() == b"RIFF k1, longer" and
+          (card / "Optimist/Samples/HH/808 ch.wav").is_file())
+    sc = Script([])
+    S.run(["--card", str(card), "--no-samples"], sc.ask, sc.say, False, vols, last, zp)
+    check("--no-samples: no samples line", "samples from" not in sc.text())
+    (lib / "Bass").mkdir()
+    (lib / "Bass/x.wav").write_bytes(b"RIFF x")
+    try:
+        S.run(["--card", str(card), "--samples", str(lib)], sc.ask, sc.say, False, vols, last, zp)
+        refused = False
+    except SystemExit as e:
+        refused = "factory sample folder" in str(e)
+    check("a type folder named as a factory sample folder (Bass) refused, nothing written",
+          refused and not (card / "Optimist/Samples/Bass/x.wav").exists())
+    S.SAMPLES_FILE.unlink()                          # (the later tests run with no library remembered)
+
+
 def check_tests(out):
     home = out / "home"
     home.mkdir()
@@ -277,7 +323,9 @@ def main(out, real=None):
     out.mkdir(parents=True)
     V.REPO = out / "a-repo"                           # (OUTDIR may be in the checkout, build/host: the real repo checked
     V.REPO.mkdir()                                    # alone, check_tests' repo=ROOT)
+    S.SAMPLES_FILE = out / "sdcard-samples.txt"      # (never the checkout's build/: no library remembered there used)
     sync_tests(out)
+    samples_test(out)
     check_tests(out)
     picker_tests(out)
     ticks_test(out)

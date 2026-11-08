@@ -71,6 +71,16 @@ Three slots, **USR1**, **USR2** (about 7.4 s each) and **USR3** (about 5.9 s; le
 
 A synth track plays a slot with the SAMPLE engine (**SET** USR1 to USR3); a drum lane plays one with SRC. In a build with `PATTERNS`, USR1's flash holds the projects' log and the slot takes no sample.
 
+## Card samples by type (SD card builds)
+
+`tools/sd_sort_samples.py` sorts your sample folders by type, into short folders: Kick, 808, Snare, Clp, Rim, HH, OH, Tom, Crash, Ride, Shkr, Conga, Bell, Clave, Perc, then Basses, Synth, Keys, Pad, Chord, Wavetable, Vocal, Fx, Loops, Found. Each file is 16-bit mono 44.1 kHz. Your originals are never changed.
+
+- `python3 tools/sd_sort_samples.py sort SRC... --out LIB` sorts and converts the folders. Run it again and it converts only the new files. `LIB/sort-report.csv` lists each file's type.
+- `make sdcard SAMPLES=LIB` copies the new and changed samples to the card's `Optimist/Samples/`, along with everything else `make sdcard` writes. It deletes nothing of yours, and it remembers LIB, so later runs of `make sdcard` copy it again (`NO_SAMPLES=1` skips it). A type folder can't be named like a factory sample folder (Bass, Piano and so on), because `make sdcard` mirrors those.
+- `make dn2-samples LIB=LIB SRC=DIR` is the same for a Digitone II running dn2mk2. It makes DIR from the library (1,900 samples, shortened, named like `BD909 01`), then syncs DIR with the DN2's +Drive library: it reads what the DN2 has, then deletes, sends again and sends to match, only in DIR's folders. It remembers LIB and DIR, so later runs of `make dn2-samples` need nothing typed; `DRY=1` shows the plan.
+
+On the FM-1, pick a drum lane and open PROJECT > SAMPLES. The list opens on the lane's type folder: KICK opens Kick, CLOSED HAT opens HH, KICK 2 opens 808 (or Kick if the card has no 808 folder). HOME goes up to Samples. The top F# steps PREVIEW through OFF, ON and LANE; LANE needs a lane picked. In LANE, the sample ITEM stops on, or the key you press, becomes the lane's sample. While the pattern plays you hear it in the pattern; while stopped it plays on its own. Turn ITEM through the folder until a sound fits, pick the next lane, and save the kit (KIT > SAVE).
+
 ## Your own kits
 
 Build a kit lane by lane (a kit's sound, edited or not, another kit's sound, your samples), then KIT > **SLOT** and **SAVE** (twice), or SAVE + a page button on DR: it is stored as **KIT n**, one of 16 in the FM-1. Your kits come after the built-in ones in PRESETS. The editor exports a kit with its samples as one file and imports it on another FM-1.

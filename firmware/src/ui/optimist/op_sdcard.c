@@ -64,6 +64,7 @@ static void sdm_kit_tree(void);
 static void sdm_pv_play(uint32_t k);                    /* (the SAMPLES list's preview) */
 static void sdm_pv_stop(void);
 static int sdm_pv_busy(void);
+static int sdm_lane_dir(uint32_t l);                    /* (a drum lane's type folder: Samples/Kick, Snare, HH ..) */
 static int sdm_into(uint32_t k);
 static void sdm_load_later(uint32_t k);
 static int sdm_up(void);
@@ -95,11 +96,13 @@ static struct {
                                                          * 2 + a slot that engine; until the row is left */
     uint32_t fmask;                                     /* the engines on the card (sdm_pre_mask), 0 not read */
     uint8_t loading;                                    /* the LOADING toast up (sdc_loading) */
-    uint8_t pv, pv_ask, pv_k;                           /* SAMPLES: PREVIEW on (RAM only); K2 moved, the item to hear; the key heard */
+    uint8_t pv, pv_ask, pv_k;                           /* SAMPLES: PREVIEW (RAM only: SDC_PV_OFF, ON, LANE); K2 moved, the item to
+                                                         * hear; the key heard */
     uint8_t ptree;                                      /* PRESETS' tree + 1 when the drum track took the row (sdc_sync) */
     uint8_t pvp;                                        /* PRESETS: PREVIEW on (RAM only; pv_ask, pv_k: as SAMPLES') */
     uint32_t pv_at;                                     /* when K2 moved (fm1_ms): PRESETS, after SDC_PVP_SETTLE_MS */
     uint32_t ftree[2];                                  /* fmask by tree: Factory's, User's */
+    uint8_t lane1;                                      /* SAMPLES: the lane + 1 whose type folder was opened, 0 none */
 } sdc = {SDC_N, 1, 0, 0, 0, 0, {SDV_FOLDER, SDV_NAME, SDV_NAME, SDV_FOLDER}, "", "", 0, 0xFFu, 0};   /* (PROJECTS: FOLDER is shown as NAME; PRESETS and KITS: the flat NAME list, filtered by engine; SAMPLES: FOLDER) */
 static const char *const SDV_NAME_S[2][4] = {{"FOLDER", "NAME", "RECENT", "SAVES"}, {"NAME", "NAME", "NAME", "SAVES"}};
 static const char *const SDO_NAME_S[SDO_N] = {[SDO_LOAD] = "LOAD", [SDO_SAVE] = "SAVE", [SDO_DELETE] = "DELETE", [SDO_USE] = "USE", [SDO_NEW] = "NEW"};
@@ -145,6 +148,21 @@ static void sdc_apply_flt(uint32_t l)
     else
         sdm_name_filter(-1);
 }
+/* SAMPLES with a drum lane picked (the user, 2026-11-08: "scroll thru all the samples, per type, so that i can build my own kits"): the
+ * folder view opens on the lane's type folder (sd_mode.c sdm_lane_dir: KICK Samples/Kick, CLOSED HAT Samples/HH ..), and again on
+ * another lane's; HOME goes up from it as from any folder. No such folder on the card: the list as it was */
+static void sdc_lane_follow(uint32_t l, uint32_t ready)
+{
+    uint32_t want = is_drum(TSEL) && lane_picked() ? lane_selected() % DRUM_LANES + 1u : 0u;
+    if (l != SDC_SMP || !ready || sdc.view[l] != SDV_FOLDER || want == sdc.lane1)
+        return;
+    sdc.lane1 = (uint8_t)want;
+    if (want && sdm_lane_dir(want - 1u)) {
+        sdc.item = 0;
+        sdc.pv_k = 0xFFu;
+        ui.redraw = 1;
+    }
+}
 static void sdc_sync(uint32_t l)
 {
     uint32_t ready;
@@ -172,9 +190,11 @@ static void sdc_sync(uint32_t l)
         sdc.open = (uint8_t)l;
         sdc.stale = 0;
         sdc.ready = (uint8_t)ready;
+        sdc.lane1 = 0;                                  /* (the list at its own folder again: a lane's type folder below) */
         if (sdc.item >= SDC_KEYS)
             sdc.item = 0;
     }
+    sdc_lane_follow(l, ready);
     if (l == SDC_PRE && ready && !sdc.flt && sdc.view[l] == SDV_NAME && !is_drum(TSEL) && sdc.eng != TSEL->eng_req && !sdm_pvw_on()) {
         sdc.eng = TSEL->eng_req;                        /* NAME: the list follows the track's engine too (the same flat list, filtered again) */
         sdc_apply_flt(l);
@@ -301,6 +321,7 @@ static void sdc_view_set(uint32_t l, uint32_t v)        /* VIEW: the list again 
     sdc.view[l] = (uint8_t)v;
     sdc.op = 0;
     sdc.item = 0;
+    sdc.lane1 = 0;                                      /* (FOLDER again: the lane's type folder, sdc_lane_follow) */
     (void)sdm_open(l, v, sdc.vname);
     sdc.open = (uint8_t)l;
     sdc.stale = 0;
@@ -571,9 +592,30 @@ static void sdc_loading(void)
     }
 }
 #define SDC_PVP_SETTLE_MS 60u                           /* PRESETS: K2 on an item this long: on the track (an engine's switch a detent is not) */
+#define SDC_LANE_SETTLE_MS 150u                         /* SAMPLES' PREVIEW LANE: K2 on a sample this long: on the lane (a fast turn
+                                                         * passes the ones between: no index write, no project record for them) */
+/* SAMPLES' PREVIEW (the top F#): OFF, ON (the sample heard alone, sd_preview.h), and with a drum lane picked LANE (the user,
+ * 2026-11-08: "scroll thru all the samples, per type, so that i can build my own kits"): the sample K2 or a key lands on is
+ * the lane's (USE, no question: sd_mode.c sdm_do), heard in the pattern while it plays, else alone as ON's. A lane is
+ * built by turning K2 through its type folder (sdc_lane_follow); the kit is saved as any (KIT > SAVE) */
+enum { SDC_PV_OFF, SDC_PV_ON, SDC_PV_LANE };
+static int sdc_pv_lane(void) { return sdc.pv == SDC_PV_LANE && is_drum(TSEL) && lane_picked(); }
+static void sdc_lane_take(uint32_t k)                   /* PREVIEW LANE: sample k on the lane, heard */
+{
+    sdc_use_now(k, NENGINES);
+    sdc.pv_k = (uint8_t)k;
+    if (song.playing || transport_req)
+        sdm_pv_stop();                                  /* (the pattern plays it) */
+    else
+        sdm_pv_play(k);
+}
 static void sdc_pv_item(void)                           /* PREVIEW on, K2 moved: the item heard; a folder or an empty slot: silence */
 {
     sdc.pv_ask = 0;
+    if (sdc_pv_lane() && sdc_used(sdc.item) && !sdc_is_dir(sdc.item)) {
+        sdc_lane_take(sdc.item);
+        return;
+    }
     if (sdc_pre_row()) {
         if (sdc_used(sdc.item) && !sdc_is_dir(sdc.item)) {
             if (sdm_pvw_show(sdc.item))
@@ -597,7 +639,9 @@ static void sdc_frame(void)                             /* every UI frame: the f
         sdm_pv_stop();                                  /* (the page left: silence; PREVIEW stays on for the session) */
     if (sdm_pvw_on() && (!sdc_pre_row() || song.sel != sdm_pvw_part() || lane_picked()))
         sdm_pvw_end();                                  /* (the page left, another track: the sound back, on its own track) */
-    if (sdc.pv_ask && !sdm_reading() && (sdc_here() == SDC_SMP || (sdc_pre_row() && (uint32_t)(fm1_ms - sdc.pv_at) >= SDC_PVP_SETTLE_MS)))
+    if (sdc.pv_ask && !sdm_reading() &&
+        ((sdc_here() == SDC_SMP && (!sdc_pv_lane() || (uint32_t)(fm1_ms - sdc.pv_at) >= SDC_LANE_SETTLE_MS)) ||
+         (sdc_pre_row() && (uint32_t)(fm1_ms - sdc.pv_at) >= SDC_PVP_SETTLE_MS)))
         sdc_pv_item();
     if (!sdm_reading() && sdc.item >= sdm_count() && sdm_count())
         sdc.item = (uint8_t)(sdm_count() - 1u);         /* (a shorter last page, come) */
@@ -801,7 +845,10 @@ static void sdc_key(uint32_t kind, int32_t w)
         sdc.item = (uint8_t)w;                          /* PREVIEW on: a key selects and plays, again stops; USE is YES's */
         ui.hot = 1;
         ui.hot_lit = 1;
-        if (sdc.pv_k == (uint8_t)w && sdm_pv_busy()) {
+        if (sdc_pv_lane()) {                            /* (LANE: on the lane at once, the same key again heard again) */
+            sdc.pv_ask = 0;
+            sdc_lane_take((uint32_t)w);
+        } else if (sdc.pv_k == (uint8_t)w && sdm_pv_busy()) {
             sdm_pv_stop();
         } else {
             sdm_pv_play((uint32_t)w);
@@ -850,14 +897,15 @@ static void sdc_pv_say(uint32_t on)
     sdc.pv_ask = 0;
     sdc.pv_k = 0xFFu;
     ui.toast_next = 1;
-    ui_message(on ? "PREVIEW ON" : "PREVIEW OFF");
+    ui_message(on == SDC_PV_LANE ? "PREVIEW LANE" : on ? "PREVIEW ON" : "PREVIEW OFF");
     ui.toast_next = 0;
 }
 static void sdc_smp_key(uint32_t b)
 {
     if (b == SDC_PV_KEY) {
-        sdc.pv = !sdc.pv;
-        if (!sdc.pv)
+        sdc.pv = (uint8_t)(sdc.pv == SDC_PV_OFF ? SDC_PV_ON : sdc.pv == SDC_PV_ON && is_drum(TSEL) && lane_picked() ? SDC_PV_LANE
+                                                                                                         : SDC_PV_OFF);
+        if (sdc.pv == SDC_PV_OFF)
             sdm_pv_stop();
         sdc_pv_say(sdc.pv);
     } else if (b < sdm_pages() && b != sdm_page()) {
