@@ -10,12 +10,12 @@
  *                                      kept), status (0 OFF, 1 NO PASSWORD, 2 STARTING, 3 ACTIVE, 4 NO CAL, 5 STOPPED: AP MAN, not started), clients, channel (the one
  *                                      shown: the store's, else 6), len, pack7 name (the stored one, else FM1- and four digits);
  *                                      then peers (the Link peers heard; an older firmware sends no such byte: 0);
- *                                      then group (MODE JAM's GROUP 1..9; 0: this build has no JAM) and heard (the FM-1s of the group
+ *                                      then group (MODE JANK's GROUP 1..9; 0: this build has no JANK) and heard (the FM-1s of the group
  *                                      heard; an older firmware sends neither: 0, 0; before 2026-11-04 this byte was host)
- *             1, mode               -> 1, rc, mode: MODE (0 OFF, 1 AUTO, 2 MAN, 3 AP AUTO, 4 AP MAN, the two only with cap 1; 7 JAM where
- *                                      group is not 0 (an older editor's 5 JAM JOIN and 6 JAM HOST are JAM too); the store's numbers);
+ *             1, mode               -> 1, rc, mode: MODE (0 OFF, 1 AUTO, 2 MAN, 3 AP AUTO, 4 AP MAN, the two only with cap 1; 7 JANK where
+ *                                      group is not 0 (an older editor's 5 JANK JOIN and 6 JANK HOST are JANK too); the store's numbers);
  *                                      saved with the settings
- *             9, group              -> 9, rc, group: MODE JAM's GROUP 1..9 (rc 1: out of range, or no JAM in this build); saved
+ *             9, group              -> 9, rc, group: MODE JANK's GROUP 1..9 (rc 1: out of range, or no JANK in this build); saved
  *             2, slot               -> 2, rc, slot: that saved network forgotten (its key too)
  *             3, slen, plen, pack7 SSID, password (plen bytes, 32..126; 0 = a saved network of that SSID by its stored key)
  *                                   -> 3, rc: the manager scans, joins the strongest AP of the SSID and saves the network once
@@ -35,9 +35,9 @@
 static int wa_channel_auto(void) { return 0; }
 #endif
 #ifdef WIFI_ON_FM1B
-#define EDWF_JAM 1                                         /* (the trial's Wi-Fi stack: MODE JAM, op 1 value 7, op 9 its GROUP) */
+#define EDWF_JANK 1                                         /* (the trial's Wi-Fi stack: MODE JANK, op 1 value 7, op 9 its GROUP) */
 #else
-#define EDWF_JAM 0
+#define EDWF_JANK 0
 #endif
 #ifndef FELUCCA_WIFI_AP
 #define FELUCCA_WIFI_AP 0                                  /* (the builder's configuration always says; a host test may not) */
@@ -120,10 +120,10 @@ static void edwf_state(void)
         ed_b(0);
     edwf_ap_block();
     ed_b(wl_peers() > 127u ? 127u : wl_peers());          /* the Link peers heard, after the AP block */
-#if EDWF_JAM
-    ed_b2((uint32_t)plat_wifi_group(), plat_wifi_jam() > 0 ? (uint32_t)plat_wifi_jam() : 0u);   /* MODE JAM's GROUP, the FM-1s heard */
+#if EDWF_JANK
+    ed_b2((uint32_t)plat_wifi_group(), plat_wifi_jank() > 0 ? (uint32_t)plat_wifi_jank() : 0u);   /* MODE JANK's GROUP, the FM-1s heard */
 #else
-    ed_b2(0, 0);                                          /* (no JAM in this build) */
+    ed_b2(0, 0);                                          /* (no JANK in this build) */
 #endif
 }
 
@@ -176,7 +176,7 @@ static uint32_t edwf_join(const uint8_t *a, uint32_t na)
 static int ed_wifi(uint32_t cmd, const uint8_t *a, uint32_t na)
 {
     uint32_t op = na ? a[0] : 127u;
-    if (cmd != ED_WIFI || op > 9u || (op >= 5u && op <= 8u && !FELUCCA_WIFI_AP) || (op == 9u && !EDWF_JAM))
+    if (cmd != ED_WIFI || op > 9u || (op >= 5u && op <= 8u && !FELUCCA_WIFI_AP) || (op == 9u && !EDWF_JANK))
         return 0;
     if (op == 0u) {
         edwf_state();
@@ -187,9 +187,9 @@ static int ed_wifi(uint32_t cmd, const uint8_t *a, uint32_t na)
         return 0;
     switch (op) {
     case 1: {
-        uint32_t m = EDWF_JAM && (a[1] == WN_MODE_JAM || a[1] == WN_MODE_JAM_HOST) ? (uint32_t)WN_MODE_JAM_AUTO : a[1];   /* (one JAM since
-                                                         * 2026-11-03: an older editor's JAM JOIN / JAM HOST is it) */
-        if (m > (FELUCCA_WIFI_AP ? WN_MODE_AP_MAN : WN_MODE_MAN) && !(m == WN_MODE_JAM_AUTO && EDWF_JAM)) {
+        uint32_t m = EDWF_JANK && (a[1] == WN_MODE_JANK || a[1] == WN_MODE_JANK_HOST) ? (uint32_t)WN_MODE_JANK_AUTO : a[1];   /* (one JANK since
+                                                         * 2026-11-03: an older editor's JANK JOIN / JANK HOST is it) */
+        if (m > (FELUCCA_WIFI_AP ? WN_MODE_AP_MAN : WN_MODE_MAN) && !(m == WN_MODE_JANK_AUTO && EDWF_JANK)) {
             ed_b3(1, 1, wn_st.mode);
             break;
         }
@@ -200,7 +200,7 @@ static int ed_wifi(uint32_t cmd, const uint8_t *a, uint32_t na)
         ed_b3(1, 0, wn_st.mode);
         break;
     }
-#if EDWF_JAM
+#if EDWF_JANK
     case 9:
         if (a[1] >= 1u && a[1] <= 9u) {
             plat_wifi_set_group((int)a[1]);

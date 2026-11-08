@@ -105,8 +105,8 @@ static volatile uint8_t link_tempo_req;                    /* the user turned th
                                                             * to the session once by the Link side (wl_push_own), which then
                                                             * brings it back to every peer (the user, 2026-11-03: "in link mode we
                                                             * should be able to change the tempo") */
-static uint8_t link_jam;                                   /* MODE JAM (the Wi-Fi page) is on: Link runs whatever LINK says (set by ui/opt_wifi.h every pass; never stored) */
-#define link_eff() ((uint8_t)(link_jam && link_mode == LINK_OFF ? LINK_ON : link_mode))   /* the LINK in force: OFF is ON while JAM; the stored link_mode is untouched */
+static uint8_t link_jank;                                   /* MODE JANK (the Wi-Fi page) is on: Link runs whatever LINK says (set by ui/opt_wifi.h every pass; never stored) */
+#define link_eff() ((uint8_t)(link_jank && link_mode == LINK_OFF ? LINK_ON : link_mode))   /* the LINK in force: OFF is ON while JANK; the stored link_mode is untouched */
 #endif
 static int32_t sy_lead;                                    /* this block's offset, TIMER4 ticks (sync_follow) */
 #if FELUCCA_BT_AUDIO

@@ -4,7 +4,7 @@
  * and a message over it still draws it whole */
 static uint16_t hp_shot[240 * 25];
 /* the clock icon (the user, 2026-11-03: one icon, the clock's source, coloured by its state): none on the internal clock with
- * nothing heard; a MIDI clock heard amber, followed green; Link hidden without Wi-Fi or a session, red in a JAM mode not
+ * nothing heard; a MIDI clock heard amber, followed green; Link hidden without Wi-Fi or a session, red in a JANK mode not
  * connected, and that first */
 static void hs_state_tests(void)
 {
@@ -22,15 +22,15 @@ static void hs_state_tests(void)
     check(head_midi() == HS_FOLLOW && hs_col(HS_FOLLOW) == C_OK, "clock icon: a TRS clock followed: green");
     check(head_clock(&st) == HC_MIDI && st == HS_FOLLOW,
           "clock icon: a MIDI clock followed: the DIN socket, green");
-    check(hs_col(HS_BAD) == C_ERR && hs_col(HS_NONE) == C_DIM, "clock icon: red a JAM mode not connected, grey waiting");
+    check(hs_col(HS_BAD) == C_ERR && hs_col(HS_NONE) == C_DIM, "clock icon: red a JANK mode not connected, grey waiting");
 #if WIFI_UI && FELUCCA_LINK
     {
         uint8_t m = wn_st.mode;
         wn_st.mode = WN_MODE_OFF;
         check(head_link() == HS_OFF, "clock icon: Link, Wi-Fi off: no Link icon");
-#if WF_JAM                                              /* (JAM: the release's own Wi-Fi stack only) */
-        wn_st.mode = WN_MODE_JAM_AUTO;
-        check(head_clock(&st) == HC_LINK && st == HS_BAD, "clock icon: JAM and no FM-1 heard: the Link icon, red, before the MIDI clock followed");
+#if WF_JANK                                              /* (JANK: the release's own Wi-Fi stack only) */
+        wn_st.mode = WN_MODE_JANK_AUTO;
+        check(head_clock(&st) == HC_LINK && st == HS_BAD, "clock icon: JANK and no FM-1 heard: the Link icon, red, before the MIDI clock followed");
 #endif
         wn_st.mode = m;
     }

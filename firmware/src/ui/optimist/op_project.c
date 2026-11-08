@@ -392,7 +392,7 @@ static void wf_cell(uint32_t it, cell_t *c);            /* a WI-FI line: MODE, N
 static void wf_mode_set(int32_t s);
 static int wf_turn(int32_t s);                          /* NETWORK's knob: the list's cursor -> 1 when the list is shown */
 static int wf_ch_turn(int32_t s);                       /* CHANNEL's knob in MODE AP -> 1 taken */
-static int wf_grp_turn(int32_t s);                      /* GROUP's knob in the JAM modes -> 1 taken */
+static int wf_grp_turn(int32_t s);                      /* GROUP's knob in the JANK modes -> 1 taken */
 static int wf_st_turn(int32_t s);                       /* STATE's knob: the line's items, the cycling held 30 s -> 1 taken */
 static void wf_save(void);                              /* SAVE tapped on the page */
 static void wf_forget_do(void);                         /* the FORGET question answered YES */
@@ -1025,7 +1025,7 @@ static void sys_it_cell(uint32_t it, cell_t *c)     /* the cell of setting it */
 #if FELUCCA_LINK
     case SI_LINK: {
         static const char *const LKN[3] = {"OFF", "ON", "ON+S/S"};   /* (by LINK_*) */
-        cell_list(c, "LINK", link_eff() != link_mode ? "ON (JAM)" : LKN[link_mode % 3u], LINK_ONSS, link_mode);   /* (MODE JAM forces ON: said, the stored value kept) */
+        cell_list(c, "LINK", link_eff() != link_mode ? "ON (JANK)" : LKN[link_mode % 3u], LINK_ONSS, link_mode);   /* (MODE JANK forces ON: said, the stored value kept) */
         break;
     }
 #endif
@@ -1765,7 +1765,7 @@ static void sys_turn(uint32_t r, uint32_t k, int32_t s, int fine)
     if (it == SI_WFNET && wf_turn(s))
         return;                                         /* (the WI-FI page's NETWORK knob: the cursor through the networks heard) */
     if (it == SI_WFSIG && (wf_grp_turn(s) || wf_ch_turn(s)))
-        return;                                         /* (the JAM modes: the group; MODE AP: the channel) */
+        return;                                         /* (the JANK modes: the group; MODE AP: the channel) */
     if (it == SI_WFST && wf_st_turn(s))
         return;                                         /* (STATE: the line's next item, the cycling held 30 s) */
 #endif

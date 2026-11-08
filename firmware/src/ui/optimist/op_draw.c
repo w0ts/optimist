@@ -93,8 +93,8 @@ static const char *cut(char *b, const char *s, uint32_t n)
  * clock in, link ... and color indicating the state"; then "option 1, and make the icon bigger": ONE icon, the clock's source;
  * bar.beat gone from the header): a DIN socket for a MIDI clock (USB, TRS, Bluetooth), a chain link for Link, coloured by
  * the state (HS_*): green the clock follows it, amber heard but another clock followed, grey a Link session with no peer
- * yet, red a JAM mode not connected (the user: "in jam mode, not connected is not good. => red", op_wifi.c wf_link_state).
- * Which one (head_clock): JAM not connected first, then the source followed, then one heard, then Link waiting; none on the
+ * yet, red a JANK mode not connected (the user: "in jam mode, not connected is not good. => red", op_wifi.c wf_link_state).
+ * Which one (head_clock): JANK not connected first, then the source followed, then one heard, then Link waiting; none on the
  * internal clock with nothing heard. While the card's index pass runs its progress takes the icon's place (the user,
  * 2026-11-06: "when sd card is indexing we need a progress icon, can replace the link/midi icon"), *st its bar's width */
 enum { HS_OFF, HS_NONE, HS_THERE, HS_FOLLOW, HS_BAD };

@@ -39,9 +39,9 @@ SYSTEM > WI-FI page: OFF, MAN, AUTO, **AP MAN** (`wn_st.mode` 4), **AP AUTO** (3
   STATE (NO PASSWORD, STARTING, ACTIVE, n CLIENTS, NO CAL). SAVE opens the password entry for the AP's key (the same entry,
   8..63 characters); SAVE held asks CLEAR KEY first (the default password again). **The network is never open**: without a typed password it uses
   `wifi_ap_default_key(name)` (8 characters of 23 letters without i l o and 8 digits without 0 1, from two FNV-1a runs over a fixed salt and the
-  name), shown on STATE one phase in four as KEY xxxxxxxx, so another Optimist that hears the name knows it. **MODE JAM** (OFF, MAN, AUTO, JAM, AP MAN, AP AUTO; 2026-11-04): the FM-1s of a GROUP (1..9) talk directly, no access point and nobody hosting
-  (`docs/WIFI-LINK-HANDOVER.md`, top): four lines, MODE, GROUP, STATE (ALONE, or HEARD n: FM-1s heard on the air; K3 or K4 steps it through the signal, RETRY, LOST and holds it 30 s) and LINK PEERS (Link's own count); Link is on while it is the mode (SYNC > LINK reads ON (JAM), the stored
-  value untouched); the header's chain icon is red until one is heard. A record's old JAM JOIN or JAM HOST reads as JAM. Optimist's own Wi-Fi stack reads a stored JAM HOST as AP AUTO.
+  name), shown on STATE one phase in four as KEY xxxxxxxx, so another Optimist that hears the name knows it. **MODE JANK** (OFF, MAN, AUTO, JANK, AP MAN, AP AUTO; 2026-11-04): the FM-1s of a GROUP (1..9) talk directly, no access point and nobody hosting
+  (`docs/WIFI-LINK-HANDOVER.md`, top): four lines, MODE, GROUP, STATE (ALONE, or HEARD n: FM-1s heard on the air; K3 or K4 steps it through the signal, RETRY, LOST and holds it 30 s) and LINK PEERS (Link's own count); Link is on while it is the mode (SYNC > LINK reads ON (JANK), the stored
+  value untouched); the header's chain icon is red until one is heard. A record's old JANK JOIN or JANK HOST reads as JANK. Optimist's own Wi-Fi stack reads a stored JANK HOST as AP AUTO.
 - Stored (`wn_store` version 2, 336 octets: the 268 of version 1 and `wn_apcfg`, 68): the name (length 0 = automatic), the
   channel, the WPA2 key of that name (PBKDF2 of password and name; never the password). A version 1 record reads as before
   (the settings record grows; a shorter old one is zero-extended); a build without MODE AP reads a stored AP mode as OFF.

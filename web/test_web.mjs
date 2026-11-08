@@ -1664,7 +1664,7 @@ async function editorWifi() {
     "wifi AP: without wifiap: cap 0, MODE 3 and ops 5, 7 refused (rc 1)");
   s = E.parse[C.WIFI](await rq0(E.req.wifiState()));
   ok(s.group === 0 && E.parse[C.WIFI](await rq0(E.req.wifiMode(7))).rc === 1,
-    "wifi JAM: a build without it: group 0 (no GROUP offered), MODE 7 refused");
+    "wifi JANK: a build without it: group 0 (no GROUP offered), MODE 7 refused");
   h.teardown();
   h = attachMock({ wifi: true, wifiap: true });
   const q = h.rq;
@@ -1724,26 +1724,26 @@ async function editorWifi() {
   r = await W3(E.req.wifiApRun(true));
   s = await W3(E.req.wifiState());
   ok(r.rc === 0 && s.ap.status !== 5, "wifi AP: op 8 start: running again");
-  /* MODE JAM (one JAM, stored 7, with its GROUP 1..9): the state's group, op 1 and op 9 */
+  /* MODE JANK (one JANK, stored 7, with its GROUP 1..9): the state's group, op 1 and op 9 */
   s = await W3(E.req.wifiState());
-  ok(s.group === 1 && s.heard === 0, "wifi JAM: the state ends with the group (1) and the FM-1s heard (0)");
+  ok(s.group === 1 && s.heard === 0, "wifi JANK: the state ends with the group (1) and the FM-1s heard (0)");
   r = await W3(E.req.wifiMode(7));
   s = await W3(E.req.wifiState());
-  ok(r.rc === 0 && r.v === 7 && s.mode === 7 && !E.wifiIsAp(s.mode), "wifi JAM: MODE 7 accepted, no access point");
+  ok(r.rc === 0 && r.v === 7 && s.mode === 7 && !E.wifiIsAp(s.mode), "wifi JANK: MODE 7 accepted, no access point");
   r = await W3(E.req.wifiMode(5));
-  ok(r.rc === 0 && r.v === 7, "wifi JAM: an older editor's JAM JOIN (5) is JAM (7)");
+  ok(r.rc === 0 && r.v === 7, "wifi JANK: an older editor's JANK JOIN (5) is JANK (7)");
   r = await W3(E.req.wifiGroup(4));
   s = await W3(E.req.wifiState());
-  ok(r.rc === 0 && r.v === 4 && s.group === 4, "wifi JAM: GROUP 4 set (op 9)");
+  ok(r.rc === 0 && r.v === 4 && s.group === 4, "wifi JANK: GROUP 4 set (op 9)");
   r = await W3(E.req.wifiGroup(10));
   s = await W3(E.req.wifiState());
-  ok(r.rc === 1 && s.group === 4, "wifi JAM: GROUP 10 refused, the group kept");
+  ok(r.rc === 1 && s.group === 4, "wifi JANK: GROUP 10 refused, the group kept");
   await W3(E.req.wifiMode(3));
   h.teardown();
   /* the page: the panel only with cap 1, in MODE AP, in place of the station's list and form; the password cleared as it is sent */
-  ok(/s\.mode === 7\) return s\.heard \?/.test(wifiJs), "wifi JAM: the status says the FM-1s heard, or alone");
-  ok(/s\.ap\.cap === 1/.test(wifiJs) && /root\.hidden = !on/.test(wifiJs) && /wf\.add\.hidden = inAp/.test(wifiJs) && /\.\.\.\(s\.group \? \[WIFI\.MODE_JAM\] : \[\]\), \.\.\.\(ap \? \[WIFI\.MODE_APMAN, WIFI\.MODE_AP\] : \[\]\)/.test(wifiJs) && !/MODE_JAMHOST/.test(wifiJs),
-    "wifi AP: the panel and the AP modes (AP MAN, AP AUTO) show only with cap 1 (hidden with cap 0); JAM only where the build has it (group); no JAM HOST");
+  ok(/s\.mode === 7\) return s\.heard \?/.test(wifiJs), "wifi JANK: the status says the FM-1s heard, or alone");
+  ok(/s\.ap\.cap === 1/.test(wifiJs) && /root\.hidden = !on/.test(wifiJs) && /wf\.add\.hidden = inAp/.test(wifiJs) && /\.\.\.\(s\.group \? \[WIFI\.MODE_JANK\] : \[\]\), \.\.\.\(ap \? \[WIFI\.MODE_APMAN, WIFI\.MODE_AP\] : \[\]\)/.test(wifiJs) && !/MODE_JANKHOST/.test(wifiJs),
+    "wifi AP: the panel and the AP modes (AP MAN, AP AUTO) show only with cap 1 (hidden with cap 0); JANK only where the build has it (group); no JANK HOST");
   ok(/pw\.value = ""/.test(wifiJs.slice(wifiJs.indexOf("function wifiApForm"), wifiJs.indexOf("function wifiForm"))) && /type: "password"/.test(wifiJs.slice(wifiJs.indexOf("function wifiApForm"), wifiJs.indexOf("function wifiForm"))),
     "wifi AP: its password field is type=password and cleared as it is sent");
 }
@@ -3059,8 +3059,8 @@ async function midiSettings() {
 /* the protocol document: the device names (FM1-XXXX) and the Wi-Fi ops of this week agree with the firmware (ed_wifi.c, usb.c, ble_cfg.h) */
 {
   const doc = readFileSync(join(HERE, "EDITOR_PROTOCOL.md"), "utf8"), wf = readFileSync(join(HERE, "../firmware/src/io/editor/ed_wifi.c"), "utf8");
-  ok(/FM1-XXXX/.test(doc) && !/MIDI port is still named "Felucca"/.test(doc) && /"Felucca"/.test(doc) && /7 JAM where/.test(doc) && /\| 9 GROUP \|/.test(doc) && /EDWF_JAM 1/.test(wf) && /\| 5 AP KEY \|/.test(doc),
-    "protocol doc: the device is FM1-XXXX (older names still found), Wi-Fi MODE takes 7 JAM, GROUP is op 9, AP KEY is op 5");
+  ok(/FM1-XXXX/.test(doc) && !/MIDI port is still named "Felucca"/.test(doc) && /"Felucca"/.test(doc) && /7 JANK where/.test(doc) && /\| 9 GROUP \|/.test(doc) && /EDWF_JANK 1/.test(wf) && /\| 5 AP KEY \|/.test(doc),
+    "protocol doc: the device is FM1-XXXX (older names still found), Wi-Fi MODE takes 7 JANK, GROUP is op 9, AP KEY is op 5");
 }
 
 /* ------------------------------------------------- the mixer's keyboard (KEYS, keyPlan) --- */
