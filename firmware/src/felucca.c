@@ -91,6 +91,13 @@ static uint8_t live_save_off;            /* an erase held the audio (no suspend)
 #if FELUCCA_USB_AUDIO && FELUCCA_CDC
 #error "USB audio uses the CDC endpoints; build with FELUCCA_CDC=0"
 #endif
+#ifndef FELUCCA_CON_MIDI
+#define FELUCCA_CON_MIDI (FELUCCA_CDC && FELUCCA_OTA)   /* the console as SysEx on USB MIDI (io/console.c), with USB audio too */
+#endif
+#if FELUCCA_CON_MIDI && !FELUCCA_OTA
+#error "the console over USB MIDI uses the SysEx frames of FELUCCA_OTA"
+#endif
+#define FELUCCA_CONSOLE (FELUCCA_CDC || FELUCCA_CON_MIDI)   /* the console's code (io/console.c), either way */
 #include "io/midi/midi_rings.c"        /* the MIDI rings: the sequencer's in / out, the clock out (usb.c is a producer and consumer) */
 #include "system/devname.h"           /* "FM1-XXXX": the name USB (usb.c) and Bluetooth (midi_ble.c) show; the code: system/devname.c, before project.c */
 static int dev_uid_id(void);
@@ -324,7 +331,7 @@ static uint32_t mir_master(uint32_t pot) { return pot; }
 static void mir_draw_begin(void) {}
 static void mir_draw_end(void) {}
 #endif
-#if FELUCCA_CDC
+#if FELUCCA_CONSOLE
 #include "io/console.c"
 #ifdef ED_HAS_WIFI
 #include "io/editor/ed_wifi.c"         /* cmd 112: the Wi-Fi networks for the web editor (needs wifi_conn.c, so after the console) */

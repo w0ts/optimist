@@ -57,7 +57,7 @@ void fm1_timer5_irq(void)
     if (sub % 5u == 4u)
         ble_midi_poll();                        /* 2 kHz: BLE MIDI in -> the router (midi_ble.c) */
 #endif
-#if FELUCCA_WIFI && FELUCCA_CDC && BLE_HW_WL82
+#if FELUCCA_WIFI && FELUCCA_CONSOLE && BLE_HW_WL82
     if (sub % 5u == 3u)
         wl_midi_poll();                         /* 2 kHz: Link's clock ticks whose time has come -> the router (wifi/wifi_link.c) */
 #endif
@@ -514,6 +514,9 @@ static BOOT_ORDER void fm1_main(void)
             fm1_reboot();
         }
 #endif
+#if FELUCCA_CON_MIDI
+        con_sx_service();                               /* the console as SysEx on USB MIDI (io/console.c): before */
+#endif                                                  /* ota_service, which drops the frames it does not know */
         ota_service();                                  /* M-UPGRADE handshake */
         if (usb.ota_req) {                              /* M-UPGRADE upgrade command */
             usb.ota_req = 0;
@@ -544,6 +547,8 @@ static BOOT_ORDER void fm1_main(void)
         }
 #if FELUCCA_CDC
         cdc_task();
+#endif
+#if FELUCCA_CONSOLE
 #if FELUCCA_WIFI && BLE_HW_WL82
         wc_poll();                                      /* the Wi-Fi manager: a step a pass (wifi/wifi_conn.c) */
 #if FELUCCA_WIFI_AP
@@ -555,9 +560,12 @@ static BOOT_ORDER void fm1_main(void)
 #if FELUCCA_BT_AUDIO
         bti_poll();                                     /* the Classic probe's 1a at boot, its prints (bt/bt_inq.c) */
 #endif
-#if FELUCCA_DUAL && FELUCCA_DUALCFG && FELUCCA_CDC
-        if (con_reboot_req) {                           /* the console's `reboot` (the second-core test image) */
+#if FELUCCA_CONSOLE
+        if (con_reboot_req) {                           /* the console's `reboot` / `wdtreset` */
+            stop_first();                               /* the transport stops first, as before an update */
+#if FELUCCA_DUAL
             fm1_dual_halt();
+#endif
             fm1_audio_stop();
 #if FELUCCA_ARRANGER
             persist_flush_now();

@@ -970,25 +970,26 @@ _add("EX_NOTEGEN", "FELUCCA_EX_NOTEGEN", "note generators: the examples WALK and
           "every profile: a build without it is the build from before.")
 
 # ---- Connectivity (was "USB & BT & MIDI"; Wi-Fi + Link since 2026-10-28) (the user, 2026-10-20). USB MIDI (notes, clock, the editor and updates) is in every build. The USB
-# port's two extras, each a checkbox, not both: the controller has three data endpoints (hal/fm1_usb.h EP1..3), USB MIDI
-# takes EP1, USB audio EP2 both ways and EP3 IN, the console EP2 and EP3 (io/usb/usb.c). (bit 47, USB_MODE, the one
+# port's two extras, each a checkbox: the controller has three data endpoints (hal/fm1_usb.h EP1..3), USB MIDI takes
+# EP1, USB audio EP2 both ways and EP3 IN, the serial console EP2 and EP3 (io/usb/usb.c); with both the console runs
+# over USB MIDI only (SysEx, io/console.c FELUCCA_CON_MIDI; 2026-11-08). (bit 47, USB_MODE, the one
 # choice before: MIGRATE reads it; never reuse the bit)
 M = "Connectivity"
 _add("USB_MIDI", "", "USB MIDI (always: notes, clock, the editor, updates)", M, 362, default=1, no_image=True,
      fixed=True,
      desc="USB MIDI is in every build: notes and clock both ways, the web editor, and firmware updates (the installer "
           "and the builder flash through it). Shown for the record, it cannot be switched off.")
-_add("USB_CONSOLE", "", "USB serial console (logs, diagnostics)", M, 360, default=0,
-     desc="A read-only serial console on the USB port, next to USB MIDI, presented from the first start (no switch on the "
-          "device): the logs and the diagnostic commands (with Bluetooth audio, its btinq / btpage traces). Not with USB "
-          "audio: the USB port has three data "
-          "endpoints, USB MIDI takes one and USB audio the other two.")
+_add("USB_CONSOLE", "", "USB console (logs, diagnostics, reboot)", M, 360, default=0,
+     desc="A read-only console over USB, presented from the first start (no switch on the device): the logs, the "
+          "diagnostic commands (with Bluetooth audio, its btinq / btpage traces) and reboot. It runs over USB MIDI, as "
+          "SysEx (tools/fm1_console.py --midi), so it works with USB audio too; without USB audio it is also a serial "
+          "port next to USB MIDI (the USB port has three data endpoints: USB audio takes the two the serial port uses).")
 _add("USB_AUDIO", "", "USB audio (4 stems in, stereo out)", M, 361, default=0,
      desc="4 stems in + stereo out (UAC1) next to USB MIDI; the stems are resampled to the computer's clock (cubic, "
           "after X0X 80b7d40), so a host passing the input live to an output does not drop out. Needs +12 KB pool "
           "(a resampler in the audio path is CPU-heavy). It streams on the FM-1 since 2026-10-12 (before, a USB audio "
-          "build hung and went to the USB rescue); its audio quality is not checked yet. Not with the serial console: "
-          "the USB port has three data endpoints, USB MIDI takes one and USB audio the other two.",
+          "build hung and went to the USB rescue); its audio quality is not checked yet. With the console (USB_CONSOLE) it "
+          "takes the serial port's endpoints: the console then runs over USB MIDI only.",
      provenance=MELODEE_USB,
      notice="USB audio capture resampler ported from X0X by Charles Vestal (GPL-3.0), 80b7d40.")
 _add("UART", "FELUCCA_UART", "TRS MIDI IN", M, 48,

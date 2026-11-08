@@ -175,11 +175,11 @@ static int con_run(const char *p)
         con_run_heavy(r.arg);
         break;
     case CR_WDTRESET:
-#if FELUCCA_DUAL && FELUCCA_DUALCFG
+#ifdef CON_REBOOT_REQ                                   /* (Optimist's own firmware: io/console.c) */
         con_puts("wdtreset\r\n");
         con_reboot_req = 2;                             /* (main loop: as `reboot`, then the watchdog) */
 #else
-        con_puts("wdtreset: not in this build (needs the dualcfg image)\r\n");
+        con_puts("wdtreset: not in this build\r\n");
 #endif
         break;
     }

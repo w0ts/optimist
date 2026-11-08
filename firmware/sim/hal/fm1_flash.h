@@ -78,7 +78,7 @@ static volatile uint8_t fm1_flash_reading;
 #ifndef FM1_FLASH_LEAVE
 #define FM1_FLASH_LEAVE() ((void)0)
 #endif
-#if (defined(FELUCCA_USB_AUDIO) && FELUCCA_USB_AUDIO) || (defined(FELUCCA_CDC) && FELUCCA_CDC)
+#if (defined(FELUCCA_USB_AUDIO) && FELUCCA_USB_AUDIO) || ((defined(FELUCCA_CDC) && FELUCCA_CDC) || (defined(FELUCCA_CON_MIDI) && FELUCCA_CON_MIDI))
 static uint32_t fm1_irqoff_max;
 #define FM1_IRQOFF_TICKS(v) ((v) & 0x0FFFFFFFu)
 #define FM1_IRQOFF_KIND(v)  ((v) >> 28)
@@ -88,7 +88,7 @@ static inline uint32_t irq_save(void) { uint32_t ie = sim_ie; fm1_irq_off(); FM1
 static inline void irq_restore(uint32_t f) { FM1_FLASH_LEAVE(); if (f) fm1_irq_on(); }
 
 #define FLS_SLICE_US 1000u
-#if defined(FELUCCA_CDC) && FELUCCA_CDC
+#if (defined(FELUCCA_CDC) && FELUCCA_CDC) || (defined(FELUCCA_CON_MIDI) && FELUCCA_CON_MIDI)
 static uint16_t fl_erase_windows_max;
 static uint8_t fl_erase_held, fl_erase_nosus, fl_erase_redo;
 #endif

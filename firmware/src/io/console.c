@@ -1,20 +1,59 @@
 /* SPDX-License-Identifier: GPL-3.0-only
  * Copyright (C) 2026 Leo Kuroshita (@kurogedelic), Hügelton Instruments */
-/* Serial console on the CDC-ACM function (FELUCCA_CDC=1): read-only
- * diagnostics. Runs in the main loop (cdc_task); usb_poll moves the bytes.
- * The baud rate is ignored. Nothing here writes memory or flash; `uboot`
- * does what the SysEx soft key does. */
+/* The console: read-only diagnostics (FELUCCA_CONSOLE), over two transports:
+ *  - the CDC-ACM serial function (FELUCCA_CDC=1; not with USB audio): cdc_task, usb_poll moves the bytes, the baud
+ *    rate is ignored;
+ *  - SysEx on the USB MIDI port (FELUCCA_CON_MIDI=1; with USB audio too, the user 2026-11-08: "no need to choose
+ *    between serial and usb audio"): con_sx_service. A line in: F0 7D 46 43 'l' <ASCII> F7; the reply out in frames
+ *    F0 7D 46 43 'o' <ASCII> F7, then F0 7D 46 43 'e' F7 when the command is done (tools/fm1_console.py --midi).
+ * The reply goes back the way the last line came; traces printed between commands follow it. Nothing here writes
+ * memory or flash; `uboot` does what the SysEx soft key does, `reboot` restarts. */
 #define CON_LINE 64u
 #include "console_parse.h"                   /* con_word, con_num, con_run_parse (host-tested: tests/console_parse_test.c) */
 
+#if FELUCCA_CON_MIDI
+#define CON_SX_N 120u                        /* text bytes in a reply frame (125 on the wire: within usb.c's SXQ) */
+#endif
 static struct {
     char line[CON_LINE];
     uint32_t len;
     uint8_t dtr_seen, stalled;   /* stalled: the host stopped reading, drop the rest of this reply */
+#if FELUCCA_CON_MIDI
+    uint8_t via_sx;              /* the last line came as SysEx: the replies go there */
+    uint8_t sx_n;                /* text bytes waiting in sx[] */
+    uint8_t sx[5u + CON_SX_N + 1u];   /* F0 7D 46 43 'o' <text> F7 */
+#endif
 } con;
+
+#if FELUCCA_CON_MIDI
+static void con_sx_flush(uint8_t kind)                 /* the waiting text as one 'o' frame; kind 'e': then the end */
+{
+    static const uint8_t END[6] = {0xF0, 0x7D, 0x46, 0x43, 'e', 0xF7};
+    if (con.sx_n && !con.stalled) {
+        con.sx[0] = 0xF0, con.sx[1] = 0x7D, con.sx[2] = 0x46, con.sx[3] = 0x43, con.sx[4] = 'o';
+        con.sx[5u + con.sx_n] = 0xF7;
+        if (ota_wire_send(con.sx, 6u + con.sx_n))
+            con.stalled = 1;                           /* no host, or it stopped reading: drop the rest of this reply */
+    }
+    con.sx_n = 0;
+    if (kind == 'e')
+        (void)ota_wire_send(END, sizeof END);
+}
+#endif
 
 static void con_putc(char c)
 {
+#if FELUCCA_CON_MIDI
+    if (con.via_sx) {
+        if (con.stalled)
+            return;
+        con.sx[5u + con.sx_n++] = (uint8_t)(c & 0x7F);
+        if (con.sx_n >= CON_SX_N)
+            con_sx_flush('o');
+        return;
+    }
+#endif
+#if FELUCCA_CDC
     uint32_t t0 = fm1_ms;
     while (co_w - co_r >= CO_N) {                      /* full: wait for usb_poll, briefly */
         if (!cdc.dtr || con.stalled || fm1_ms - t0 > 20u) {
@@ -26,6 +65,9 @@ static void con_putc(char c)
     cdc_out[co_w % CO_N] = (uint8_t)c;
     RING_PUBLISH();
     co_w++;
+#else
+    (void)c;
+#endif
 }
 
 static void con_puts(const char *s)
@@ -1418,8 +1460,9 @@ static void con_boot(void)
 #endif
 }
 
+#define CON_REBOOT_REQ 1
+static uint8_t con_reboot_req;                          /* `reboot` 1, `wdtreset` 2: main.c resets, as an intentional reset */
 #if FELUCCA_DUAL && FELUCCA_DUALCFG
-static uint8_t con_reboot_req;                          /* `reboot`: main.c resets, as an intentional reset */
 /* the second-core test image (system/dual.c dualcfg): `dualcfg show | reset | start boot|after|never | late MS |
  * park on|off | idle sleep|spin | hold MS | poll N | boost on|off | ble on|off | policy ble-exclusive|none`. Saved with the settings record at once,
  * applied at the next boot (`reboot`, or a power-on) */
@@ -1691,9 +1734,9 @@ static void con_exec(const char *p)
         return;
     if (con_word(&p, "help") || con_word(&p, "?"))
         con_puts("play  pause  stop  rec on|off  proj load N  heavy [NOTES]  wdtreset  "
-                 "status  dbg  crash  boot  "
+                 "status  dbg  crash  boot  reboot  "
 #if FELUCCA_DUAL && FELUCCA_DUALCFG
-                 "dualcfg  reboot  "
+                 "dualcfg  "
 #endif
                  "params  tabbench  memr ADDR [LEN]  flr OFF [LEN]"
 #if FELUCCA_MEMBENCH && defined(__PI32V2__)
@@ -1729,11 +1772,11 @@ static void con_exec(const char *p)
 #if FELUCCA_DUAL && FELUCCA_DUALCFG
     else if (con_word(&p, "dualcfg"))
         con_dualcfg(p);
+#endif
     else if (con_word(&p, "reboot")) {
         con_puts("rebooting\r\n");
         con_reboot_req = 1;                            /* (main loop: an intentional reset, not a failed boot) */
     }
-#endif
     else if (con_word(&p, "params"))
         con_params();
     else if (con_word(&p, "tabbench"))
@@ -1819,8 +1862,43 @@ static void con_exec(const char *p)
         con_puts("? (help)\r\n");
 }
 
+#if FELUCCA_CON_MIDI
+/* main loop, after ed_service (the editor's frames) and before ota_service (M-UPGRADE's): a console line as SysEx,
+ * run, its reply sent back as SysEx; and the text a trace printed since the last pass */
+static void con_sx_service(void)
+{
+    const uint8_t *p;
+    uint32_t n, i, k = 0;
+    char line[CON_LINE];
+    if (con.via_sx && con.sx_n) {
+        con.stalled = 0;
+        con_sx_flush('o');
+    }
+    if (!ota_frame_get(&p, &n) || n < 4u || p[0] != 0x7D || p[1] != 0x46 || p[2] != 0x43)
+        return;
+    for (i = 4; p[3] == 'l' && i < n && k + 1u < CON_LINE; i++)
+        if (p[i] >= ' ' && p[i] < 0x7F)
+            line[k++] = (char)p[i];
+    line[k] = 0;
+    i = p[3];
+    ota_frame_done();                                  /* (the line copied: the ISR may take the next frame) */
+    if (i != 'l')
+        return;
+    con.via_sx = 1;
+    con.stalled = 0;
+    con.sx_n = 0;
+    con_exec(line);
+    con_sx_flush('e');
+}
+#endif
+
+#if FELUCCA_CDC
 static void cdc_task(void)                              /* main loop */
 {
+#if FELUCCA_CON_MIDI
+    if (ci_r != ci_w || (cdc.dtr && !con.dtr_seen))
+        con.via_sx = 0;                                /* the serial port spoke last: the replies go there */
+#endif
     if (cdc.dtr && !con.dtr_seen) {
         con_puts("\r\nOptimist (Felucca) ");
         con_puts(FELUCCA_VERSION);
@@ -1853,3 +1931,4 @@ static void cdc_task(void)                              /* main loop */
         }
     }
 }
+#endif   /* FELUCCA_CDC */

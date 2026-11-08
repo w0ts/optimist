@@ -91,7 +91,7 @@ static int bp_rng(uint8_t *d, unsigned n)
 }
 static void bp_queue_w(const uint8_t *pdu, uint32_t len, const char *why);
 /* (why: the console's line, with a console; without one its string need not be in flash: 162 B on mots.config) */
-#define bp_queue(pdu, len, why) bp_queue_w((pdu), (len), FELUCCA_CDC ? (why) : (const char *)0)
+#define bp_queue(pdu, len, why) bp_queue_w((pdu), (len), FELUCCA_CONSOLE ? (why) : (const char *)0)
 static void bp_ssp_send(void *ctx, const uint8_t *pdu, uint32_t len)
 {
     (void)ctx;
