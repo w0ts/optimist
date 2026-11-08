@@ -286,7 +286,7 @@ not set; `tools/optimist.py build` strips `FELUCCA_*` from it, so these are for 
 | --- | --- | --- |
 | `FELUCCA_FLASH` | 1 | settings, presets and projects in flash |
 | `FELUCCA_OTA` | 1 | the update entry and USB rescue (needs `FELUCCA_FLASH`); not a builder item |
-| `FELUCCA_USB_AUDIO` / `FELUCCA_CDC` | 1 / `!USB_AUDIO` | USB audio and the serial console share endpoints (both on is a build error); the builder's `USB_CONSOLE` and `USB_AUDIO` set them |
+| `FELUCCA_USB_AUDIO` / `FELUCCA_CDC` / `FELUCCA_CON_MIDI` | 1 / `!USB_AUDIO` / `CDC` | USB audio and the serial port share endpoints (both on is a build error); the console over USB MIDI (SysEx) goes with either; the builder's `USB_CONSOLE` (CON_MIDI, and CDC without USB audio) and `USB_AUDIO` set them |
 | `FELUCCA_ASM_CHECK` | 0 | verification build: every asm loop also runs the C on a copy (not for release) |
 | `FELUCCA_MUL64_CLEAR` | 0 | the asm loops (SVF, PHYS's curved string and sympathetic comb) with no load beside a 64-bit multiply (fm1-base's felucca-bsp docs/CPU.md), the same values, a few instructions more; set with `OPTIMIST_MUL64_CLEAR=1` (either way of building). Optimist as an fm1-base app builds with it |
 | `FELUCCA_UNDO_CAP` | 0 | the undo ring at most this many bytes (0 = all the memory left over) |
