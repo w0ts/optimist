@@ -17,7 +17,7 @@ static void drum_env_tests(void)
     memset(&dl, 0, sizeof dl);
     song.sel = TRK_DRUM;
     TDRUM->p[P_E0] = DRUM_SAMPLED;                      /* the 808: synthesised */
-    lane_select(2);                                     /* the snare (SHIFT held + its key picks it) */
+    lane_select(1);                                     /* the snare (SHIFT held + its key picks it) */
     ui.lane = 1;                                        /* (picked: the lane's ENV needs one, 2026-10-13) */
     frame();
     tap(B_ENV);
@@ -28,20 +28,26 @@ static void drum_env_tests(void)
               !strcmp(snd_page(2)->title, "ENV2 DEST"), "the drum track, ENV: the lane's ENV row, then its ENV2 and ENV2 DEST (2026-10-18)");
     check(!strcmp(denv_label(0), "CLICK") && !strcmp(denv_label(1), "DECAY") && !strcmp(denv_label(2), "BEND") &&
           !strcmp(denv_label(3), "LEVEL"), "drum ENV, the 808's snare: CLICK DECAY BEND LEVEL");
+    lane_select(2);                                     /* the clap: noise only, no tone to bend (tests/drum_show_test.c) */
+    frame();
+    check(!strcmp(denv_label(0), "CLICK") && !strcmp(denv_label(1), "DECAY") && !denv_label(2)[0] &&
+          !strcmp(denv_label(3), "LEVEL"), "drum ENV, the 808's clap: CLICK DECAY LEVEL (no BEND)");
+    lane_select(1);
+    frame();
     check(snd_graph_page(0) == snd_page(0) && op_screen_btn() == B_ENV, "drum ENV: its own graph, the ENV button's screen");
     ui.force = 1;
     frame();
     ppm("opt-drum-env");
     turn(EN_K2, -10);
-    check(dl.ofs[2][DE_DECAY] < -5 && !dl.ofs[0][DE_DECAY], "drum ENV: KNOB 2 DECAY shorter, on the snare only");
+    check(dl.ofs[1][DE_DECAY] < -5 && !dl.ofs[0][DE_DECAY], "drum ENV: KNOB 2 DECAY shorter, on the snare only");
     turn(EN_K1, 6);
-    check(dl.ofs[2][DE_CLICK] > 0, "drum ENV: KNOB 1 CLICK up on the snare");
+    check(dl.ofs[1][DE_CLICK] > 0, "drum ENV: KNOB 1 CLICK up on the snare");
     {   /* the sound the next hit plays (drum_edit.c de_synth): shorter, more click */
         int32_t semi;
         dsnd_t dd, o;
         const dsnd_t *d = &dd;
-        ds_unpack(&dd, DS_SND(&DS_KITS[0], ds_lane(LANE_NOTE_OF(2), &semi)));
-        de_synth(&o, d, dl_ofs(2));
+        ds_unpack(&dd, DS_SND(&DS_KITS[0], ds_lane(LANE_NOTE_OF(1), &semi)));
+        de_synth(&o, d, dl_ofs(1));
         check(o.decay < d->decay && o.click > d->click, "drum ENV: the snare's sound changed (decay shorter, click up)");
     }
 #if FELUCCA_PARAM_HELP && LANE_LFO_UI
@@ -66,15 +72,15 @@ static void drum_env_tests(void)
     {
         cell_t c;
         page_cell(snd_page(0), 1, &c);
-        check(c.gv == 0 && dl.ofs[2][DE_DECAY] < -5, "drum ENV follows the lane picked (the kick: DECAY 0)");
+        check(c.gv == 0 && dl.ofs[1][DE_DECAY] < -5, "drum ENV follows the lane picked (the kick: DECAY 0)");
     }
     tap(B_EDIT);
     for (r = 0, n = SCR->rows(), only = 0; r < n; r++)
         if (snd_page(r) && snd_page(r)->id[0] == 0u && snd_page(r)->scope == SC_DSND) {
             cell_t c;
-            lane_select(2);
+            lane_select(1);
             page_cell(snd_page(r), 1, &c);
-            only = c.gv == dl.ofs[2][DE_DECAY];
+            only = c.gv == dl.ofs[1][DE_DECAY];
         }
     check(only, "SOUND: the same DECAY (the same storage)");
     tap(B_ENV);
