@@ -1138,7 +1138,7 @@ static void mir_poll(void)
     if (mst.fix_open && fm1_ms - mst.fix_ms >= 100u)
         mst.fix_open = 0, mst.fix_bytes += mst.bytes - mst.fix_b0;   /* (a repair's bytes: those within 100 ms of it) */
     mir_mark();
-    if (!mir.on || !mir.behind || ui.overlay == 5u || ui.overlay == 1u || ui.overlay == 3u || ui.overlay == 4u ||   /* (a question, the REC
+    if (!mir.on || !mir.behind || ui.overlay == 5u || ui.overlay == 1u || ui.overlay == 3u || ui.overlay == 4u || ui.overlay == 6u ||   /* (a question, the REC
         ring, a Bluetooth code draw themselves alone: the panel above them, a full screen's band, is not drawn again under them;
         the catch-up once they close, as under PRESETS' popup list. Under a question on SONG the client's table stayed black, 2026-11-04) */
         (mir.link == MIR_BT ? (MBA_ON() ? !mba_ready() : !mir_bt_clear()) : so_w != so_r) ||

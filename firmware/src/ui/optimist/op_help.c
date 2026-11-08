@@ -367,12 +367,12 @@ static void hl_pre(uint32_t ov)
         ui.sig[5] = 0;
         cv_whole(HL_Y, HL_H, C_BLACK, cv_none);
     }
-    vis = !wide && (hl_menu() || lay_hint_t || (hl.t && hl.scr == ui.scr && lay.shown == LY_PLAY && !page_owned())) && ov != 1u && ov != 3u && ov != 4u;
+    vis = !wide && (hl_menu() || lay_hint_t || (hl.t && hl.scr == ui.scr && lay.shown == LY_PLAY && !page_owned())) && ov != 1u && ov != 3u && ov != 4u && ov != 6u;
     if (vis && !hl_menu() && !lay_hint_t && !hl_text()) {
         char w[64];
         vis = hl_src(w) != 0;                           /* (no line: shown still when the value is automated, its sources) */
     }                                        /* (a value with no line: nothing; a menu keeps its empty line) */
-    hl_nn_only = !wide && !vis && nn_vis && ov != 1u && ov != 3u && ov != 4u;   /* (the note played on the keys alone: the line shows */
+    hl_nn_only = !wide && !vis && nn_vis && ov != 1u && ov != 3u && ov != 4u && ov != 6u;   /* (the note played on the keys alone: the line shows */
     vis |= hl_nn_only;                                                  /* it and nothing else, op_draw.c nn_tick) */
     if (op_again & OPA_HELP) {                          /* (a repaint: the band drawn again, the line by hl_post, else black) */
         op_again &= (uint8_t)~OPA_HELP;
