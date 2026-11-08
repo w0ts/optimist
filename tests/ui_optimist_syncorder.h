@@ -91,6 +91,7 @@ static void midi_lists_tests(void)
         test_wait_beats = 0u;
         frames(2);
         check(!lk_count && op_overlay() != 6u, "Link: started (or the wait dropped): the count gone at once");
+        ppm("opt-link-count-after");
         ui_message("SAVED");
         check(!lk_count && !strcmp(ui.msg, "SAVED"), "Link: no header message of its own (a message stays the other's)");
     }
