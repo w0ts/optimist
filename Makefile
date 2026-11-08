@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: GPL-3.0-only
 # Shortcuts for tools/optimist.py (which works without make: BUILDING.md). `make help` lists them.
 .DEFAULT_GOAL := help
-.PHONY: help setup sdk builder build classic package sd-zip sdcard sdcard-firmwares stage2 flash profiles publish unpublish share delete web site emu emu-list emu-update test costs costs-all gate emu-check mirror
+.PHONY: help setup sdk builder build classic package sd-zip sdcard sdcard-firmwares dn2-samples stage2 flash profiles publish unpublish share delete web site emu emu-list emu-update test costs costs-all gate emu-check mirror
 
 PY ?= python3
 PROFILE ?= mots-config
@@ -23,10 +23,12 @@ help:
 	@echo "make sd-zip  [PROFILE=name | CONFIG=file]  the SD card zip alone: build/optimist-sd-card.zip, every factory preset"
 	@echo "                              and kit, the samples and FM6 packs the configuration ticks (no PROFILE or CONFIG: the"
 	@echo "                              builder menu's build/builder.config); every build with SDCARD makes it beside its .fwsc"
-	@echo "make sdcard  [CARD=/Volumes/<name>] [YES=1] [DRY=1] [PROFILE=name | CONFIG=file]  prepare an SD card for SD card"
+	@echo "make sdcard  [CARD=/Volumes/<name>] [YES=1] [DRY=1] [SAMPLES=lib | NO_SAMPLES=1] [PROFILE=name | CONFIG=file]  prepare an SD card for SD card"
 	@echo "                              mode: the FM-1's folders and that zip's factory presets, kits and samples (replaced"
 	@echo "                              where they changed); your own files never touched. No CARD: it asks which card (the"
 	@echo "                              last used first) and asks before it writes. The builder menu's c does the same"
+	@echo "make dn2-samples [LIB=lib] [SRC=folder] [DRY=1]  the DN2 folder made from the sorted library, then synced with a Digitone II's +Drive library (dn2mk2):"
+	@echo "                              what the DN2 has is read first, then deleted / sent again / sent to match (tools/dn2_sync.py)"
 	@echo "make sdcard-firmwares [CARD=/Volumes/<name>]  the latest firmwares into build/sd-firmwares/ and onto the SD card's"
 	@echo "                              /FIRMWARES for the SD flasher: the card is found by itself (several: it asks); packages added by hand stay"
 	@echo "make flash   [PKG=file.fwsc] [KEEP_BOOTLOADER=1] [FM1=NAME|all]   build $(PROFILE) and install it (or PKG as it is); shows the identities, the route and the bootloader, and asks (several FM-1s: which one, or all, one after the other)"
@@ -85,7 +87,12 @@ sd-zip:
 
 # (the user runs it: it writes to the card it is given or picks; never run by an agent on a real card)
 sdcard:
-	$(PY) tools/optimist.py sdcard $(if $(CARD),--card "$(CARD)") $(if $(YES),--yes) $(if $(DRY),--dry-run) $(SD_CFG)
+	$(PY) tools/optimist.py sdcard $(if $(CARD),--card "$(CARD)") $(if $(YES),--yes) $(if $(DRY),--dry-run) $(if $(SAMPLES),--samples "$(SAMPLES)") $(if $(NO_SAMPLES),--no-samples) $(SD_CFG)
+
+# (the user runs it: it writes to the DN2 it finds; never run by an agent with a DN2 plugged in)
+# dn2-samples [LIB=<sorted library>] [SRC=<DN2 folder>] [DRY=1] [YES=1] [REPLACE=1]: SRC made from LIB, then sync it with a Digitone II's +Drive library (tools/dn2_sync.py)
+dn2-samples:
+	tools/builder/venv/bin/python tools/dn2_sync.py $(if $(SRC),"$(SRC)") $(if $(LIB),--lib "$(LIB)") $(if $(DRY),--dry-run) $(if $(YES),--yes) $(if $(REPLACE),--replace)
 
 # (the user runs it: it writes to the card it finds; never run by an agent with a real card in)
 sdcard-firmwares:

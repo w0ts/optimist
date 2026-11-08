@@ -19,9 +19,16 @@ With no --card it asks (tools/sd_card_volumes.py pick: the mounted removable FAT
 another folder); with no terminal it refuses. Then it shows the plan in one line and asks "Go? [y/N]" (--yes, or no
 terminal with --card: no confirmation).
 --card must be a mounted FAT volume's root (never /, the home or the repo); a typed folder only warns. The destination
-is remembered after a write that succeeded (build/sdcard-last.json)."""
+is remembered after a write that succeeded (build/sdcard-last.json).
+
+Your sample library (the user, 2026-11-08: "copy everything to the currently plugged sd card"): --samples LIB, a library
+sorted by type by tools/sd_sort_samples.py sort (LIB/<Type>/<name>.wav), goes to Optimist/Samples/<Type>/: a file added
+when missing, replaced when its size differs, never removed (it is user content: a sample deleted from the library stays
+on the card). LIB is remembered (build/sdcard-samples.txt), so a later `make sdcard` copies it again; --no-samples skips
+it. A type folder named as a factory sample folder (Bass, Piano ..) is refused: make sdcard mirrors those."""
 import argparse
 import os
+import shutil
 import sys
 import zipfile
 from dataclasses import dataclass, field
@@ -37,6 +44,7 @@ TOP = "Optimist"
 FACTORY = [f"{TOP}/Presets/Factory", f"{TOP}/Kits/Factory"] + [f"{TOP}/Samples/{d}" for d in sd_samples.factory_dirs()]
 FACTORY_FILES = [f"{TOP}/readme.txt", sd_zip.STAGE2_REL]
 USER_DIRS = [f"{TOP}/{d}" for d in sd_zip.DIRS + sd_zip.SUBDIRS] + [sd_zip.FIRMWARES]
+SAMPLES_FILE = ROOT / "build" / "sdcard-samples.txt"   # (the library last copied)
 
 
 @dataclass
@@ -121,6 +129,60 @@ def apply(root, plan, entries):
     return written
 
 
+def lib_plan(root, lib):
+    """the library's copy -> ([(source, rel on the card)] to add, [..] to replace, unchanged count, bytes)"""
+    lib = Path(lib)
+    factory = {d.lower() for d in sd_samples.factory_dirs()}
+    add, rep, same, size = [], [], 0, 0
+    for t in sorted(d for d in lib.iterdir() if d.is_dir() and not d.name.startswith(".")):
+        if t.name.lower() in factory:
+            raise SystemExit(f"sd_card: {t} is named as a factory sample folder (mirrored by make sdcard): rename it")
+        for f in sorted(x for x in t.iterdir() if x.is_file() and x.suffix.lower() == ".wav" and not x.name.startswith(".")):
+            rel = f"{TOP}/Samples/{t.name}/{f.name}"
+            p = Path(root) / rel
+            n = f.stat().st_size
+            if not p.is_file():
+                add.append((f, rel))
+            elif p.stat().st_size != n:
+                rep.append((f, rel))
+            else:
+                same += 1
+                continue
+            size += n
+    return add, rep, same, size
+
+
+def lib_apply(root, todo, say):
+    """the library's files written plainly (no ._ twin), with progress -> bytes"""
+    written = 0
+    for i, (src, rel) in enumerate(todo, 1):
+        p = Path(root) / rel
+        p.parent.mkdir(parents=True, exist_ok=True)
+        tmp = p.with_name(p.name + ".part")
+        with open(src, "rb") as fi, open(tmp, "wb") as fo:
+            shutil.copyfileobj(fi, fo, 1 << 20)
+        os.replace(tmp, p)
+        _drop_twin(p)
+        written += src.stat().st_size
+        if i % 250 == 0 or i == len(todo):
+            say(f"  samples: {i} / {len(todo)}")
+    return written
+
+
+def lib_choose(args, say):
+    """-> the library to copy, or None: --samples (remembered), else the one remembered, unless --no-samples"""
+    if args.no_samples:
+        return None
+    lib = args.samples or (SAMPLES_FILE.read_text().strip() if SAMPLES_FILE.is_file() else "")
+    if not lib:
+        return None
+    lib = os.path.expanduser(lib)
+    if not os.path.isdir(lib):
+        say(f"sdcard: the sample library {lib} is not there: samples skipped")
+        return None
+    return lib
+
+
 def summary_line(name, plan):
     return (f"card {name}: {len(plan.add)} files to add, {len(plan.replace)} to replace, {len(plan.remove)} factory "
             f"files to remove; user content kept")
@@ -159,6 +221,10 @@ def run(argv=None, ask=input, say=print, tty=None, volumes=None, last_file=V.LAS
     g = ap.add_mutually_exclusive_group()
     g.add_argument("--config", help="the configuration whose ticks the card gets (default build/builder.config)")
     g.add_argument("--profile", help="a profile instead")
+    s = ap.add_mutually_exclusive_group()
+    s.add_argument("--samples", help="your library sorted by type (tools/sd_sort_samples.py sort): to Optimist/Samples/, "
+                                     "remembered for the next time")
+    s.add_argument("--no-samples", action="store_true", help="the remembered library not copied this time")
     args = ap.parse_args(argv)
     c = None
     if not zpath:
@@ -173,8 +239,19 @@ def run(argv=None, ask=input, say=print, tty=None, volumes=None, last_file=V.LAS
     entries = content(zpath, c)
     plan = make_plan(dest, entries)
     line = summary_line(vol.name if vol else dest, plan)
+    lib = lib_choose(args, say)
+    ladd, lrep, lsame, lsize = lib_plan(dest, lib) if lib else ([], [], 0, 0)
+    if lib:
+        free = shutil.disk_usage(dest).free
+        line += (f"; samples from {lib}: {len(ladd)} to add, {len(lrep)} to replace, {lsame} unchanged, "
+                 f"{lsize / 1e6:,.0f} MB ({free / 1e6:,.0f} MB free)")
+        if lsize > free:
+            say(line)
+            say("sdcard: not enough room on the card for the samples: nothing written")
+            return 1
     if args.dry_run:
-        for tag, rels in (("add", plan.add), ("replace", plan.replace), ("remove", plan.remove), ("mkdir", plan.mkdirs)):
+        for tag, rels in (("add", plan.add), ("replace", plan.replace), ("remove", plan.remove), ("mkdir", plan.mkdirs),
+                          ("add", [r for _, r in ladd]), ("replace", [r for _, r in lrep])):
             for r in rels:
                 say(f"  {tag:8s} {r}")
         say(line + f" ({plan.unchanged} unchanged); dry run: nothing written")
@@ -185,6 +262,13 @@ def run(argv=None, ask=input, say=print, tty=None, volumes=None, last_file=V.LAS
             say("cancelled: nothing written")
             return 1
     written = apply(dest, plan, entries)
+    if lib:
+        written += lib_apply(dest, ladd + lrep, say)
+        if hasattr(os, "sync"):
+            os.sync()
+        if args.samples:
+            SAMPLES_FILE.parent.mkdir(parents=True, exist_ok=True)
+            SAMPLES_FILE.write_text(os.path.abspath(lib) + "\n")
     V.remember(dest, vol, last_file)
     say(f"done: {len(plan.add)} added, {len(plan.replace)} replaced, {len(plan.remove)} removed, {plan.unchanged} "
         f"unchanged; {written:,} B written. Eject the card (Finder: the eject button beside it) before pulling it out.")

@@ -895,6 +895,33 @@ static int sdm_open(uint32_t list, uint32_t view, const char *vname)
         sdm.b.n = 0;
     return r == FR_OK ? 0 : -1;
 }
+#if FELUCCA_SD_LANES
+/* a drum lane's type folder (the user, 2026-11-08: "scroll thru all the samples, per type, so that i can build my own kits";
+ * the folders "kick, snare, hh, clp, etc."; tools/sd_sort_samples.py writes them): Optimist/Samples/<Type> by the lane's
+ * instrument, the first of the two that is on the card */
+static const char *const SDM_LANE_DIR[INST_N][2] = {
+    [INST_KICK] = {"Kick", 0},       [INST_KICK2] = {"808", "Kick"},  [INST_SNARE] = {"Snare", 0},
+    [INST_CLAP] = {"Clp", 0},        [INST_CH] = {"HH", 0},           [INST_OH] = {"OH", "HH"},
+    [INST_PH] = {"HH", 0},           [INST_RIM] = {"Rim", 0},         [INST_SNARE2] = {"Snare", 0},
+    [INST_LT] = {"Tom", 0},          [INST_HT] = {"Tom", 0},          [INST_CRASH] = {"Crash", 0},
+    [INST_RIDE] = {"Ride", "Crash"}, [INST_SHAKER] = {"Shkr", "Perc"}, [INST_CONGA] = {"Conga", "Perc"},
+    [INST_COWBELL] = {"Bell", "Perc"}, [INST_MT] = {"Tom", 0},        [INST_CLAVE] = {"Clave", "Perc"}};
+/* SAMPLES' folder view on lane l's type folder: 1 shown (its page coming), 0 none on the card (the list as it was) */
+static int sdm_lane_dir(uint32_t l)
+{
+    const char *const *d = SDM_LANE_DIR[lane_inst(l % DRUM_LANES) % INST_N];
+    FILINFO fi;
+    uint32_t i;
+    if (!sdm_ready() || sdm.list != SDC_SMP || sdm.view != SDV_FOLDER)
+        return 0;
+    for (i = 0; i < 2u && d[i]; i++)
+        if (sdl_path(sdm.path, sizeof sdm.path, SDL_SAMPLES, d[i]) && f_stat(sdm.path, &fi) == FR_OK && (fi.fattrib & AM_DIR))
+            return sdm_was(sdm_go(SDB_FOLDER, sdm.path)) == FR_OK;
+    return 0;
+}
+#else
+static int sdm_lane_dir(uint32_t l) { (void)l; return 0; }
+#endif
 /* the flat NAME list of the presets by engine (the user, 2026-11-04: "flat name list, filtered by engine"): only the files under
  * a folder of that engine's name; "" every engine's. Set before sdm_open; the list read again by it */
 static void sdm_name_filter(int32_t e)
