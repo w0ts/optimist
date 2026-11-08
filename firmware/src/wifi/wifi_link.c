@@ -162,6 +162,20 @@ static void wl_clock(int64_t now)                      /* Link's session as MIDI
     }
 }
 
+/* a START waiting for the session's bar line (wl_clock: 96 ticks, 4 beats, the quantum): PLAY while following Link
+ * (link_hop), or the session started by a peer while stopped (ON+S/S): the beats left until it, 4 .. 1; 0 none (the UI's
+ * countdown, op_wifi.c wf_link_count; the user, 2026-11-08: "a notice / count down until it starts"). wl.k is the next tick
+ * queued, WL_AHEAD_US ahead of the sound: the count turns a hair early */
+static uint32_t wl_wait_beats(void)
+{
+    uint32_t d;
+    int wait = link_hop || (link_mode == LINK_ONSS && lk_playing(&wl_lk) && !wl.started);
+    if (song.playing || !wl.feed || !wait)
+        return 0;
+    d = (96u - wl.k % 96u) % 96u;
+    return d ? (d + 23u) / 24u : 1u;
+}
+
 static void wl_push_own(int64_t now)                   /* the FM-1's own PLAY/STOP and tempo, to the Link session */
 {
     int32_t mpb;

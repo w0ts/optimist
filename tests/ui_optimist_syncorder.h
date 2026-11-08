@@ -72,6 +72,30 @@ static void midi_lists_tests(void)
         check(ok && v == MOUT_OFF, "MIDI OUT: the knob steps OFF, KEYS, SEQ, BOTH (stored 3, 0, 2, 1), no wrap; the stored numbers unchanged");
     }
 #endif
+#if FELUCCA_LINK && WIFI_UI
+    {   /* PLAY under Link waits for the session's bar: "LINK START IN n" a beat, gone once it plays (op_wifi.c wf_link_count) */
+        reset_ui();
+        test_wait_beats = 4u;
+        wf_poll();
+        check(ui.msg_t && !strcmp(ui.msg, "LINK START IN 4"), "Link: PLAY waiting for the bar says LINK START IN 4");
+        ui.msg_t = 0;
+        wf_poll();
+        check(!ui.msg_t, "Link: the same beat says nothing again");
+        test_wait_beats = 1u;
+        wf_poll();
+        check(ui.msg_t && !strcmp(ui.msg, "LINK START IN 1"), "Link: the next beat's count, LINK START IN 1");
+        test_wait_beats = 0u;
+        wf_poll();
+        check(!ui.msg_t, "Link: started (or the wait dropped): the count gone at once");
+        ui_message("SAVED");
+        test_wait_beats = 3u;
+        wf_poll();
+        test_wait_beats = 0u;
+        ui_message("OTHER");
+        wf_poll();
+        check(ui.msg_t && !strcmp(ui.msg, "OTHER"), "Link: the count's end leaves another message alone");
+    }
+#endif
 #if FELUCCA_LINK
     {   /* GLOBAL > MIDI: LINK beside CLK IN / CLK OUT (OFF, ON, ON+S/S; ON+S/S, what Link did before, the default), LINK OFS on the next page */
         uint32_t w, o, ok;
