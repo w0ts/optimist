@@ -133,6 +133,37 @@ static const param_desc_t DSD_CARD = PN("SRC", F_ENUM, 0, 1, 0, N_DLCARD);   /* 
                                                                                 * takes it back to KIT (op_cells.c) */
 #endif
 
+#if FELUCCA_DRUM_EDIT && DRUM_DS
+/* the synthesised sound lane l plays into *d (what drum_on takes: the kit's, a note an X0X machine lacks its stand-in's);
+ * 0: a sampled, user, card or X0X sound */
+static int dsnd_synth(uint32_t l, dsnd_t *d)
+{
+    uint32_t kit = dl_kit_of(l, drum_kit());
+    int32_t semi;
+    if (dl_usr_of(l))
+        return 0;
+#if DRUM_X0X
+    if (DRUM_IS_X0X(kit)) {
+        if (x0x_show(kit, l))
+            return 0;
+        kit = x0x_standin(kit);
+    }
+#endif
+    if (!DRUM_IS_SYNTH(kit))
+        return 0;
+    FAST_CALL(seq, ds_unpack)(d, DS_SND(ds_kit(kit), ds_lane(LANE_NOTE_OF(l), &semi)));
+    return 1;
+}
+/* the values de_synth (drum_edit.c) can leave without a sound, from the sound's own data (tests/drum_show_test.c measures
+ * every kit and lane): BEND bends the tone, so a sound with none (hats, clap, shaker: noise only) and the Plaits models
+ * (their own pitch envelope) show none. SNAP stays wherever it changes the sound, a noise-only sound's level too (the
+ * user, 2026-11-08: "keep values that make changes to the sound"); only a Plaits kick ignores it */
+static int dsnd_acts(const dsnd_t *d, uint32_t id)
+{
+    int tone = d->wave && d->wave != DW_PKICK && d->wave != DW_PSNARE;
+    return id == DE_BEND ? tone : id == DE_SNAP ? d->wave != DW_PKICK : 1;
+}
+#endif
 /* page_desc of a SOUND page for lane l: the descriptor of value id (0 = none here), *vp its value (also the
  * editor's DRUM_SHOW, ed_dsrc.c: what applies to any lane) */
 static const param_desc_t *dsnd_desc_lane(uint32_t l, uint32_t id, int16_t **vp)
@@ -152,6 +183,13 @@ static const param_desc_t *dsnd_desc_lane(uint32_t l, uint32_t id, int16_t **vp)
                 return 0;
             if (xs && id == DE_TUNE && !(xs & XS_SEMI))
                 return &XSD_TUNE;                       /* (its TUNE in steps, not semitones) */
+        }
+#endif
+#if DRUM_DS
+        if (id == DE_SNAP || id == DE_BEND) {           /* a synthesised sound: what its data lacks is not shown */
+            dsnd_t d;
+            if (dsnd_synth(l, &d) && !dsnd_acts(&d, id))
+                return 0;
         }
 #endif
     } else if (id == 8u) {

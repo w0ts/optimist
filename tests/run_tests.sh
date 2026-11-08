@@ -672,6 +672,10 @@ mkdir -p "$OUT/x0x_drums"
 job; ( jobin
     $CC -O2 -w -ffp-contract=off -I"$HGEN" -Ifirmware/src $X0X_ON -o "$OUT/x0x_drums_test" tests/x0x_drums_test.c -lm
     run "X0X 909 / 808 kits: every note bounded and ended, levels, velocity, offsets, ratchets, SOUND editor, sends, mute, lanes, projects" "$OUT/x0x_drums_test" "$OUT/x0x_drums"
+    $CC -O2 -w -ffp-contract=off -I"$HGEN" -Ifirmware/src -Ifirmware/hal $X0X_ON -o "$OUT/drum_show_test" tests/drum_show_test.c -lm
+    run "drum SOUND values vs the sound: every kit x lane x TUNE..LEVEL at min / max rendered; shown = heard, hidden = silent (X0X masks too)" "$OUT/drum_show_test"
+    $CC -O2 -w -I"$HGEN" -Ifirmware/src -Ifirmware/hal -o "$OUT/drum_show_test0" tests/drum_show_test.c -lm
+    run "drum SOUND values vs the sound, X0X kits not built" "$OUT/drum_show_test0"
 ) >"$U.out" 2>&1 & jobbg
 job; ( jobin
     $CC -O2 -w -I"$HGEN" -Ifirmware/src -o "$OUT/kits_sound_test" tests/kits_sound_test.c -lm
