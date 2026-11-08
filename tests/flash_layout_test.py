@@ -99,9 +99,10 @@ check("... the slots a switch gives up: normal -> no sample slot: USR2, USR3 and
       "the user samples (USR2, USR3) and the snapshots" in L.switch_warning(0x93000, 0xB5000)
       and "user samples" not in L.switch_warning(0xB5000, 0x93000))
 
-check("layout_of: a flash.bin's length names its step; another length is refused (the release's 0xCE000 too)",
+check("layout_of: a flash.bin's length names its step; another length is refused; the release's 0xCE000 names L1 like the classic 0xD0000",
       L.layout_of(0x93000) == N and L.layout_of(0xB5000) == S0 and L.layout_of(0xD0000) == L1 and
-      all(_raises(L.layout_of, n) for n in (0x92FFF, 0x9D000, 0xB7000, 0xCE000, 0xB4000)))
+      L.layout_of(0xCE000) == L1 and
+      all(_raises(L.layout_of, n) for n in (0x92FFF, 0x9D000, 0xB7000, 0xB4000)))
 check("no step's app or store reaches the kits (0xDA000) or the update staging (0xE0000)",
       all(s.end <= s.reloc <= L.CLEAR_TOP for s in L.STEPS.values()) and L.CLEAR_TOP == 0xDA000 and L.STORE_TOP == 0xE0000)
 check("the package tool: every step's end makes a flash.bin, another end is refused",
