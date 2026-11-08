@@ -4,7 +4,8 @@
 #   sh make_fab.sh        (from hardware/sd-board; needs KiCad 10: /Applications/KiCad)
 set -eu
 KP=/Applications/KiCad/KiCad.app/Contents/Frameworks/Python.framework/Versions/3.9/bin/python3.9
-"$KP" make_board.py 2>&1 | grep -v "wxApp\|stdpbase" || true
+"$KP" make_board.py > fab/board.log 2>&1 || { grep -v "wxApp\|stdpbase" fab/board.log; echo "make_board.py failed: the board file is stale"; exit 1; }
+grep -v "wxApp\|stdpbase" fab/board.log || true; rm -f fab/board.log   # (2026-11-08: a failed board step used to go on with the old board)
 "$KP" make_schematic.py
 kicad-cli pcb drc --severity-error --exit-code-violations -o fab/drc.rpt sd-board.kicad_pcb   # (errors only: the silk notes stay)
 kicad-cli sch erc --severity-error --exit-code-violations -o fab/erc.rpt sd-board.kicad_sch >/dev/null 2>&1 || {

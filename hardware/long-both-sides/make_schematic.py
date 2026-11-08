@@ -77,6 +77,10 @@ PARTS = [
     ("R6", "Device:R", "240", "Resistor_SMD:R_0603_1608Metric_Pad0.98x0.95mm_HandSolder", "to confirm", 170, 125, {"1": "MOSI_SD", "2": "MOSI"}),
     ("R7", "Device:R", "47k", "sdboard:R0603", "C25819", 185, 125, {"1": "SD_VDD", "2": "DAT0"}),
     ("R8", "Device:R", "47k", "sdboard:R0603", "C25819", 215, 125, {"1": "MOSI_SD", "2": "SD_VDD"}),
+    # (2026-11-08: the twins, bare through-hole pad pairs in parallel with the tuning resistors, for a leaded part; not placed)
+    ("RT1", "Device:R", "parallel to R1", "sdboard:R_twin_P7.62", "", 110, 155, {"1": "DAT0", "2": "MISO"}),
+    ("RT5", "Device:R", "parallel to R5", "twins:R_twin_RT5", "", 155, 155, {"1": "CLK", "2": "CLK_SD"}),
+    ("RT6", "Device:R", "parallel to R6", "twins:R_twin_RT6", "", 170, 155, {"1": "MOSI", "2": "MOSI_SD"}),
     ("C3", "Device:C", "100nF", "sdboard:C0603", "C14663", 90, 125, {"1": "SD_VDD", "2": "GND"}),
     ("FB1", "Device:FerriteBead", "600R@100MHz", "sdboard:R0603", "C1002", 40, 125, {"1": "3V3", "2": "SD_VDD"}),
     ("C1", "Device:C", "10uF", "sdboard:C0805", "C15850", 60, 125, {"1": "SD_VDD", "2": "GND"}),
@@ -114,7 +118,7 @@ for ref, lib, value, fp, lcsc, x, y, pins in PARTS:
     x, y = round(round(x / 2.54) * 2.54, 2), round(round(y / 2.54) * 2.54, 2)   # (on KiCad's connection grid)
     pins_txt = " ".join(f'(pin "{p}" (uuid "{uid(ref, "pin", p)}"))' for p in PINS[lib])
     flag = ref.startswith("#")
-    out.append(f'(symbol (lib_id "{lib}") (at {x} {y} 0) (unit 1) (exclude_from_sim no) (in_bom {"no" if flag or ref.startswith(("H", "JP", "TP")) else "yes"})'
+    out.append(f'(symbol (lib_id "{lib}") (at {x} {y} 0) (unit 1) (exclude_from_sim no) (in_bom {"no" if flag or ref.startswith(("H", "JP", "TP", "RT")) else "yes"})'
                f' (on_board {"no" if flag else "yes"}) (dnp no) (uuid "{uid(ref)}")'
                f' {prop("Reference", ref, x, y - 14, flag)} {prop("Value", value, x, y + 14, flag)}'
                f' {prop("Footprint", fp, x, y, True)} {prop("Datasheet", "", x, y, True)} {prop("LCSC", lcsc, x, y, True)}'

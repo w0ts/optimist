@@ -136,7 +136,9 @@ def at(fp, num):
 
 
 def connect(fp, num, name):
-    pad(fp, num).SetNet(net(name))
+    for p in fp.Pads():                          # (every pad of that number: the twins' pads are a top pad plus a hole)
+        if p.GetNumber() == str(num):
+            p.SetNet(net(name))
 
 
 def route(name, pts, width=TRACK, layer=pcbnew.F_Cu):
@@ -253,6 +255,62 @@ SWAP = (("JP1", "MISO", "SD_DO", 83.6, 38.4, "DO"), ("JP2", "LCD_CS", "SD_CSIN",
         ("JP3", "CLK_SD", "SD_CLK", 86.6, 33.0, "CLK"), ("JP4", "MOSI_SD", "SD_DI", 88.1, 30.3, "DI"),
         ("JP5", "3V3", "SD_VIN", 89.6, 27.6, "3V3"))
 JPU = {ref: (u, v) for ref, _, _, u, v, _ in SWAP}   # (v7: no jumper parts; the old pads' places, 1.5 mm each side, are the join's ends)
+# The twins (the user, 2026-11-08): for each tuning resistor a pair of plain top pads (1.6 x 2.4 mm, the old cut-and-wire
+# pads' size) wired in parallel with it, so a value is trimmed by soldering a leaded part flat onto them, never onto
+# the 0603's ends. No hole, no via, no line of their own (the user, that evening: the leaded part's own legs do the
+# wiring, so each pad only has to sit where its net already is on the top). Not placed by the fab (no LCSC part, left
+# out of the BOM and the placement). RT1 (across R1, DO) stands left of the swap block above R7 and R1, the lib
+# footprint (7.62 mm pitch, pad 1 the lower pad), both pads wired on the top. RT5 (across R5, CLK) and RT6 (across R6,
+# MOSI) have their two pads apart: pad 1 in the head on its lane above R5 (CLK's at 53.0 on the CLK lane; MOSI's at
+# 56.2, where its lane is stepped right to HEAD_MOSI and 3V3's to HEAD_3V3 so a 1.6 mm pad fits between its
+# neighbours), pad 2 on the swap block's row of the SD net, right of the row's end where only that line runs (CLK_SD's
+# row at 33.0, MOSI_SD's at 30.3). The part lies along the column's right edge over the masked lanes, 20 and 26 mm pad
+# to pad (a 1/4 W part has 28 mm of leg each side; a sleeve on the long leg keeps the two parts' legs apart). Each
+# footprint is written here (twins.pretty, one per twin: the pad spacing is the board's). Earlier that day: all three
+# in a row left of the swap block (6 vias), RT5/RT6 in the head's right strip (2 vias), lying between the swap block's
+# rows under the column (4 vias, 8 once the user had the holes taken out of the pads); the user: fewer vias.
+TWIN = "R_twin_P7.62"
+RT1 = P(LIB, TWIN, "RT1", "parallel to R1", 80.6, 24.0, 90, "")   # (the lower pad; the upper one 7.62 higher, 31.62)
+TWINS = os.path.join(HERE, "twins.pretty")
+TWIN_AT = {"RT5": ((94.25, 53.0), (91.5, 33.0)),   # (pad 1 in the head: on the CLK lane / where MOSI's lane is stepped to;
+           "RT6": ((94.85, 56.2), (92.0, 30.3))}   # pad 2 on CLK_SD's / MOSI_SD's row, 0.75 and 0.9 left of the guard's lane)
+HEAD_MOSI, HEAD_3V3, STEP_V = 95.4, 96.05, 50.75   # (in the head MOSI's lane runs 0.35 further right and 3V3's 0.15, stepping
+                                                 # above R5's top pad: 0.25 from RT5's and RT6's pads, 3V3 0.56 from the edge)
+
+
+def twin_mod(ref):
+    """The footprint of RT5 or RT6: pad 1 at the origin (1.6 wide, 2.4 along the lane), pad 2 where the board needs it
+    (2.4 wide along the row), a courtyard for the mockup where a 1/4 W body lies, left of pad 2 along the row."""
+    (u1, v1), (u2, v2) = TWIN_AT[ref]
+    du, dy = u2 - u1, v1 - v2                    # (footprint y points down)
+    return "\n".join((
+        f'(footprint "R_twin_{ref}" (version 20240108) (generator "make_board.py") (layer "F.Cu")',
+        f'  (descr "{ref}: two plain 1.6 x 2.4 mm top pads {((du ** 2 + dy ** 2) ** 0.5):.1f} mm apart for a leaded resistor in'
+        f' parallel with R{ref[2:]}: pad 1 in the head on the lane, pad 2 on the row of the swap block; the legs of the part do the wiring'
+        f' (the user, 2026-11-08). Written by make_board.py. Not placed by the fab.")',
+        '  (tags "resistor parallel tuning pads")',
+        "  (attr exclude_from_bom exclude_from_pos_files)",
+        f'  (fp_text reference "REF**" (at 0 -2 0) (layer "F.SilkS") hide (effects (font (size 0.8 0.8) (thickness 0.12))))',
+        f'  (fp_text value "VAL**" (at {du:.3f} {dy + 2:.3f} 0) (layer "F.Fab") (effects (font (size 0.8 0.8) (thickness 0.12))))',
+        f'  (fp_rect (start {du - 8.0:.3f} {dy - 1.25:.3f}) (end {du - 1.5:.3f} {dy + 1.25:.3f}) (stroke (width 0.05) (type solid))'
+        ' (fill none) (layer "F.CrtYd"))',
+        '  (pad "1" smd rect (at 0 0) (size 1.6 2.4) (layers "F.Cu" "F.Mask"))',
+        f'  (pad "2" smd rect (at {du:.3f} {dy:.3f}) (size 2.4 1.6) (layers "F.Cu" "F.Mask"))',
+        ")", ""))
+
+
+os.makedirs(TWINS, exist_ok=True)
+for ref in TWIN_AT:
+    with open(os.path.join(TWINS, f"R_twin_{ref}.kicad_mod"), "w") as f:
+        f.write(twin_mod(ref))
+RT5 = P(TWINS, "R_twin_RT5", "RT5", "parallel to R5", *TWIN_AT["RT5"][0], 0, "")
+RT6 = P(TWINS, "R_twin_RT6", "RT6", "parallel to R6", *TWIN_AT["RT6"][0], 0, "")
+assert abs(A(RT1, 2)[1] - A(RT1, 1)[1] - 7.62) < 0.01, "RT1: pad 2 is not the upper pad"
+for fp in (RT5, RT6):
+    for num in (1, 2):
+        want = TWIN_AT[fp.GetReference()][num - 1]
+        assert all(abs(a - b) < 0.01 for a, b in zip(A(fp, num), want)), f"{fp.GetReference()} pad {num} is not at {want}"
+    assert JPU["JP5"][1] + POWER / 2 + 0.4 <= A(fp, 2)[1] - 0.8 and A(fp, 2)[1] + 0.8 + 0.4 <= JPU["JP1"][1] - TRACK / 2
 
 
 def JPA(ref, num):
@@ -289,7 +347,9 @@ for num, name in ((2, "SD_CSIN"), (3, "GND"), (4, "CARD_CS"), (5, "SD_VDD")):
     connect(U1, num, name)
 for fp, a, b in ((R1, "SD_DO", "DAT0"), (R2, "DAT2", "SD_VDD"), (R3, "SD_VDD", "DAT1"), (R4, "GND", "SD_CSIN"),
                  (C1, "SD_VDD", "GND"), (C2, "SD_VDD", "GND"), (R5, "CLK_SD", "CLK"), (R6, "MOSI_SD", "MOSI"),
-                 (R7, "SD_VDD", "DAT0"), (C3, "SD_VDD", "GND"), (FB1, "SD_VIN", "SD_VDD"), (R8, "SD_DI", "SD_VDD")):
+                 (R7, "SD_VDD", "DAT0"), (C3, "SD_VDD", "GND"), (FB1, "SD_VIN", "SD_VDD"), (R8, "SD_DI", "SD_VDD"),
+                 (RT1, "DAT0", "SD_DO"), (RT5, "CLK", "CLK_SD"), (RT6, "MOSI", "MOSI_SD")):   # (the twins: RT1's pad 1
+                                                 # below, RT5's and RT6's pad 1 on the left, the J12 side)
     connect(fp, 1, a)
     connect(fp, 2, b)
 for fp, io1, io2 in ((U3, "DAT0", "SD_CLK"), (U2, "CARD_CS", "SD_DI")):
@@ -316,16 +376,21 @@ for name in ("MISO", "LCD_CS", "CLK", "MOSI", "3V3"):
     vs = V_ROW2 - 1.0 - (x - X)                  # (from here up, the lane slants left onto its via)
     top = [(X, V_ROW2 - 1.0), (X, V_ROW2)]
     w = POWER if name == "3V3" else TRACK
-    if name in ("CLK", "MOSI"):                  # (the column's top through R5 / R6, the SD side below them)
-        r = R5 if name == "CLK" else R6
-        R(name, [A(r, 2), (x, vs), *top], w)
-        ref, v = ROW[name + "_SD"]
-        R(name + "_SD", [A(r, 1), (x, v), JPA(ref, 2)], w)
+    if name == "CLK":                            # (the column's top through R5, up through RT5's head pad, slanting left from it)
+        R(name, [A(R5, 2), (x, vs), *top], w)
+    elif name == "MOSI":                         # (through R6; stepped right above R5 into RT6's head pad, straight on to its via's foot)
+        R(name, [A(R6, 2), (x, STEP_V + 0.15), (HEAD_MOSI, STEP_V + 0.5), (HEAD_MOSI, A(RT6, 1)[1]), A(RT6, 1), (X, V_ROW2 - 1.0), *top], w)
+    elif name == "3V3":                          # (stepped right with it, up past RT6's pad, straight on to its via's foot)
+        ref, v = ROW[name]
+        R(name, [JPA(ref, 2), (x, v), (x, STEP_V), (HEAD_3V3, STEP_V + 0.15), (HEAD_3V3, 58.8), (X, V_ROW2 - 1.0), *top], w)
     else:
         ref, v = ROW[name]
         R(name, [JPA(ref, 2), (x, v), (x, vs), *top], w)
-GUARD_V = (34.5, 39.0, 44.0, 51.0)               # (the guard's ends and its vias to the bottom pour, about 5 mm apart;
-R("GND", [(LANE["GUARD"], GUARD_V[0]), (LANE["GUARD"], GUARD_V[-1])])   # none beside R5's pads)
+    if name in ("CLK", "MOSI"):                  # (the SD side below R5 / R6, down the lane onto its row)
+        ref, v = ROW[name + "_SD"]
+        R(name + "_SD", [A(R5 if name == "CLK" else R6, 1), (x, v), JPA(ref, 2)], w)
+GUARD_V = (34.5, 39.0, 44.0, 51.0)               # (the guard's ends and its vias to the bottom pour, about 5 mm apart; none
+R("GND", [(LANE["GUARD"], GUARD_V[0]), (LANE["GUARD"], GUARD_V[-1])])   # beside R5's pads; the 34.5 via 0.4 above RT5's row pad)
 
 # ---- from the swap block down to the SD part, top: each left pad drops in turn (the rows staggered so no drop
 # crosses a lower row); SD_CSIN alone crosses CLK and DI, on the bottom (a via each end: it changes only at a card
@@ -334,13 +399,20 @@ C = {n: A(J1, n) for n in range(1, 9)}
 L = {ref: JPA(ref, 1) for ref in JPU}
 for ref, jside, _, _, _, _ in SWAP:              # (v7: the copper that replaces each jumper, J12's side to the card's)
     R(jside, [JPA(ref, 1), JPA(ref, 2)], POWER if jside == "3V3" else TRACK)
-R("SD_DO", [L["JP1"], (L["JP1"][0], 29.0), (C[7][0], 29.0 - (L["JP1"][0] - C[7][0])), A(R1, 1)])
+# (2026-11-08: SD_DO drops straight down the swap block's left side to just above R1 before it steps left onto R1's pad:
+# the twins' column is left of that drop, RT1's upper pad reaches it, its lower pad goes down between R7 and R1 to DAT0)
+R("SD_DO", [L["JP1"], (L["JP1"][0], A(R1, 1)[1] + (L["JP1"][0] - A(R1, 1)[0])), A(R1, 1)])
+R("SD_DO", [A(RT1, 2), (L["JP1"][0], A(RT1, 2)[1])])
+DAT0_X = 80.2                                    # (between R7's and R1's pads, 0.4 mm clear of each)
+_d7, _d1 = A(R7, 2), A(R1, 2)
+R("DAT0", [A(RT1, 1), (DAT0_X, A(RT1, 1)[1] - 0.4),
+           (DAT0_X, round(_d7[1] + (_d1[1] - _d7[1]) * (DAT0_X - _d7[0]) / (_d1[0] - _d7[0]), 3))])   # (onto R7-R1's DAT0 link)
 R("DAT0", [A(R1, 2), (A(U3, 1)[0], A(R1, 2)[1]), A(U3, 6), A(U3, 1), (A(U3, 1)[0], C[7][1])])
 R("SD_CLK", [L["JP3"], (L["JP3"][0], 27.2), (A(U3, 3)[0], 27.2 - (L["JP3"][0] - A(U3, 3)[0])), A(U3, 4), A(U3, 3), (A(U3, 3)[0], C[5][1])])
 R("SD_DI", [L["JP4"], (L["JP4"][0], 26.3), (A(U2, 3)[0], 26.3 - (L["JP4"][0] - A(U2, 3)[0])), A(U2, 4), A(U2, 3), C[3]])
-CS_IN, CS_VIA = (L["JP2"][0], 34.1), (91.0, 21.4 + DY)
-R("SD_CSIN", [L["JP2"], CS_IN])
-R("SD_CSIN", [CS_IN, (CS_VIA[0], CS_IN[1] - (CS_VIA[0] - CS_IN[0])), CS_VIA], TRACK, pcbnew.B_Cu)
+CS_IN, CS_VIA = (L["JP2"][0], 26.8), (91.0, 21.4 + DY)   # (2026-11-08: CS drops on the top to just above SD_CLK's knee, then
+R("SD_CSIN", [L["JP2"], CS_IN])                           # one straight bottom hop under the three drops: the bottom above
+R("SD_CSIN", [CS_IN, CS_VIA], TRACK, pcbnew.B_Cu)         # 26.8 is free for the twins' lines)
 R("SD_CSIN", [A(R4, 2), CS_VIA, A(U1, 2)])
 R("CARD_CS", [A(U1, 4), (88.3, A(U1, 4)[1]), (88.3, 18.6 + DY), (A(U2, 6)[0], 18.6 + DY), A(U2, 6), A(U2, 1),
               (A(U2, 1)[0], 13.6 + DY), (C[2][0], 12.8 + DY), C[2]])
@@ -402,9 +474,9 @@ V("SD_CSIN", *CS_VIA)
 for v in GUARD_V:
     V("GND", LANE["GUARD"], v)
 for u, v in ((A(C3, 2)[0], 21.8 + DY), (89.3, 19.6 + DY), (88.0, 21.4 + DY), (93.4, 18.7 + DY), (77.4, A(C1, 2)[1]), (A(U2, 2)[0], 19.3 + DY),
-             (76.0, 5.0), (76.0, 25.0), (79.0, 25.0), (95.9, 6.0), (76.0, 34.0),   # (the pours stitched, the
-             (87.0, 53.5), (95.9, 62.0), (95.9, 66.0), (95.7, 74.5)):   # head's too)
-    V("GND", u, v)
+             (76.0, 5.0), (76.1, 28.0), (79.1, 28.0), (95.9, 6.0),   # (the pours stitched, the head's too; 2026-11-08:
+             (84.5, 53.5), (95.9, 62.0), (95.9, 66.0), (95.7, 74.5)):   # (76, 25) and (79, 25) moved up beside RT1,
+    V("GND", u, v)                               # (76, 34) and (87, 53.5) gone, 2026-11-08)
 for n in (1, 10):                                # (J2's ground pins up to its tabs, above the pins: on the bottom)
     g = A(J2, J2_AT[n])
     tab = min((A(J2, 11), A(J2, 12)), key=lambda t: abs(t[0] - g[0]))
@@ -450,7 +522,16 @@ def label(text, x, y, size=0.8, rot=0.0, bottom=False):
     board.Add(t)
 
 
-label("OPTIMIST SD", *T(77.5, 29.0), 0.8, 90)
+label("OPTIMIST SD", *T(84.3, 57.0), 0.8, 90)   # (2026-11-08: into the head's foot, top face over J2's body; the twins took its place)
+# which resistor each twin doubles and what it is in (the user, 2026-11-08 evening: label what R1, R5, R6 do): under
+# RT1's lower pad, beside each of RT5's and RT6's pads; and the signal beside each 0603 itself, R5's and
+# R6's left of them over the column's masked lanes, R1's right of it (nothing is exposed there)
+label("R1 DO", *T(A(RT1, 1)[0], A(RT1, 1)[1] - 1.75), 0.6)
+for fp, txt in ((RT5, "R5"), (RT6, "R6")):      # (RT5's and RT6's pads are apart: each says whose it is, left of the pad)
+    label(txt, *T(A(fp, 1)[0] - 1.4, A(fp, 1)[1]), 0.6, 90)
+    label(txt, *T(A(fp, 2)[0] - 2.3, A(fp, 2)[1]), 0.6)
+for fp, txt, du in ((R5, "CLK", -1.85), (R6, "MOSI", -2.65), (R1, "DO", 1.4)):
+    label(txt, *T(A(fp, 1)[0] + du, (A(fp, 1)[1] + A(fp, 2)[1]) / 2), 0.6, 90)
 for _, _, u, v, lab in TPS:
     label(lab, *T(u, v + 1.4), 0.6)                # (above its pad, clear of it)
 # which way each cable goes in: J3 touches the top face only (the LCD's cable arrives gold up, the user), J2 the
@@ -472,7 +553,7 @@ print("saved", out)
 # ---- JLCPCB's assembly files: the parts list (BOM) and the placement (CPL); the holes are not parts
 FAB = os.path.join(HERE, "fab")
 os.makedirs(FAB, exist_ok=True)
-parts = [fp for fp in board.GetFootprints() if not fp.GetReference().startswith(("H", "JP", "TP"))]
+parts = [fp for fp in board.GetFootprints() if not fp.GetReference().startswith(("H", "JP", "TP", "RT"))]   # (RT: the twins' bare holes)
 groups = {}
 for fp in parts:
     lcsc = fp.GetFieldText("LCSC")

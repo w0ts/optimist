@@ -4,11 +4,10 @@
 `analysis/field_solve.py`, about +-10 %) or **model** (circuit model, `analysis/path_delay.py`: its pad, card and LCD values
 are assumptions, so read differences between rows, not absolute numbers).
 
-## The three variants
+## The variants (the same-side long board was dropped 2026-11-08, the user's ruling: one socket on each side)
 
 | Folder | Plugs | Built? |
 |---|---|---|
-| `long-same-side/` | both on the top | no; `archive-v6-tested/` is its tested ancestor |
 | `long-both-sides/` | one on each side | no |
 | `mini/` | one on each side | no |
 
@@ -120,6 +119,19 @@ the chip's share is far smaller than it looks. Worth about 1,430 KB/s against 1,
 
 Gating DO as well is possible and removes the DO stub from the bus, but it adds a gate delay on the return path. Only worth drawing if test 1 shows it pays.
 
+**A branch, not for the current board (the user, 2026-11-08 evening: "a third chip whose only job is to protect the card and do the
+switching"; the long-both-sides board stays as designed).** The same idea as the gate, done with one bus switch instead of logic: a
+quad analog bus switch (74CBTLV3126 class: 3.3 V, about 5 Ohm on, 0.25 ns, individual enables; part and LCSC code to confirm) between
+the bus and the card on CLK, MOSI and DO, all three enabled by the LCD's select being high. Under stock firmware the card is physically
+off the bus (its side held by the pull-ups R7/R8 and a pull-down on CLK); under ours it is connected the moment the LCD is deselected,
+in both directions, with no gate delay on the return path. The bus sees a few pF of off-capacitance instead of the card, the ESD parts
+and the copper, so R5/R6 go and R1 drops to the overlap value. It does not regenerate edges (a gate does), and the "no clock with CS
+high" premise still has to be checked on our units with a logic analyser before any board relies on it. A small MCU or CPLD that
+recognises our firmware and then closes the switch would make the enable independent of that premise, at the cost of a part with
+its own boot and code; only worth it if the check fails. **Dropped the same evening (the user):** the loopback already showed the
+chip's own path failing at 20 MHz, the screen only writes while a card read is a round trip inside one bit, so no switch, gate
+or layout gets past about 15 MHz; what remains is picking the resistor values on the board as designed, with the twins.
+
 ## Tests on the boards we have
 
 Target: pink (FM1-620C), the test unit, with its hand-tuned v6. In order, each decides something. The user's pocket scope (a DSM2xx) can do test 8 only as far as its bandwidth allows: duty and edges, not ns delays.
@@ -191,6 +203,7 @@ fails with no board resistor in the loop), so there is no clock gate, ever. 330/
 - **The long boards ordered 510/220.** Done 2026-11-06 after test 4 passed: both now order R5/R6 330 and R1 150, as the mini.
 - Done 2026-11-06: `archive-v6-tested/DESIGN.md` and `docs/SD-CARD-DESIGN.md` now say 10-12 MHz at 330/150 and the polled reader, not 20 MHz.
 - Done: `mini/DESIGN.md` uses the 33-42 ns loop and 0.05-0.06 pF/mm.
+- **The twins, 2026-11-08 (long-both-sides only):** a pair of 1.6 x 2.4 mm pads in parallel with each of R1, R5, R6 (RT1, RT5, RT6, not placed by the fab), so a value is trimmed with a leaded resistor on them, never on the 0603's ends (the user). Plain pads, no via and no line of their own (the user: the part's legs do the wiring). RT1 left of the swap block; RT5 and RT6 have their pads apart, the LCD-side pad in the head on its lane, the SD-side pad on the swap block's row of its SD net, the part lying along the column; silk says what each is in (DO, CLK, MOSI). Fab files regenerated, DRC 0. Details in `long-both-sides/DESIGN.md`.
 - **The BOM moved again, 2026-11-06 evening: R5/R6 240, R1 91** on the long boards and the mini (`make_board.py`, `make_schematic.py`, `fab/bom.csv`, `fab/sd-board.net.xml`, `.kicad_pcb`, `.kicad_sch` edited by hand, KiCad generators not re-run). The condition: the LCD at 30 MHz (`LCD_BAUD` 1), because the panel stays black at 60 MHz on 245 / 89. The LCSC codes for 240 and 91 are to confirm (the 330/150 codes C23138 and C22808 are removed from the files); gerbers, CPL and the DRC/ERC reports to regenerate with KiCad.
 - The mini's other open fit items stand on their own: the height under J3, the cable across the socket, the lid.
 

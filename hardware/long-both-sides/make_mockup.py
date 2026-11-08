@@ -12,8 +12,9 @@ import pcbnew
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 THICK = 1.0
-HEIGHT = {"J1": 1.83, "J2": 2.0, "J3": 2.0, "U1": 1.1, "U2": 1.5, "U3": 1.5, "C1": 1.3, "C2": 0.8, "C3": 0.8, "FB1": 0.8}
-                                                 # (mm off the board; the resistors 0.55; J1 from LCSC's table, not Hirose's drawing)
+HEIGHT = {"J1": 1.83, "J2": 2.0, "J3": 2.0, "U1": 1.1, "U2": 1.5, "U3": 1.5, "C1": 1.3, "C2": 0.8, "C3": 0.8, "FB1": 0.8,
+          "RT1": 2.5, "RT5": 2.5, "RT6": 2.5}    # (mm off the board; the resistors 0.55; J1 from LCSC's table, not Hirose's drawing;
+                                                 # the twins: a 1/4 W leaded resistor lying between the pads, its body the courtyard, 2.5 high)
 
 board = pcbnew.LoadBoard(os.path.join(HERE, "sd-board.kicad_pcb"))
 outline = pcbnew.SHAPE_POLY_SET()
