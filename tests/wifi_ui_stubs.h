@@ -24,6 +24,10 @@ static struct { struct { uint32_t ip; } ip; uint8_t joined; } wl;
 static struct { int enable_off, disconnects, requests; uint8_t ssid[WN_SSID_MAX]; uint32_t len; char pass[64]; int had_pass; int rc; } wcfk;
 static uint32_t test_peers;
 static uint32_t wl_peers(void) { return test_peers; }
+#if FELUCCA_LINK
+static uint32_t test_wait_beats;                         /* wifi_link.c wl_wait_beats: the beats to the START a PLAY under Link waits for */
+static uint32_t wl_wait_beats(void) { return test_wait_beats; }
+#endif
 static void wc_enable(int on) { if (!on) wcfk.enable_off++; }
 static void wc_disconnect(void) { wcfk.disconnects++; wc.st = WC_IDLE; }
 static int wc_request(const uint8_t *ssid, uint32_t len, const char *pass)
