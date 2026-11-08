@@ -480,10 +480,7 @@ def validate(cfg):
     if built(cfg, "USB_HOST") and CLASSIC_HOOK():
         err.append(Issue("the USB MIDI host is the release's (fm1-base's USB host): Optimist's own firmware has none "
                          "(USB_HOST off, or build the release)", ["USB_HOST"]))
-    if cfg["USB_CONSOLE"] and cfg["USB_AUDIO"]:
-        err.append(Issue("the serial console or USB audio, not both: the USB port has three data endpoints, USB MIDI "
-                         "takes one and USB audio the other two", ["USB_CONSOLE", "USB_AUDIO"]))
-    elif cfg["USB_AUDIO"]:
+    if cfg["USB_AUDIO"]:
         warn.append(Issue("USB audio: EXPERIMENTAL, its audio quality on the FM-1 not checked yet (+12 KB pool)",
                           ["USB_AUDIO"]))
     return err, warn, note
@@ -526,7 +523,10 @@ def flags(cfg):
     if os.environ.get("OPTIMIST_ONE_CORE") == "1":
         out["FELUCCA_DUAL"] = 0   # (emulator packages only: one core runs ~4x faster there; the FM-1 default stays two cores)
     out["FELUCCA_USB_AUDIO"] = cfg["USB_AUDIO"]
-    out["FELUCCA_CDC"] = cfg["USB_CONSOLE"]
+    # the console (USB_CONSOLE) over USB MIDI always (SysEx, io/console.c; the user 2026-11-08: "no need to choose between
+    # serial and usb audio"), and as a serial port too when the endpoints are free (no USB audio)
+    out["FELUCCA_CDC"] = int(bool(cfg["USB_CONSOLE"]) and not cfg["USB_AUDIO"])
+    out["FELUCCA_CON_MIDI"] = int(bool(cfg["USB_CONSOLE"]))
     out["FELUCCA_LINK"] = out["FELUCCA_WIFI"]       # (Ableton Link comes with Wi-Fi: SYNC LINK, wifi/wifi_link.c)
     out["FELUCCA_SLICE"] = cfg["ENG_SLICE"]
     if not built(cfg, "DRUM_SAMPLED") or not any(cfg[k] for k in R.ITEMS if k.startswith("KIT_")):

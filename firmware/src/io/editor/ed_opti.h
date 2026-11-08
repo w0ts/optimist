@@ -69,7 +69,7 @@
 #else
 #define ED_OPTI_MAA ""
 #endif
-#if defined(FELUCCA_WIFI) && FELUCCA_WIFI && FELUCCA_BLE && ((BLE_HW_WL82 && FELUCCA_CDC) || defined(WIFI_ON_FM1B))   /* (the
+#if defined(FELUCCA_WIFI) && FELUCCA_WIFI && FELUCCA_BLE && ((BLE_HW_WL82 && FELUCCA_CONSOLE) || defined(WIFI_ON_FM1B))   /* (the
                                          * release: fm1-base's own Wi-Fi stack, the trial's ui/opt_wifi.h) */
 #define ED_OPTI_WIFI "opti_wifi_1 "     /* (tag 0x67: 112 the Wi-Fi networks, ed_wifi.c, included by felucca.c after console.c) */
 #define ED_HAS_WIFI 1

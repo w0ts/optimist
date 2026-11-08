@@ -298,7 +298,7 @@ static volatile uint8_t fm1_flash_reading;
 #ifndef FM1_FLASH_LEAVE                         /* after it, before the interrupts are on again (dual.c: CPU1 resumed) */
 #define FM1_FLASH_LEAVE() ((void)0)
 #endif
-#if (defined(FELUCCA_USB_AUDIO) && FELUCCA_USB_AUDIO) || (defined(FELUCCA_CDC) && FELUCCA_CDC)   /* (CDC: the console test image) */
+#if (defined(FELUCCA_USB_AUDIO) && FELUCCA_USB_AUDIO) || ((defined(FELUCCA_CDC) && FELUCCA_CDC) || (defined(FELUCCA_CON_MIDI) && FELUCCA_CON_MIDI))   /* (CDC: the console test image) */
 /* USB audio builds: the longest interrupts-off window a flash operation held (TIMER4 ticks, SYSTEM > INFO). The
  * window's start is the token irq_save returns (the callers pass it back unchanged). */
 #include "fm1_time.h"
@@ -357,7 +357,7 @@ static int fl_blank_xip(uint32_t off)
 /* the erase, in windows of FLS_SLICE_US. quiet / quiet_n: the audio buffer, silenced only if a window must hold the
  * rest of the erase (a part that does not suspend). An erase that went through a suspend is read back blank when the
  * plain window is on (else, or not blank: erased again in one window, as before) */
-#if defined(FELUCCA_CDC) && FELUCCA_CDC              /* the console test image's counters (console.c flash_erase_*) */
+#if (defined(FELUCCA_CDC) && FELUCCA_CDC) || (defined(FELUCCA_CON_MIDI) && FELUCCA_CON_MIDI)              /* the console test image's counters (console.c flash_erase_*) */
 static uint16_t fl_erase_windows_max;
 static uint8_t fl_erase_held, fl_erase_nosus, fl_erase_redo;   /* (saturating) */
 #define FL_ESTAT(x) (x)
