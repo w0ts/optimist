@@ -241,7 +241,7 @@ static void run_card(const char *img_path)
     CHECK(k, "%s: the rings in the block", what);
     CHECK(irq_depth == 0, "%s: the interrupts back on", what);
 
-    /* SYSTEM > SD CARD > RING (core/sdring.h): another size, placed again at it (a smaller one) or refused whole, never
+    /* SYSTEM > SD CARD > SMPL RING (core/sdring.h): another size, placed again at it (a smaller one) or refused whole, never
      * shorter rings (a larger one past the arena: the 4 KB build asks 16 KB); the build's size again: as before */
     if (SST_K > 8u) {
         sd_ring_set_pos(0);                          /* 4 KB */

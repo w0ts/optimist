@@ -1,5 +1,5 @@
 /* SPDX-License-Identifier: GPL-3.0-only */
-/* SYSTEM > SD CARD > RING (the user, 2026-11-08): the KB each voice that streams a sample from the SD card keeps ahead
+/* SYSTEM > SD CARD > SMPL RING (the user, 2026-11-08): the KB each voice that streams a sample from the SD card keeps ahead
  * of it, 4, 8, 12 or 16, a setting of the FM-1 (not of a project: the ring bridges the card's stalls, the card's and
  * this FM-1's, not a song's). The builder's SD_RING is the size a fresh FM-1 starts with; the memory that does not
  * move (each ring's slot tags, the SAMPLES list's preview ring) is sized for the largest, SDR_MAX_KB. Kept in the

@@ -34,7 +34,7 @@
 #ifndef SST_N
 #define SST_N 10u                                    /* streams (rings): one a sounding voice (core.h NVOICE 8; a kit's 10 lanes, SST_KIT_RINGS) */
 #endif
-#include "../../core/sdring.h"                       /* SYSTEM > SD CARD > RING: sd_ring_kb, SDR_MAX_KB */
+#include "../../core/sdring.h"                       /* SYSTEM > SD CARD > SMPL RING: sd_ring_kb, SDR_MAX_KB */
 #ifndef SST_K
 #define SST_K ((uint32_t)FELUCCA_SD_RING_KB * 2u)    /* a ring's slots (512 B each) a fresh FM-1 starts with: the builder's SD_RING */
 #endif
@@ -46,7 +46,7 @@
 #define SST_NSRC 16u                                 /* the card samples a project plays at most */
 #endif
 _Static_assert(SST_K >= 2u && SST_K <= 64u, "sd_stream.h: a ring of 1 to 32 KB");
-static uint32_t sst_k = SST_K;                       /* a ring's slots, all rings alike: sd_ring_kb() x 2 once placed (SYSTEM > SD CARD > RING, sd_stream_plan.c; the user, 2026-11-06
+static uint32_t sst_k = SST_K;                       /* a ring's slots, all rings alike: sd_ring_kb() x 2 once placed (SYSTEM > SD CARD > SMPL RING, sd_stream_plan.c; the user, 2026-11-06
                                                       * evening: no shorter rings when there is no room); a host test may sweep it
                                                       * while no voice reads a ring */
 

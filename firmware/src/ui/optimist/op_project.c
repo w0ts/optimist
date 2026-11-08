@@ -423,7 +423,7 @@ enum { SI_NONE, SI_TUNE, SI_RECQ, SI_PUNCH, SI_OUT, SI_SYNC, SI_CH1, SI_CH2,
        SI_SDCARD, SI_SDINDEX,                           /* SD CARD: the card, the sample index (sd_mode.c) */
        SI_SDBACK, SI_SDREST,                            /* SETTINGS: BACKUP to the card, RESTORE from it (sd_mode.c) */
        SI_SDCLOCK,                                      /* SD CARD: the card's SPI clock, read-only (sd_mmc.c sd_clock_probe) */
-       SI_SDRING,                                       /* SD CARD: RING, the KB a streaming voice keeps ahead (core/sdring.h) */
+       SI_SDRING,                                       /* SD CARD: SMPL RING, the KB a streaming voice keeps ahead (core/sdring.h) */
 #endif
        SI_SMRATE, SI_SMSTRM, SI_SMBUF, SI_SMDRY,        /* SYSTEM > SD STREAM (op_sdmon.c): READ, STREAMS, BUFFER, DRY */
        SI_WFMODE, SI_WFNET, SI_WFSIG, SI_WFST,           /* SYSTEM > WI-FI (op_wifi.c): MODE, NETWORK, SIGNAL, STATE */
@@ -1082,7 +1082,7 @@ static void sys_it_cell(uint32_t it, cell_t *c)     /* the cell of setting it */
 #if FELUCCA_SD_STREAM
     case SI_SDRING: {                                   /* the KB each streaming voice keeps ahead (core/sdring.h) */
         static const char *const RN[SDR_N] = {"4 KB", "8 KB", "12 KB", "16 KB"};
-        cell_list(c, "RING", RN[sd_ring_pos()], SDR_N - 1, (int32_t)sd_ring_pos());
+        cell_list(c, "SMPL RING", RN[sd_ring_pos()], SDR_N - 1, (int32_t)sd_ring_pos());
         break;
     }
 #endif
