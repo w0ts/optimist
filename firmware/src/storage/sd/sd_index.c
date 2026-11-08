@@ -528,20 +528,15 @@ static void sdx_u_tmp(void)                          /* the last pass's leftover
     sdxp.room_left = 0;
 }
 
-/* the walked file in index.prt (the walk's order is the cut pass's: the next record, or the one after when a file went),
+/* the walked file in index.prt (the walk's order is the cut pass's: its next record),
  * unchanged: its record taken (sdxp.rec), 1 */
 static int sdx_part_hit(sdx_rec *into)            /* (into: sdxp.rec, or a scratch record to follow the walk alone) */
 {
-    uint32_t i, stamp = (uint32_t)sdx.walk.fi.fdate << 16 | sdx.walk.fi.ftime;
-    for (i = 0; i < 2u && sdxp.part_open && sdxp.pcursor + i < sdxp.partn; i++) {
-        if (sdx_read_in(&sdxp.pf, sdxp.pcursor + i, into) != FR_OK)
-            return 0;
-        if (!sdl_cmp(into->path, sdx.walk.path + SDX_SKIP)) {
-            sdxp.pcursor += i + 1u;
-            return into->size == (uint32_t)sdx.walk.fi.fsize && into->stamp == stamp;
-        }
-    }
-    return 0;
+    if (!sdxp.part_open || sdxp.pcursor >= sdxp.partn || sdx_read_in(&sdxp.pf, sdxp.pcursor, into) != FR_OK ||
+        sdl_cmp(into->path, sdx.walk.path + SDX_SKIP))
+        return 0;                                    /* (not the next one: a file gone since, the rest hashed again) */
+    sdxp.pcursor++;
+    return into->size == (uint32_t)sdx.walk.fi.fsize && into->stamp == ((uint32_t)sdx.walk.fi.fdate << 16 | sdx.walk.fi.ftime);
 }
 
 /* The room for index.tmp, a sector of the FAT a unit. FatFs looks for a file's run from the volume's next-free hint, in one call,
@@ -621,9 +616,7 @@ static FRESULT sdx_matched(int32_t at, uint8_t *buf)
         return FR_OK;
     }
     sdxp.used = at >= 0 ? sdxp.rec.used : 0u;
-    if (sdx_part_hit(&sdxp.rec)) {                   /* (hashed by a pass that was cut: kept) */
-        if (!sdxp.rec.used)
-            sdxp.rec.used = sdxp.used;
+    if (sdx_part_hit(&sdxp.rec)) {                   /* (hashed by a pass that was cut: kept, its use as that pass kept it) */
         sdx.kept++;
         sdxp.st = SDXP_PUT;
         return FR_OK;
