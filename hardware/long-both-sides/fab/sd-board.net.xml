@@ -2,7 +2,7 @@
 <export version="E">
   <design>
     <source>/Users/mots/GitHub/optimist/hardware/long-both-sides/sd-board.kicad_sch</source>
-    <date>2026-11-06T17:38:50</date>
+    <date>2026-11-08T15:36:53</date>
     <tool>Eeschema 10.0.7</tool>
     <sheet number="1" name="/" tstamps="/">
       <title_block>
@@ -440,6 +440,87 @@
         </unit>
       </units>
     </comp>
+    <comp ref="RT1">
+      <value>parallel to R1</value>
+      <footprint>sdboard:R_twin_P7.62</footprint>
+      <fields>
+        <field name="LCSC"/>
+        <field name="Footprint">sdboard:R_twin_P7.62</field>
+        <field name="Datasheet"/>
+        <field name="Description"/>
+      </fields>
+      <libsource lib="Device" part="R" description="Resistor"/>
+      <property name="LCSC" value=""/>
+      <property name="Sheetname" value="sd-board"/>
+      <property name="Sheetfile" value="sd-board.kicad_sch"/>
+      <property name="exclude_from_bom"/>
+      <property name="ki_keywords" value="R res resistor"/>
+      <property name="ki_fp_filters" value="R_*"/>
+      <sheetpath names="/" tstamps="/"/>
+      <tstamps>eb3ca963-8b10-5934-9cb6-fd19db476b69</tstamps>
+      <units>
+        <unit name="A">
+          <pins>
+            <pin num="1"/>
+            <pin num="2"/>
+          </pins>
+        </unit>
+      </units>
+    </comp>
+    <comp ref="RT5">
+      <value>parallel to R5</value>
+      <footprint>twins:R_twin_RT5</footprint>
+      <fields>
+        <field name="LCSC"/>
+        <field name="Footprint">twins:R_twin_RT5</field>
+        <field name="Datasheet"/>
+        <field name="Description"/>
+      </fields>
+      <libsource lib="Device" part="R" description="Resistor"/>
+      <property name="LCSC" value=""/>
+      <property name="Sheetname" value="sd-board"/>
+      <property name="Sheetfile" value="sd-board.kicad_sch"/>
+      <property name="exclude_from_bom"/>
+      <property name="ki_keywords" value="R res resistor"/>
+      <property name="ki_fp_filters" value="R_*"/>
+      <sheetpath names="/" tstamps="/"/>
+      <tstamps>b1178338-ab85-5fe1-a77f-a51606cf26d4</tstamps>
+      <units>
+        <unit name="A">
+          <pins>
+            <pin num="1"/>
+            <pin num="2"/>
+          </pins>
+        </unit>
+      </units>
+    </comp>
+    <comp ref="RT6">
+      <value>parallel to R6</value>
+      <footprint>twins:R_twin_RT6</footprint>
+      <fields>
+        <field name="LCSC"/>
+        <field name="Footprint">twins:R_twin_RT6</field>
+        <field name="Datasheet"/>
+        <field name="Description"/>
+      </fields>
+      <libsource lib="Device" part="R" description="Resistor"/>
+      <property name="LCSC" value=""/>
+      <property name="Sheetname" value="sd-board"/>
+      <property name="Sheetfile" value="sd-board.kicad_sch"/>
+      <property name="exclude_from_bom"/>
+      <property name="ki_keywords" value="R res resistor"/>
+      <property name="ki_fp_filters" value="R_*"/>
+      <sheetpath names="/" tstamps="/"/>
+      <tstamps>04af6cbd-b5ac-56ec-b51e-10af4da1a81a</tstamps>
+      <units>
+        <unit name="A">
+          <pins>
+            <pin num="1"/>
+            <pin num="2"/>
+          </pins>
+        </unit>
+      </units>
+    </comp>
     <comp ref="TP5">
       <value>J12 DET</value>
       <footprint>TestPoint:TestPoint_Pad_D1.5mm</footprint>
@@ -763,10 +844,12 @@
       <node ref="J2" pin="4" pinfunction="Pin_4_4" pintype="passive"/>
       <node ref="J3" pin="7" pinfunction="Pin_7_7" pintype="passive"/>
       <node ref="R5" pin="2" pintype="passive"/>
+      <node ref="RT5" pin="1" pintype="passive"/>
     </net>
     <net code="5" name="/CLK_SD" class="Default">
       <node ref="J1" pin="5" pinfunction="CLK_5" pintype="input"/>
       <node ref="R5" pin="1" pintype="passive"/>
+      <node ref="RT5" pin="2" pintype="passive"/>
       <node ref="U3" pin="3" pinfunction="I/O2_3" pintype="passive"/>
       <node ref="U3" pin="4" pinfunction="I/O2_4" pintype="passive"/>
     </net>
@@ -774,6 +857,7 @@
       <node ref="J1" pin="7" pinfunction="DAT0_7" pintype="bidirectional"/>
       <node ref="R1" pin="2" pintype="passive"/>
       <node ref="R7" pin="2" pintype="passive"/>
+      <node ref="RT1" pin="1" pintype="passive"/>
       <node ref="U3" pin="1" pinfunction="I/O1_1" pintype="passive"/>
       <node ref="U3" pin="6" pinfunction="I/O1_6" pintype="passive"/>
     </net>
@@ -824,16 +908,19 @@
       <node ref="J2" pin="2" pinfunction="Pin_2_2" pintype="passive"/>
       <node ref="J3" pin="9" pinfunction="Pin_9_9" pintype="passive"/>
       <node ref="R1" pin="1" pintype="passive"/>
+      <node ref="RT1" pin="2" pintype="passive"/>
     </net>
     <net code="15" name="/MOSI" class="Default">
       <node ref="J2" pin="5" pinfunction="Pin_5_5" pintype="passive"/>
       <node ref="J3" pin="6" pinfunction="Pin_6_6" pintype="passive"/>
       <node ref="R6" pin="2" pintype="passive"/>
+      <node ref="RT6" pin="1" pintype="passive"/>
     </net>
     <net code="16" name="/MOSI_SD" class="Default">
       <node ref="J1" pin="3" pinfunction="CMD_3" pintype="input"/>
       <node ref="R6" pin="1" pintype="passive"/>
       <node ref="R8" pin="1" pintype="passive"/>
+      <node ref="RT6" pin="2" pintype="passive"/>
       <node ref="U2" pin="3" pinfunction="I/O2_3" pintype="passive"/>
       <node ref="U2" pin="4" pinfunction="I/O2_4" pintype="passive"/>
     </net>

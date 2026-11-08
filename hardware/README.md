@@ -9,12 +9,11 @@ plugs in between the FM-1's LCD and its main board, so the card shares the LCD's
 ## The boards
 
 There are three variants, and the tested v6 they come from. The two long boards have the same circuit and outline as v6 and use
-the same tray (`tray/sd-tray.stl`); they differ in where J2 sits, the socket for the cable from J12.
+the same tray (`tray/sd-tray.stl`); they differ in where J2 sits, the socket for the cable from J12. The same-side long board (both sockets on the top) was dropped on 2026-11-08: the user's ruling is one socket on each side.
 
 | Folder | What it is | Zip to upload | Built? |
 |---|---|---|---|
-| [`long-same-side/`](long-same-side/) | Long board, both sockets on the top, J2 the same part as J3 and in line with it, cable arrives gold up; card socket 1 mm further in than v6 | `long-same-side/fab/sd-board-gerbers.zip` | No, never built or tested |
-| [`long-both-sides/`](long-both-sides/) | Long board, one socket on each side: J2 on the bottom, the same part as J3, cable arrives gold down; card socket 1 mm further in than v6 | `long-both-sides/fab/sd-board-gerbers.zip` | No, never built or tested |
+| [`long-both-sides/`](long-both-sides/) | Long board, one socket on each side: J2 on the bottom, the same part as J3, cable arrives gold down; card socket 1 mm further in than v6; **the twins** (2026-11-08): a pair of plain 1.6 x 2.4 mm pads in parallel with each of R1, R5, R6, for a leaded resistor to trim a value without touching the 0603; RT5's and RT6's pads are apart (one in the head, one on the swap block's row), the leaded part lies along the column; no via or line of their own | `long-both-sides/fab/sd-board-gerbers.zip` | No, never built or tested |
 | [`mini/`](mini/) | 26 x 25 mm after m-card, under the jacks, one socket on each side: hinged card socket top left, J2 behind it, J3 under it on the bottom; both sides assembled; order and fit in its `DESIGN.md`, no tray, no slot in the case | `mini/fab/sd-board-gerbers.zip` | No, never built or tested |
 | [`archive-v6-tested/`](archive-v6-tested/) | v6: the only built board. J2 on the top, its own part, cable arrives gold down; card sits 0.5 mm proud of the wall's outside | `archive-v6-tested/fab/sd-board-gerbers.zip` | **Yes, tested: ran a card in an FM-1 (2026-11-04)** |
 
@@ -54,7 +53,7 @@ files, and the design rules are standard (0.2 mm tracks and spacing, 0.3 mm hole
 | Layers | 2 |
 | PCB thickness | 1.6 mm |
 | Surface finish | HASL (the cheap default) |
-| PCB Assembly | on: **assembly side Top** for `long-same-side` and `archive-v6-tested`, **Both sides** for `long-both-sides` and `mini` |
+| PCB Assembly | on: **assembly side Top** for `archive-v6-tested`, **Both sides** for `long-both-sides` and `mini` |
 | Assembly type | Standard (at the last quote JLC did not offer Economic for these files) |
 | BOM file | `fab/bom.csv`, next to the zip |
 | CPL (placement) file | `fab/cpl.csv`, next to the zip |
@@ -64,7 +63,7 @@ preview check that the card socket's opening is past the bottom edge, both 10-pi
 U1's pin 1 dot is as on the render. J1, J2 and J3 are "extended" parts at JLC, which adds a small fee per part type. On
 `long-both-sides`, J2 is on the bottom: check its rotation in the preview.
 
-JLC's quotes of 2026-11-04 for 15 boards assembled, before shipping and VAT: v6 82.46 USD, long-same-side 81.43 USD,
+JLC's quotes of 2026-11-04 for 15 boards assembled, before shipping and VAT: v6 82.46 USD, the dropped same-side long board 81.43 USD,
 long-both-sides 115.45 USD (the bottom variant assembles both sides: about 34 USD more whatever the quantity). **Not
 re-quoted since the minor update** (no quote tool here); R8 is the same part as four others on the board, so no new
 part type is added.
@@ -92,7 +91,7 @@ The card also needs FM-1 firmware that knows about it (Optimist's SD card mode, 
 ## What the minor update changed (2026-11-04)
 
 No new version. R8, 47 kOhm 0603 (C25819), is the card's CMD pull-up as in m-card, on the card side of R6.
-31 (v6), 33 (long-same-side) and 35 (long-both-sides) ground stitching vias were added, kept 1.5 mm from the clock and data lines.
+31 (v6) and 35 (long-both-sides) ground stitching vias were added, kept 1.5 mm from the clock and data lines.
 On the long boards the card socket and the parts beside it moved 1 mm inward. No assembly PDF (the boards are ordered
 populated); the old per-board readmes are in each folder's `DESIGN.md`.
 
