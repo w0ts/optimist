@@ -1291,16 +1291,18 @@ _add("ARENA", "FELUCCA_ARENA_KB", "memory per project (the free RAM: one arena f
 # bit 415 (2026-10-26): the next free one after the retired BT_PROJ's 414; samples streamed from the SD card (storage/sd/sd_stream.c,
 # sd_stream_plan.c, docs/SD-CARD-DESIGN.md 7): the ring's KB a voice, 0 off (registry.h FELUCCA_SD_RING_KB -> SD_STREAM:
 # full FatFs, SAMPLE and the arena too, else it builds nothing)
-_add("SD_RING", "FELUCCA_SD_RING_KB", "samples streamed from the SD card (SAMPLE's CARD set): each voice's lookahead", MEM,
+_add("SD_RING", "FELUCCA_SD_RING_KB", "samples streamed from the SD card (SAMPLE's CARD set): the ring a fresh FM-1 starts with", MEM,
      415, default=0, parent="SDCARD", shown_under="SD_MODE",
      choices=((0, "off"), (4, "4 KB a voice (46 ms of 44.1 kHz 16-bit mono)"), (8, "8 KB a voice (93 ms)"),
               (12, "12 KB a voice (139 ms)"), (16, "16 KB a voice (186 ms)")),
      experimental=True, target_only=True, tested="host-tested only (tests/sd_stream_test.c, sd_stream_plan_test.c: "
      "a card model with stalls, an interrupt-driven audio clock); no FM-1 has the card yet",
      desc="SAMPLE's SET gets a last value, CARD: the part plays its sample from the SD card (a WAV of 8 or 16 bits, mono "
-          "or stereo, up to 176 kHz), streamed, not loaded. This is the one setting: every voice that streams owns a "
-          "ring of this size, always, and each sample's first bytes are preloaded in memory, exactly one ring's worth "
-          "(a sample shorter than that: whole; there is no device setting), so a note starts at once while the card's "
+          "or stereo, up to 176 kHz), streamed, not loaded. Every voice that streams owns a ring, always, the same size "
+          "for all: SYSTEM > SD CARD > RING sets it on the FM-1 (4, 8, 12 or 16 KB, kept with the device's settings, not the "
+          "project; this is the size a fresh FM-1 starts with; the slot tags and the SAMPLES list's preview ring are "
+          "sized for 16 KB in every build), and each sample's first bytes are preloaded in memory, exactly one ring's worth "
+          "(a sample shorter than that: whole), so a note starts at once while the card's "
           "first block comes and its ring fills before the preload runs out. The rings are filled in short bursts of "
           "4 KB between the screen's strips (the screen and the card share a bus). A card that stalls longer than the "
           "ring holds makes the voice fade out at once (no click; the console's sd stream counts it). The rings (a "

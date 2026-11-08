@@ -615,6 +615,9 @@ static void sst_plan_poll(void)
         sstp.dirty = 1;                              /* (a part went on or off SLICE CARD: whole, or streamed) */
     if (sstp.state == SSTP_PLACED && sst_nring() != sstp.nring_want)
         sstp.dirty = 1;                              /* (a CARD part's voices changed: its rings) */
+    if (sst_k != sd_ring_kb() * 2u && sstp.state != SSTP_GATED && !sst_pv.act && sst_pv.cmd != SPV_START)
+        sstp.dirty = 1;                              /* (SYSTEM > SD CARD > RING changed: placed again at that size; the
+                                                      * SAMPLES list's preview shares sst_k, so not while it plays) */
     if (sstp.dirty) {
         sstp.dirty = 0;
         sst_gate();
@@ -633,6 +636,8 @@ static void sst_plan_poll(void)
         fm1_irq_off();
         arn_give(SST_ARN_K);                         /* (no voice reads it: gated two halves ago) */
         fm1_irq_on();
+        if (!sst_pv.act && sst_pv.cmd != SPV_START)
+            sst_k = sd_ring_kb() * 2u;               /* (no ring placed now: the setting's size; the heads follow it) */
         sst_lookup();
         sstp.nring = sstp.nring_want = (uint8_t)sst_nring();
         sstp.rc = (uint8_t)sst_rcs_of();

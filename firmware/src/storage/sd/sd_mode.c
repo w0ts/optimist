@@ -612,7 +612,7 @@ static void sdm_wait(void) { sdb_finish(); }
 #define SDM_PV_HEAD (SST_HEAD_RING < 4096u ? SST_HEAD_RING : 4096u)   /* one ring's as a voice's, half its memory at most (the
                                                                       * runs beside it) */
 static uint8_t sdm_pv_mem[8192] __attribute__((aligned(4))) IN_POOL_AUDIO;   /* (its runs, its head) */
-static uint8_t sdm_pv_ring[SST_K * 512u] __attribute__((aligned(4))) IN_POOL_AUDIO;
+static uint8_t sdm_pv_ring[SST_K_MAX * 512u] __attribute__((aligned(4))) IN_POOL_AUDIO;
 static struct {
     char path[SDB_NAME * 2];
     uint32_t at;
