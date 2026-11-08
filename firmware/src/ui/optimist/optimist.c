@@ -38,6 +38,7 @@
 #ifndef FELUCCA_BT_UI
 #define FELUCCA_BT_UI (FELUCCA_BLE || FELUCCA_BT_AUDIO)   /* SYSTEM > Bluetooth: with either (felucca.c; host tests here) */
 #endif
+#include "../../core/console_on.h"         /* FELUCCA_CONSOLE where felucca.c did not set it (the host tests) */
 #if defined(FELUCCA_WIFI) && FELUCCA_WIFI && FELUCCA_BLE && ((FELUCCA_CONSOLE && BLE_HW_WL82) || defined(WIFI_ON_FM1B))   /* (the
                                          * manager is in the console, io/console.c; in the release fm1-base's own Wi-Fi
                                          * stack: the trial's ui/opt_wifi.h defines WIFI_ON_FM1B) */
