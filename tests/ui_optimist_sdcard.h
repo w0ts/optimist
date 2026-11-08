@@ -1941,7 +1941,27 @@ static void sdcard_tests(void)
             sd_step = SD_FLOOR;
         }
         sys_cell(r, 3, &c);
+#if FELUCCA_SD_STREAM
+        {   /* SD CARD > RING (core/sdring.h): the build's size first, a knob step the next, the record's bits 1..3, OP_RESET
+             * the build's again */
+            char want[8];
+            snprintf(want, sizeof want, "%u KB", (unsigned)sd_ring_kb());
+            check(!strcmp(c.label, "RING") && !strcmp(c.val, want) && sd_ring_sel == 0u, "SD CARD: RING, the build's size first");
+            sd_ring_set_pos(0);
+            sys_turn(r, 3, 1, 0);
+            sys_cell(r, 3, &c);
+            check(!strcmp(c.val, "8 KB") && sd_ring_kb() == 8u, "RING: a knob step from 4 KB: 8 KB");
+            check(sd_ring_to_rec() == 2u, "RING: 8 KB in the record as 2");
+            sd_ring_from_rec(9u);
+            check(sd_ring_sel == 0u, "RING: a record's value out of range reads as the build's");
+            sd_ring_from_rec(4u);
+            check(sd_ring_kb() == 16u, "RING: the record's 4: 16 KB");
+            sys_turn(r, 3, OP_RESET, 0);
+            check(sd_ring_sel == 0u, "RING: reset: the build's size");
+        }
+#else
         check(c.kind == CK_NONE, "SD CARD: CARD, SAMPLES INDEX, CLOCK, nothing beside them");
+#endif
         {   /* an old device record with VERSIONS, SLACK and a pre-buffer (all retired): loaded, the bytes ignored, written as 0 */
             sdm_rec.rsv[0] = 7;
             sdm_rec.rsv[1] = 4;

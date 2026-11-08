@@ -241,6 +241,32 @@ static void run_card(const char *img_path)
     CHECK(k, "%s: the rings in the block", what);
     CHECK(irq_depth == 0, "%s: the interrupts back on", what);
 
+    /* SYSTEM > SD CARD > RING (core/sdring.h): another size, placed again at it (a smaller one) or refused whole, never
+     * shorter rings (a larger one past the arena: the 4 KB build asks 16 KB); the build's size again: as before */
+    if (SST_K > 8u) {
+        sd_ring_set_pos(0);                          /* 4 KB */
+        sst_plan_poll();
+        CHECK(sstp.state == SSTP_GATED, "%s: RING 4 KB: gated", what);
+        settle();
+        CHECK(sstp.state == SSTP_PLACED && sst_k == 8u && sst_src[0].hlen == 4096u && sstp.nring == SST_N &&
+              sstp.need == SST_N * 4096u + 12u * (sst_src[0].nrun + sst_src[1].nrun) + 4096u * 2u,
+              "%s: RING 4 KB: placed at it, the preloads one ring's (%u, k %u, head %u, need %u)", what, sstp.state, sst_k,
+              sst_src[0].hlen, sstp.need);
+    } else {
+        sd_ring_set_pos(SDR_N - 1u);                 /* 16 KB */
+        sst_plan_poll();
+        CHECK(sstp.state == SSTP_GATED, "%s: RING 16 KB: gated", what);
+        settle();
+        CHECK(sstp.state == SSTP_REFUSED && sst_k == 32u && !sst[0].ring,
+              "%s: RING 16 KB past the arena: refused whole, no shorter ring (%u, k %u)", what, sstp.state, sst_k);
+    }
+    sd_ring_sel = 0;                                 /* (the build's) */
+    sst_plan_poll();
+    settle();
+    CHECK(sstp.state == SSTP_PLACED && sst_k == SST_K && sst_src[0].hlen == ring_b && head_ok(0, 1) && head_ok(1, 2),
+          "%s: RING the build's again: placed as before (%u, k %u)", what, sstp.state, sst_k);
+    blk = (uint8_t *)arn_ptr(SST_ARN_K);
+
     /* a placed sample streams through the rings */
     i = (uint32_t)sst_start(sst_part_src[1], 0, 0, 0, sst_rate(&sst_src[1], 65536u), 0);
     for (k = 0; k < 40; k++)

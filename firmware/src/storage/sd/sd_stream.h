@@ -34,14 +34,19 @@
 #ifndef SST_N
 #define SST_N 10u                                    /* streams (rings): one a sounding voice (core.h NVOICE 8; a kit's 10 lanes, SST_KIT_RINGS) */
 #endif
+#include "../../core/sdring.h"                       /* SYSTEM > SD CARD > RING: sd_ring_kb, SDR_MAX_KB */
 #ifndef SST_K
-#define SST_K ((uint32_t)FELUCCA_SD_RING_KB * 2u)    /* a ring's slots (512 B each): the builder's SD_RING, KB a voice */
+#define SST_K ((uint32_t)FELUCCA_SD_RING_KB * 2u)    /* a ring's slots (512 B each) a fresh FM-1 starts with: the builder's SD_RING */
+#endif
+#ifndef SST_K_MAX
+#define SST_K_MAX (SST_K > SDR_MAX_KB * 2u ? SST_K : SDR_MAX_KB * 2u)   /* the most slots a ring takes (the setting's largest):
+                                                      * the tags and the preview's ring are sized for it */
 #endif
 #ifndef SST_NSRC
 #define SST_NSRC 16u                                 /* the card samples a project plays at most */
 #endif
 _Static_assert(SST_K >= 2u && SST_K <= 64u, "sd_stream.h: a ring of 1 to 32 KB");
-static uint32_t sst_k = SST_K;                       /* a ring's slots, all rings alike: SST_K, the one setting (the user, 2026-11-06
+static uint32_t sst_k = SST_K;                       /* a ring's slots, all rings alike: sd_ring_kb() x 2 once placed (SYSTEM > SD CARD > RING, sd_stream_plan.c; the user, 2026-11-06
                                                       * evening: no shorter rings when there is no room); a host test may sweep it
                                                       * while no voice reads a ring */
 
@@ -72,7 +77,7 @@ typedef struct {                                     /* a card sample (the main 
 typedef struct {
     uint8_t *ring;                                   /* sst_k x 512 B, 4-byte aligned (the DMA) */
     const volatile uint8_t *owner;                   /* the voice's active flag: 0, the stream is free */
-    volatile uint32_t tag[SST_K];                    /* gen << 24 | file sector + 1; 0 empty */
+    volatile uint32_t tag[SST_K_MAX];                /* gen << 24 | file sector + 1; 0 empty (sst_k of them in use) */
     /* the audio's */
     const uint8_t *win;                              /* the window: data bytes wlo .. wlo + wn at win */
     uint32_t wlo, wn;
@@ -233,7 +238,7 @@ AINL void sst_arm(sst_t *st, const sst_src_t *s, uint32_t si, uint32_t looped, u
                   const volatile uint8_t *owner)
 {
     uint32_t k;
-    for (k = 0; k < SST_K; k++)
+    for (k = 0; k < sst_k; k++)                       /* (the slots in use: the rest are never read) */
         st->tag[k] = 0;
     st->gen = (uint8_t)(st->gen + 1u);
     st->src = (uint8_t)si;

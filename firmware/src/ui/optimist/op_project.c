@@ -423,6 +423,7 @@ enum { SI_NONE, SI_TUNE, SI_RECQ, SI_PUNCH, SI_OUT, SI_SYNC, SI_CH1, SI_CH2,
        SI_SDCARD, SI_SDINDEX,                           /* SD CARD: the card, the sample index (sd_mode.c) */
        SI_SDBACK, SI_SDREST,                            /* SETTINGS: BACKUP to the card, RESTORE from it (sd_mode.c) */
        SI_SDCLOCK,                                      /* SD CARD: the card's SPI clock, read-only (sd_mmc.c sd_clock_probe) */
+       SI_SDRING,                                       /* SD CARD: RING, the KB a streaming voice keeps ahead (core/sdring.h) */
 #endif
        SI_SMRATE, SI_SMSTRM, SI_SMBUF, SI_SMDRY,        /* SYSTEM > SD STREAM (op_sdmon.c): READ, STREAMS, BUFFER, DRY */
        SI_WFMODE, SI_WFNET, SI_WFSIG, SI_WFST,           /* SYSTEM > WI-FI (op_wifi.c): MODE, NETWORK, SIGNAL, STATE */
@@ -528,10 +529,10 @@ static const struct { const char *name; uint8_t it[4]; } SYS[] = {
     {"WI-FI", {SI_WFMODE, SI_WFNET, SI_WFSIG, SI_WFST}},   /* the same pattern as the Bluetooth pages (the user, 2026-10-27: "it should be very similar") */
 #endif
 #if FELUCCA_SD_UI
-    {"SD CARD", {SI_SDCARD, SI_SDINDEX, SI_SDCLOCK, SI_NONE}},   /* (the card's state, the sample index again, the clock the
-                                                         * mount's detection kept, read-only: the user, 2026-11-04; no
-                                                         * streaming setting since 2026-11-06 evening: a sample's preload
-                                                         * is one ring's, the builder's SD_RING) */
+    {"SD CARD", {SI_SDCARD, SI_SDINDEX, SI_SDCLOCK, SI_IF(FELUCCA_SD_STREAM, SI_SDRING)}},   /* (the card's state, the sample index again, the clock the
+                                                         * mount's detection kept, read-only: the user, 2026-11-04; RING,
+                                                         * the streams' KB a voice, a device setting since 2026-11-08: a
+                                                         * sample's preload is one ring's, core/sdring.h) */
 #if FELUCCA_SD_STREAM
     {"SD STREAM", {SI_SMRATE, SI_SMSTRM, SI_SMBUF, SI_SMDRY}},   /* how the card copes: the read rate, the voices streaming, the rings'
                                                          * least fill, the dropouts (the user, 2026-11-05; op_sdmon.c) */
@@ -1078,6 +1079,13 @@ static void sys_it_cell(uint32_t it, cell_t *c)     /* the cell of setting it */
         c->unit = "MHZ";
         break;
     }
+#if FELUCCA_SD_STREAM
+    case SI_SDRING: {                                   /* the KB each streaming voice keeps ahead (core/sdring.h) */
+        static const char *const RN[SDR_N] = {"4 KB", "8 KB", "12 KB", "16 KB"};
+        cell_list(c, "RING", RN[sd_ring_pos()], SDR_N - 1, (int32_t)sd_ring_pos());
+        break;
+    }
+#endif
 #if FELUCCA_SD_STREAM
     case SI_SMRATE:                                     /* SD STREAM's four lines (op_sdmon.c) */
     case SI_SMSTRM:
@@ -1631,6 +1639,12 @@ static void sys_set(uint32_t it, int32_t s)
     case SI_DBGST:                                      /* (kept in the settings record: persist_rec.c rsv_pj[1]) */
         dbg_stats_set((uint32_t)sys_step(dbg_stats, s, 1));
         break;
+#if FELUCCA_SD_STREAM
+    case SI_SDRING:                                     /* (kept in the settings record: rsv_pj[1] bits 1..3; the streams
+                                                         * take it at their next placing: sd_stream_plan.c) */
+        sd_ring_set_pos((uint32_t)sys_step((int32_t)sd_ring_pos(), s, SDR_N - 1));
+        break;
+#endif
     case SI_METERS:                                     /* (kept in the settings record: persist_rec.c rsv_pj[2]) */
         meters_mode = (uint8_t)sys_step(meters_mode, s, MTR_N - 1);
         break;
@@ -1698,6 +1712,11 @@ static int sys_factory(uint32_t it)
     case SI_DBGST:
         dbg_stats_set(0);
         break;
+#if FELUCCA_SD_STREAM
+    case SI_SDRING:
+        sd_ring_sel = 0;                                /* (the build's size: the builder's SD_RING) */
+        break;
+#endif
     case SI_METERS:
         meters_mode = MTR_DEFAULT;
         break;
