@@ -75,6 +75,14 @@ typedef struct {
 
 #define SDX_FILE SDL_ROOT "/System/index.bin"
 #define SDX_TMP SDL_ROOT "/System/index.tmp"
+/* a pass cut short is not started from scratch (the user, 2026-11-08: 5,511 samples, "as long as it does not start from
+ * scratch at every boot and saves state on a regular basis"): every SDX_CKPT_MS index.tmp's header says how many of its
+ * records are written ("OPIP"); the next pass keeps that file as index.prt and takes from it each walked file's record
+ * when the file is unchanged (path, size, date), as from the old index, so only the rest is hashed; gone when a pass ends */
+#define SDX_PART SDL_ROOT "/System/index.prt"
+#ifndef SDX_CKPT_MS
+#define SDX_CKPT_MS 30000u
+#endif
 #define SDX_ROOT SDL_ROOT "/Samples"
 #define SDX_F_ID 1u                                  /* (flags: a preset's or kit's record, its hash the file's id) */
 static const char *const SDX_ROOTS[3] = {SDX_ROOT, SDL_ROOT "/Presets", SDL_ROOT "/Kits"};
@@ -92,8 +100,10 @@ static struct {
 enum { SDXP_OFF = 0, SDXP_START, SDXP_COUNT, SDXP_OLD, SDXP_TMP, SDXP_ROOM, SDXP_NEW, SDXP_WALK, SDXP_SCAN, SDXP_HASH, SDXP_PUT, SDXP_END,
        SDXP_UNLINK, SDXP_MOVE, SDXP_SIG };
 static struct {
-    uint8_t st, root, old_open, new_open, smp_open, redo;
+    uint8_t st, root, old_open, new_open, smp_open, redo, part_open;
     uint32_t n, k, cap, oldn, cursor, scan, used, left;
+    uint32_t partn, pcursor, ck_at;                  /* index.prt's records, the next one the walk should meet; the last checkpoint */
+    FIL pf;                                          /* index.prt */
     uint32_t room_at, room_left, room_cl, room_n;    /* SDXP_ROOM: the FAT's sector, those left, the free run's start, its clusters */
     sdh_t hs;
     sdx_rec rec;                                     /* (the pass's: sdx.rec and sdx.f are the lookups', between slices) */
@@ -126,21 +136,24 @@ static FRESULT sdx_rw(FIL *f, uint32_t at, void *p, uint32_t n, int write)   /* 
     return r != FR_OK ? r : k == n ? FR_OK : FR_INT_ERR;
 }
 
-static FRESULT sdx_head_read(FIL *f, sdx_head *h)
+/* a header of that kind: 'X' an index ("OPIX"), 'P' a pass's records so far ("OPIP", its checkpoint: SDX_CKPT_MS) */
+static FRESULT sdx_head_kind(FIL *f, sdx_head *h, char kind)
 {
     FRESULT r = sdx_rw(f, 0, h, sizeof *h, 0);
-    if (r == FR_INT_ERR || (r == FR_OK && (memcmp(h->magic, "OPIX", 4) || h->version != 1u || h->rec != SDX_REC ||
+    if (r == FR_INT_ERR || (r == FR_OK && (memcmp(h->magic, "OPI", 3) || h->magic[3] != kind || h->version != 1u || h->rec != SDX_REC ||
                                            h->check != sdx_check(h) || h->count > h->cap ||
                                            (uint64_t)(h->cap + 1u) * SDX_REC > f_size(f))))
         r = FR_NO_FILESYSTEM;
     return r;
 }
+#define sdx_head_read(f, h) sdx_head_kind((f), (h), 'X')
 
-static FRESULT sdx_head_write(FIL *f, uint32_t count, uint32_t cap, uint32_t seq)
+static FRESULT sdx_head_put(FIL *f, char kind, uint32_t count, uint32_t cap, uint32_t seq)
 {
     sdx_head h;
     memset(&h, 0, sizeof h);
     memcpy(h.magic, "OPIX", 4);
+    h.magic[3] = kind;
     h.version = 1;
     h.rec = SDX_REC;
     h.count = count;
@@ -149,6 +162,7 @@ static FRESULT sdx_head_write(FIL *f, uint32_t count, uint32_t cap, uint32_t seq
     h.check = sdx_check(&h);
     return sdx_rw(f, 0, &h, sizeof h, 1);
 }
+#define sdx_head_write(f, count, cap, seq) sdx_head_put((f), 'X', (count), (cap), (seq))
 
 static FRESULT sdx_open_file(FIL *f, BYTE mode)      /* INDEX.BIN, or a pass's INDEX.TMP a cut left whole */
 {
@@ -266,7 +280,9 @@ static void sdx_pass_cancel(void)
         (void)f_close(&sdx.old);
     if (sdxp.new_open)
         (void)f_close(&sdxp.nf);
-    sdxp.smp_open = sdxp.old_open = sdxp.new_open = 0;
+    if (sdxp.part_open)
+        (void)f_close(&sdxp.pf);                     /* (index.prt stays: the next pass takes it again) */
+    sdxp.smp_open = sdxp.old_open = sdxp.new_open = sdxp.part_open = 0;
     sdxp.st = SDXP_OFF;
 }
 
@@ -457,14 +473,48 @@ static FRESULT sdx_u_old(void)                       /* the old index open */
     return FR_OK;
 }
 
-static void sdx_u_tmp(void)                          /* the last pass's leftover gone */
+static void sdx_u_tmp(void)                          /* the last pass's leftover: its records kept (index.prt), or gone */
 {
-    if (sdl_chain(SDX_TMP) && sdl_chain(SDX_TMP) == sdl_chain(SDX_FILE))
+    sdx_head h;
+    int part = 0;
+    if (sdl_chain(SDX_TMP) && sdl_chain(SDX_TMP) == sdl_chain(SDX_FILE)) {
         (void)f_unlink_entry(SDX_TMP);               /* (a cut rename's other half: the index's own clusters) */
-    else
-        (void)f_unlink(SDX_TMP);                     /* (a cut pass's) */
+    } else if (f_open(&sdxp.pf, SDX_TMP, FA_READ) == FR_OK) {
+        part = sdx_head_kind(&sdxp.pf, &h, 'P') == FR_OK;   /* (a cut pass with a checkpoint: newer than index.prt) */
+        (void)f_close(&sdxp.pf);
+        if (part)
+            (void)f_unlink(SDX_PART);
+        if (!part || sdl_move(SDX_TMP, SDX_PART) != FR_OK)
+            (void)f_unlink(SDX_TMP);                 /* (a cut pass's, before its first checkpoint) */
+    }
+    sdxp.partn = sdxp.pcursor = 0;
+    if (f_open(&sdxp.pf, SDX_PART, FA_READ) == FR_OK) {
+        if (sdx_head_kind(&sdxp.pf, &h, 'P') == FR_OK) {
+            sdxp.partn = h.count;
+            sdxp.part_open = 1;
+        } else {
+            (void)f_close(&sdxp.pf);
+            (void)f_unlink(SDX_PART);
+        }
+    }
     sdxp.st = SDXP_ROOM;
     sdxp.room_left = 0;
+}
+
+/* the walked file in index.prt (the walk's order is the cut pass's: the next record, or the one after when a file went),
+ * unchanged: its record taken (sdxp.rec), 1 */
+static int sdx_part_hit(sdx_rec *into)            /* (into: sdxp.rec, or a scratch record to follow the walk alone) */
+{
+    uint32_t i, stamp = (uint32_t)sdx.walk.fi.fdate << 16 | sdx.walk.fi.ftime;
+    for (i = 0; i < 2u && sdxp.part_open && sdxp.pcursor + i < sdxp.partn; i++) {
+        if (sdx_read_in(&sdxp.pf, sdxp.pcursor + i, into) != FR_OK)
+            return 0;
+        if (!sdl_cmp(into->path, sdx.walk.path + SDX_SKIP)) {
+            sdxp.pcursor += i + 1u;
+            return into->size == (uint32_t)sdx.walk.fi.fsize && into->stamp == stamp;
+        }
+    }
+    return 0;
 }
 
 /* The room for index.tmp, a sector of the FAT a unit. FatFs looks for a file's run from the volume's next-free hint, in one call,
@@ -523,6 +573,7 @@ static FRESULT sdx_u_new(void)                       /* the new index's run, the
     sdxp.cap = (uint32_t)(f_size(&sdxp.nf) / SDX_REC) - 1u;
     if ((r = sdx_rw(&sdxp.nf, 0, &sdxp.rec, SDX_REC, 1)) != FR_OK)
         return r;
+    sdxp.ck_at = SD_NOW();
     sdxp.root = 0;
     sdxp.st = SDXP_WALK;
     return sdx_root_open();
@@ -539,9 +590,17 @@ static FRESULT sdx_matched(int32_t at, uint8_t *buf)
         sdxp.rec.stamp == ((uint32_t)sdx.walk.fi.fdate << 16 | sdx.walk.fi.ftime)) {
         sdx.kept++;                                  /* unchanged: its hash kept */
         sdxp.st = SDXP_PUT;
+        (void)sdx_part_hit((sdx_rec *)(void *)buf);  /* (index.prt followed along: buf is free here, 512 bytes, aligned) */
         return FR_OK;
     }
     sdxp.used = at >= 0 ? sdxp.rec.used : 0u;
+    if (sdx_part_hit(&sdxp.rec)) {                   /* (hashed by a pass that was cut: kept) */
+        if (!sdxp.rec.used)
+            sdxp.rec.used = sdxp.used;
+        sdx.kept++;
+        sdxp.st = SDXP_PUT;
+        return FR_OK;
+    }
     memset(&sdxp.rec, 0, sizeof sdxp.rec);
     if ((r = f_open(&sdx.smp, sdx.walk.path, FA_READ)) != FR_OK)
         return r;
@@ -625,6 +684,11 @@ static FRESULT sdx_u_unlink(void)                    /* the new index in the old
         (void)f_close(&sdx.old);
         sdxp.old_open = 0;
     }
+    if (sdxp.part_open) {                            /* (a cut pass's records: all in the new index now) */
+        (void)f_close(&sdxp.pf);
+        sdxp.part_open = 0;
+    }
+    (void)f_unlink(SDX_PART);
     r = f_unlink(SDX_FILE);
     sdxp.st = SDXP_MOVE;
     return r == FR_NO_FILE ? FR_OK : r;
@@ -683,6 +747,11 @@ static FRESULT sdx_unit(uint8_t *buf, uint32_t bufn)
         r = sdx_rw(&sdxp.nf, (sdxp.k + 1u) * SDX_REC, &sdxp.rec, SDX_REC, 1);
         sdxp.k++;
         sdxp.st = SDXP_WALK;
+        if (r == FR_OK && (uint32_t)(SD_NOW() - sdxp.ck_at) >= SDX_CKPT_MS * SD_TICKS_MS) {
+            sdxp.ck_at = SD_NOW();                   /* the checkpoint: the records so far, kept should the pass be cut */
+            if ((r = sdx_head_put(&sdxp.nf, 'P', sdxp.k, sdxp.cap, sdx.seq)) == FR_OK)
+                r = f_sync(&sdxp.nf);
+        }
         return r;
     case SDXP_END:
         return sdx_u_end();
