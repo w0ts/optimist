@@ -1330,7 +1330,7 @@ static void nn_post(void)               /* last, after the frame's force is spen
  * question the modal covers the panel's first MODAL_H rows; the rows below it are an empty band */
 static void draw_under(void)
 {
-    if ((op_overlay() != 1u && op_overlay() != 3u && op_overlay() != 4u && op_overlay() != 6u) || ui.sig[3] == 1u)
+    if ((op_overlay() != 1u && op_overlay() != 3u && op_overlay() != 4u) || ui.sig[3] == 1u)
         return;
     ui.sig[3] = 1u;
     if (OP_PH > MODAL_H)                                /* (2x2: the modal takes the whole panel) */
@@ -1486,7 +1486,7 @@ static void op_frame_draw(void)
         op_repaint();                                   /* (every band again over itself, the header too: a scene launched changes the track's sound) */
     }
     if (ov != ui.overlay || ui.force) {                 /* the panel under the overlay: again when it goes */
-        if (ui.overlay == 5u)                           /* (the popup list covers the cards too: every band again, drawn over it; no black
+        if (ui.overlay == 5u || ui.overlay == 6u)       /* (the popup list, the Link count cover the cards too: every band again, drawn over it; no black
                                                          * fill first: the panel blinked ~1.5 s after a list value's turn, Reddit 2026-10-26) */
             memset(ui.sig, 0, sizeof ui.sig);
         ui.overlay = (uint8_t)ov;
@@ -1533,7 +1533,7 @@ static void op_frame_draw(void)
         ui.force = 0;
         return;
     }
-    if (ov == 5u)
+    if (ov == 5u || ov == 6u)
         ;                                               /* (PRESETS' popup list covers the cards band whole, op_preset.c POP_Y: the cards are not
                                                          * drawn under it; every band again when it closes. A sound changed at a detent changed
                                                          * the cards, they were sent, then the box over their rows: the list's top flashed, the
