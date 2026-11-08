@@ -50,7 +50,6 @@ MODULES = (
     ("fm1base/ble/", "BLE"),
     ("firmware/src/wifi/", "WI-FI"),
     ("fm1base/wifi/", "WI-FI"),
-    ("firmware/src/link/", "LINK"),
     ("fm1base/link/", "LINK"),
     ("firmware/src/storage/", "STORAGE"),
     ("firmware/src/system/", "SYSTEM"),

@@ -8,7 +8,7 @@
 #ifndef WIFI_IP_H
 #define WIFI_IP_H
 #include <stdint.h>
-#include "../link/link.h"
+#include "../../../fm1base/link/link.h"
 
 #define WIFI_IP_80211_HDR 24u
 #define WIFI_IP_LLC_SNAP 8u

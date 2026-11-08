@@ -9,7 +9,7 @@
 #include "../firmware/src/wifi/wifi_crypto.c"
 #include "../firmware/src/wifi/wifi_sta.c"
 #include "../firmware/src/wifi/wifi_ip.c"
-#include "../firmware/src/link/link.c"
+#include "../fm1base/link/link.c"
 
 static int fails, checks;
 static void write_u32_be(uint8_t *p, uint32_t v)
