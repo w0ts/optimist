@@ -144,7 +144,6 @@
   {"kind":1,"id":1,"page":3,"cell":1,"title":"BODY","d":{"label":"DECAY","fmt":2,"min":-64,"max":63,"def":0,"unit":""}},
   {"kind":1,"id":2,"page":3,"cell":2,"title":"BODY","d":{"label":"SNAP","fmt":2,"min":-64,"max":63,"def":0,"unit":""}},
   {"kind":1,"id":3,"page":3,"cell":3,"title":"BODY","d":{"label":"CLICK","fmt":2,"min":-64,"max":63,"def":0,"unit":""}},
-  {"kind":1,"id":4,"page":4,"cell":0,"title":"TONE","d":{"label":"BEND","fmt":7,"min":-24,"max":24,"def":0,"unit":""}},
   {"kind":1,"id":5,"page":4,"cell":1,"title":"TONE","d":{"label":"CUT","fmt":2,"min":-64,"max":63,"def":0,"unit":""}},
   {"kind":1,"id":6,"page":4,"cell":2,"title":"TONE","d":{"label":"DRIVE","fmt":2,"min":-64,"max":63,"def":0,"unit":""}},
   {"kind":1,"id":7,"page":4,"cell":3,"title":"TONE","d":{"label":"LEVEL","fmt":0,"min":-24,"max":6,"def":0,"unit":"dB"}},
