@@ -1172,8 +1172,10 @@ _add("LIVE_SAVE", "FELUCCA_LIVE_SAVE", "save while playing (flash writes in shor
           "because every sector erase is already cut into 1 ms windows with the erase suspended between them "
           "(hal/fm1_flash_slice.h); the main loop (the screen, the panel) still pauses for one record's write, tens of "
           "ms. If the flash part ever holds an erase in one window (no suspend: the audio silenced in it), saves wait "
-          "for the stop again until the next start. Snapshots, backup restores, sample uploads, the web editor's writes "
-          "and the working project's autosave still wait for the stop. About 240 B of flash, 1 byte of RAM.",
+          "for the stop again until the next start. The working project's autosave also goes on while playing or while "
+          "a voice sounds (not while recording, not in a song), once the work has settled 10 s, at most once a minute. "
+          "Snapshots, backup restores, sample uploads and the web editor's writes still wait for the stop. About 270 B "
+          "of flash, 1 byte of RAM.",
      off_warning="saves refused (STOP BEFORE SAVE) or held until the transport stops, as before")
 # ---- Memory management (the user, 2026-10-28; three choices 2026-10-31): the first group. The real items are LAYOUT
 # (the flash step, FELUCCA_LAYOUT) and SDCARD, both hidden; the menu and the web builder show three fronts instead (the
