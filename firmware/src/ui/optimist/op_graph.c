@@ -820,19 +820,29 @@ static uint8_t lk_count;
 #define LK_Y OH_HEAD                                    /* the header's foot: the count takes the screen from there */
 #define LK_H (OP_FOOT_Y - OH_HEAD)                      /* to the help band (or the screen's foot) */
 #define LK_TOP 6                                        /* "Link start in": its line, then the digit under it */
+/* the digit drawn as seven bars (a, b, c, d, e, f, g: top, top right, bottom right, bottom, bottom left, top left, middle),
+ * not a font: the release's faces (fm1-base's gen_font.py, barlow) do not scale, and its largest is 32 rows (2026-11-08,
+ * the user on the FM-1: the label grew, the number did not) */
+static const uint8_t LK_SEG[10] = {0x3F, 0x06, 0x5B, 0x4F, 0x66, 0x6D, 0x7D, 0x07, 0x7F, 0x6F};   /* bit 0 a .. bit 6 g */
+static void lk_digit(int32_t x, int32_t y, int32_t w, int32_t h, uint32_t n, uint16_t c)
+{
+    int32_t t = w / 5, m = y + (h - t) / 2;             /* the bars' thickness; the middle bar's row */
+    uint32_t s = LK_SEG[n % 10u];
+    if (s & 0x01u) cv_rect(x, y, w, t, c);
+    if (s & 0x02u) cv_rect(x + w - t, y, t, m - y + t, c);
+    if (s & 0x04u) cv_rect(x + w - t, m, t, y + h - m, c);
+    if (s & 0x08u) cv_rect(x, y + h - t, w, t, c);
+    if (s & 0x10u) cv_rect(x, m, t, y + h - m, c);
+    if (s & 0x20u) cv_rect(x, y, t, m - y + t, c);
+    if (s & 0x40u) cv_rect(x, m, w, t, c);
+}
 static void lk_paint(void)
 {
     const felucca_font_t *fl = font_big();
-    felucca_font_t f = FONT_S;
-    char d[2] = {(char)('0' + (lk_count > 9u ? 9u : lk_count)), 0};
-    int32_t top = LK_TOP + (int32_t)fl->h + 4, room = LK_H - top - 4;
-    uint32_t sc = (uint32_t)(room > 0 ? room : 0) / FONT_S.h;
-    sc = sc < 4u ? 4u : sc > 12u ? 12u : sc;            /* (FONT_S's 16 rows at 4 .. 12x: 64 .. 192 rows) */
-    f.scale = (uint8_t)sc;
-    f.h = (uint8_t)(FONT_S.h * sc);
-    f.pad = (uint8_t)(FONT_S.pad * sc);
+    int32_t top = LK_TOP + (int32_t)fl->h + 8, h = LK_H - top - 8, w = h * 5 / 8;
     cv_text_mid(LK_TOP, fl, "Link start in", C_GRAY);
-    cv_text_mid(top + (room - (int32_t)f.h) / 2, &f, d, C_HI);
+    if (h > 20)
+        lk_digit(120 - w / 2, top, w, h, lk_count, C_HI);
 }
 static void draw_link_count(void) { cv_whole(LK_Y, LK_H, C_BLACK, lk_paint); }
 #if FELUCCA_BLE && BLE_CEN_PAIR
