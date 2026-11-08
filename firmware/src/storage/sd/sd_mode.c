@@ -73,8 +73,12 @@ static uint8_t sdm_dirty;                            /* the record changed: 2 on
 #define SDM_IX_EVERY_MS 16u
 #define SDM_FAC_AT_ONCE 0                            /* (a test: the names in one call) */
 #endif
+#ifndef SDM_IX_IDLE_MS
+#define SDM_IX_IDLE_MS 12u                           /* stopped: the pass takes more of each frame (the user, 2026-11-08: 5,511 samples, "slow") */
+#endif
 static uint8_t sdm_ix_force, sdm_ix_pct;
 static uint32_t sdm_ix_at;
+static uint8_t sdm_ix_buf[4096] IN_POOL __attribute__((aligned(4)));   /* the pass's reads: 8 blocks a CMD18, not sd_blk's 1 (2026-11-08) */
 static uint8_t sdm_dropped;                          /* the boot's pending save was another project's: dropped */
 static sdm_smp_t sdm_smp[SDM_NSMP];                  /* the open project's samples (the player's): parts, lanes */
 static uint32_t sdm_smp_key;                         /* the record read (its sequence + 1; 0 none read) */
@@ -436,7 +440,7 @@ static void sdm_poll(void)
     }
     if (sdm_st == SDM_INDEX && (uint32_t)(fm1_ms - sdm_ix_at) >= SDM_IX_EVERY_MS) {
         sdm_ix_at = fm1_ms;
-        (void)sdm_was(sdx_pass_step(sd_blk, sizeof sd_blk, SDM_IX_SLICE_MS));
+        (void)sdm_was(sdx_pass_step(sdm_ix_buf, sizeof sdm_ix_buf, song.playing ? SDM_IX_SLICE_MS : SDM_IX_IDLE_MS));
         if (sdx_pass_on()) {
             if (sdx_pass_pct() != sdm_ix_pct) {      /* (SYSTEM > SD CARD's SAMPLES line) */
                 sdm_ix_pct = sdx_pass_pct();

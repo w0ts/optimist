@@ -15,6 +15,8 @@
  *     creation a single call of its own again, and the hint past what is used.
  *   sd_index_pass_test FAT16.img FAT32.img */
 #define FELUCCA_SD_FATFS 1
+static unsigned ckpt_ms = 30000u;                    /* sd_index.c's checkpoint period (resumed() below: every record) */
+#define SDX_CKPT_MS ckpt_ms
 #include "sd_card_model.h"
 #include "storage/sd/sd_mmc.c"
 #include "storage/sd/sd_diskio.c"
@@ -321,6 +323,50 @@ static void pulled(const char *what)
           "%s: the next pass whole (%u)", what, (unsigned)sdx.count);
 }
 
+/* a power cut in the middle of a pass with 40 new samples to hash, after checkpoints (index.tmp "OPIP"): the next pass takes
+ * the cut one's records (index.prt) and hashes only the rest; its index the same, byte for byte, as a pass never cut; index.prt
+ * gone. Before (2026-11-08): the cut pass's index.tmp deleted, every file hashed again at each start */
+static void resumed(const char *what, uint8_t *img, uint8_t *snap, uint32_t bytes)
+{
+    char p[64];
+    uint32_t i, na, nb, full, cut, again;
+    slices_t s;
+    FILINFO fi;
+    for (i = 0; i < 40u; i++) {
+        snprintf(p, sizeof p, "Optimist/Samples/many/s%02u.wav", (unsigned)i);
+        if (i == 0u)
+            (void)f_mkdir("Optimist/Samples/many");
+        wav(p, 6000u + i * 37u, 200u + i);
+    }
+    memcpy(snap, img, bytes);
+    CHECK(sdx_pass_begin(1) == 1 && by_slices(&s) == FR_OK, "%s: resumed: the pass never cut (the reference)", what);
+    full = sdx.hashed;
+    na = index_read(idx_a);
+    memcpy(img, snap, bytes);                         /* (the same card again: the cut pass's turn) */
+    CHECK(mount() == FR_OK, "%s: resumed: mounted again", what);
+    ckpt_ms = 0u;                                     /* (a checkpoint at every record) */
+    (void)sdx_pass_begin(1);
+    for (i = 0; i < 4000u && sdx_pass_on() && sdx.hashed < full / 2u; i++)
+        CHECK(sdx_pass_step(buf, sizeof buf, SLICE_MS) == FR_OK, "%s: resumed: a slice", what);
+    cut = sdx.hashed;
+    CHECK(sdx_pass_on() && cut >= 10u && cut < full, "%s: resumed: cut with %u of %u hashed", what, (unsigned)cut, (unsigned)full);
+    memset(&sdxp, 0, sizeof sdxp);                    /* the power cut: nothing closed, the RAM gone */
+    memset(&sdx, 0, sizeof sdx);
+    ckpt_ms = 30000u;
+    card_power_on();
+    CHECK(mount() == FR_OK, "%s: resumed: powered on", what);
+    CHECK(sdx_pass_begin(1) == 1 && by_slices(&s) == FR_OK, "%s: resumed: the next pass", what);
+    again = sdx.hashed;
+    CHECK(again + cut <= full + 1u && again < full, "%s: resumed: only the rest hashed (%u, the cut pass %u, all %u)", what,
+          (unsigned)again, (unsigned)cut, (unsigned)full);
+    nb = index_read(idx_b);
+    CHECK(na && na == nb && !memcmp(idx_a, idx_b, na), "%s: resumed: the same index as a pass never cut (%u, %u bytes)", what,
+          (unsigned)na, (unsigned)nb);
+    CHECK(f_stat(SDX_PART, &fi) == FR_NO_FILE && f_stat(SDX_TMP, &fi) == FR_NO_FILE, "%s: resumed: index.prt and index.tmp gone", what);
+    printf("sd_index_pass_test: %s: a pass cut after %u hashed: the next one hashed %u of %u\n", what, (unsigned)cut,
+           (unsigned)again, (unsigned)full);
+}
+
 static void meanwhile(const char *what)
 {
     sdx_rec rec;
@@ -446,6 +492,7 @@ static void card_run(const char *what, uint8_t *img, uint32_t sectors, uint32_t 
     same_as_old("over an old index", img, snap, bytes);
     meanwhile(what);
     pulled(what);
+    resumed(what, img, snap, bytes);
     remount(what, fsinfo);
     if (fs.fs_type == FS_FAT32)
         low_hint(what, img, snap, bytes);
