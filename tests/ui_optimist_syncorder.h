@@ -73,27 +73,26 @@ static void midi_lists_tests(void)
     }
 #endif
 #if FELUCCA_LINK && WIFI_UI
-    {   /* PLAY under Link waits for the session's bar: "LINK START IN n" a beat, gone once it plays (op_wifi.c wf_link_count) */
+    {   /* PLAY under Link waits for the session's bar: the beats left, large in the panel's middle (op_overlay 6, op_graph.c
+         * lk_paint), gone once it plays (op_wifi.c wf_link_count) */
+        uint32_t x, y, lit = 0;
         reset_ui();
         test_wait_beats = 4u;
-        wf_poll();
-        check(ui.msg_t && !strcmp(ui.msg, "LINK START IN 4"), "Link: PLAY waiting for the bar says LINK START IN 4");
-        ui.msg_t = 0;
-        wf_poll();
-        check(!ui.msg_t, "Link: the same beat says nothing again");
+        frames(2);
+        check(lk_count == 4u && op_overlay() == 6u, "Link: PLAY waiting for the bar: the count over the panel (4)");
+        for (y = OP_PY; y < (uint32_t)(OP_PY + MODAL_H); y++)
+            for (x = 90u; x < 150u; x++)
+                lit += px_at(x, y, C_HI);
+        check(lit > 300u, "Link: the count drawn large in the panel's middle");
+        ppm("opt-link-count");
         test_wait_beats = 1u;
-        wf_poll();
-        check(ui.msg_t && !strcmp(ui.msg, "LINK START IN 1"), "Link: the next beat's count, LINK START IN 1");
+        frames(2);
+        check(lk_count == 1u && op_overlay() == 6u, "Link: the next beat's count (1)");
         test_wait_beats = 0u;
-        wf_poll();
-        check(!ui.msg_t, "Link: started (or the wait dropped): the count gone at once");
+        frames(2);
+        check(!lk_count && op_overlay() != 6u, "Link: started (or the wait dropped): the count gone at once");
         ui_message("SAVED");
-        test_wait_beats = 3u;
-        wf_poll();
-        test_wait_beats = 0u;
-        ui_message("OTHER");
-        wf_poll();
-        check(ui.msg_t && !strcmp(ui.msg, "OTHER"), "Link: the count's end leaves another message alone");
+        check(!lk_count && !strcmp(ui.msg, "SAVED"), "Link: no header message of its own (a message stays the other's)");
     }
 #endif
 #if FELUCCA_LINK

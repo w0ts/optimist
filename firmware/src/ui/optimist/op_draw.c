@@ -1330,7 +1330,7 @@ static void nn_post(void)               /* last, after the frame's force is spen
  * question the modal covers the panel's first MODAL_H rows; the rows below it are an empty band */
 static void draw_under(void)
 {
-    if ((op_overlay() != 1u && op_overlay() != 3u && op_overlay() != 4u) || ui.sig[3] == 1u)
+    if ((op_overlay() != 1u && op_overlay() != 3u && op_overlay() != 4u && op_overlay() != 6u) || ui.sig[3] == 1u)
         return;
     ui.sig[3] = 1u;
     if (OP_PH > MODAL_H)                                /* (2x2: the modal takes the whole panel) */
@@ -1338,7 +1338,7 @@ static void draw_under(void)
 }
 
 /* ---- the overlay: the modal (a question) or the toast (a result) over the panel */
-static uint32_t op_overlay(void) { return op_code_on() ? 4u : rh.ring ? 3u : op_armed() ? 1u : ui.toast_t ? (pop_kind ? 5u : 2u) : 0u; }   /* (5: PRESETS' popup list, op_preset.c) */
+static uint32_t op_overlay(void) { return op_code_on() ? 4u : rh.ring ? 3u : op_armed() ? 1u : lk_count ? 6u : ui.toast_t ? (pop_kind ? 5u : 2u) : 0u; }   /* (5: PRESETS' popup list, op_preset.c; 6: the Link start's count, op_graph.c) */
 /* REC held: the ring over the panel (SLOOP's hold screen's ring, copied: 36 px, 7 thick, filling clockwise from the
  * top), in the track's instrument colour, its name, "Keep holding"; no question: the ring is the confirmation */
 #define RING_R (MODAL_H >= 117 ? 36 : 28)               /* the ring's outer radius: smaller over the help band's shorter panel */
@@ -1435,6 +1435,7 @@ static void draw_overlay(uint32_t ov)
                  : ov == 3u ? hu(hu(hu(0x71u, (fm1_ms - rh.t1) * 64u / RH_CLEAR_MS), (rh.trk * 16u + settings.palette) * 32u + (uint32_t)(rh.lane + 1)), rh.motion)
                  : ov == 1u ? hs(hs(hu(hu(3u, ui.arm_danger + ui.arm_stop * 2u), settings.palette + (ui.arm_ring ? (fm1_ms - ui.arm_ms) * 64u / RH_CLEAR_MS * 256u : 0u)), ui.arm_verb), ui.arm_arg)
                  : ov == 5u ? hu(hu(0x505u, pre_sig()), pop_kind)
+                 : ov == 6u ? hu(hu(0x6C6u, lk_count), settings.palette)
                            : hs(hu(4u, ui.msg_st), ui.msg);
     if (sig == ui.sig[4])
         return;
@@ -1450,6 +1451,8 @@ static void draw_overlay(uint32_t ov)
         draw_modal();
     else if (ov == 5u)
         draw_pop();
+    else if (ov == 6u)
+        draw_link_count();
     else
         draw_toast();
 }
@@ -1545,8 +1548,8 @@ static void op_frame_draw(void)
 #endif
              )
         draw_cards();                                   /* (the mixer too: its knobs are the selected row's; STEP: step_frame) */
-    if (ov == 1u || ov == 3u || ov == 4u) {
-        draw_overlay(ov);                               /* the modal, the REC ring, a Bluetooth code: the whole panel */
+    if (ov == 1u || ov == 3u || ov == 4u || ov == 6u) {
+        draw_overlay(ov);                               /* the modal, the REC ring, a Bluetooth code, the Link start's count: the whole panel */
     } else {
         uint32_t under = ui.sig[2];
         if (ov == 5u)

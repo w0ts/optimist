@@ -812,6 +812,22 @@ static void draw_toast(void)                             /* the result of a conf
     tst.col = ui.toast_col ? ui.toast_col : st ? C_STATUS[st & 3u] : C_HI;   /* (a preset: its engine's) */
     cv_whole_w((uint32_t)(120 - w / 2), OP_PY + 44u, (uint32_t)w, 36, C_BLACK, toast_paint);   /* (36 rows: in passes at 31) */
 }
+/* PLAY under Link waiting for the session's bar (op_wifi.c wf_link_count sets it: the beats left, 4 .. 1; 0 none): the
+ * count over the panel, large, in its middle (op_overlay 6; the user, 2026-11-08: "it could be in the center of the
+ * screen, bigger") */
+static uint8_t lk_count;
+#define LK_SCALE (MODAL_H >= 110 ? 5u : 4u)              /* FONT_S's digit at 5x: 80 rows (4x: 64, the help band's shorter panel) */
+static void lk_paint(void)
+{
+    felucca_font_t f = FONT_S;
+    char d[2] = {(char)('0' + (lk_count > 9u ? 9u : lk_count)), 0};
+    f.scale = (uint8_t)LK_SCALE;
+    f.h = (uint8_t)(FONT_S.h * LK_SCALE);
+    f.pad = (uint8_t)(FONT_S.pad * LK_SCALE);
+    cv_text_mid(4, &FONT_S, "Link start in", C_GRAY);
+    cv_text_mid((MODAL_H + 16 - (int32_t)f.h) / 2, &f, d, C_HI);
+}
+static void draw_link_count(void) { cv_whole(OP_PY, MODAL_H, C_BLACK, lk_paint); }
 #if FELUCCA_BLE && BLE_CEN_PAIR
 /* a Bluetooth pairing waiting for the other device's user to type the code, the devices list not on screen (the search
  * for LAST runs while the list is closed: a Mac or phone that lost the bond is paired afresh then, with the code; the list

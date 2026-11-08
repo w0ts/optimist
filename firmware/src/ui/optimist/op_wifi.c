@@ -908,22 +908,13 @@ static int wf_key(uint32_t b, int held)                 /* op_input.c: SAVE on t
 /* a join that failed is said once (the manager sets wc.fail_new): wherever the user is when he asked for it, and on the page
  * for the manager's own tries (AUTO retries every 20 s: said anywhere they would be noise). A join completed is said once */
 #if FELUCCA_LINK
-/* PLAY under Link waits for the session's bar (wifi_link.c wl_wait_beats): "LINK START IN 4" .. 1, a message each beat,
- * gone once it plays (the user, 2026-11-08: "a notice / count down until it starts, so that we know it waits for the bar") */
+/* PLAY under Link waits for the session's bar (wifi_link.c wl_wait_beats): the beats left, 4 .. 1, large in the middle of
+ * the panel (op_graph.c lk_paint, op_overlay 6), gone once it plays (the user, 2026-11-08: "a notice / count down until it
+ * starts, so that we know it waits for the bar"; "it could be in the center of the screen, bigger") */
 static void wf_link_count(void)
 {
-    static uint8_t was;
     uint32_t n = wl_wait_beats();
-    char d[2] = {0, 0};
-    if (n == was)
-        return;
-    if (n) {
-        d[0] = (char)('0' + (n > 9u ? 9u : n));
-        ui_say("LINK START IN ", d);
-    } else if (!memcmp(ui.msg, "LINK START IN ", 14u)) {
-        ui.msg_t = 0;                                   /* (playing, or the wait dropped: the count gone at once) */
-    }
-    was = (uint8_t)n;
+    lk_count = (uint8_t)(n > 9u ? 9u : n);
 }
 #else
 #define wf_link_count() ((void)0)
