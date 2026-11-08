@@ -65,12 +65,12 @@ OS_LABEL = {"Darwin": "macOS", "Windows": "Windows", "Linux": "Linux"}
 INSIDE = {"dmg": "M-Flasher.app/Contents/MacOS/M-Flasher", "zip": "M-Flasher.exe", "tar.gz": "m-flasher/m-flasher"}
 ASSETS = {(SYSTEMS[f["os"]], f["arch"]): (f["name"], f["sha256"], INSIDE[f["kind"]])
           for f in RELEASE_FILES if f["kind"] in INSIDE}
-# m-bootloader: Julius's own v2.2 release, as he built it (its SHA256SUMS). 2.0 on has MIDI mode, 2.2 backs up and runs RAM
-# apps over MIDI (docs/INSTALL-PATHS.md); it replaces our fork, whose SD card item is in his main. M-Flasher 0.9.2 bundles
-# this same version, installers still pass --file so that the file is the one pinned here.
-MBOOT_RELEASE = {"version": "2.2", "commit": "64f7c9cad1580bea870fc4a9e9bd61583fee3aef",
-                 "fm1-uboot.boot": "cedc9c17648bdeecda5c8d0ffffe2211849f8a36ab615fe49d6cc46d249baf44",
-                 "fm1-uboot.fwsc": "cb6128ee753a1661e6399002317464959231854024f259520755621954438981"}
+# m-bootloader: Julius's own v2.3 release, as he built it (its SHA256SUMS). 2.0 on has MIDI mode, 2.2 backs up and runs RAM
+# apps over MIDI, 2.3 opens MIDI mode by itself when the firmware cannot start (docs/INSTALL-PATHS.md). M-Flasher 0.9.2 bundles 2.2:
+# installers pass --file, so the file is the one pinned here.
+MBOOT_RELEASE = {"version": "2.3", "commit": "6bc8f459b94f75cf8c0a94e4fb018b09b2cc7689",
+                 "fm1-uboot.boot": "1a4ba056f98f9837720ee2353d8b541b08016a20389e32740d0c9e14d966f8a9",
+                 "fm1-uboot.fwsc": "0299c41368f6d5d8f39776b3cad597a1c95677c27f3ca855c29368daf3d1d4e0"}
 MBOOT_DIR = ROOT / "web" / "fm1base" / "m-bootloader"
 MBOOT_BOOT = MBOOT_DIR / f"fm1-uboot-{MBOOT_RELEASE['version']}.boot"
 MBOOT_COPIES = {MBOOT_BOOT: "fm1-uboot.boot",
