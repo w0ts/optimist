@@ -102,6 +102,11 @@ with tempfile.TemporaryDirectory() as td:
     src = FL.package_source(p)
     check("source: the commit, the configuration's name and hash from SOURCE.txt",
           src == {"commit": c1, "dirty": False, "name": "mots", "hash": "1901b25c"})
+    sidecar(p, "unknown")
+    check("source: a tree without a repository of its own (the farm) writes commit unknown: still read, no NOTE",
+          FL.package_source(p) == {"commit": "unknown", "dirty": False, "name": "mots", "hash": "1901b25c"}
+          and len(FL.source_notes(p, repo)) == 1)
+    sidecar(p, c1)
     n = FL.source_notes(p, repo)
     check("source: built from the checkout's commit: one line, no NOTE",
           len(n) == 1 and c1[:7] in n[0] and "mots" in n[0])
