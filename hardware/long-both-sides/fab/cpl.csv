@@ -4,7 +4,7 @@ C2,22.000mm,19.500mm,Top,90
 C3,13.120mm,22.400mm,Top,90
 FB1,22.100mm,26.800mm,Top,0
 J1,14.180mm,8.620mm,Top,0
-J2,16.600mm,60.000mm,Bottom,0
+J2,16.600mm,60.000mm,Bottom,180
 J3,16.600mm,73.200mm,Top,180
 R1,9.820mm,20.100mm,Top,270
 R2,18.200mm,15.400mm,Top,0

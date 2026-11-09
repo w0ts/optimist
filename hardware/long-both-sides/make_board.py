@@ -222,7 +222,10 @@ C2 = P(LIB, "C0603", "C2", "100nF", 93.4, 17.0 + DY, 90, "C14663")
 # an iron reaches each end; the same JLC parts)
 RTUNE = os.path.join(KICAD_FP, "Resistor_SMD.pretty")
 R_HAND = "R_0603_1608Metric_Pad0.98x0.95mm_HandSolder"
-R1 = P(RTUNE, R_HAND, "R1", "91", CARD_C - 4.36, 17.6 + DY, 270, "to confirm")   # (91 ohm, 2026-11-06 evening: 15 MHz on v6 bodged to 89 ohm; 150 was the 12 MHz value, v6 with R1 150, 2026-11-05; v6 and Julius had 220 and 270 against a card left in SPI mode
+R1 = P(RTUNE, R_HAND, "R1", "150", CARD_C - 4.36, 17.6 + DY, 270, "C22808")   # (91 ohm, 2026-11-06 evening: 15 MHz on v6 bodged to 89 ohm; 150 was the 12 MHz value, v6 with R1 150, 2026-11-05; v6 and Julius had 220 and 270 against a card left in SPI mode
+# 2026-11-09 (the user will not hand-solder SMD on this board; the values are under test): the fab places the highest values proven
+# screen-safe at 60 MHz, 330 / 330 / 150 (cold boot clean on pink 2026-11-06, card at 12 MHz), JLC basic parts; the twins only
+# lower a value with a leaded part, so the sweep result (BENCH-SHEET test 7) is reached from here without touching an 0603
                                                  # driving DO against D/C, 15 mA at 220; cold boot with the card in passed at 330/150, 2026-11-06; 240/91 needs the LCD at 30 MHz)
 R7 = P(LIB, "R0603", "R7", "47k", 79.2, 17.5 + DY, 270, "C25819")   # (DAT0's pull-up at the card, the SD spec's 10-100k)
 R8 = P(LIB, "R0603", "R8", "47k", 88.6, 23.4 + DY, 0, "C25819")   # (the minor update, 2026-11-04, as m-card's R8: CMD's
@@ -234,8 +237,8 @@ FB1 = P(LIB, "R0603", "FB1", "600R@100MHz", 93.5, 25.3, 0, "C1002")   # (GZ1608D
                                                  # AC791N guide has 1 ohm there, the bead the same footprint)
 R2 = P(LIB, "R0603", "R2", "47k", 89.6, 12.9 + DY, 0, "C25819")
 R3 = P(LIB, "R0603", "R3", "47k", CARD_C - 7.6, BUS, 0, "C25819")
-R5 = P(RTUNE, R_HAND, "R5", "240", 94.25, 49.0, 90, "to confirm")    # (CLK and MOSI in series where the SD branch leaves
-R6 = P(RTUNE, R_HAND, "R6", "240", 95.05, 45.5, 90, "to confirm")    # the through-lines, at the J2 end of the column; 240 ohm, as mini
+R5 = P(RTUNE, R_HAND, "R5", "330", 94.25, 49.0, 90, "C23138")    # (CLK and MOSI in series where the SD branch leaves
+R6 = P(RTUNE, R_HAND, "R6", "330", 95.05, 45.5, 90, "C23138")    # the through-lines, at the J2 end of the column; 240 ohm, as mini
                                                  # (stock firmware with a card in its native mode: blank with CLK direct, distorted at
                                                  # 150 and fine at 510 on Julius prototype; 330 passed a cold boot at 60 MHz LCD; 245 bodged: black at 60 MHz, fine at 30 MHz, 2026-11-06)
 # ESD at the card's contacts: two USBLC6-2SC6, each line straight through one of its columns (pins 1 and 6 are one
@@ -379,10 +382,10 @@ for name in ("MISO", "LCD_CS", "CLK", "MOSI", "3V3"):
     if name == "CLK":                            # (the column's top through R5, up through RT5's head pad, slanting left from it)
         R(name, [A(R5, 2), (x, vs), *top], w)
     elif name == "MOSI":                         # (through R6; stepped right above R5 into RT6's head pad, straight on to its via's foot)
-        R(name, [A(R6, 2), (x, STEP_V + 0.15), (HEAD_MOSI, STEP_V + 0.5), (HEAD_MOSI, A(RT6, 1)[1]), A(RT6, 1), (X, V_ROW2 - 1.0), *top], w)
+        R(name, [A(R6, 2), (x, STEP_V + 0.15), (HEAD_MOSI, STEP_V + 0.5), (HEAD_MOSI, A(RT6, 1)[1]), A(RT6, 1), *top], w)
     elif name == "3V3":                          # (stepped right with it, up past RT6's pad, straight on to its via's foot)
         ref, v = ROW[name]
-        R(name, [JPA(ref, 2), (x, v), (x, STEP_V), (HEAD_3V3, STEP_V + 0.15), (HEAD_3V3, 58.8), (X, V_ROW2 - 1.0), *top], w)
+        R(name, [JPA(ref, 2), (x, v), (x, STEP_V), (HEAD_3V3, STEP_V + 0.15), (HEAD_3V3, 58.8), *top], w)
     else:
         ref, v = ROW[name]
         R(name, [JPA(ref, 2), (x, v), (x, vs), *top], w)
@@ -536,8 +539,8 @@ for _, _, u, v, lab in TPS:
     label(lab, *T(u, v + 1.4), 0.6)                # (above its pad, clear of it)
 # which way each cable goes in: J3 touches the top face only (the LCD's cable arrives gold up, the user), J2 the
 # bottom face only (the cable from J12 arrives gold down): a cable turned over does not connect
-label("LCD: gold UP", *T(94.6, 69.0), 0.7, 90)
-label("IN: gold DOWN", *T(94.6, 62.0), 0.7, 90, bottom=True)   # (v7: J2 on the bottom: gold away from the board, as at J12)
+label("LCD: gold UP", *T(94.6, 69.0), 0.8, 90)
+label("IN: gold DOWN", *T(94.6, 62.0), 0.8, 90, bottom=True)   # (v7: J2 on the bottom: gold away from the board, as at J12)
 
 # ---- ground stitching (the minor update, 2026-11-04): more GND vias between the two pours where they fit clear of
 # everything and of the fast lines (lib/stitch.py); the hand-placed ones above stay
@@ -566,6 +569,8 @@ with open(os.path.join(FAB, "cpl.csv"), "w") as f:
     f.write("Designator,Mid X,Mid Y,Layer,Rotation\n")
     for fp in sorted(parts, key=lambda fp: fp.GetReference()):
         x, y = pcbnew.ToMM(fp.GetPosition().x) - X0, YB - pcbnew.ToMM(fp.GetPosition().y)   # (from the
-        side = "Bottom" if fp.GetLayer() == pcbnew.B_Cu else "Top"   # (v7: J2 is on the bottom; its rotation is KiCad's:
-        f.write(f"{fp.GetReference()},{x:.3f}mm,{y:.3f}mm,{side},{fp.GetOrientationDegrees() % 360:.0f}\n")  # check it in JLC's preview)
+        bottom = fp.GetLayer() == pcbnew.B_Cu; side = "Bottom" if bottom else "Top"      # (J2 is the only bottom part: JLC reads a bottom part's rotation as 180 minus
+        rot = (180 - fp.GetOrientationDegrees()) if bottom else fp.GetOrientationDegrees()   # KiCad's (2026-11-09: JLC's own
+        f.write(f"{fp.GetReference()},{x:.3f}mm,{y:.3f}mm,{side},{rot % 360:.0f}\n")   # footprint for C3446068 fits J2's pads
+                                                 # at 180 with 0.00 mm error, misses by 2.32 at 0: the jank session's review; still check the preview)
 print("wrote", os.path.join(FAB, "bom.csv"), os.path.join(FAB, "cpl.csv"))
