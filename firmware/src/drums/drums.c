@@ -35,8 +35,13 @@ static FASTI(seq) FAST_OOL(seq) const dkit_t *ds_kit(uint32_t k)
  * lanes' pages, drum_edit.c DL_ANY: SOUND 3, their sends, at least); the kits' names (DRUM_KIT_NAMES) are its tail:
  * one table for both */
 #define DRUM_SRC_HEAD 4u
+#if FELUCCA_SD_LANES && !FELUCCA_DRUM_USR
+#define DRUM_SRC_1 "SD"                                 /* (SRC's place 1: the lane's sample on the card, dsnd_desc.c DL_SD_IX) */
+#else
+#define DRUM_SRC_1 "USR1"
+#endif
 static const char *const DRUM_SRC_NAMES[] = {
-    "KIT", "USR1", "USR2", "USR3",
+    "KIT", DRUM_SRC_1, "USR2", "USR3",
     "ACOUSTIC", "DEEP", "TIGHT", "BRIGHT", "DUST", DS_KIT_NAME_LIST, "X0X 909", "X0X 808",
     "X9 TECH", "X9 HOUSE", "X9 UKG", "X9 ACID", "X8 TRAP", "X8 BOOM", "X8 ELEC", "X8 MIAMI",   /* (their styles) */
     DS_XKIT_NAME_LIST,                                    /* (47..: the synthesised kits after them) */

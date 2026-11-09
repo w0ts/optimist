@@ -926,6 +926,24 @@ static int sdm_lane_dir(uint32_t l)
 #else
 static int sdm_lane_dir(uint32_t l) { (void)l; return 0; }
 #endif
+/* SAMPLES' folder view on the folder of sample k's file (a part's, NPART + a lane's: the browser opened on it, op_sdcard.c):
+ * 1 shown (its page coming), 0 none (no sample, its folder gone or its path cut: the list as it was) */
+static int sdm_smp_dir(uint32_t k)
+{
+    char d[SDM_HINT];
+    const char *b;
+    FILINFO fi;
+    if (k >= SDM_NSMP || !sdm_smp[k].hash || !sdm_ready() || sdm.list != SDC_SMP || sdm.view != SDV_FOLDER)
+        return 0;
+    str_cpy(d, sdm_smp[k].hint, sizeof d);
+    b = sdb_base(d);
+    if (b == d)
+        return 0;                                    /* (a file at Samples/ itself: the list's own folder) */
+    d[b - d - 1] = 0;
+    if (!sdl_path(sdm.path, sizeof sdm.path, SDL_SAMPLES, d) || f_stat(sdm.path, &fi) != FR_OK || !(fi.fattrib & AM_DIR))
+        return 0;
+    return sdm_was(sdm_go(SDB_FOLDER, sdm.path)) == FR_OK;
+}
 /* the flat NAME list of the presets by engine (the user, 2026-11-04: "flat name list, filtered by engine"): only the files under
  * a folder of that engine's name; "" every engine's. Set before sdm_open; the list read again by it */
 static void sdm_name_filter(int32_t e)
@@ -1841,6 +1859,8 @@ static int sdm_part_samples(uint32_t part)           /* part k's engine plays a 
     return 0;
 }
 static void sdm_use_with(uint32_t e) { sdm_use_eng = (uint8_t)e; }
+static uint8_t sdm_use_to = 0xFFu;                   /* the sample a USE is for (op_sdcard.c's browser: a part, NPART + a lane), else the selection's */
+static void sdm_use_for(uint32_t k) { sdm_use_to = (uint8_t)k; }
 /* ---- the actions on slot k of the list shown */
 static void sdm_do(uint32_t op, uint32_t k)
 {
@@ -1915,6 +1935,9 @@ static void sdm_do(uint32_t op, uint32_t k)
         if (is_drum(TSEL) && lane_picked())          /* a drum lane picked: its sample (drums/lane_card.c) */
             part = NPART + lane_selected() % DRUM_LANES;
 #endif
+        if (sdm_use_to < SDM_NSMP)                   /* (the browser's: the part or the lane it was opened on) */
+            part = sdm_use_to;
+        sdm_use_to = 0xFFu;
         if (part >= SDM_NSMP) {
             ui_message(FELUCCA_SD_LANES ? "PICK A PART OR A LANE" : "PICK T1 T2 OR T3");
             return;
@@ -2233,10 +2256,10 @@ static void sdm_part_tick(void)
 static const char *sdm_card_label(uint32_t k)
 {
     static char b[SDM_HINT];
-    if (k >= NPART || !sdm_smp[k].hash)
+    if (k >= SDM_NSMP || !sdm_smp[k].hash)
         return "";
 #if FELUCCA_SD_STREAM
-    if (sstp.missing >> k & 1u)
+    if (k < NPART && (sstp.missing >> k & 1u))
         return "MISSING";
 #endif
     sdm_strip(b, sizeof b, sdb_base(sdm_smp[k].hint), ".wav");

@@ -126,6 +126,8 @@ static uint32_t pgk_titled(const char *t, const page_t *(*pg_of)(uint32_t r))
 static uint32_t pgk_snd_own(uint32_t r)
 {
     const page_t *pg = snd_fam == SND_FM6 ? 0 : snd_page(r);
+    if (pg && r == SND_MAIN_ROW && r < snd_first() && snd_first() < SCR->rows())
+        return pgk_snd_key(snd_first());                /* (MAIN gone with the engine, 2026-11-09: the engine's first page, not the SOUND row) */
     if (!pg || pg->fam != FAM_FX || str_eq(pg->title, "INSERTS") || str_eq(pg->title, "SENDS") || pg->graph == GR_SLCR)
         return PGK_NONE;
     return pgk_titled("INSERTS", snd_page);

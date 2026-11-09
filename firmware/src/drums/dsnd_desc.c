@@ -105,9 +105,15 @@ static const param_desc_t DSD[16] = {
 #if DRUM_X0X
 static const param_desc_t XSD_TUNE = PD("TUNE", F_INT, -24, 24, 0);   /* an X0X sound's TUNE in steps */
 #endif
+/* SRC's place 1 is SD, the lane's sample on the card (the user, 2026-11-09: a drum lane selects the sampler and loads a sample
+ * from the card): where the lanes play card samples (FELUCCA_SD_LANES) and USR1..3 are not built, whose place it takes. SAVE
+ * on it opens the card's samples (op_sdbrowse.c). A build with USR: CARD only by PROJECT > SAMPLES' USE, as before (DSD_CARD) */
+#define DL_SD_IX (FELUCCA_SD_LANES && !FELUCCA_DRUM_USR)
 static uint32_t dsnd_src_idx(uint32_t src)              /* src (DL_*) <-> its place in DS_SRC_NAMES */
 {
     const uint32_t x = 4u + DRUM_KITS;                  /* (the X0X voices: those of this build, after the kits) */
+    if (DL_SD_IX && src == DL_CARD)
+        return 1u;
     if (src >= DL_X909 && src < DL_X909 + DRUM_SRC_X909N)
         return x + src - DL_X909;
     if (src >= DL_X808 && src < DL_X808 + DRUM_SRC_X808N)
@@ -117,6 +123,8 @@ static uint32_t dsnd_src_idx(uint32_t src)              /* src (DL_*) <-> its pl
 static uint32_t dsnd_idx_src(uint32_t i)
 {
     const uint32_t x = 4u + DRUM_KITS;
+    if (DL_SD_IX && i == 1u)
+        return DL_CARD;
     if (i >= x + DRUM_SRC_X909N)
         return DL_X808 + i - x - DRUM_SRC_X909N;
     if (i >= x)
@@ -128,7 +136,7 @@ static int dsnd_sampled(uint32_t l)
     return dl_usr_of(l) || (FELUCCA_SD_LANES && dl.src[l % DRUM_LANES] == DL_CARD) || dl_kit_of(l, drum_kit()) < DRUM_SAMPLED;
 }
 #if FELUCCA_SD_LANES
-static const char *const N_DLCARD[2] = {"CARD", "KIT"};
+static const char *const N_DLCARD[2] = {"SD", "KIT"};
 static const param_desc_t DSD_CARD = PN("SRC", F_ENUM, 0, 1, 0, N_DLCARD);   /* a lane on CARD (lane_card.c): a turn
                                                                                 * takes it back to KIT (op_cells.c) */
 #endif
@@ -193,11 +201,11 @@ static const param_desc_t *dsnd_desc_lane(uint32_t l, uint32_t id, int16_t **vp)
         }
 #endif
     } else if (id == 8u) {
-        if (!FELUCCA_DRUM_USR && !FELUCCA_DRUM_KITS)
+        if (!FELUCCA_DRUM_USR && !FELUCCA_DRUM_KITS && !DL_SD_IX)
             return 0;
         dsv[id] = (int16_t)dsnd_src_idx(dl.src[l]);
 #if FELUCCA_SD_LANES
-        if (dl.src[l] == DL_CARD)
+        if (!DL_SD_IX && dl.src[l] == DL_CARD)
             return &DSD_CARD;                           /* (its value 0: CARD) */
 #endif
     } else if (id < 12u) {

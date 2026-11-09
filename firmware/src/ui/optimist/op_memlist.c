@@ -259,4 +259,8 @@ static void ml_draw(void)                              /* (op_draw.c op_frame_dr
 #define ml_leds(d) (*(d) = 0, 0u)
 #endif
 /* a page that owns the keys, the knobs and the buttons (NAME, the load's memory list): no layer, no walk, no help line */
+#if FELUCCA_SD_UI && FELUCCA_SD_STREAM
+static int page_owned(void) { return name_on() || ml_on() || sdc_br_on(); }   /* (the card's samples' popup: its keys pick, op_sdbrowse.c) */
+#else
 static int page_owned(void) { return name_on() || ml_on(); }
+#endif

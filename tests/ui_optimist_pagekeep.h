@@ -307,6 +307,16 @@ static void pgk_engine_tests(void)
                     set_engine(e1);
                     frame();
                     check(ui.row[SCR_SOUND] == i, "... the first engine again: the same page at its first place");
+                } else if (j < 0 && k1[i] == (0x200u | SND_MAIN_ROW)) {   /* MAIN only e1 has (2026-11-09): e2's first page */
+                    static int said;
+                    if (said++)
+                        continue;
+                    pgk_on(i);
+                    set_engine(e2);
+                    frame();
+                    check(ui.row[SCR_SOUND] == (n2 > 1u ? 1u : 0u), "... MAIN the other engine lacks: its first page past the SOUND row");
+                    set_engine(e1);
+                    frame();
                 } else if (!gone && j < 0) {          /* a page only e1 has: the nearest before it e2 has */
                     for (want = -1, j = (int32_t)i - 1; j >= 0 && want < 0 && (int32_t)i - j <= (int32_t)PGK_BACK; j--)
                         want = pgk_at(k2, n2, k1[j]);

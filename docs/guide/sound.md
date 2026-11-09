@@ -8,7 +8,7 @@ A new project (power-on, PROJECT > NEW) starts with T1 on ANALOG ACID 303, T2 on
 
 A synth track plays one engine at a time. PRESETS on a synth track loads another sound of the track's engine; SHIFT (OCT- held) + PRESETS (or the ENGINE card) steps the engine. Every engine is a builder item (`ENG_*`). A build without an engine plays a track that uses it on a stand-in engine and shows MISSING: DIGITAL stands in for FM6, PHASE for CZ and VPS, SAMPLE for GRAIN and SLICE, LOFI for SID, ANALOG for the others (BUILDER.md names each stand-in).
 
-**EDIT** (tapped) opens the track's sound. Its first row, SOUND, has the ENGINE, PRESET, INIT and SAVE AS cards. Then **MAIN**: the four values that matter most for the engine (CUT and RES first where it has a filter; FM6 has LPF, RES and HPF). Then the engine's own values on **EDIT 1** and **EDIT 2**, four cards each, with the page titles the engine gives them (ANALOG shows OSC and FLT, for example).
+**EDIT** (tapped) opens the track's sound. Its first row, SOUND, has the ENGINE, PRESET, INIT and SAVE AS cards. Then **MAIN**: the four values that matter most for the engine (CUT and RES first where it has a filter; FM6 has LPF, RES and HPF). MAIN is there only when the engine has three pages of its own or more (ANALOG, for example). With one or two, EDIT opens on the first of them. Then the engine's own values on **EDIT 1** and **EDIT 2**, four cards each, with the page titles the engine gives them (ANALOG shows OSC and FLT, for example).
 
 | Engine | Builder item | What it is | EDIT 1 / EDIT 2 cards |
 |---|---|---|---|
@@ -127,7 +127,7 @@ A synth track plays one engine at a time. PRESETS on a synth track loads another
   rate (0 off). The track's FLT and ENV > FLT move both filters, as the CS-80's BRILLIANCE and VCF envelope do; SHP is
   the pulse width, DTUNE (VOICE 2) detunes channel II up to ~20 cents, velocity opens the filters a little. Eight
   voices. Our own presets; not affiliated with Yamaha.
-- **SAMPLE:** SET plays a built-in set (PIANO, BASS, VIBES, HORNS, STRGS, FLUTE, SCRCH, PERC; the builder chooses which) or your USR1 to USR3 slots ([drums and samples](drums.md#your-samples)).
+- **SAMPLE:** SET plays a built-in set (PIANO, BASS, VIBES, HORNS, STRGS, FLUTE, SCRCH, PERC; the builder chooses which) or your USR1 to USR3 slots ([drums and samples](drums.md#your-samples)). In SD card builds SET's last value is **SD**, one sample from the card. On SD the SET knob scrolls through the card's samples: a list opens on the folder of the part's sample and stops at its ends, and the sample you stop on is the part's (heard alone while stopped). SAVE on a folder goes into it, and HOME goes up. SAVE on a sample puts the knob back on the sets. GRAIN's and STRETCH's SRC work the same way.
 
 ## Voices
 

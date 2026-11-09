@@ -271,7 +271,7 @@ SEQ tapped. With nothing held the **16 white keys are the 16 steps of the window
 
 The selected track's pages as rows, in `core/params.c` PAGES order, with the page buttons narrowing to a family (LFO shows LFO, LFO PHS, LFO DEST, LFO 2, LFO2 PHS, LFO2 DEST; ENV the envelopes and DEST rows; FX the track's effects; EDIT the engine's rows; SCL, ARP theirs). The whole list is shown when SOUND is entered from the master FX or by a walk.
 
-- **EDIT opens on MAIN**, the four values that matter most: a synth engine's `engine_t.macro` (CUT RES first where there is a filter; FM6 has none and no MAIN), a drum lane's TUNE DECAY CUT LEVEL. One SELECT back is the **SOUND row**: a synth track ENGINE PRESET INIT SAVE AS; the drum track the lane's SRC, ACCENT, INSTR and the KIT. SHIFT2 + PRESETS steps the engine (the next engine's first sound); presets are otherwise picked with PRESETS, so the toasts name the preset and its engine in the engine's colour.
+- **EDIT opens on MAIN**, the four values that matter most: a synth engine's `engine_t.macro` (CUT RES first where there is a filter; FM6 has none and no MAIN), a drum lane's TUNE DECAY CUT LEVEL. MAIN only over three pages of the sound's own or more (the user, 2026-11-09: "i dont think we need a main page on the edit button if the engine has just two pages (or one!)"; `op_screens.c main_worth`): most engines (EDIT 1, EDIT 2) and the drum lanes (SOUND, SOUND 2) have none and EDIT opens on their first page; ANALOG and ACID keep it. A preset changing to an engine without MAIN moves the cursor to that engine's first page (`op_keep.c`). A lane's EDIT has no SOUND 3 (its sends) since 2026-11-09: they are its FX > SENDS. One SELECT back is the **SOUND row**: a synth track ENGINE PRESET INIT SAVE AS; the drum track the lane's SRC, ACCENT, INSTR and the KIT. SHIFT2 + PRESETS steps the engine (the next engine's first sound); presets are otherwise picked with PRESETS, so the toasts name the preset and its engine in the engine's colour.
 - **Drum track.** The pages are the selected lane's (section 5). With DR itself picked, ENV and LFO do nothing (dark LEDs). A value the lane has of its own is the lane's; a value only the track has stays the track's and is tagged **DR**, amber, top right (the drum bus's inserts "DR ins", the kit send levels "DR sends", Bus send, Slicer, Filter, Gater, Comp, PATTERN, the KIT card). The first SOUND card follows the lane's source: KIT, a PRESET (a lane on an instrument), a SLOT (USR1..3), or dim "-" (ACCENT).
 - **FM6**: section 4.12.
 - **LFO and LFO 2** (LFO 2 always built; issue #129 B and C, built 2026-10-31, the user: "both lfo are the same"): the two LFOs have the same six values on the same rows, so there is no LFO 3. The family's rows: LFO, **LFO PHS**, LFO DEST, LFO 2, **LFO2 PHS**, LFO2 DEST (titles *LFO*, *Phase*, *LFO to*, *LFO2*, *Phase 2*, *LFO2 to*; the drum track has none of them, its lanes have their own, section 5):
@@ -471,6 +471,17 @@ popup, and picking moves it to SAMPLE or SLICE. The drum track: the picked lane'
   to the card, then loaded; HOME: the LOAD asked, red), as the flash slots. Stopped only (*Stop first*).
 - **USE** (SAMPLES): the selected synth part's sample, by its hash (T1..T3; the drum track: *Pick T1 T2 or T3*): the
   part's CARD sample when streaming is built (SAMPLE's SET CARD plays it).
+- **The sample browser** (`op_sdbrowse.c`; the user, 2026-11-09: "we can select a set, or SD card. and save on it open a
+  sample browser (same as in project samples) to pick the sample"): SET's (SAMPLE) and SRC's (GRAIN, STRETCH) last value is
+  **SD** (was CARD), and a drum lane's SRC steps KIT, **SD**, the kits (where USR1..3 are not built: SD takes USR1's place).
+  On SD the card's knob scrolls the samples (the user, same day: "when in sd sample mode the k1 then scroll thru sample of
+  the folder, opening the sample window (we click save to switch to other source of sample). for both"): the first turn
+  opens SAMPLES' folder list over the page, a popup like PRESETS', on the folder of the sample the part or lane plays (on
+  it), else (a lane) its type folder, else Samples; it stops at its ends. The item resting 150 ms is the part's or lane's
+  (USE), heard alone while stopped, in the pattern while playing; a key takes its item. SAVE on a folder goes into it,
+  HOME goes up (at Samples the popup goes); SAVE on a sample, or on the card with the popup down, puts the knob on the
+  source (SOURCE), and SAVE again back on the samples; a source that leaves SD comes back in sample mode. The popup goes
+  2.5 s after the last action. The card shows the file's name.
 
 SYSTEM > SD card (4.7): CARD (READY, PREPARING, NOT FAT or NONE, the card's size; YES mounts it again, its folders and
 the samples' index), SAMPLES INDEX (YES: the pass again), CLOCK (the card's SPI clock, read-only). A project keeps 25

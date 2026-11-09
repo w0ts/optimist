@@ -146,6 +146,10 @@ static struct {
 } pen;
 static uint32_t pre_sig(void)
 {
+#if FELUCCA_SD_UI && FELUCCA_SD_STREAM
+    if (pop_kind == 6u)
+        return hu(0x6B6u, sdc_br_sig() + settings.palette * 4096u);
+#endif
     if (pop_kind == 4u)
 #if FELUCCA_SD_UI
         return hu(0x4E6u, tsel()->eng_req + settings.palette * 64u + sdc_pop_sig() * 4096u);
@@ -186,9 +190,24 @@ static void pen_name(int32_t v, char *nm)                  /* the list entry v a
  * a turn that jumps over one, or stops before the last, reads as what it is (the user, 2026-10-23: "cannot select the
  * last FX, and it seems to move by 2": XDLY last in the list, no instance while the delay holds the effects memory) */
 static int32_t text_st(int32_t x, int32_t y, const felucca_font_t *f, const char *s, uint16_t col, uint32_t st);   /* (op_draw.c) */
+/* a drum lane's SRC (the user, 2026-11-09: "the k1 button should open the standard list on the drum lanes"): KIT, SD, the kits,
+ * the X0X voices, past 64 entries as DEST's */
+static int pen_src(const param_desc_t *d)
+{
+#if DL_ANY
+    return pd_names(d) == DS_SRC_NAMES;
+#else
+    (void)d;
+    return 0;
+#endif
+}
 static int pen_avail(int32_t v)
 {
     uint32_t k = song.sel % NTRK, s, t;
+#if DL_ANY
+    if (pen_src(pen.d))                                 /* (SRC: USR1..3 without the user samples, SD in USR1's place: struck, the knob passes them) */
+        return FELUCCA_DRUM_USR || v < 1 || v > 3 || (v == 1 && DL_SD_IX);
+#endif
     if (pd_names(pen.d) != ins_names || v < 0 || v >= (int32_t)INS_NLIST)
         return 1;
     s = pen.vp == &ins_v[1] ? 1u : 0u;
@@ -221,7 +240,7 @@ static void pop_enum_open(uint32_t row, uint32_t k)
     if ((pop_kind != 0u && pop_kind != 3u && ui.toast_t) || op_armed())
         return;                                         /* (a sound's popup, or a question, is up already) */
     SCR->cell(row, k, &c);
-    if (c.kind != CK_VAL || !c.d || !c.vp || c.d->fmt != F_ENUM || c.d->max - c.d->min < 2 || (c.d->max - c.d->min > 63 && pd_names(c.d) != N_LT) || is_go(c.d))
+    if (c.kind != CK_VAL || !c.d || !c.vp || c.d->fmt != F_ENUM || c.d->max - c.d->min < 2 || (c.d->max - c.d->min > 63 && pd_names(c.d) != N_LT && !pen_src(c.d)) || is_go(c.d))
         return;
     pen.d = c.d, pen.vp = c.vp, pen.col = trk_col(song.sel);
     ui.toast_next = 1;
@@ -410,8 +429,68 @@ static void pop_paint(void)                             /* the box in its own co
         }
     }
 }
+#if FELUCCA_SD_UI && FELUCCA_SD_STREAM
+/* pop_kind 6: the card's sample browser (op_sdbrowse.c): the folder's name and the item's place in the header, five rows of
+ * the page shown round the item (a folder: an outline chip, its name in the bright tone; a sample: the chip filled) */
+static void br_paint(void)
+{
+    char t[24];
+    uint32_t row, n = sdm_count();
+    int32_t off, ry, ty = 2 + (POP_HH - (int32_t)FONT_L.h) / 2;
+    cv_rect(8, 0, 224, pop.h, pop.fr);
+    cv_rect(10, 2, 220, pop.h - 4, OP_SURF);
+    sdm_folder(t, sizeof t);
+    cv_text(16, ty, text_w(&FONT_L, t) <= 140 ? &FONT_L : &FONT_S, t, C_HI);
+    t[0] = 0;
+    if (sdm_pages() > 1u) {                             /* (the page as PROJECT > SAMPLES' BANK reads it: A, B ..) */
+        t[0] = (char)('A' + sdm_page() % 26u), t[1] = ' ', t[2] = 0;
+    }
+    if (n && !sdm_reading()) {
+        fmt_app(t, (int32_t)sdc.item + 1);
+        str_app(t, "/", sizeof t);
+        fmt_app(t, (int32_t)n);
+    }
+    cv_texts(224 - text_ws(t), 6, t, C_GRAY);
+    cv_rect(10, POP_HH + 2, 220, 1, C_LINE);
+    if (sdm_reading() || !n) {
+        cv_text_mid(POP_HH + 6 + (int32_t)pop.half * POP_RH + (POP_RH - (int32_t)FONT_S.h) / 2, &FONT_S,
+                    sdm_reading() ? "LOADING" : "EMPTY", C_GRAY);
+        return;
+    }
+    for (row = 0, off = -(int32_t)pop.half; row < pop.half * 2u + 1u; row++, off++) {
+        int32_t i = (int32_t)sdc.item + off;
+        const char *nm;
+        const felucca_font_t *f;
+        uint32_t dir;
+        if (i < 0 || i >= (int32_t)n || !sdc_used((uint32_t)i))
+            continue;
+        ry = POP_HH + 6 + (int32_t)row * POP_RH;
+        nm = sdc_name((uint32_t)i);
+        dir = sdc_is_dir((uint32_t)i);
+        f = text_w(&FONT_L, nm) <= 190 ? &FONT_L : &FONT_S;
+        if (off == 0)
+            cv_rect(12, ry - 1, 216, POP_RH - 2, C_LINE);
+        if (dir)
+            cv_frame(16, ry + POP_RH / 2 - 4, 6, 8, pop.fr);
+        else
+            cv_rect(16, ry + POP_RH / 2 - 4, 6, 8, pop.fr);
+        cv_text(28, ry + (POP_RH - (int32_t)f->h) / 2, f, nm, off == 0 ? C_WHITE : dir ? C_HI : C_GRAY);
+    }
+}
+#endif
 static void draw_pop(void)
 {
+#if FELUCCA_SD_UI && FELUCCA_SD_STREAM
+    if (pop_kind == 6u) {
+        pop.fr = ui.toast_col ? ui.toast_col : C_HI;
+        pop.half = 2u;
+        pop.h = (int32_t)(pop.half * 2u + 1u) * POP_RH + POP_HH + 10;
+        cv_tall((uint32_t)POP_Y, (uint32_t)pop.h, C_BLACK, br_paint);
+        if (POP_Y + pop.h < OP_FOOT_Y)
+            lcd_fill(0, (uint32_t)(POP_Y + pop.h), 240, (uint32_t)(OP_FOOT_Y - POP_Y - pop.h), C_BLACK);
+        return;
+    }
+#endif
     if (pop_kind == 2u) {
         pop_drum_kits(pop.kits, &pop.total, &pop.cur);
     } else if (pop_kind == 4u) {

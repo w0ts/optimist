@@ -56,8 +56,8 @@ static void se_names_tests(void)
 #if DL_ANY
     se_drum_family(B_EDIT);
     check(ui.scr == SCR_SOUND && se_rows_have("Lane", "Sound") && se_rows_have("Body", 0) && se_rows_have("Tone", 0) &&
-              se_rows_have("Kit", 0) && se_rows_have("Sends", 0),
-          "#19: the drum EDIT pages Lane, Body, Tone, Sends, Kit (was \"Sound\" x5)");
+              se_rows_have("Kit", 0) && !se_rows_have("Sends", 0),
+          "#19: the drum EDIT pages Lane, Body, Tone, Kit (was \"Sound\" x5; Sends gone 2026-11-09: the lane's FX > SENDS)");
     {
         char t[32];
         ui.row[SCR_SOUND] = 0;

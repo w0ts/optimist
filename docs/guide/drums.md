@@ -50,17 +50,15 @@ Select a lane (its black key, or ALGORITHM), then tap EDIT. Each lane has its ow
 
 | Page | Values |
 | --- | --- |
-| **SOUND** row ("Lane") | SRC (the sound's source: the kit, USR1 to USR3, another kit's sound or an X0X voice), ACCENT (the drum track's accent amount), INSTR (the lane's instrument), KIT (the drum track's kit) |
-| **MAIN** | TUNE, DECAY, CUT, LEVEL: the four that matter most |
+| **SOUND** row ("Lane") | SRC (the sound's source: the kit, USR1 to USR3 or SD (a card sample) in SD card builds, another kit's sound or an X0X voice), ACCENT (the drum track's accent amount), INSTR (the lane's instrument), KIT (the drum track's kit) |
 | **Body** (the firmware's SOUND) | TUNE (+-24 st), DECAY, SNAP (noise <-> tone), CLICK (the attack) |
 | **Tone** (SOUND 2) | BEND (the pitch drop), CUT, DRIVE, LEVEL (-24 to +6 dB) |
-| **Sends** (SOUND 3) | the lane's own REV, DLY, CHO levels (0 to 31) and PAN, on the FX family's SENDS page too. Built-in sounds and kits are dry: every send 0, no insert on (DST and CMP 0) |
 | **SOURCE** | HIT, START, LEN of a sample, on a lane that plays one |
 | **KIT** | SLOT (your kits 1 to 16), SAVE, ERASE, RESET (this sound back to the kit's, dry: no sends, no inserts) |
 | **ENV, LFO, LFO 2, ENV2** | the lane's envelope (CLICK, DECAY, BEND, LEVEL) and its LFOs and second envelope, per hit |
 | **INSERTS** (FX) | the lane's two insert slots ([effects](effects.md)) |
 
-On a synthesised sound with no tone (closed hat, shaker, clap), TUNE moves its filter and its noise high-pass, as a resampled sample would sound (`DS_NTUNE`). A sampled sound has TUNE, DECAY, CUT and LEVEL only. The edits, sends, sources and samples are saved with the project and its sections. On DR itself the SENDS page ("Kit sends") scales every lane's own sends; the drum bus has none of its own.
+On a synthesised sound with no tone (closed hat, shaker, clap), TUNE moves its filter and its noise high-pass, as a resampled sample would sound (`DS_NTUNE`). A sampled sound has TUNE, DECAY, CUT and LEVEL only. The edits, sends, sources and samples are saved with the project and its sections. A lane's own REV, DLY, CHO levels and PAN are on its FX page SENDS. Built-in sounds and kits are dry: every send 0, no insert on. On DR itself the SENDS page ("Kit sends") scales every lane's own sends; the drum bus has none of its own.
 
 ## Your samples
 
@@ -80,6 +78,8 @@ A synth track plays a slot with the SAMPLE engine (**SET** USR1 to USR3); a drum
 - `make dn2-samples LIB=LIB SRC=DIR` is the same for a Digitone II running dn2mk2. It makes DIR from the library (1,900 samples, shortened, named like `BD909 01`), then syncs DIR with the DN2's +Drive library: it reads what the DN2 has, then deletes, sends again and sends to match, only in DIR's folders. It remembers LIB and DIR, so later runs of `make dn2-samples` need nothing typed; `DRY=1` shows the plan.
 
 On the FM-1, pick a drum lane and open PROJECT > SAMPLES. The list opens on the lane's type folder: KICK opens Kick, CLOSED HAT opens HH, KICK 2 opens 808 (or Kick if the card has no 808 folder). HOME goes up to Samples. The top F# steps PREVIEW through OFF, ON and LANE; LANE needs a lane picked. In LANE, the sample ITEM stops on, or the key you press, becomes the lane's sample. While the pattern plays you hear it in the pattern; while stopped it plays on its own. Turn ITEM through the folder until a sound fits, pick the next lane, and save the kit (KIT > SAVE).
+
+Or from the lane itself: on the Lane row (EDIT, then SELECT back to the first row), turn **SRC** one step past KIT to **SD**. Turn it again and the knob scrolls through the card's samples: a list opens on the folder of the lane's sample, else on its type folder, and stops at its ends. The sample you stop on is the lane's: you hear it alone while stopped, in the pattern while playing. A key picks its sample on the list's page. SAVE on a folder goes into it, and HOME goes up. SAVE on a sample puts the knob back on the source, so the next turn goes back to KIT or on to the kits. The list closes by itself a moment after the last turn. SRC shows the sample's name.
 
 ## Your own kits
 

@@ -73,6 +73,10 @@ static void songnav_scenes_tests(void)
     op_enter(SCR_SONG);
     ui.row[SCR_SONG] = 0;
     frames(3);
+    for (i = 0; i < 6u; i++)                            /* (scenes A..F filled here: the earlier tests' leftovers are no ground,
+                                                         * 2026-11-09: one fewer left E empty, "EMPTY E") */
+        if (!((arrangement_ready() >> i) & 1u))
+            scene_store_now(i);
     song_refresh(1);
     key(WK(4));
     check(live_sec == 4, "songnav: scene key E, stopped: loaded");

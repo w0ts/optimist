@@ -46,8 +46,8 @@ static void pm_family_tests(void)
     frames(2);
     tap(B_EDIT);
     frames(2);
-    check(snd_fam == FAM_EDIT && ui.row[SCR_SOUND] == (snd_first() > SND_MAIN_ROW ? SND_MAIN_ROW : 0u),
-          "page memory, SOUND per track: T2's EDIT, never looked at: its MAIN (the SOUND row where its engine has none)");
+    check(snd_fam == FAM_EDIT && ui.row[SCR_SOUND] == (snd_rows() > 1u ? 1u : 0u),
+          "page memory, SOUND per track: T2's EDIT, never looked at: its MAIN, else its first page past the SOUND row");
     turn(EN_SELECT, 1);
     r2 = ui.row[SCR_SOUND];
     tap(B_HOME);
