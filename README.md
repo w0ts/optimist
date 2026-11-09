@@ -17,34 +17,7 @@ FM-1 projects (see <a href="#credits">Credits</a>).</p>
 ## What is in it
 
 - **Four tracks:** three synth, drum with 10 lanes.
-- **Up to 28 synth engines:** 
-  - ANALOG 2
-  - FM6 JUNO
-  - ACID
-  - CZ
-  - PHYS
-  - DIGITAL
-  - PHASE
-  - LOFI
-  - SAMPLE
-  - VOICE
-  - TRIO
-  - WHEEL
-  - GRAIN
-  - SLICE
-  - NOISE
-  - DRONE
-  - PLAITS
-  - Clipper's STRINGS
-  - VPS
-  - TERRAIN
-  - WSEQ
-  - VECTOR
-  - WAVE
-  - SID
-  - PROPHET
-  - CS80
-  - STRETCH (PaulStretch-style stretching of the samples)
+- **Many synth engines**
 - Two LFOs and two envelopes per sound.
 - **Drums:** sampled and synthesised kits, X0X 909 and 808.
 - **Effects:** two insert slots on every track, three returns, punch-in effects.
