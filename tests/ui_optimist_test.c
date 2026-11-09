@@ -823,23 +823,28 @@ static void main_page_tests(void)
     uint32_t sel = song.sel;
     track_t keep = *TSEL;
     cell_t c;
-    uint32_t e, ok = 1, pre, k;
+    uint32_t e, ok = 1, pre, k, with = 0, without = 0;
     memcpy(keep_all, trk, sizeof keep_all);             /* (every track as it was after: the later tests' state) */
-    for (e = 0; e < NENGINES; e++) {                    /* MAIN's cards: the engine's macro, the row there exactly when it has one */
+    for (e = 0; e < NENGINES; e++) {                    /* MAIN's cards: the engine's macro, the row there exactly when it has one and
+                                                         * three pages of its own or more (2026-11-09) */
         const engine_t *en = ENGINES[e];
-        uint32_t any = (en->macro[0] | en->macro[1] | en->macro[2] | en->macro[3]) != 0u;
+        uint32_t any = (en->macro[0] | en->macro[1] | en->macro[2] | en->macro[3]) != 0u, own;
+        uint8_t ix[OP_MAXROWS];
         if (eng_free(e))
             continue;
         set_engine_of(TSEL, e);
         go_home();
         tap(B_EDIT);
-        ok &= ui.scr == SCR_SOUND && ui.row[SCR_SOUND] == (any ? SND_MAIN_ROW : 0u);
+        own = page_rows(edit_own_pg, ix);
+        any = any && own > 2u;
+        with += any, without += !any;
+        ok &= ui.scr == SCR_SOUND && (main_page() != 0) == any && ui.row[SCR_SOUND] == (snd_rows() > 1u ? 1u : 0u);
         for (k = 0; any && k < 4u; k++)
             ok &= main_pg.id[k] == (en->macro[k] ? en->macro[k] : 0xFFu);
         memset(snd_mem, 0, sizeof snd_mem);
     }
     *TSEL = keep;
-    check(ok, "EDIT opens on MAIN, the engine's four (engine_t macro); an engine without them (FM6) on the SOUND row");
+    check(ok && with && without, "EDIT opens on MAIN, the engine's four (engine_t macro), over three pages of its own or more; else on its first page");
     go_home();
     tap(B_EDIT);
     SCREENS[SCR_SOUND].cell(ui.row[SCR_SOUND], 0, &c);
@@ -1094,9 +1099,9 @@ static void key_tests(void)
           "SHIFT held + a drum key on the mixer: the lane's sequencer muted instead of picked (2026-10-13), no NO");
     smute_lane = 0;
     tap(B_EDIT);
-    check(ui.scr == SCR_SOUND && ui.row[SCR_SOUND] == SND_MAIN_ROW && !snd_page(0) && snd_page(1)->scope == SC_DSND &&
-              str_eq(snd_page(1)->title, "MAIN") && snd_page(2)->scope == SC_DSND,
-          "drum track, EDIT: on MAIN (the lane's TUNE DECAY CUT LEVEL), the SOUND row (SRC ACCENT INSTR KIT) before it");
+    check(ui.scr == SCR_SOUND && ui.row[SCR_SOUND] == 1u && !snd_page(0) && snd_page(1)->scope == SC_DSND &&
+              !str_eq(snd_page(1)->title, "MAIN") && !main_page(),
+          "drum track, EDIT: no MAIN (two pages of the lane's own, 2026-11-09): on its first, the SOUND row (SRC ACCENT INSTR KIT) before it");
     {
         int8_t t0 = dl.ofs[lane_selected()][DE_TUNE];
         while (!snd_page(ui.row[SCR_SOUND]) || snd_page(ui.row[SCR_SOUND])->id[0] != 0)
@@ -4316,6 +4321,7 @@ static void preset_engine_tests(void)
 #include "ui_optimist_prjflow.h"                      /* 2026-10-14: PROJECT: BANK, OPERATION, ITEM, the keys run it */
 #if UI_SDCARD
 #include "ui_optimist_sdcard.h"                       /* SD card mode: the card's lists, banks of 16, saves by name */
+#include "ui_optimist_sdbrowse.h"                     /* SD card mode: the sample browser over the sound's page (SAVE on SD) */
 #if FELUCCA_SD_STREAM
 #include "ui_optimist_sdmon.h"                        /* SYSTEM > SD STREAM: the read rate, the streams, the rings' fill, the dropouts */
 #endif

@@ -30,8 +30,9 @@ static uint32_t fxu_listed(uint32_t t)                  /* the picker's list hol
 }
 static void fxu_cell(uint32_t k, uint32_t s, cell_t *c) /* track k's slot s's TYPE cell on SOUND's INSERTS row */
 {
-    uint32_t r = ins_row("INSERTS");
-    song.sel = (uint8_t)k;
+    uint32_t r;
+    song.sel = (uint8_t)k;                              /* (the track first: its rows, MAIN or not by its engine, 2026-11-09) */
+    r = ins_row("INSERTS");
     ui.row[SCR_SOUND] = (uint8_t)r;
     SCR->cell(r, s * 2u, c);
 }

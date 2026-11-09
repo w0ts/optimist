@@ -47,7 +47,7 @@ typedef int16_t slc_rbuf_t[NVOICE][SLC_RB];          /* a part's reverse windows
 AINL slc_rbuf_t *slc_mem(uint32_t p);                 /* (engines.c, after every engine) */
 #if FELUCCA_SD_STREAM
 #define SLC_NSRC 5u
-static const char *const N_SLC_SRC[] = {"BREAK", "USR1", "USR2", "USR3", "CARD"};
+static const char *const N_SLC_SRC[] = {"BREAK", "USR1", "USR2", "USR3", "SD"};
 #else
 #define SLC_NSRC 4u
 static const char *const N_SLC_SRC[] = {"BREAK", "USR1", "USR2", "USR3"};

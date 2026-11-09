@@ -145,7 +145,7 @@ static void lv_dr_tag_tests(void)
         check(!c.label || strcmp(c.label, "KIT"), "the SOUND row has no KIT card (PRESETS is the one place for the kit, 2026-10-14)");
     }
     r = lv_row_named("SOUND 3");
-    check(r < SCR->rows() && lv_row_plain(r), "SOUND 3 (the lane's DST CHO DLY REV): no tag");
+    check(r >= SCR->rows(), "no SOUND 3 (the lane's sends are its FX > SENDS, the user 2026-11-09)");
     r = lv_row_named("ENV");
     check(r < SCR->rows() && lv_row_plain(r), "the lane's ENV: no tag");
     (void)b;

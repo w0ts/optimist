@@ -17,6 +17,9 @@ static uint32_t sdu_sectors;
 #define frame() (frame(), sdm_wait())
 #define kdown(k) (kdown(k), sdm_wait())
 #define kup(k) (kup(k), sdm_wait())
+#if FELUCCA_SD_STREAM
+static void sdb_tests(void);                            /* ui_optimist_sdbrowse.h */
+#endif
 static void sdu_frames(uint32_t n)                      /* frames, the main loop's card pass after each (main.c sdm_poll) */
 {
     while (n--) {
@@ -1898,6 +1901,9 @@ static void sdcard_tests(void)
     sdu_browse_tests();
     sdu_loading();
     sdu_smp_keys();
+#if FELUCCA_SD_STREAM
+    sdb_tests();                                        /* (the sample browser over the sound's page: ui_optimist_sdbrowse.h) */
+#endif
     sdu_new_tests();
     sdu_filter_tree();
     sdu_pvw_tests();

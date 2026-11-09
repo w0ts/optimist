@@ -110,7 +110,7 @@ static const smp_zone_t SMP_ZONE_NONE;              /* (n 0: a voice given it en
 static uint8_t usr_nz[SMP_USER_SLOTS];
 static const char *const SMP_ALL_NAMES[SMP_NSAMPLE] = {SMP_SET_NAMES_INIT, "USR1", "USR2", "USR3",
 #if FELUCCA_SD_STREAM
-                                                        "CARD"
+                                                        "SD"
 #endif
 };
 

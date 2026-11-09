@@ -65,6 +65,7 @@ static void sdm_pv_play(uint32_t k);                    /* (the SAMPLES list's p
 static void sdm_pv_stop(void);
 static int sdm_pv_busy(void);
 static int sdm_lane_dir(uint32_t l);                    /* (a drum lane's type folder: Samples/Kick, Snare, HH ..) */
+static int sdc_br_on(void);                             /* op_sdbrowse.c: the sample browser up */
 static int sdm_into(uint32_t k);
 static void sdm_load_later(uint32_t k);
 static int sdm_up(void);
@@ -635,7 +636,7 @@ static void sdc_pv_item(void)                           /* PREVIEW on, K2 moved:
 static void sdc_frame(void)                             /* every UI frame: the filter ends with the row */
 {
     sdc_loading();
-    if (sdc_here() != SDC_SMP && sdm_pv_busy())
+    if (sdc_here() != SDC_SMP && sdm_pv_busy() && !sdc_br_on())
         sdm_pv_stop();                                  /* (the page left: silence; PREVIEW stays on for the session) */
     if (sdm_pvw_on() && (!sdc_pre_row() || song.sel != sdm_pvw_part() || lane_picked()))
         sdm_pvw_end();                                  /* (the page left, another track: the sound back, on its own track) */

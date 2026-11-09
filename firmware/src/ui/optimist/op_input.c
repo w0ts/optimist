@@ -1372,6 +1372,16 @@ static void ui_input(void)
             ly_lock = LY_STEP;
         return;
     }
+#if FELUCCA_SD_STREAM
+    if (sdc_br_on()) {                                  /* the sample browser: its knobs, keys, SAVE, HOME (op_sdbrowse.c) */
+        sdc_br_frame(pressed);
+        op_clean = 0;
+        op_held = held;
+        if (ly_lock != LY_STEP)
+            ly_lock = LY_STEP;
+        return;
+    }
+#endif
 #endif
     if (ml_on()) {                                      /* the load's memory list: the keys pick, SAVE drops, HOME keeps */
         ml_frame(pressed);                              /* (op_memlist.c) */

@@ -49,6 +49,10 @@ static void cell_clear(cell_t *c)
 }
 #if FELUCCA_SD_UI && FELUCCA_SD_STREAM
 static const char *sdm_card_label(uint32_t k);          /* (storage/sd/sd_mode.c: the file SET / SRC plays on CARD) */
+#if FELUCCA_SD_UI && FELUCCA_SD_STREAM
+static int sdc_br_turn(const page_t *pg, uint32_t k, int32_t s);   /* op_sdbrowse.c: SET / a lane's SRC on SD: its knob the samples */
+static int sdc_br_save(const page_t *pg, uint32_t k);  /* op_sdbrowse.c: SAVE there: samples <-> source */
+#endif
 #endif
 static __attribute__((noinline)) void cell_val(cell_t *c, const char *s) { str_cpy(c->val, s, 14); }   /* (42 sites; 13 characters, the field of a WIFI_UI build too: WI-FI's SIGNAL fills it whole) */
 /* an action's card: the verb is its val when set, else its label (the list's narrow columns draw the label); the small
@@ -164,6 +168,10 @@ static void cell_param(cell_t *c, const param_desc_t *d, int16_t *vp)
 #if FELUCCA_SD_UI && FELUCCA_SD_STREAM
     if (pd_names(d) == SMP_ALL_NAMES && *vp == (int16_t)SMP_CARD && sdm_card_label(song.sel)[0])
         cell_val(c, sdm_card_label(song.sel));          /* (SET, SRC on CARD: the file's name, or MISSING) */
+#if FELUCCA_SD_LANES && DL_SD_IX
+    if (pd_names(d) == DS_SRC_NAMES && *vp == 1 && sdm_card_label(NPART + lane_selected() % DRUM_LANES)[0])
+        cell_val(c, sdm_card_label(NPART + lane_selected() % DRUM_LANES));   /* (a lane's SRC on SD: its sample's name) */
+#endif
 #endif
     if (d->fmt == F_ENUM)
         cell_empty_slot(c);
@@ -542,13 +550,13 @@ static void op_dsnd_set(uint32_t id, int32_t v, int32_t steps)   /* as ui_drums.
         return;
     }
     switch (id) {
-    case 8:                                             /* SRC (without USR: past USR1..3) */
-        if (!FELUCCA_DRUM_USR && v >= 1 && v <= 3)
-            v = steps > 0 ? 4 : 0;
+    case 8:                                             /* SRC (without USR: past USR1..3; SD in USR1's place: dsnd_desc.c DL_SD_IX) */
+        if (!FELUCCA_DRUM_USR && v >= 1 + (int32_t)DL_SD_IX && v <= 3)
+            v = steps > 0 ? 4 : (int32_t)DL_SD_IX;
         if (!FELUCCA_DRUM_KITS && v > 3)
-            v = 3;
+            v = DL_SD_IX ? 1 : 3;
 #if FELUCCA_SD_LANES
-        if (dl.src[l] == DL_CARD)
+        if (!DL_SD_IX && dl.src[l] == DL_CARD)
             v = 0;                                      /* (off the card: KIT, dsnd_desc.c DSD_CARD) */
 #endif
         lane_set_src(l, dsnd_idx_src((uint32_t)v));   /* (an X0X voice: the lane takes its name) */
@@ -596,6 +604,10 @@ static int sound_page(const page_t *pg)              /* a row of the SOUND scree
         return 0;                                       /* (the ACCENT lane has no sound: no SOUND, SOURCE, KIT, ENV or LFO pages) */
     if (merged_away(pg))
         return 0;                                       /* (FLT 2, FILTER: their card is on a neighbour, #21) */
+    if (pg->scope == SC_DSND && pg->fam == FAM_EDIT && pg->id[0] == 16u)
+        return 0;                                       /* (EDIT's SOUND 3, the lane's sends: they are its FX > SENDS, LANE_FX_PG; the user,
+                                                         * 2026-11-09: "in drum lane edit we have the sends... they are already in fx for the
+                                                         * lane. remove.") */
     if (is_drum(TSEL) && lane_picked() && pg->fam == FAM_FX && (pg->scope == SC_TRACK || CMP_PAGE(pg)))
         return 0;                                       /* (a lane is uniform with the other tracks: its INSERTS and SENDS only, not the drum
                                                          * track's kit sends, bus sends, slicer, gater or comp; the user 2026-10-14. The ACCENT
@@ -863,6 +875,10 @@ static void page_turn(const page_t *pg, uint32_t k, int32_t s, int fine)
     uint32_t id = page_id(pg, k);
     if (!d || !vp || PARAM_HIDDEN(d) || is_go(d) || d->max == d->min)
         return;
+#if FELUCCA_SD_UI && FELUCCA_SD_STREAM
+    if (sdc_br_turn(pg, k, s))
+        return;                                         /* (SET / a lane's SRC on SD: the folder's samples, op_sdbrowse.c) */
+#endif
     if (s == OP_RESET) {
         if (pg->scope == SC_FXSLOT || (id >= PID_INST && id < PID_INST + INS_N) || (pg->scope == SC_DSND && id >= 8u && id < 16u) ||
             (pg->scope == SC_DSND && (id == 21u || id == 22u)))
@@ -909,6 +925,10 @@ static int page_yes(uint32_t scr, uint32_t row, const page_t *pg, uint32_t k, ui
     if (!d || !vp || PARAM_HIDDEN(d))
         return 0;
     if (!is_go(d)) {
+#if FELUCCA_SD_UI && FELUCCA_SD_STREAM
+        if (sdc_br_save(pg, k))
+            return 1;                                   /* SET / a lane's SRC on SD: its knob the samples <-> the source (op_sdbrowse.c) */
+#endif
         if (!is_toggle(d) || d->max == d->min)
             return 0;
         page_set(pg, k, vp, *vp == d->max ? d->min : d->max, 1);

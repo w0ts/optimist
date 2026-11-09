@@ -364,9 +364,31 @@ static int snd_row_page(const page_t *pg) { return sound_page(pg) && (snd_fam ==
  * engine_t macro (SLOOP's HOME knobs: CUT RES first where it has a filter; none: no MAIN, FM6), a drum lane's TUNE DECAY
  * CUT LEVEL. EDIT opens on MAIN (snd_mem_row), SELECT back from it is the SOUND row */
 static page_t main_pg = {"MAIN", FAM_EDIT, SC_TRACK, GR_NONE, {0xFF, 0xFF, 0xFF, 0xFF}};
+/* an EDIT row of the sound's own (the engine's pages, ANALOG's OSC 2 .. FLT B, ACID GEN; a lane's SOUND and SOUND 2): not the
+ * track's VOICE pages, not a lane's SOURCE or KIT */
+static int edit_own_pg(const page_t *pg)
+{
+    return pg->fam == FAM_EDIT && sound_page(pg) && pg->id[0] != P_VOICE && pg->id[0] != P_ALLOC && (pg->scope != SC_DSND || pg->id[0] < 8u);
+}
+/* MAIN only over three pages of the sound's own or more (the user, 2026-11-09: "i dont think we need a main page on the edit
+ * button if the engine has just two pages (or one!)"); counted again when the engine or the track's kind changes */
+static int main_worth(void)
+{
+    static uint16_t key = 0xFFFFu;
+    static uint8_t worth;
+    uint8_t ix[OP_MAXROWS];
+    uint16_t k = (uint16_t)(is_drum(TSEL) ? 0x100u + (uint32_t)lane_snd() : TSEL->eng_req);
+    if (k != key) {
+        key = k;
+        worth = (uint8_t)(page_rows(edit_own_pg, ix) > 2u);
+    }
+    return worth;
+}
 static const page_t *main_page(void)                    /* the selected track's MAIN (0: none) */
 {
     uint32_t k, any = 0;
+    if (!main_worth())
+        return 0;
 #if DL_ANY
     if (is_drum(TSEL)) {
         static const page_t DR_MAIN = {"MAIN", FAM_EDIT, SC_DSND, GR_DSND, {0, 1, 5, 7}};   /* (dsnd_desc.c DSD) */
@@ -419,7 +441,7 @@ static const char *dr_alias(const page_t *pg)
     if (!is_drum(TSEL) || !pg || str_eq(pg->title, "MAIN"))
         return 0;
     if (pg->scope == SC_DSND && pg->fam == FAM_EDIT)
-        return pg->id[0] == 0u ? "BODY" : pg->id[0] == 4u ? "TONE" : pg->id[0] == 16u ? "SENDS" : 0;
+        return pg->id[0] == 0u ? "BODY" : pg->id[0] == 4u ? "TONE" : 0;   /* (SOUND 3, the sends: not shown, op_cells.c sound_page) */
     return pg->scope == SC_TRACK && pg->graph == GR_FX ? "KIT SENDS" : 0;
 }
 static void snd_title_row(uint32_t r, char *b)          /* row r's name as titled (b holds 12): dr_alias, else the name */
@@ -461,8 +483,9 @@ static void snd_mem_tick(void)
 static uint32_t snd_mem_row(uint32_t fam)               /* the row of family fam to open on (snd_fam is fam already) */
 {
     uint32_t r = snd_mem[song.sel % NTRK][snd_slot(fam)], n = snd_rows();
-    if (!r)                                             /* never shown on this track: EDIT on MAIN (2026-10-18), else the first */
-        return fam == FAM_EDIT && snd_first() > SND_MAIN_ROW ? SND_MAIN_ROW : 0u;
+    if (!r)                                             /* never shown on this track: EDIT on MAIN (2026-10-18), else on its first page
+                                                         * past the SOUND row (no MAIN: the engine's first, 2026-11-09), else the first */
+        return fam == FAM_EDIT && snd_edit_rows() && n > 1u ? 1u : 0u;
     r--;
     return r < n ? r : n ? n - 1u : 0u;
 }
@@ -567,6 +590,10 @@ static int snd_yes(uint32_t r, uint32_t k, uint32_t ok)
         return fm6_yes(r, k, ok);
     if (snd_page(r))
         return page_yes(SCR_SOUND, r, snd_page(r), k, ok);
+#if FELUCCA_SD_UI && FELUCCA_SD_LANES
+    if (is_drum(TSEL) && k == 0u && lane_snd())
+        return page_yes(SCR_SOUND, r, &LANE_SRC_PG, k, ok);   /* (the lane's SRC on SD: the card's samples, op_sdbrowse.c) */
+#endif
     if (is_drum(TSEL) || k < 2u)
         return 0;
     if (k == 2u)                                        /* INIT: the engine's defaults (asks) */
