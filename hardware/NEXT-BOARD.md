@@ -4,12 +4,11 @@
 `analysis/field_solve.py`, about +-10 %) or **model** (circuit model, `analysis/path_delay.py`: its pad, card and LCD values
 are assumptions, so read differences between rows, not absolute numbers).
 
-## The variants (the same-side long board was dropped 2026-11-08, the user's ruling: one socket on each side)
+## The variants (the same-side long board was dropped 2026-11-08 and the mini on 2026-11-09, the user's rulings)
 
 | Folder | Plugs | Built? |
 |---|---|---|
 | `long-both-sides/` | one on each side | no |
-| `mini/` | one on each side | no |
 
 ## The short answer
 
@@ -18,7 +17,7 @@ are assumptions, so read differences between rows, not absolute numbers).
 2. **Most of the loop is not on the board.** The loop is 33-42 ns today. The board accounts for about 8-12 ns of it (**model**).
    The other 21-34 ns is the chip plus the card, and no layout touches that.
 3. **Ribbon length and impedance do not matter for the card.** 40 to 100 mm of ribbon moves the loop by under 0.2 ns (**model**).
-4. **The mini board is not needed for speed.** It gains about 1 ns, less than a clock step. Choose it for fit or cost only.
+4. **A smaller board is not needed for speed.** The 26 x 25 mm mini (dropped 2026-11-09) gained about 1 ns, less than a clock step.
 5. **15 MHz may be reachable with a board change, 20 MHz probably not.** The test that settles it is test 1 below.
 
 ## What is measured
@@ -38,7 +37,7 @@ The FM-1 samples half a clock after the card's data changes, so each clock has a
 
 The hand-tuned v6 reads 20 of 20 at 12 MHz on pink and black. SCK HD on v6 at 7.5 MHz gave one step; DI drive gave nothing.
 
-This table replaces the "50-58 ns loop" in `mini/DESIGN.md`, which is the first row only. Its explanation also needs
+This table replaces the "50-58 ns loop" in the dropped mini's design notes, which is the first row only. Its explanation also needs
 retracting: the 50 ns in the SD spec is the card's delay in identification mode. In data transfer the spec's limit is 14 ns, at
 default speed as well, so "high speed would drop the card from 50 to 14 ns" was wrong.
 
@@ -85,7 +84,7 @@ lower bound, for example the card's or ESD's real capacitance may be larger.
 | FFC, CLK, other lines driven | J12 pins | 0.060 | 80 | 4.8 |
 | FFC, CLK, GND and 3V3 only | J12 pins 1, 7, 10 | 0.025 | 158 | 4.0 |
 
-- **Copper is cheap in time.** All of v6's 47 mm behind R5 is 2.7 pF, about half what `mini/DESIGN.md` assumed
+- **Copper is cheap in time.** All of v6's 47 mm behind R5 is 2.7 pF, about half what the dropped mini's design notes assumed
   (0.1 pF/mm). The 35 pF on the DO net in `docs/SD-CARD-DESIGN.md` also looks high: the same sum gives about 20 pF. Test 2 measures it.
 - **Do not chase 50 Ohm.** At 15 MHz with 1-3 ns edges, a 25 mm board is lumped. Widening traces adds capacitance and slows the
   RC paths. Keep 0.2 mm.
@@ -192,7 +191,7 @@ and SLOOP 2.8.5 cold-boot with clean screens on that board with the card in (the
 R1 = 91 (E24 single parts for 245 and 89) and Optimist drives the LCD at 30 MHz. The chip's own path caps the card at 15 MHz (loopback: 20
 fails with no board resistor in the loop), so there is no clock gate, ever. 330/150 stays the value proven at the LCD's 60 MHz.
 
-**The order (the user, 2026-11-06 evening): `long-both-sides`** (J2 on the bottom, one socket on each side), at 240/91; the mini is out; printable mockups of both long boards were made for the fit (`mockup-printable*.stl`).
+**The order (the user, 2026-11-06 evening): `long-both-sides`** (J2 on the bottom, one socket on each side), at 240/91; the mini is out (and its folder removed 2026-11-09); printable mockups of both long boards were made for the fit (`mockup-printable*.stl`).
 
 **Measured 2026-11-06 late, the cost of the LCD at 30 MHz (the user's own project, a 10-lane kit with long tails, pink on the 245/89 board at 15 MHz, main with the user's profile):** the SD STREAM page over 8 s at each PRE-BUFFER: 25 ms 10/10 streams, buffer least 0, about 100 dry voices; 50 ms 5/10, about 100 dry; 100 ms 7/10, about 100 dry; 200 ms 5/5 (the planner has room for five rings only), about 25 dry. The dry count climbs on every page, least on the mixer (33 in 8 s), most while a page repaints; CPU0 32 %, CPU1 10 %, no underruns, the arena 129 of 156 KB. Reading: at 30 MHz each screen strip holds the shared bus twice as long, and ten continuous voices wait behind it; this morning's ten short hits every step did not show it. Open for the firmware: hold frames earlier when the buffer is low, fewer meter repaints, longer card runs; or the clock gate after all (the LCD back at 60 MHz with the card at 15). The user hears the trade: 25 ms plays more voices, more of them cut; 200 ms fewer voices, fewer cuts.
 
@@ -200,14 +199,12 @@ fails with no board resistor in the loop), so there is no clock gate, ever. 330/
 
 ## Findings to fix whatever is decided
 
-- **The long boards ordered 510/220.** Done 2026-11-06 after test 4 passed: both now order R5/R6 330 and R1 150, as the mini.
+- **The long boards ordered 510/220.** Done 2026-11-06 after test 4 passed: both now order R5/R6 330 and R1 150.
 - Done 2026-11-06: `archive-v6-tested/DESIGN.md` and `docs/SD-CARD-DESIGN.md` now say 10-12 MHz at 330/150 and the polled reader, not 20 MHz.
-- Done: `mini/DESIGN.md` uses the 33-42 ns loop and 0.05-0.06 pF/mm.
 - **The twins, 2026-11-08 (long-both-sides only):** a pair of 1.6 x 2.4 mm pads in parallel with each of R1, R5, R6 (RT1, RT5, RT6, not placed by the fab), so a value is trimmed with a leaded resistor on them, never on the 0603's ends (the user). Plain pads, no via and no line of their own (the user: the part's legs do the wiring). RT1 left of the swap block; RT5 and RT6 have their pads apart, the LCD-side pad in the head on its lane, the SD-side pad on the swap block's row of its SD net, the part lying along the column; silk says what each is in (DO, CLK, MOSI). Fab files regenerated, DRC 0. Details in `long-both-sides/DESIGN.md`.
-- **long-both-sides back to 330 / 330 / 150, 2026-11-09:** JLC had 240 and 91 out of stock and the user will not hand-solder SMD on this board; it places the highest values proven screen-safe at 60 MHz (basic parts C23138, C22808), the twins trim them down after the sweep (test 7). The mini keeps 240 / 91.
-- **Bottom parts' rotation in cpl.csv, 2026-11-09:** long-both-sides now writes 180 minus KiCad's angle for a bottom part (J2: 180, was 0); the jank session fitted JLC's own footprint for C3446068 on J2's pads: 0.00 mm at 180, 2.32 mm off at 0. Still check JLC's preview. **The mini is NOT changed and has eleven bottom parts written the old way (U1-U3 and J3 among them): fix it the same way before it is ever ordered.** The cable labels went from 0.7 to 0.8 mm (JLC's minimum); nine 0.6 mm labels stay.
-- **The BOM moved again, 2026-11-06 evening: R5/R6 240, R1 91** on the long boards and the mini (`make_board.py`, `make_schematic.py`, `fab/bom.csv`, `fab/sd-board.net.xml`, `.kicad_pcb`, `.kicad_sch` edited by hand, KiCad generators not re-run). The condition: the LCD at 30 MHz (`LCD_BAUD` 1), because the panel stays black at 60 MHz on 245 / 89. The LCSC codes for 240 and 91 are to confirm (the 330/150 codes C23138 and C22808 are removed from the files); gerbers, CPL and the DRC/ERC reports to regenerate with KiCad.
-- The mini's other open fit items stand on their own: the height under J3, the cable across the socket, the lid.
+- **long-both-sides back to 330 / 330 / 150, 2026-11-09:** JLC had 240 and 91 out of stock and the user will not hand-solder SMD on this board; it places the highest values proven screen-safe at 60 MHz (basic parts C23138, C22808), the twins trim them down after the sweep (test 7).
+- **Bottom parts' rotation in cpl.csv, 2026-11-09:** long-both-sides now writes 180 minus KiCad's angle for a bottom part (J2: 180, was 0); the jank session fitted JLC's own footprint for C3446068 on J2's pads: 0.00 mm at 180, 2.32 mm off at 0. Still check JLC's preview. The cable labels went from 0.7 to 0.8 mm (JLC's minimum); nine 0.6 mm labels stay.
+- **The BOM moved again, 2026-11-06 evening: R5/R6 240, R1 91** on the long boards (`make_board.py`, `make_schematic.py`, `fab/bom.csv`, `fab/sd-board.net.xml`, `.kicad_pcb`, `.kicad_sch` edited by hand, KiCad generators not re-run). The condition: the LCD at 30 MHz (`LCD_BAUD` 1), because the panel stays black at 60 MHz on 245 / 89. The LCSC codes for 240 and 91 are to confirm (the 330/150 codes C23138 and C22808 are removed from the files); gerbers, CPL and the DRC/ERC reports to regenerate with KiCad.
 
 ## Still to clean up
 

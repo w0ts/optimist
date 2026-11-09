@@ -4,8 +4,7 @@
 > ## This version (v6) is the one that has been built, tested and works
 >
 > v6 (the first order, 2026-10-28) ran an SD card in an FM-1 (the user, 2026-11-04). It is the **only tested version**.
-> The two v7 variants next to it, [`../long-both-sides/`](../long-both-sides/) and
-> [`../long-same-side/`](../long-same-side/), are **not built and not tested**: they only move the flat-cable
+> The board that follows it, [`../long-both-sides/`](../long-both-sides/), is **not built and not tested**: it moves the flat-cable
 > socket J2 (and drop the swap jumpers and the J12 test pads). See "The versions" below. The bench tests under "Still
 > open" are still the list to run on any new board.
 
@@ -20,7 +19,6 @@
 | Folder | Status | J2 (the cable from J12) | Price, 15 boards assembled |
 |---|---|---|---|
 | `archive-v6-tested/` (v6, this one) | **built, tested, works** | top side, its own part (C2856798, bottom contact), 91.3 mm across, 58.5 up | 82.46 USD |
-| `long-same-side/` | untested | top side, the same part as J3 (C3446068), in line with J3 (88.0 mm across), 58.5 up | 81.43 USD |
 | `long-both-sides/` | untested | bottom side, the same part as J3, in line with J3, 58.5 up, contacts facing away from the board | 115.45 USD |
 
 The v7 variants are v6 with the connectors moved: J2 is the same part as J3 and in line with it, and J3 is 0.6 mm
@@ -65,7 +63,7 @@ bench tests under "Still open" come with the first boards.
   the LCD's CS high selects the card) to 15 mA, not 33; it costs timing margin with the spec's slowest card at 20 MHz
   (`docs/SD-CARD-DESIGN.md` section 4), where the auto clock steps down.
   **Measured since (2026-11-05, `../NEXT-BOARD.md`):** this board reads at 12 MHz with R5/R6 330-340 and R1 150, fails at 15, and
-  20 MHz was never reached; the card clock in service is 10-12 MHz. The 20 MHz in this section is the first estimate. 330 / 150 passed a full cold boot with the card in (stock M-VAVE V15 and SLOOP 2.8.5, screens clean after a minute, 2026-11-06), so the long boards and the mini ordered 330 / 150 that morning; this v6 as built has 510 / 220. **Evening, 2026-11-06:** bodged to 245 / 89 it reads at 15 MHz (20 refused, 0 CRC errors) but the panel is black at the LCD's 60 MHz and fine at 30 MHz, so the next order is 240 / 91 with the LCD at 30 MHz.
+  20 MHz was never reached; the card clock in service is 10-12 MHz. The 20 MHz in this section is the first estimate. 330 / 150 passed a full cold boot with the card in (stock M-VAVE V15 and SLOOP 2.8.5, screens clean after a minute, 2026-11-06), so the long boards ordered 330 / 150 that morning; this v6 as built has 510 / 220. **Evening, 2026-11-06:** bodged to 245 / 89 it reads at 15 MHz (20 refused, 0 CRC errors) but the panel is black at the LCD's 60 MHz and fine at 30 MHz, so the next order is 240 / 91 with the LCD at 30 MHz.
   **The three to retune on the bench** (Julius's values were found by trial on hand wiring, not calculated: "510 is a
   bit high but works"): R1, R5, R6 sit on 0603 **hand-solder pads** (longer, an iron reaches each end) so they can be
   swapped. If the screen misbehaves with a card in, go up (R5/R6 to 680-1k); if `sd bench` shows CRC errors at 20 MHz

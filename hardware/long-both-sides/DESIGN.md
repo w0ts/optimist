@@ -78,5 +78,5 @@ right strip, 2; lying between the swap block's rows right under the column, 4, t
 So no via and no line for the twins; the guard lane and the swap block's rows are back where they were before them.
 Silkscreen says what each is in: "R1 DO" at RT1, "R5" / "R6" beside each of RT5's and RT6's pads, "DO", "CLK", "MOSI"
 beside the 0603s (R5's and R6's over the column's masked lanes). Not measured: a board with the twins has not been
-built. The mini has no room for twins (26 x 25 mm) and keeps the 0603 hand-solder pads. `make_fab.sh` now stops when
+built. `make_fab.sh` now stops when
 `make_board.py` fails (it used to go on with the stale board). DRC 0, ERC clean, nets 76 = 76.
