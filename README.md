@@ -31,46 +31,6 @@ FM-1 projects (see <a href="#credits">Credits</a>).</p>
 > are tested in the emulator and on the host, and formats can change between versions. An install could fail or erase
 > your data: **back up first** (below), and read [Getting back](docs/guide/getting-back.md) before you start.
 
-## Everything happens on one site: [w0ts.github.io/optimist](https://w0ts.github.io/optimist/)
-
-Use **Chrome or Edge** (they have Web MIDI) and a USB data cable, straight into the computer.
-
-| | |
-| --- | --- |
-| [**Firmware**](https://w0ts.github.io/optimist/webapp/editor/#install) | Install a release flavour, your own build or a `.fwsc` file on your FM-1. It offers a backup first, and can put the official firmware back. **Build your own…** opens the builder: start from a flavour or a configuration you saved, choose the engines, drum kits, effects and features with a live flash and RAM budget, and press *Build* (no GitHub account needed). The page follows the build, then offers *Flash it* and *Try it in the simulator*. |
-| [**Simulator**](https://w0ts.github.io/optimist/webapp/editor/#sim) | The firmware running in your browser, with the FM-1's panel and its keyboard shortcuts: try a build before you install it. It can copy your FM-1's memory in, and write it back. |
-| [**Editor**](https://w0ts.github.io/optimist/webapp/editor/#mixer) | The **Backup** of your whole FM-1 in one file, the projects and presets librarian, and the FM-1's screen mirrored. A build with live editing (`ED_LIVE`, not in the four flavours) adds every sound, drum, effect and setting as knobs, the drum grid and the samples (with CHOP). |
-
-The firmware files are also on the [releases page](https://github.com/w0ts/optimist/releases).
-
-**Optimist Mirror**, the app: the FM-1's screen and panel on your iPhone, iPad or Mac, over USB or Bluetooth, and firmware installs.
-
-<a href="https://apps.apple.com/app/id6826362906"><img src="web/style/badges/app-store.svg" alt="Download on the App Store" height="40"></a>
-<a href="https://apps.apple.com/app/id6826362906"><img src="web/style/badges/mac-app-store.svg" alt="Download on the Mac App Store" height="40"></a>
-
-## The flavours
-
-Four ready-made builds, in every release; the builder makes any other.
-
-| Flavour | What it is |
-| --- | --- |
-| **mots-config** (the default) | ANALOG 2, DIGITAL, PHASE, FM6 with five voice packs, PLAITS, STRINGS, VPS, PROPHET, CS80, PHYS, ACID, CZ, JUNO, NOISE; the synthesised kits with KAWA and PLAITS, the X0X 909 and 808, your kits; the GRIDS generators; USB audio, USB host, Bluetooth MIDI, Bluetooth audio, Wi-Fi Link. The web editor does backup, restore and the screen mirror. |
-| **synths** | ANALOG 2, DIGITAL, PHASE, FM6 with five voice packs, PLAITS, STRINGS, PROPHET, PHYS, ACID, JUNO; the synthesised kits, your kits; Bluetooth audio. The web editor does backup, restore and the screen mirror. |
-| **synths-2** | ANALOG 2, DIGITAL, PLAITS, WSEQ, VECTOR, WAVE, SID; no drums: the drum track is a fourth synth track; Bluetooth audio. The web editor does backup, restore and the screen mirror. |
-| **drum machine** | The synthesised kits with KAWA and PLAITS, the sampled kits, the X0X 909 and 808, the drum editor, your kits, DIGITAL; the GRIDS generators; USB audio. The web editor does backup, restore and the screen mirror. |
-
-## Your first install
-
-1. **Back up.** Open the [Editor](https://w0ts.github.io/optimist/webapp/editor/#backup), *Connect*, then
-   **Backup**: one `.optimist-backup` file with your projects, presets, kits and settings (tick *with the samples* for
-   those too). Coming from another firmware, use its own backup as well.
-2. Open [Install](https://w0ts.github.io/optimist/webapp/editor/#install): **Connect** says what your FM-1 runs,
-   **Choose** a release and a flavour (or your cloud build, or a file), **Install** and wait for *Done*.
-3. The FM-1 restarts into Optimist. If an install is cut off, the FM-1 stays in update mode: press Install again.
-
-Your projects, presets, kits and samples live above the firmware: an install writes only the firmware area. Data that
-Optimist cannot read may not be kept, except SLOOP's: SLOOP 2.7 data is kept.
-
 ## What is in it
 
 - **Four tracks:** three synth tracks and a drum track with 10 lanes on the black keys, ghost and hard hits, ratchets.
@@ -98,6 +58,46 @@ Optimist cannot read may not be kept, except SLOOP's: SLOOP 2.7 data is kept.
   <img src="assets/screens/device-drums.webp" alt="The FM-1's screen: the drum track's lanes with their steps" width="260">
   <img src="assets/screens/device-master.webp" alt="The FM-1's screen: the master page with its level meter and the three effect returns" width="260">
 </p>
+
+## The flavours
+
+Four ready-made builds, in every release; the builder makes any other.
+
+| Flavour | What it is |
+| --- | --- |
+| **mots-config** (the default) | ANALOG 2, DIGITAL, PHASE, FM6 with five voice packs, PLAITS, STRINGS, VPS, PROPHET, CS80, PHYS, ACID, CZ, JUNO, NOISE; the synthesised kits with KAWA and PLAITS, the X0X 909 and 808, your kits; the GRIDS generators; USB audio, USB host, Bluetooth MIDI, Bluetooth audio, Wi-Fi Link. The web editor does backup, restore and the screen mirror. |
+| **synths** | ANALOG 2, DIGITAL, PHASE, FM6 with five voice packs, PLAITS, STRINGS, PROPHET, PHYS, ACID, JUNO; the synthesised kits, your kits; Bluetooth audio. The web editor does backup, restore and the screen mirror. |
+| **synths-2** | ANALOG 2, DIGITAL, PLAITS, WSEQ, VECTOR, WAVE, SID; no drums: the drum track is a fourth synth track; Bluetooth audio. The web editor does backup, restore and the screen mirror. |
+| **drum machine** | The synthesised kits with KAWA and PLAITS, the sampled kits, the X0X 909 and 808, the drum editor, your kits, DIGITAL; the GRIDS generators; USB audio. The web editor does backup, restore and the screen mirror. |
+
+## Everything happens on one site: [w0ts.github.io/optimist](https://w0ts.github.io/optimist/)
+
+Use **Chrome or Edge** (they have Web MIDI) and a USB data cable, straight into the computer.
+
+| | |
+| --- | --- |
+| [**Firmware**](https://w0ts.github.io/optimist/webapp/editor/#install) | Install a release flavour, your own build or a `.fwsc` file on your FM-1. It offers a backup first, and can put the official firmware back. **Build your own…** opens the builder: start from a flavour or a configuration you saved, choose the engines, drum kits, effects and features with a live flash and RAM budget, and press *Build* (no GitHub account needed). The page follows the build, then offers *Flash it* and *Try it in the simulator*. |
+| [**Simulator**](https://w0ts.github.io/optimist/webapp/editor/#sim) | The firmware running in your browser, with the FM-1's panel and its keyboard shortcuts: try a build before you install it. It can copy your FM-1's memory in, and write it back. |
+| [**Editor**](https://w0ts.github.io/optimist/webapp/editor/#mixer) | The **Backup** of your whole FM-1 in one file, the projects and presets librarian, and the FM-1's screen mirrored. A build with live editing (`ED_LIVE`, not in the four flavours) adds every sound, drum, effect and setting as knobs, the drum grid and the samples (with CHOP). |
+
+The firmware files are also on the [releases page](https://github.com/w0ts/optimist/releases).
+
+**Optimist Mirror**, the app: the FM-1's screen and panel on your iPhone, iPad or Mac, over USB or Bluetooth, and firmware installs.
+
+<a href="https://apps.apple.com/app/id6826362906"><img src="web/style/badges/app-store.svg" alt="Download on the App Store" height="40"></a>
+<a href="https://apps.apple.com/app/id6826362906"><img src="web/style/badges/mac-app-store.svg" alt="Download on the Mac App Store" height="40"></a>
+
+## Your first install
+
+1. **Back up.** Open the [Editor](https://w0ts.github.io/optimist/webapp/editor/#backup), *Connect*, then
+   **Backup**: one `.optimist-backup` file with your projects, presets, kits and settings (tick *with the samples* for
+   those too). Coming from another firmware, use its own backup as well.
+2. Open [Install](https://w0ts.github.io/optimist/webapp/editor/#install): **Connect** says what your FM-1 runs,
+   **Choose** a release and a flavour (or your cloud build, or a file), **Install** and wait for *Done*.
+3. The FM-1 restarts into Optimist. If an install is cut off, the FM-1 stays in update mode: press Install again.
+
+Your projects, presets, kits and samples live above the firmware: an install writes only the firmware area. Data that
+Optimist cannot read may not be kept, except SLOOP's: SLOOP 2.7 data is kept.
 
 ## The guide
 
