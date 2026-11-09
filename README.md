@@ -29,7 +29,7 @@ FM-1 projects (see <a href="#credits">Credits</a>).</p>
 > [!CAUTION]
 > **Early access: work in progress, no warranty, use at your own risk.** Optimist runs on real FM-1s, but most features
 > are tested in the emulator and on the host, and formats can change between versions. An install could fail or erase
-> your data: **back up first** (below), and read [Getting back](#getting-back) before you start.
+> your data: **back up first** (below), and read [Getting back](docs/guide/getting-back.md) before you start.
 
 ## Everything happens on one site: [w0ts.github.io/optimist](https://w0ts.github.io/optimist/)
 
@@ -71,24 +71,6 @@ Four ready-made builds, in every release; the builder makes any other.
 Your projects, presets, kits and samples live above the firmware: an install writes only the firmware area. Data that
 Optimist cannot read may not be kept, except SLOOP's: SLOOP 2.7 data is kept.
 
-## Getting back
-
-- **To the official firmware:** in [Install](https://w0ts.github.io/optimist/webapp/editor/#install), step 4, take
-  the copy of M-VAVE's FM-1 V15 the site keeps (or your own `FM-1.fwsc` from [m-vave.com](https://www.m-vave.com/download),
-  unchanged) and install it. Or use M-VAVE's own updater, M-UPGRADE. The official firmware does not read Optimist's data: back it up first.
-- **The FM-1 does not start Optimist:** hold **OCT−** alone while switching on (*OPTIMIST USB RESCUE*), then install again.
-  After two start-ups that crash, the FM-1 goes there by itself.
-- **Switching between Optimist's own firmware and the release, or from any firmware:** the installer picks the way
-  itself (the running firmware's updater, else the chip's download mode through M-Flasher, a full backup first):
-  [docs/INSTALL-PATHS.md](docs/INSTALL-PATHS.md). No detour through V15.
-- **Nothing starts at all:** hold **OCT− + OCT+** while switching on and keep them held for **3 s**: the chip's own update mode
-  (UBOOT; the screen stays dark). Then M-UPGRADE, or `tools/fm1_rescue.py` from this repository (macOS; from X0X: it
-  backs up the whole flash first and writes only the firmware area), or
-  [FM-1-transporter](https://github.com/kurogedelic/FM-1-transporter). With the RP2040 dongle of
-  [tools/dongle/](tools/dongle/README.md) (the transporter on a Seeed XIAO RP2040 or a Raspberry Pi Pico, three wires
-  on the USB port) `tools/fm1_rescue.py --dongle` needs neither the key combo nor a cable swap: the dongle keys the chip
-  when the FM-1 is switched on and is its USB host.
-
 ## What is in it
 
 - **Four tracks:** three synth tracks and a drum track with 10 lanes on the black keys, ghost and hard hits, ratchets.
@@ -125,6 +107,7 @@ Optimist cannot read may not be kept, except SLOOP's: SLOOP 2.7 data is kept.
 | [Sound](docs/guide/sound.md) · [Drums](docs/guide/drums.md) | the engines, voices, modulation and presets · kits, drum sounds, your samples and kits |
 | [Effects](docs/guide/effects.md) · [Sequencer](docs/guide/sequencer.md) | inserts, sends, returns, the master · steps, locks, motion, patterns, the song |
 | [MIDI, Bluetooth, USB audio, the web editor](docs/guide/midi-usb.md) | connections and the editor |
+| [Getting back](docs/guide/getting-back.md) | to the official firmware, and what to do when the FM-1 does not start |
 | [The builder](docs/BUILDER.md) | every builder item, its cost, the profiles |
 
 ## Build it on your computer
