@@ -101,6 +101,9 @@ Optimist cannot read may not be kept, except SLOOP's: SLOOP 2.7 data is kept.
   scenes, sections A–P and a song chain, snapshots, undo.
 - **Connections:** USB and TRS MIDI in, MIDI out over USB, MIDI clock in and out (also over Bluetooth MIDI), Bluetooth
   MIDI and Bluetooth audio (headphones, speakers) at once, USB audio.
+- **SD card mode:** projects, presets, kits and samples on a microSD card, samples streamed from it, the master recorded
+  to it. It needs a small add-on board that plugs in between the FM-1's LCD and its main board, no soldering to the FM-1:
+  [the SD board](hardware/README.md), how to build it, its Gerbers and parts.
 - **Wi-Fi and Ableton Link:** join a network and play in time with Live and other Link apps: tempo, phase, start / stop.
   **JANK mode**: FM-1s play together over Wi-Fi with no router. [jank](https://github.com/w0ts/jank), a small ESP32-S3
   device, brings computers, MIDI and modular gear into a JANK group: a USB network adapter, a Link peer, MIDI clock and
