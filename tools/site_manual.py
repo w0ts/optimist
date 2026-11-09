@@ -17,7 +17,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 GUIDE = ROOT / "docs" / "guide"
 REPO = "https://github.com/w0ts/optimist/blob/main/"
-ORDER = ["interface.md", "shortcuts.md", "sound.md", "sequencer.md", "drums.md", "effects.md", "midi-usb.md"]
+ORDER = ["interface.md", "shortcuts.md", "sound.md", "sequencer.md", "drums.md", "effects.md", "midi-usb.md", "getting-back.md"]
 INTRO = ("Optimist is a modular firmware for the M-VAVE FM-1. This manual is the guide that comes with it, one section a "
          "page of it: the controls, the shortcuts, the sound, the sequencer, the drums, the effects, and MIDI and USB. What "
          "a build contains depends on its profile: a page or line whose feature is not built is not shown.")
