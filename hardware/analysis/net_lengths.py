@@ -2,7 +2,7 @@ import re,sys,math,collections
 # per-net routed copper by layer, width set, vias; from .kicad_pcb text
 import os
 base=os.path.join(os.path.dirname(os.path.abspath(__file__)),'..','')
-for d in ['archive-v6-tested','long-same-side','long-both-sides','mini']:
+for d in ['archive-v6-tested','long-both-sides']:
     s=open(base+d+'/sd-board.kicad_pcb').read()
     names={m[0]:m[1] for m in re.findall(r'\(net (\d+) "([^"]*)"\)',s)}
     L=collections.defaultdict(lambda:collections.Counter()); W=collections.defaultdict(set); V=collections.Counter()

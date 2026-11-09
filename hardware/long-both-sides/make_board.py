@@ -238,7 +238,7 @@ FB1 = P(LIB, "R0603", "FB1", "600R@100MHz", 93.5, 25.3, 0, "C1002")   # (GZ1608D
 R2 = P(LIB, "R0603", "R2", "47k", 89.6, 12.9 + DY, 0, "C25819")
 R3 = P(LIB, "R0603", "R3", "47k", CARD_C - 7.6, BUS, 0, "C25819")
 R5 = P(RTUNE, R_HAND, "R5", "330", 94.25, 49.0, 90, "C23138")    # (CLK and MOSI in series where the SD branch leaves
-R6 = P(RTUNE, R_HAND, "R6", "330", 95.05, 45.5, 90, "C23138")    # the through-lines, at the J2 end of the column; 240 ohm, as mini
+R6 = P(RTUNE, R_HAND, "R6", "330", 95.05, 45.5, 90, "C23138")    # the through-lines, at the J2 end of the column
                                                  # (stock firmware with a card in its native mode: blank with CLK direct, distorted at
                                                  # 150 and fine at 510 on Julius prototype; 330 passed a cold boot at 60 MHz LCD; 245 bodged: black at 60 MHz, fine at 30 MHz, 2026-11-06)
 # ESD at the card's contacts: two USBLC6-2SC6, each line straight through one of its columns (pins 1 and 6 are one
