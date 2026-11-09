@@ -143,7 +143,7 @@ static void boot_splash(void)
     while (p[i] && v[i] == p[i])
         i++;
     if (!p[i])
-        v += i;                                          /* "OPTIMIST 0.2" -> "0.2" (a release says "0.2 BETA") */
+        v += i;                                          /* "OPTIMIST 0.3" -> "0.3" (a release says "0.3 BETA") */
     lcd_fill(0, 0, 240, 240, C_BLACK);
     optimist_logo((240u - LOGO_W) / 2u, LOGO_Y);
     for (r0 = 0; r0 < 56u; r0 += n) {                  /* the name, the version: 56 rows, in passes on a smaller canvas */
