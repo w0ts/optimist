@@ -261,9 +261,9 @@ static void wf_ui_tests(void)
     ui.msg_t = 0;
     frames(2);
     check(wf_said("SAVED + CONNECTED Studio"), "joined with a typed password: SAVED + CONNECTED Studio");
-    check(!strcmp(wf_val("STATE"), "CONNECTED") && !strcmp(wf_val("NETWORK"), "Studio") && !strcmp(wf_val("SIGNAL"), "192.168.100.123") &&
+    check(!strcmp(wf_val("STATE"), FELUCCA_LINK ? "0 LINK PEERS" : "CONNECTED") && !strcmp(wf_val("NETWORK"), "Studio") && !strcmp(wf_val("SIGNAL"), "192.168.100.123") &&
               !wc.scan_want && !wf_pg_shown(),
-          "... STATE CONNECTED, NETWORK the name, SIGNAL the address, no scan, no list");
+          "... STATE CONNECTED (with Link: 0 LINK PEERS), NETWORK the name, SIGNAL the address, no scan, no list");
     ui.force = 1;
     frames(3);
     ppm("opt-wifi-joined");
@@ -272,6 +272,11 @@ static void wf_ui_tests(void)
     check(!ui.msg_t, "... the message not said again");
     test_peers = 2;
     check(!strcmp(wf_val("STATE"), "2 LINK PEERS"), "... Link peers heard on the network: 2 LINK PEERS");
+#if FELUCCA_LINK
+    link_mode = LINK_OFF;
+    check(!strcmp(wf_val("STATE"), "LINK OFF"), "... GLOBAL > MIDI LINK OFF: LINK OFF (no session, no peer)");
+    link_mode = LINK_ONSS;
+#endif
     test_peers = 0;
     wl.ip.ip = 0;
     check(!strcmp(wf_val("SIGNAL"), "GETTING IP"), "... no address yet: GETTING IP");

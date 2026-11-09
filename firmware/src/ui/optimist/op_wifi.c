@@ -610,7 +610,18 @@ static void wf_state_cell(cell_t *c)
             break;
         case WC_UP:
             v = "CONNECTED";
-            if (wl_peers()) {                           /* joined, and Link peers heard on that network */
+#if FELUCCA_LINK
+            /* joined: the Link peers heard on that network, 0 too, or LINK OFF (GLOBAL > MIDI: no session, so no peer and
+             * AUTO never follows Link; the user, 2026-11-09: "the link option in GLOBAL midi was off", the count "in the last
+             * line" as MODE JANK's); NETWORK's line above says it is joined */
+            if (link_eff() == LINK_OFF)
+                v = "LINK OFF";
+            else
+#else
+            if (wl_peers())                             /* (no Link built: the peers when there are any, as before) */
+#endif
+            {
+                b[0] = 0;
                 fmt_int(b, (int32_t)wl_peers());
                 str_app(b, wl_peers() == 1u ? " LINK PEER" : " LINK PEERS", sizeof b);
                 v = b;
