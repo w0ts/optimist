@@ -2,6 +2,8 @@
 
 ## New
 
+**JANK, Ableton Link, SD card support.**
+
 - **Ableton Link over Wi-Fi**: tempo, phase and start / stop with Live and other Link apps. Set up in SYSTEM > WI-FI. 
 Any device in the session can change the tempo. An FM-1 that joins while playing falls in on the session's next bar. 
 An access-point mode for use without a router is available as a builder option (less tested).
@@ -45,6 +47,9 @@ each track keeps its mode until power-off.
 - Installs work from any firmware, resume after a dropped cable, and send only changed sectors.
 - The FM-1 is named FM1-XXXX on USB, MIDI, Bluetooth and Wi-Fi, so M-Flasher and other tools find it ([#138](https://github.com/w0ts/optimist/issues/138)). If the FM-1 refuses a package (M-VAVE's firmware over m-bootloader), the installer says nothing was written and switches to download mode.
 - With several FM-1s connected, the builder and `make flash` ask which one, or flash them all one after the other.
+- MAIN page only for engines with 3+ pages.
+- Drum lane sends: FX page only.
+- USB MODE: DEVICE / HOST.
 - KNOB COLORS is on by default. SYSTEM lists Bluetooth and Wi-Fi first.
 - The USB serial console (builder option USB_CONSOLE) is on from the first start. The SERIAL switch in SYSTEM is gone.
 - The console (USB_CONSOLE) also runs over USB MIDI, as SysEx, so it works together with USB audio:
