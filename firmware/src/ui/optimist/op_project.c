@@ -857,9 +857,9 @@ static void sys_it_cell(uint32_t it, cell_t *c)     /* the cell of setting it */
     case SI_UHMODE:                                     /* the port: the computer's device, or the host of a USB-MIDI device:
                                                          * then nothing for the computer (no USB MIDI, audio, editor) */
         c->label = "MODE";
-        cell_val(c, usbh_mode() ? "HOST, NO PC" : "DEVICE");
-        c->big = !usbh_mode();
-        c->col = usbh_mode() ? C_WARN : 0;
+        cell_val(c, usbh_mode() ? "HOST" : "DEVICE");   /* (the user, 2026-11-09: "just say MODE: DEVICE / HOST") */
+        c->big = 1;
+        c->col = 0;
         break;
     case SI_UHDEV: {                                    /* what is plugged in: its name, CONNECTED, NONE, NO MIDI, LOW SPEED */
         uint32_t ok;
