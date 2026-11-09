@@ -13,45 +13,50 @@ the browser, install it from the browser.</b><br>
 Free software (GPL-3.0-only), built on <a href="https://github.com/isod89/sloop-fm1">SLOOP</a>, Felucca, Melodee, X0X and other
 FM-1 projects (see <a href="#credits">Credits</a>).</p>
 
-> [!WARNING]
-> ## 🚧 SD card mod: experimental, off in the releases 🚧
->
-> The SD card mod (a microSD card on the FM-1's LCD bus, a bigger flash layout, projects and samples on the card) is in
-> the source, behind builder items that are **off by default**, and is **not in the releases**. It has run on **one**
-> modded FM-1 (2026-11-04: an SDHC card mounts and reads); writes, sample streaming, recording and a long run of the
-> screen with the card in are **not tested on hardware yet**.
->
-> - **The SD board is a first prototype**: `hardware/archive-v6-tested/` (see its README); build one only if you are ready to
->   rework it.
-> - **Do not install a build with the card on an FM-1 you depend on.**
-> - Anything here may change without notice.
-
-> [!CAUTION]
-> **Early access: work in progress, no warranty, use at your own risk.** Optimist runs on real FM-1s, but most features
-> are tested in the emulator and on the host, and formats can change between versions. An install could fail or erase
-> your data: **back up first** (below), and read [Getting back](docs/guide/getting-back.md) before you start.
 
 ## What is in it
 
-- **Four tracks:** three synth tracks and a drum track with 10 lanes on the black keys, ghost and hard hits, ratchets.
-- **Up to 28 synth engines:** ANALOG 2, FM6 (plays DX7 voices as Dexed does), JUNO, ACID, CZ, PHYS, DIGITAL, PHASE,
-  LOFI, SAMPLE, VOICE, TRIO, WHEEL, GRAIN, SLICE, NOISE, DRONE (a LYRA-style coupled drone with binaural beats), PLAITS (four of Mutable Instruments Plaits' models), Clipper's STRINGS, VPS, TERRAIN, WSEQ, VECTOR and WAVE, SID (the C64's chip, after reSID), PROPHET (a Prophet-5 style voice), CS80 (a CS-80 style voice, after CS-1) and STRETCH (PaulStretch-style stretching of the samples). Two LFOs and two envelopes per sound.
-- **Drums:** 5 sampled and 34 synthesised kits, the X0X 909 and 808 with eight style kits, every sound editable, your samples and kits.
-- **Effects:** two insert slots on every track, drum sound and the master (DYN, EQ3, filters, drive, chorus, echo, the
-  Juno chorus and more), reverb, delay and chorus sends with three returns, punch-in effects.
-- **Sequencer:** 64 steps a track, parameter locks, motion recording, chance and conditions, note generators (EUCLID, RANDOM, PULSE, GRIDS), pattern tools, fills, patterns and
-  scenes, sections A–P and a song chain, snapshots, undo.
-- **Connections:** USB and TRS MIDI in, MIDI out over USB, MIDI clock in and out (also over Bluetooth MIDI), Bluetooth
-  MIDI and Bluetooth audio (headphones, speakers) at once, USB audio.
-- **SD card mode:** projects, presets, kits and samples on a microSD card, samples streamed from it, the master recorded
-  to it. It needs a small add-on board that plugs in between the FM-1's LCD and its main board, no soldering to the FM-1:
-  [the SD board](hardware/README.md), how to build it, its Gerbers and parts.
-- **Wi-Fi and Ableton Link:** join a network and play in time with Live and other Link apps: tempo, phase, start / stop.
-  **JANK mode**: FM-1s play together over Wi-Fi with no router. [jank](https://github.com/w0ts/jank), a small ESP32-S3
-  device, brings computers, MIDI and modular gear into a JANK group: a USB network adapter, a Link peer, MIDI clock and
-  CLOCK / RESET outputs.
-- **One interface:** rows of values on the screen, SELECT / ALGORITHM / PRESETS, SAVE = yes, HOME = no, and held buttons
-  for performance layers. PLAY's two lights show the transport: green dim stopped, green full playing, red full recording.
+- **Four tracks:** three synth, drum with 10 lanes.
+- **Up to 28 synth engines:** 
+  - ANALOG 2
+  - FM6 JUNO
+  - ACID
+  - CZ
+  - PHYS
+  - DIGITAL
+  - PHASE
+  - LOFI
+  - SAMPLE
+  - VOICE
+  - TRIO
+  - WHEEL
+  - GRAIN
+  - SLICE
+  - NOISE
+  - DRONE
+  - PLAITS
+  - Clipper's STRINGS
+  - VPS
+  - TERRAIN
+  - WSEQ
+  - VECTOR
+  - WAVE
+  - SID
+  - PROPHET
+  - CS80
+  - STRETCH (PaulStretch-style stretching of the samples)
+- Two LFOs and two envelopes per sound.
+- **Drums:** sampled and synthesised kits, X0X 909 and 808.
+- **Effects:** two insert slots on every track, three returns, punch-in effects.
+- **Sequencer:** 64 steps a track, parameter locks, motion recording, chance and conditions, note generators, fills, patterns and scenes, undo.
+- **Connections:**
+  - **[JANK mode]([jank](https://github.com/w0ts/jank))**: Jam syned over Wi-Fi/Ableton Link with no router! 
+  - **Ableton Link**, MIDI clock in/out
+  - MIDI in: USB, TRS, Bluetooth
+  - MIDI out: USB and Bluetooth
+  - Bluetooth Audio
+- **SD card mode:** projects, presets, kits and samples on a microSD card, samples streamed from it [the SD board](hardware/README.md)
+
 
 <p align="center">
   <img src="assets/screens/device-mixer.webp" alt="The FM-1's screen: the mixer with the tracks T1 to T3 and the drum track playing" width="260">
@@ -61,16 +66,16 @@ FM-1 projects (see <a href="#credits">Credits</a>).</p>
 
 ## The flavours
 
-Four ready-made builds, in every release; the builder makes any other.
+Optimist is meant to be build using our web installer and customised to your needs. but we provide a few stock builds to try it out.
 
 | Flavour | What it is |
 | --- | --- |
-| **mots-config** (the default) | ANALOG 2, DIGITAL, PHASE, FM6 with five voice packs, PLAITS, STRINGS, VPS, PROPHET, CS80, PHYS, ACID, CZ, JUNO, NOISE; the synthesised kits with KAWA and PLAITS, the X0X 909 and 808, your kits; the GRIDS generators; USB audio, USB host, Bluetooth MIDI, Bluetooth audio, Wi-Fi Link. The web editor does backup, restore and the screen mirror. |
-| **synths** | ANALOG 2, DIGITAL, PHASE, FM6 with five voice packs, PLAITS, STRINGS, PROPHET, PHYS, ACID, JUNO; the synthesised kits, your kits; Bluetooth audio. The web editor does backup, restore and the screen mirror. |
-| **synths-2** | ANALOG 2, DIGITAL, PLAITS, WSEQ, VECTOR, WAVE, SID; no drums: the drum track is a fourth synth track; Bluetooth audio. The web editor does backup, restore and the screen mirror. |
-| **drum machine** | The synthesised kits with KAWA and PLAITS, the sampled kits, the X0X 909 and 808, the drum editor, your kits, DIGITAL; the GRIDS generators; USB audio. The web editor does backup, restore and the screen mirror. |
+| **mots-config** (the default) | My build|
+| **synths** | Most of the synths |
+| **synths-2** | What did not fit in **synths** build |
+| **drum machine** | everything about drums, some synths. |
 
-## Everything happens on one site: [w0ts.github.io/optimist](https://w0ts.github.io/optimist/)
+## Builder, Installer, editor [w0ts.github.io/optimist](https://w0ts.github.io/optimist/)
 
 Use **Chrome or Edge** (they have Web MIDI) and a USB data cable, straight into the computer.
 
