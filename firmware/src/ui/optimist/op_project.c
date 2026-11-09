@@ -528,6 +528,11 @@ static const struct { const char *name; uint8_t it[4]; } SYS[] = {
 #if WIFI_UI
     {"WI-FI", {SI_WFMODE, SI_WFNET, SI_WFSIG, SI_WFST}},   /* the same pattern as the Bluetooth pages (the user, 2026-10-27: "it should be very similar") */
 #endif
+#if USBH_UI
+    {"USB", {SI_UHMODE, SI_UHDEV, SI_NONE, SI_NONE}},   /* the port as a MIDI host or the computer's device (USB_HOST: the trial's
+                                                         * ui/opt_usbh.h on fm1-base's): with the connections, after WI-FI (the
+                                                         * user, 2026-11-09; after METERS 2026-11-03 .. 11-09) */
+#endif
 #if FELUCCA_SD_UI
     {"SD CARD", {SI_SDCARD, SI_SDINDEX, SI_SDCLOCK, SI_IF(FELUCCA_SD_STREAM, SI_SDRING)}},   /* (the card's state, the sample index again, the clock the
                                                          * mount's detection kept, read-only: the user, 2026-11-04; RING,
@@ -546,11 +551,7 @@ static const struct { const char *name; uint8_t it[4]; } SYS[] = {
      * (DBG_STATS: the release; it had a page alone, SYSTEM > DEBUG, until 2026-10-29): General is then 3 lines and METERS
      * makes 4 with it (the join holds 4 lines at most) */
     {"GENERAL", {SI_KCOL, SI_HPBASS, DBG_STATS ? SI_DBGST : SI_NONE, SI_NONE}},
-    {"METERS", {SI_METERS, SI_NONE, SI_NONE, SI_NONE}},   /* the load lines at the screen's foot: OFF CPUS MEMORY BOTH (core/meters.h, op_meters.c); on General's page when it fits (GL_JOIN): before the USB host's page (between them it kept METERS alone, the user, 2026-11-03) */
-#if USBH_UI
-    {"USB", {SI_UHMODE, SI_UHDEV, SI_NONE, SI_NONE}},   /* the port as a MIDI host or the computer's device (USB_HOST: the trial's
-                                                         * ui/opt_usbh.h on fm1-base's; after METERS since 2026-11-03) */
-#endif
+    {"METERS", {SI_METERS, SI_NONE, SI_NONE, SI_NONE}},   /* the load lines at the screen's foot: OFF CPUS MEMORY BOTH (core/meters.h, op_meters.c); on General's page when it fits (GL_JOIN) */
 #if OP_TOP
     {"TOP", {SI_TOP, SI_NONE, SI_NONE, SI_NONE}},       /* after METERS, before USB AUDIO (the user, 2026-11-03: General then Top after Bluetooth and Wi-Fi; op_top.c) */
 #endif
