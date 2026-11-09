@@ -1205,7 +1205,7 @@ _add("MEMORY", "", "memory: the one-row choice of before (an old .config's MEMOR
           "work: 0 normal, 4 no user samples, 1 more flash, 2 SD card mode. The menu shows SD CARD MODE, SAMPLE SLOTS "
           "and PROJECTS instead.")
 _add("SD_MODE", "", "SD card mode: user data on an SD card (a hardware mod)", MEM, 445, default=0, no_image=True,
-     experimental=True, target_only=True, tested="host-tested only (docs/SD-CARD-DESIGN.md); no FM-1 has the card yet",
+     target_only=True, tested="on an FM-1 with the SD board (v6, 2026-11-08): the card mounted, 6,003 samples indexed (a cut index resumed), samples streamed; host tests (docs/SD-CARD-DESIGN.md)",
      desc="On: the biggest flash for code (831,420 B, the release 823,228 B) with the user data on a microSD card wired "
           "to the LCD bus (docs/SD-CARD-DESIGN.md): one project in flash, the others, the samples and the recordings "
           "on the card; SD_RING and SD_REC under it. SAMPLE SLOTS and PROJECTS are greyed while it is on. Off: the "
@@ -1295,8 +1295,8 @@ _add("SD_RING", "FELUCCA_SD_RING_KB", "samples streamed from the SD card (SAMPLE
      415, default=0, parent="SDCARD", shown_under="SD_MODE",
      choices=((0, "off"), (4, "4 KB a voice (46 ms of 44.1 kHz 16-bit mono)"), (8, "8 KB a voice (93 ms)"),
               (12, "12 KB a voice (139 ms)"), (16, "16 KB a voice (186 ms)")),
-     experimental=True, target_only=True, tested="host-tested only (tests/sd_stream_test.c, sd_stream_plan_test.c: "
-     "a card model with stalls, an interrupt-driven audio clock); no FM-1 has the card yet",
+     target_only=True, tested="on an FM-1 with the SD board (2026-11-08): a sampled kit and samples streamed from the card, "
+     "SMPL RING 8 KB played, 12 KB refused whole; host tests (tests/sd_stream_test.c, sd_stream_plan_test.c)",
      desc="SAMPLE's SET gets a last value, CARD: the part plays its sample from the SD card (a WAV of 8 or 16 bits, mono "
           "or stereo, up to 176 kHz), streamed, not loaded. Every voice that streams owns a ring, always, the same size "
           "for all: SYSTEM > SD CARD > SMPL RING sets it on the FM-1 (4, 8, 12 or 16 KB, kept with the device's settings, not the "
