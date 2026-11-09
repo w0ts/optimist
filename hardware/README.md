@@ -1,5 +1,9 @@
 # The FM-1 SD board
 
+> **Not final yet.** Only v6 (`archive-v6-tested/`) has been built and run in an FM-1. The newer boards (`long-both-sides/` and
+> `mini/`) are not built, and their resistor values (R1, R5, R6) are not settled: they may change after the bench tests in
+> `BENCH-SHEET.md`. The long board has pads for trimming them with leaded resistors.
+
 A small add-on board (25.4 x 78.2 mm) that gives the **M-VAVE FM-1** a microSD card slot. **No soldering to the FM-1 is
 needed.** It sits on the back of the FM-1's board right of the battery, with the card slot in the case's bottom wall. It
 plugs in between the FM-1's LCD and its main board, so the card shares the LCD's SPI bus.
@@ -26,7 +30,9 @@ and J12's pins; [`tray/`](tray/), the printed tray; [`lib/`](lib/), the footprin
 
 > **Status:** only v6 has been built and works. The 2026-11-04 minor update is in all four folders and has been
 > built for none, so the v6 files you order now differ from the tested board by one resistor (R8) and extra ground vias.
-> Design-rule check and the schematic's net check pass on all boards. **The long boards and the mini order R5/R6 240 and R1 91
+> Design-rule check and the schematic's net check pass on all boards. **long-both-sides orders R5/R6 330 and R1 150
+> (2026-11-09: JLC basic parts C23138 and C22808, the highest values proven screen-safe at 60 MHz; the twins trim them down with
+> leaded parts, no SMD soldering, once test 7 in `BENCH-SHEET.md` has picked the values). The mini orders R5/R6 240 and R1 91
 > (2026-11-06 evening: 15 MHz on a v6 bodged to 245 / 89, screen right only with the LCD clock at 30 MHz; LCSC codes to confirm); 330 / 150 is the value proven at a cold boot with the LCD at 60 MHz. v6 as built has 510 and 220 and needs hand rework to reach 12 MHz (see `NEXT-BOARD.md`).**
 
 **Card slot.** On v6 the slot is as before: about 15 x 2.5 mm in the case's bottom wall, the card's left side 81.7 mm from
