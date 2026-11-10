@@ -236,7 +236,7 @@
   },
   "FM6_SYSEX": {
    "0": {
-    "flash": -1992,
+    "flash": -1988,
     "ram": -8,
     "pool": -4260,
     "ramtext": 0
@@ -1362,7 +1362,7 @@
   },
   "CPU_GUARD": {
    "1": {
-    "flash": 3880,
+    "flash": 3876,
     "ram": 172,
     "pool": 0,
     "ramtext": 96
@@ -1724,7 +1724,7 @@
     "ramtext": -28
    },
    "6": {
-    "flash": 4,
+    "flash": 0,
     "ram": -4,
     "pool": -72,
     "ramtext": -28
@@ -1768,16 +1768,16 @@
   },
   "WIFI_LINK": {
    "1": {
-    "flash": 38264,
-    "ram": 7396,
+    "flash": 39952,
+    "ram": 7908,
     "pool": 0,
     "ramtext": 8
    }
   },
   "WIFI_AP": {
    "1": {
-    "flash": 9088,
-    "ram": 16,
+    "flash": 9060,
+    "ram": -16,
     "pool": 1776,
     "ramtext": 0
    }
@@ -1846,14 +1846,14 @@
     "ramtext": 288
    },
    "64": {
-    "flash": 2840,
+    "flash": 2844,
     "ram": 668,
     "pool": 66480,
     "ramtext": 288
    }
   }
  },
- "measured": "2026-11-10 20:20",
+ "measured": "2026-11-10 21:33",
  "cpu": {
   "scale_pct": 104,
   "calibrated": "2026-10-06, emulator at 96 MHz, bench.c scenarios 1 2 3 7 8 (docs/CPU-GUARD.md); X0X: 2026-10-07, scenario 8 on the X0X 909 and 808 kits (x0x-drums)",
@@ -2272,7 +2272,7 @@
    },
    "built_hash": "0c135b71",
    "sizes": {
-    "flash": 822932,
+    "flash": 824600,
     "ram": 123980,
     "pool": 50184,
     "ramtext": 59236
@@ -2388,7 +2388,7 @@
    },
    "built_hash": "31adca1e",
    "sizes": {
-    "flash": 820940,
+    "flash": 822652,
     "ram": 126856,
     "pool": 93012,
     "ramtext": 64104
@@ -3305,7 +3305,7 @@
    },
    "built_hash": "739a5594",
    "sizes": {
-    "flash": 777952,
+    "flash": 779620,
     "ram": 115784,
     "pool": 43572,
     "ramtext": 58728
@@ -3417,7 +3417,7 @@
    },
    "built_hash": "7c30fa8d",
    "sizes": {
-    "flash": 826736,
+    "flash": 828436,
     "ram": 128940,
     "pool": 93484,
     "ramtext": 64116
@@ -4068,7 +4068,7 @@
    "ramtext": 0
   },
   "CPU_GUARD=1,ENG_ACID=2": {
-   "flash": 1224,
+   "flash": 1228,
    "ram": 0,
    "pool": 0,
    "ramtext": 0
