@@ -53,6 +53,12 @@
 #define USBH_UI 0
 #endif
 #include "../colors.c"                  /* the colour language (engine, kit kind; the web editor's too) */
+#ifndef OPT_SPEAK
+#define OPT_SPEAK 0                                     /* the screen in words for a screen reader (op_speak.c; ui/opt_ui.c sets it) */
+#endif
+#if OPT_SPEAK
+static void speak_msg(const char *a, const char *b);    /* op_speak.c */
+#endif
 #include "op_state.c"
 #include "op_names.c"             /* the names table: card labels, list cells, titles (one spelling each) */
 #if FELUCCA_MISSING_WARN
@@ -60,6 +66,9 @@
 #endif
 #include "op_edits.c"
 #include "op_cells.c"
+#if OPT_SPEAK
+static void speak_cards(const cell_t *c);               /* op_speak.c */
+#endif
 #include "op_fm6.c"
 #include "op_screens.c"
 #include "op_mixer.c"
@@ -89,6 +98,9 @@
 #include "op_memlist.c"            /* a load that does not fit: the list of what to drop (docs/SD-MODE-DESIGN.md 6b) */
 #include "op_chord.c"              /* the notes played on the keys and their chord (op_draw.c nn_tick, op_help.c) */
 #include "op_draw.c"
+#if OPT_SPEAK
+#include "op_speak.c"                                    /* the screen for a screen reader (fm1-reader) */
+#endif
 #include "op_credits.c"            /* SYSTEM > CREDITS: the end titles, their crawl and KNOB 1 (drawn by op_gldraw.c) */
 #include "op_gldraw.c"
 #include "op_help.c"

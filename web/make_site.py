@@ -440,6 +440,10 @@ def main(version, out, flavours=None, releases=None, sims=None):
         (fw / name).parent.mkdir(parents=True, exist_ok=True)
         shutil.copy(src, fw / name)
     (ed / "index.html").write_text(editor_page(), encoding="utf-8")
+    words = out / "words"                                  # the screen reader's words files (fm1-reader; web/words: every one
+    words.mkdir(parents=True, exist_ok=True)               # a firmware ever pointed at, never changed: the HELLO's link names it)
+    for f in sorted((HERE / "words").glob("*.json")):
+        shutil.copy(f, words / f.name)
     builder_site(out)
     editor_modules(ed, out, site)
     shutil.copy(HERE / "TERMINUS-LICENSE.txt", inst / "TERMINUS-LICENSE.txt")      # (the style's font)
