@@ -133,7 +133,56 @@ export const TEXT = {
   banksDoing: "Writing the official voice banks… ", banksDone: "The official voice banks are back.",
   untested: "These rescue paths have not been tried on a real FM-1 yet.",
   docs: "The full rescue guide", source: "Source", about: "About and licences", builtFrom: "built from ",
+  /* after the install, a build with Wi-Fi (ed_wifi.c, 112 WIFI): its network, sent once; the password is never kept */
+  wifiTitle: "Wi-Fi", wifiWhy: "This build has Wi-Fi. Enter your network: the FM-1 joins it at every start.",
+  wifiSsid: "Network name", wifiPass: "Password", wifiShow: "Show", wifiJoin: "Join",
+  wifiBadSsid: "The network name is 1 to 32 bytes.", wifiBadPass: "The password is 8 to 63 characters (letters, digits, symbols; no accents).",
+  wifiWait: "Waiting for the FM-1…", wifiNoAnswer: "The FM-1 did not answer. Keep the cable in and press Join again.",
+  wifiRadio: "Starting the radio…", wifiJoining: "Joining “{n}”…", wifiAddr: "Joined; waiting for an address from the router…",
+  wifiUp: "Connected to “{n}”, address {ip}. The FM-1 rejoins it at every start.", wifiSlow: "No connection yet. The FM-1 keeps trying; SYSTEM > WI-FI shows how it goes.",
+  wifiRc1: "The FM-1 refused the name or the password.", wifiRc4: "The radio is still starting: press Join again in a few seconds.",
+  wifiFail: ["The connection failed.", "The Wi-Fi radio cannot start: this FM-1 has no stored radio calibration.",
+    "No network of that name was heard. Check the name, and that the FM-1 is within reach of the router.",
+    "The router did not accept the FM-1 (authentication).", "The router refused the connection (association). Try again.",
+    "The key exchange did not finish. Try again, closer to the router.", "Wrong password (or the network is not WPA2 personal with AES)."],
 };
+
+/* ---- Wi-Fi after the install (web/EDITOR_PROTOCOL.md "Wi-Fi"; the editor's Wi-Fi tab sends the same): F0 7D 46 4C 70 op ... F7 */
+export const WIFI_CMD = 112;
+const WIFI_HDR = [0x7D, 0x46, 0x4C];
+export const WIFI_ST = { OFF: 0, RADIO: 1, UP: 8, FAIL: 9 };
+/* 8-bit bytes as 7-bit groups: a byte of the high bits, then the 7 low bits of each (the editor's pack7, not fm1ota.js's) */
+export function wifiPack7(src) {
+  const out = [];
+  for (let at = 0; at < src.length; at += 7) {
+    const grp = Array.from(src.slice(at, at + 7));
+    out.push(grp.reduce((hi, x, j) => hi | (((x >> 7) & 1) << j), 0), ...grp.map((x) => x & 0x7F));
+  }
+  return out;
+}
+export const wifiFrame = (op, data = []) => [0xF0, ...WIFI_HDR, WIFI_CMD, op, ...data, 0xF7];
+/* the typed name and password -> { ssid bytes, pass } or { err: a TEXT key } (as the firmware's edwf_join1 checks) */
+export function wifiCheckInput(name, pass) {
+  const ssid = Array.from(new TextEncoder().encode(String(name || "")));
+  if (ssid.length < 1 || ssid.length > 32) return { err: "wifiBadSsid" };
+  if (pass.length < 8 || pass.length > 63 || /[^\x20-\x7e]/.test(pass)) return { err: "wifiBadPass" };
+  return { ssid, pass };
+}
+export const wifiJoinData = (ssid, pass) => [ssid.length, pass.length, ...wifiPack7(ssid), ...Array.from(pass, (c) => c.charCodeAt(0))];
+/* a reply -> its data bytes (after the op's command), or null when it is not a Wi-Fi reply */
+export function wifiReplyOf(m) {
+  const n = m ? m.length : 0;
+  if (n < 7 || m[0] !== 0xF0 || m[n - 1] !== 0xF7 || m[1] !== WIFI_HDR[0] || m[2] !== WIFI_HDR[1] || m[3] !== WIFI_HDR[2] || m[4] !== WIFI_CMD) return null;
+  return Array.from(m.slice(5, n - 1));
+}
+/* STATE's head: op 0, mode, st, fail, joined, ch, ip (5 x 7 bits, host order) */
+export function wifiStateOf(a) {
+  if (!a || a[0] !== 0 || a.length < 11) return null;
+  let ip = 0;
+  for (let k = 0; k < 5; k++) ip += a[6 + k] * 2 ** (7 * k);
+  return { mode: a[1], st: a[2], fail: a[3], ip };
+}
+export const wifiIpText = (n) => [24, 16, 8, 0].map((sh) => Math.floor(n / 2 ** sh) % 256).join(".");
 
 /* ------------------------------------------------------------------ the logic (no page needed: web/test_web.mjs) */
 
@@ -397,6 +446,14 @@ export function mountInstaller(container, opts = {}) {
   el.dropCancel = h("button.o-btn.oi-dropcancel", { type: "button", onclick: () => { st.dropCancel = true; el.dropCancel.disabled = true; } }, TEXT.dropCancel);
   el.drop = h("div.o-msg.warn.oi-drop", { role: "alert", hidden: true }, el.dropMsg, h("div.oi-row", {}, el.dropCancel));
   el.ok = h("div.o-msg.ok.oi-ok", { hidden: true });
+  /* Wi-Fi after the install: shown only when the installed build answers 112 WIFI; the password stays in the field until sent */
+  el.wfName = h("input.o-input.oi-wfname", { type: "text", autocomplete: "off", autocapitalize: "off", spellcheck: "false", "aria-label": TEXT.wifiSsid, placeholder: TEXT.wifiSsid, maxlength: 32 });
+  el.wfPass = h("input.o-input.oi-wfpass", { type: "password", autocomplete: "off", "aria-label": TEXT.wifiPass, placeholder: TEXT.wifiPass, maxlength: 63 });
+  el.wfShow = h("input", { type: "checkbox", id: "oi-wfshow", onchange: () => { el.wfPass.type = el.wfShow.checked ? "text" : "password"; } });
+  el.wfGo = h("button.o-btn.sm.oi-wfgo", { type: "button", onclick: () => wifiJoin() }, TEXT.wifiJoin);
+  el.wfMsg = h("p.oi-wfmsg", { role: "status" });
+  el.wifi = h("div.o-msg.oi-wifi", { hidden: true }, h("strong", {}, TEXT.wifiTitle), h("p.o-dim", {}, TEXT.wifiWhy),
+    h("div.oi-row", {}, el.wfName, el.wfPass, h("label", { for: "oi-wfshow" }, el.wfShow, " ", TEXT.wifiShow), el.wfGo), el.wfMsg);
   el.log = h("pre.oi-log");
   el.stockWarn = h("p.o-msg.warn", { hidden: true }, TEXT.stockNote);
   /* Install: what to write (an official release's version and flavour, your build, a .fwsc file), then the button, its
@@ -405,7 +462,7 @@ export function mountInstaller(container, opts = {}) {
     h("fieldset.oi-choices", {}, h("legend.o-sr", {}, TEXT.chooseLegend), relRow, el.mineRow, fileRow, el.stockRow),
     el.pkginfo, el.stockWarn, el.bootRow,
     el.go, h("p.o-dim.oi-keep", {}, TEXT.keep),
-    el.phases, el.bar, el.status, el.drop, el.err, el.ok,
+    el.phases, el.bar, el.status, el.drop, el.err, el.ok, el.wifi,
     connectBox,
     h("details.o-details.oi-logbox", {}, h("summary", {}, TEXT.logTitle), el.log));
 
@@ -684,7 +741,7 @@ export function mountInstaller(container, opts = {}) {
     }
     if (answer !== "go") return;
     st.asked = true;
-    el.err.hidden = el.ok.hidden = true;
+    el.err.hidden = el.ok.hidden = el.wifi.hidden = true;
     el.bar.value = 0;
     setPhase(-1);
     let pct = 0, phase = -1, maxAddr = 0;
@@ -728,6 +785,7 @@ export function mountInstaller(container, opts = {}) {
           : h("button.o-btn.sm", { type: "button", onclick: () => (opts.onNavigate ? opts.onNavigate("editor") : (location.href = links.editor)) }, TEXT.openEditor));
       el.ok.hidden = false;
       el.go.textContent = TEXT.installAgain;
+      if (!pkg.stock) offerWifi(midi);               /* (not awaited: the FM-1 is still starting) */
     } catch (e) {
       el.drop.hidden = true;
       showError(e, phase);
@@ -737,6 +795,90 @@ export function mountInstaller(container, opts = {}) {
     }
     st.busy = false; syncChoice(); render();
     if (!el.ok.hidden) el.go.textContent = TEXT.installAgain;
+  }
+  /* ---- Wi-Fi after the install (the user, 2026-11-10: "an option to enter ssid and password"). Nothing is built into the
+     package (a cloud build is public): the name and password go to the FM-1 over USB, as the editor's Wi-Fi tab sends them */
+  async function wifiLink(midi, ms) {               /* the running Optimist (not its update loader) -> its link, or null */
+    const end = Date.now() + ms;
+    do {
+      const dev = await newUpdater(viewOf(midi), log).find((id) => !isOta(id)).catch(() => null);
+      if (dev) return dev.link;
+      await new Promise((r) => setTimeout(r, 1000));
+    } while (Date.now() < end);
+    return null;
+  }
+  async function wifiAsk(link, op, data = [], ms = 1500) {   /* one request -> the reply's bytes, or null */
+    link.drain();
+    if (!link.send(wifiFrame(op, data))) return null;
+    const end = Date.now() + ms;
+    for (let left = ms; left > 0; left = end - Date.now()) {
+      const a = wifiReplyOf(await link.read(left));
+      if (a && a[0] === op) return a;
+    }
+    return null;
+  }
+  /* one user of the port at a time (as detect): a Link's close clears the port's handler, so two at once would cut each other off */
+  async function onePort(fn) {
+    while (st.detecting) await st.detecting.catch(() => {});
+    st.detecting = fn().finally(() => { st.detecting = null; });
+    return st.detecting;
+  }
+  function offerWifi(midi) {                       /* the FM-1 answered as the package at Done: ask once whether it has Wi-Fi */
+    return onePort(async () => {
+      const link = await wifiLink(midi, 5000);
+      if (!link) return;
+      try {
+        const s = wifiStateOf(await wifiAsk(link, 0));
+        log(`wifi: ${s ? `mode ${s.mode} st ${s.st}` : "none in this build"}`);
+        if (s) { el.wifi.hidden = false; el.wfMsg.textContent = ""; }
+      } finally { link.close(); }
+    }).catch((e) => log(String(e && e.stack || e)));
+  }
+  async function wifiJoin() {
+    const c = wifiCheckInput(el.wfName.value, el.wfPass.value);
+    const msg = (t, kind = "") => { el.wfMsg.textContent = t; el.wfMsg.dataset.kind = kind; };
+    if (c.err) { msg(TEXT[c.err], "err"); return; }
+    el.wfGo.disabled = true;
+    msg(TEXT.wifiWait);
+    const midi = await access().catch(() => null);
+    if (!midi) { el.wfGo.disabled = false; msg(TEXT.wifiNoAnswer, "err"); return; }
+    return onePort(() => wifiJoinOn(midi, c, msg));
+  }
+  async function wifiJoinOn(midi, c, msg) {
+    let link = null;
+    try {
+      link = await wifiLink(midi, 8000);
+      let s = link && wifiStateOf(await wifiAsk(link, 0));
+      if (!s) { msg(TEXT.wifiNoAnswer, "err"); return; }
+      if (s.mode !== 1 && s.mode !== 2) {          /* OFF, JANK or AP: AUTO, so it joins now and at every start */
+        if (!(await wifiAsk(link, 1, [1]))) { msg(TEXT.wifiNoAnswer, "err"); return; }
+      }
+      for (let k = 0; k < 15 && s && (s.st === WIFI_ST.OFF || s.st === WIFI_ST.RADIO); k++) {   /* (JOIN wants the radio up) */
+        msg(TEXT.wifiRadio);
+        await new Promise((r) => setTimeout(r, 1000));
+        s = wifiStateOf(await wifiAsk(link, 0));
+      }
+      const name = el.wfName.value;
+      const r = await wifiAsk(link, 3, wifiJoinData(c.ssid, c.pass));
+      el.wfPass.value = "";                          /* (sent once; never kept) */
+      if (!r) { msg(TEXT.wifiNoAnswer, "err"); return; }
+      if (r[1]) { msg(r[1] === 4 ? TEXT.wifiRc4 : TEXT.wifiRc1, "err"); return; }
+      for (let k = 0; k < 60; k++) {                 /* the join: about a minute at most */
+        await new Promise((res) => setTimeout(res, 1000));
+        s = wifiStateOf(await wifiAsk(link, 0));
+        if (!s) continue;
+        if (s.st === WIFI_ST.UP && s.ip) { msg(TEXT.wifiUp.replace("{n}", name).replace("{ip}", wifiIpText(s.ip)), "ok"); return; }
+        if (s.st === WIFI_ST.FAIL) { msg(TEXT.wifiFail[s.fail] || TEXT.wifiFail[0], "err"); return; }
+        msg(s.st === WIFI_ST.UP ? TEXT.wifiAddr : TEXT.wifiJoining.replace("{n}", name));
+      }
+      msg(TEXT.wifiSlow);
+    } catch (e) {
+      msg(TEXT.wifiNoAnswer, "err");
+      log(String(e && e.stack || e));
+    } finally {
+      if (link) link.close();
+      el.wfGo.disabled = false;
+    }
   }
   /* the cable dropped (the user, 2026-11-01: "the flasher should automatically resume"): "Connection dropped. Check the
      cable: the install continues by itself when the FM-1 is back." with Cancel; the next step hides it */

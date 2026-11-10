@@ -84,6 +84,13 @@
 .oi-status { min-height: 20px; font-variant-numeric: tabular-nums; }
 .oi-err, .oi-ok { margin: 0 0 var(--sp-3); align-items: center; flex-wrap: wrap; }
 .oi-keep { margin: 0 0 var(--sp-3); font-size: var(--fs-1); }
+/* Wi-Fi after the install: the network name and password, then what the FM-1 says */
+.oi-wifi { display: block; margin: 0 0 var(--sp-3); }
+.oi-wifi > p { margin: var(--sp-1) 0 var(--sp-2); }
+.oi-wifi .o-input { flex: 1 1 160px; min-width: 0; }
+.oi-wfmsg { min-height: 20px; margin: var(--sp-2) 0 0; }
+.oi-wfmsg[data-kind="ok"] { color: var(--ok); }
+.oi-wfmsg[data-kind="err"] { color: var(--err); }
 /* the FM-1 found, under the button */
 .oi-conn { margin-top: var(--sp-3); padding-top: var(--sp-3); border-top: 1px solid var(--line); }
 .oi-conn .oi-row { margin-bottom: var(--sp-1); }

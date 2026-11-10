@@ -21,7 +21,7 @@ export class FakeFM1 {
   constructor(image, opts = {}) {
     const { unplugAfter = Infinity, finalIdentity = "FM-1_900", identity = "FM-1_015", loaderIdentity = "ota-FM-1_900",
             writeBlocks = 6, plugged = true, name = "FM-1", fast = false, comesBack = [], checkFrames = false, checkTime = 0,
-            keepsSession = false } = opts;
+            keepsSession = false, wifi = false } = opts;
     Object.assign(this, { image, unplugAfter, finalIdentity, loaderIdentity, writeBlocks, name, identity, fast });
     /* comesBack: [[identity, name, ms, more reads before the next drop or 0]], one per drop: the cable back by itself.
        checkTime: ms the fast loader checks each sector before it asks one (or the end); checkFrames: it says so with 0x32
@@ -29,6 +29,10 @@ export class FakeFM1 {
        2026-11-01): a new hello and upgrade command mid-session go unheard (unheard), it asks its read again */
     Object.assign(this, { comesBack: [...comesBack], checkFrames, checkTime, keepsSession, inSession: false, unheard: 0, checked: 0, checkSeen: [] });
     this.fastWords = 0;
+    /* wifi: the running Optimist answers 112 WIFI (ed_wifi.c) as a build with Wi-Fi: mode OFF, the radio starts one state
+       read after MODE, a join is UP on the second read after it (the password "wrongpass": FAIL 6); joins: what it was sent */
+    this.wifi = wifi ? { mode: 0, st: 0, fail: 0, polls: 0, req: null } : null;
+    this.wifiJoins = [];
     this.fastOn = false;
     this.written = new Set();   /* the fast loader's sectors already right: a resumed write skips them (sectorReads: 4 KiB reads answered) */
     this.sectorReads = 0;
@@ -81,6 +85,26 @@ export class FakeFM1 {
     const padded = text.concat(new Array(28 - text.length).fill(0));
     this.sysex([0, 0x59, 0x11, 0, 0, 0, ...padded]);
   }
+  wifiRx(a) {
+    const w = this.wifi;
+    if (!w || this.identity.startsWith("ota-")) return;   /* (no Wi-Fi in this build, or the update loader: no answer) */
+    const reply = (...b) => this.tx([0xF0, 0x7D, 0x46, 0x4C, 112, ...b, 0xF7]);
+    if (a[0] === 0) {
+      if (w.st === 1) w.st = 2;                              /* RADIO -> IDLE */
+      else if (w.req && ++w.polls >= 2) { w.st = w.req.bad ? 9 : 8; w.fail = w.req.bad ? 6 : 0; w.req = null; }
+      const ip = w.st === 8 ? 192 * 2 ** 24 + 168 * 2 ** 16 + 1 * 2 ** 8 + 23 : 0;
+      const ip7 = [0, 1, 2, 3, 4].map((k) => Math.floor(ip / 2 ** (7 * k)) % 128);
+      return reply(0, w.mode, w.st, w.fail, 0, 6, ...ip7, 0, 0, 0);
+    }
+    if (a[0] === 1) { w.mode = a[1]; if (w.st === 0 && a[1]) w.st = 1; return reply(1, 0, w.mode); }
+    if (a[0] === 3) {
+      if (w.st === 0 || w.st === 1) return reply(3, 4);
+      const sl = a[1], pl = a[2], pb = sl + Math.ceil(sl / 7), pass = String.fromCharCode(...a.slice(3 + pb, 3 + pb + pl));
+      this.wifiJoins.push({ sl, pl, pass });
+      Object.assign(w, { st: 3, fail: 0, polls: 0, req: { bad: pass === "wrongpass" } });
+      return reply(3, 0);
+    }
+  }
   readPlan() {
     if (this.identity.startsWith("ota-") && this.fastOn) {
       const n = Math.floor(this.image.length / 4096), plan = [[0xD0000000, n * 6]];
@@ -107,6 +131,7 @@ export class FakeFM1 {
       this.queue = this.readPlan();
       return this.next();
     }
+    if (msg[1] === 0x7D && msg[2] === 0x46 && msg[3] === 0x4C && msg[4] === 112) return this.wifiRx(msg.slice(5, -1));
     const payload = unpack7(msg.slice(1, -1));
     if (payload.length === 10 && payload[2] === 0x31) {          /* the fast install's word: a fast loader answers */
       this.fastWords++;
