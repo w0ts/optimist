@@ -2603,6 +2603,19 @@ async function editorBackup() {
   const wst = INST.wifiStateOf(INST.wifiReplyOf([0xF0, 0x7D, 0x46, 0x4C, 112, 0, 1, 8, 0, 1, 6, 23, 2, 32, 5, 12, 0, 0, 0xF7]));
   ok(wst && wst.mode === 1 && wst.st === 8 && INST.wifiIpText(wst.ip) === "192.168.1.23" && INST.wifiReplyOf([0xF0, 0x7D, 0x46, 0x4C, 111, 0, 0xF7]) === null,
     "installer wifi: STATE read (mode, st, the address), another command's reply ignored");
+  /* the screen reader's words: the file the firmware's HELLO points at (fm1base/optimist/words.tsv through gen_words.py) is in
+     web/words, which make_site.py publishes as /words/ (a words change needs its new file committed there) */
+  {
+    const wt = join(HERE, "..", "fm1base", "optimist", "words.tsv"), gw = join(HERE, "..", "fm1base", "tools", "gen_words.py");
+    if (existsSync(wt) && existsSync(gw)) {
+      const wd = mkdtempSync(join(tmpdir(), "optimist-words-"));
+      execFileSync("python3", [gw, wt, join(wd, "w"), join(wd, "ann_words.h")], { stdio: "pipe" });
+      const url = /ANN_WORDS_URL "([^"]+)"/.exec(readFileSync(join(wd, "ann_words.h"), "utf8"))[1], id = url.split("/").pop();
+      ok(url.startsWith("https://w0ts.github.io/optimist/words/") && existsSync(join(HERE, "words", id))
+        && readFileSync(join(HERE, "words", id), "utf8") === readFileSync(join(wd, "w", id), "utf8"),
+        `screen reader: the firmware's words file (${id}) is in web/words, as the site publishes it`);
+    }
+  }
 }
 
 /* ------------------------------------- the UI pass: connect state, auto-connect, mixer, piano roll --- */

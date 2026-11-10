@@ -985,6 +985,9 @@ static void draw_cards(void)
         snap[k] = c[k];
         sig = hu(hc(sig, &c[k]), (c[k].ak | (uint32_t)(uint16_t)c[k].amin << 4) ^ (uint32_t)(uint16_t)c[k].amax << 16);
     }
+#if OPT_SPEAK
+    speak_cards(c);                                     /* (a screen reader: what changed, op_speak.c) */
+#endif
     if (sig == ui.sig[1]) {
         effv_strips(c, ui.hot_lit ? ui.hot : 4u);
         return;

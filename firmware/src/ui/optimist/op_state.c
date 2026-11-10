@@ -289,6 +289,9 @@ static void ui_say(const char *a, const char *b)
     n = str_len(ui.msg);
     str_cpy(ui.msg + n, b, sizeof ui.msg - n);
     ui.msg_st = (uint8_t)msg_status(a);
+#if OPT_SPEAK
+    speak_msg(a, b);
+#endif
     if (ui.toast_next) {
         ui.toast_t = OP_TOAST_FRAMES;
         ui.toast_col = 0;
