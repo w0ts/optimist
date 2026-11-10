@@ -135,7 +135,7 @@ const U = `const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const MOCK = `(() => {
   if (location.search.includes("nomidi")) { Object.defineProperty(Navigator.prototype, "requestMIDIAccess", { configurable: true, value: undefined }); return; }
   const ready = Promise.all([import("${ORIGIN}/src/installer/mock_fm1.js"), import("${ORIGIN}/src/fm1base/fm1pkg.js")]).then(([m, p]) => {
-    window.__M = m; window.__dev = new m.FakeFM1(p.logicalImage(m.fakePackage("${PRODUCT}")), { plugged: false, identity: "FM-1_015", finalIdentity: "${PRODUCT}", writeBlocks: 127 });
+    window.__M = m; window.__dev = new m.FakeFM1(p.logicalImage(m.fakePackage("${PRODUCT}")), { plugged: false, identity: "FM-1_015", finalIdentity: "${PRODUCT}", writeBlocks: 127, wifi: true });
   });
   window.__midiCalls = 0;
   Object.defineProperty(Navigator.prototype, "requestMIDIAccess", { configurable: true, value: async function (o) {
@@ -227,6 +227,20 @@ const done = await run(`${U} await until(() => vis(".oi-ok"), 90000);
 ok(/^Done\. The FM-1 runs .+ \(FM-1_720\)\./.test(done.ok) && done.st.every((s) => s === "done") && done.bar === 100 && done.bad === 0 && !done.err && !done.busy && done.id === PRODUCT,
   `done: the four phases ticked, the bar full, the identity checked, every read answered right (${done.ok})`);
 await full("installer-desktop-dark-done", 1440);
+
+/* ---- Wi-Fi after the install (the user, 2026-11-10): the build answers 112 WIFI, so the panel shows; a short password is
+   refused on the page, nothing sent; a good one: MODE AUTO, JOIN once, "Connected", the password field emptied */
+const wf = await run(`${U} await until(() => vis(".oi-wifi"), 30000); const shown = vis(".oi-wifi");
+  $(".oi-wfname").value = "Home net"; $(".oi-wfpass").value = "short"; $(".oi-wfgo").click(); await sleep(50);
+  const bad = $(".oi-wfmsg").textContent, sentBad = D().wifiJoins.length;
+  $(".oi-wfpass").value = "correct horse"; $(".oi-wfgo").click();
+  await until(() => /Connected|did not|refused|Wrong/.test($(".oi-wfmsg").textContent), 30000);
+  return { shown, bad, sentBad, msg: $(".oi-wfmsg").textContent, kind: $(".oi-wfmsg").dataset.kind, joins: D().wifiJoins, mode: D().wifi.mode, pass: $(".oi-wfpass").value };`);
+ok(wf.shown && /8 to 63/.test(wf.bad) && wf.sentBad === 0, "wifi: the panel shows for a build with Wi-Fi; a short password is refused before anything is sent");
+ok(wf.msg === "Connected to \u201cHome net\u201d, address 192.168.1.23. The FM-1 rejoins it at every start." && wf.kind === "ok" && wf.joins.length === 1
+  && wf.joins[0].pass === "correct horse" && wf.joins[0].sl === 8 && wf.mode === 1 && wf.pass === "",
+  `wifi: MODE AUTO, one JOIN with the name and password, connected, the password field emptied (${wf.msg})`);
+await full("installer-desktop-dark-wifi", 1440);
 
 /* ---- errors: the cable pulled while writing: "Connection dropped" with Resume and Cancel (the user, 2026-11-01); Cancel, then
    Install again resumes; Resume before the FM-1 is back asks again, then finishes; no FM-1 at all */

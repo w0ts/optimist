@@ -2591,6 +2591,18 @@ async function editorBackup() {
   const inst = readFileSync(join(HERE, "installer", "installer.js"), "utf8");
   ok(/const answer = await ask\(pkg\.stock, layoutWarning\(pkg\)\)/.test(inst) && /warn\.line \? h\("p\.o-msg\.warn\.oi-layout"/.test(inst) && INST.TEXT.askTitle === "Back up first?" && /backup: "\.\.\/editor\/#backup"/.test(inst)
     && /opts\.onNavigate\("backup"\)/.test(inst), "installer: asks to back up first (with the layout warning when the layout changes), opens the editor's Backup (or the host's tab)");
+  /* the installer's Wi-Fi after the install: the editor's bytes (EDITOR_PROTOCOL.md "Wi-Fi"), checked as ed_wifi.c checks them */
+  ok(JSON.stringify(INST.wifiPack7([0x48, 0x81, 1, 2, 3, 4, 5, 0xFF])) === JSON.stringify([2, 0x48, 1, 1, 2, 3, 4, 5, 1, 0x7F])
+    && JSON.stringify(INST.wifiJoinData([0x41, 0x42], "12345678")) === JSON.stringify([2, 8, 0, 0x41, 0x42, ...[..."12345678"].map((c) => c.charCodeAt(0))])
+    && JSON.stringify(INST.wifiFrame(0)) === JSON.stringify([0xF0, 0x7D, 0x46, 0x4C, 112, 0, 0xF7]),
+    "installer wifi: pack7 groups, the JOIN data (slen, plen, SSID packed, password), the STATE frame");
+  ok(INST.wifiCheckInput("", "12345678").err === "wifiBadSsid" && INST.wifiCheckInput("x".repeat(33), "12345678").err === "wifiBadSsid"
+    && INST.wifiCheckInput("net", "1234567").err === "wifiBadPass" && INST.wifiCheckInput("net", "caf\u00e9caf\u00e9").err === "wifiBadPass"
+    && INST.wifiCheckInput("caf\u00e9", "12345678").ssid.length === 5 && !INST.wifiCheckInput("net", "x".repeat(63)).err,
+    "installer wifi: name 1..32 bytes (UTF-8), password 8..63 printable ASCII");
+  const wst = INST.wifiStateOf(INST.wifiReplyOf([0xF0, 0x7D, 0x46, 0x4C, 112, 0, 1, 8, 0, 1, 6, 23, 2, 32, 5, 12, 0, 0, 0xF7]));
+  ok(wst && wst.mode === 1 && wst.st === 8 && INST.wifiIpText(wst.ip) === "192.168.1.23" && INST.wifiReplyOf([0xF0, 0x7D, 0x46, 0x4C, 111, 0, 0xF7]) === null,
+    "installer wifi: STATE read (mode, st, the address), another command's reply ignored");
 }
 
 /* ------------------------------------- the UI pass: connect state, auto-connect, mixer, piano roll --- */
