@@ -178,6 +178,45 @@ static void to_part(uint32_t i)
     for (g = 0; g < 80000u && arrangement_clock.index != i; g++)
         run_block(), sec_service();
 }
+/* ---- the drum track's patterns switched while playing (issue w0ts/optimist#234: "Drum Machine patterns disappear when
+ * switching clips during playback"; stopped they did not). Slot 0: lane 0 on every 4th step, ACCENT on step 1; slot 1:
+ * lane 1 on every 2nd step (the ACCENT lane only where it is stored: FELUCCA_DRUM_ACCENT, an automation build) */
+static uint32_t drum_hits(uint32_t lane)               /* the working drum track's steps with lane on */
+{
+    uint32_t i, n = 0;
+    for (i = 0; i < NSTEP; i++)
+        n += dstep_has(&trk[TRK_DRUM].dstep[i], lane) != 0;
+    return n;
+}
+static void drum_tests(void)
+{
+    uint32_t i, k = TRK_DRUM;
+    setup();
+    steps_clear(&trk[k]);
+    trk[k].p[P_SLEN] = 16;
+    for (i = 0; i < 16u; i += 4u)
+        dstep_set(&trk[k].dstep[i], 0, LV_NORM, 0);
+    dstep_set(&trk[k].dstep[0], DRUM_ACC, LV_NORM, 0);
+    (void)pat_store_slot(k, 0);
+    steps_clear(&trk[k]);
+    for (i = 0; i < 16u; i += 2u)
+        dstep_set(&trk[k].dstep[i], 1, LV_NORM, 0);
+    (void)pat_store_slot(k, 1);
+    play_from(0);
+    pat_launch(k, 0, PW_NOW);
+    run_steps(2);
+    check("drums: slot 1 launched while playing: its hits play (4) and its ACCENT", pat_cur[k] == 0u && drum_hits(0) == 4u &&
+          (!FELUCCA_DRUM_ACCENT || dstep_has(&trk[k].dstep[0], DRUM_ACC)) && !drum_hits(1));
+    pat_launch(k, 1, PW_NOW);
+    run_steps(2);
+    check("... slot 2 launched while playing: its hits play (8), slot 1's gone", pat_cur[k] == 1u && drum_hits(1) == 8u && !drum_hits(0) &&
+          !dstep_has(&trk[k].dstep[0], DRUM_ACC));
+    pat_launch(k, 0, PW_END);
+    run_steps(40);
+    check("... slot 1 again at the end: its hits and ACCENT back, nothing kept as live (no edit)", pat_cur[k] == 0u && drum_hits(0) == 4u &&
+          (!FELUCCA_DRUM_ACCENT || dstep_has(&trk[k].dstep[0], DRUM_ACC)) && !pat_live_at(k, 0) && !pat_live_at(k, 1));
+    song.playing = 0;
+}
 static void live_tests(void)
 {
     uint32_t ok, i;
@@ -370,6 +409,7 @@ int main(void)
           ok && arrangement_clock.index == 1u && trk[0].p[P_SLEN] == 3 && sec_misses == 0u);
     arrangement_enabled = 0;
     live_tests();
+    drum_tests();
     printf("patterns seq test %s\n", bad ? "FAILED" : "passed");
     return bad != 0;
 }

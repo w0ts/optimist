@@ -713,15 +713,15 @@ static void pat_swap_isr(uint32_t k, int fold)
         if (IS_DRUMK(k)) {
             memcpy(&x, &t->dstep[i], DSTEP_SN);
             memcpy(&t->dstep[i], &s->step[i], DSTEP_SN);
+            t->dstep[i].acc = 0;                       /* (the ACCENT lane: its events fold back, as steps_load) */
         } else {
             memcpy(&x, &t->step[i], STEP_SN);
             memcpy(&t->step[i], &s->step[i], STEP_SN);
             memset(t->step[i].ngate, 0, sizeof t->step[i].ngate);
         }
         memcpy(&s->step[i], &x, sizeof x);
-    }
-    if (IS_DRUMK(k))
-        memset(t->step, 0, sizeof t->step);            /* (the ACCENT lane: its events fold back, as steps_load) */
+    }                                                  /* (never a memset of t->step here: the drum track's dstep[] is the same
+                                                        *  memory, the incoming pattern went with it: issue 234) */
     for (i = 0; i < 4u; i++) {
         int16_t v = s->p[P_SLEN + i];
         s->p[P_SLEN + i] = t->p[P_SLEN + i];
