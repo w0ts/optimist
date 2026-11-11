@@ -506,6 +506,17 @@ static const param_desc_t DRUM_GR_DESC[GR_KIT_N] = {
 #else
 #define DRUM_GR_OF(id) ((const param_desc_t *)0)
 #endif
+#if FELUCCA_ENG_DRONE
+/* DRONE's GLIDE g (1..127) in control ticks: 1 ms .. 5 min, exponential (300000^(g/127) ms; the user, 2026-11-11: "drone
+ * glide should go to minutes"). No table of its own: g x 27.51 192ths of an octave on PITCH_INC_OCT's octave (C x
+ * 2^(i/192)), the octave a shift; within 0.3 % of the curve from g 64, the short end whole ticks (voice.c glide_long) */
+static uint32_t glide_long_ticks(uint32_t g)
+{
+    uint32_t n = ((g & 127u) * 7043u + 128u) >> 8, o = n / 192u;
+    uint32_t t = ((PITCH_INC_OCT[n - o * 192u] >> 13) * 2340u) >> (27u - o);
+    return t > 2u ? t : 2u;                              /* (2 ticks, 1.4 ms, the shortest: shown as F_TIME shows it) */
+}
+#endif
 static const param_desc_t *track_desc(const track_t *t, uint32_t id)
 {
     if(is_drum(t) && id==P_E0) return &DRUM_KIT_DESC;
@@ -524,6 +535,12 @@ static const param_desc_t *track_desc(const track_t *t, uint32_t id)
         const param_desc_t *d = e->desc ? e->desc(t, id - P_E0) : 0;   /* a mode-dependent label / names */
         return d ? d : &e->edit[id - P_E0];
     }
+#if FELUCCA_ENG_DRONE
+    if (id == P_GLIDE && ENG_IS(ENGINES[t->eng_req % NENGINES], DRONE)) {   /* DRONE's GLIDE: to 5 min (voice.c glide_long) */
+        static const param_desc_t GLD_LONG = PD("GLD", F_GLONG, 0, 127, 0);
+        return &GLD_LONG;
+    }
+#endif
     return &TP[id];
 }
 
@@ -705,8 +722,22 @@ static void param_format(const param_desc_t *d, int32_t v, char *val, const char
         }
         *unit = "%";
         break;
-    case F_TIME: {
+    case F_TIME:
+#if FELUCCA_ENG_DRONE
+    case F_GLONG:
+#endif
+    {
         uint32_t ms10 = TIME_MS_X10[v & 127];
+#if FELUCCA_ENG_DRONE
+        if (d->fmt == F_GLONG) {                         /* its control ticks (CTL samples at FS) in 1/10 ms */
+            ms10 = glide_long_ticks((uint32_t)v) * 3200u / 441u;
+            if (ms10 >= 600000u) {                       /* a minute and more: in minutes */
+                fmt_fix(val, (int32_t)(ms10 / 6000u), 2);
+                *unit = "min";
+                break;
+            }
+        }
+#endif
         if (pd_names(d) && v == 0) {                     /* (REL2 0: "=DEC") */
             str_cpy(val, pd_names(d)[0], 6);
             break;

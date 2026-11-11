@@ -316,7 +316,8 @@ enum {
     F_SWING,                    /* 0..100: MPC swing, 50 % (straight) .. 75 % */
     F_FILT,                     /* -64..63: the DJ filter, LP <- OFF -> HP */
     F_GATE,                     /* 1..127: a note's length in 1/64 of its step, 2 % .. 198 % (past 100 % it overlaps the next) */
-    F_DEG                       /* 0..127: an LFO's PHS, 1/128 of a cycle, shown in degrees (v x 360 / 128, rounded) */
+    F_DEG,                      /* 0..127: an LFO's PHS, 1/128 of a cycle, shown in degrees (v x 360 / 128, rounded) */
+    F_GLONG                     /* 0..127: DRONE's GLIDE, 1 ms .. 5 min (params.c glide_long_ticks, track_desc) */
 };
 
 /* a parameter's descriptor, 12 bytes (was 20, 2026-10-23: ~330 of them in flash): the range and the default as bytes
