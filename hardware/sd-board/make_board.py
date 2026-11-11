@@ -15,11 +15,11 @@ v6: J2 (IN, from J12) and J3 (the LCD's cable), 10 pins each, every line through
 contact from the left (both turned: their own numbering runs the other way, J2_AT, J3_AT);
 J12's pin map as Julius probed it, 2026-10-27, docs/SD-CARD-DESIGN.md section 3; pin 7's 3.3 V confirmed 2026-10-28; J12 counts from the right):
   GND      J2 1, 10 -> J1 6, the shell, U1 GND, R4, the sockets' tabs
-  MISO     J2 2 (PC8, the LCD's D/C) -> R1 150 -> J1 7 (DAT0): R1 takes any overlap with the D/C drive; R7 47k
+  MISO     J2 2 (PC8, the LCD's D/C) -> R1 120 -> J1 7 (DAT0): R1 takes any overlap with the D/C drive; R7 47k
            pulls DAT0 up at the card (an empty slot reads 0xFF without PC8's own pull-up)
   LCD_CS   J2 3 (PC7) -> U1 A (74LVC1G04 in); R4 47k pull-DOWN (the card deselected while the FM-1 resets)
-  CLK      J2 4 (PC9) -> R5 330 -> CLK_SD -> J1 5
-  MOSI     J2 5 (PC10) -> R6 330 -> MOSI_SD -> J1 3 (CMD)
+  CLK      J2 4 (PC9) -> R5 270 -> CLK_SD -> J1 5
+  MOSI     J2 5 (PC10) -> R6 270 -> MOSI_SD -> J1 3 (CMD)
   3V3      J2 7 -> (JP5) SD_VIN -> FB1 ferrite -> SD_VDD: J1 4, C3 100 nF by it, U1 VCC, C1 10 uF, C2 100 nF, the
            pull-ups (the card's hot insertion kept off the LCD's rail: Julius's review, 2026-10-28)
   CARD_CS  U1 Y  -> J1 2
@@ -222,7 +222,7 @@ C2 = P(LIB, "C0603", "C2", "100nF", 93.4, 17.0 + DY, 90, "C14663")
 # an iron reaches each end; the same JLC parts)
 RTUNE = os.path.join(KICAD_FP, "Resistor_SMD.pretty")
 R_HAND = "R_0603_1608Metric_Pad0.98x0.95mm_HandSolder"
-R1 = P(RTUNE, R_HAND, "R1", "150", CARD_C - 4.36, 17.6 + DY, 270, "C22808")   # (91 ohm, 2026-11-06 evening: 15 MHz on v6 bodged to 89 ohm; 150 was the 12 MHz value, v6 with R1 150, 2026-11-05; v6 and Julius had 220 and 270 against a card left in SPI mode
+R1 = P(RTUNE, R_HAND, "R1", "120", CARD_C - 4.36, 17.6 + DY, 270, "C22787")   # (2026-11-11, the user: 120, a little above the 89 that reached 15 MHz)   # (91 ohm, 2026-11-06 evening: 15 MHz on v6 bodged to 89 ohm; 150 was the 12 MHz value, v6 with R1 150, 2026-11-05; v6 and Julius had 220 and 270 against a card left in SPI mode
 # 2026-11-09 (the user will not hand-solder SMD on this board; the values are under test): the fab places the highest values proven
 # screen-safe at 60 MHz, 330 / 330 / 150 (cold boot clean on pink 2026-11-06, card at 12 MHz), JLC basic parts; the twins only
 # lower a value with a leaded part, so the sweep result (BENCH-SHEET test 7) is reached from here without touching an 0603
@@ -237,8 +237,8 @@ FB1 = P(LIB, "R0603", "FB1", "600R@100MHz", 93.5, 25.3, 0, "C1002")   # (GZ1608D
                                                  # AC791N guide has 1 ohm there, the bead the same footprint)
 R2 = P(LIB, "R0603", "R2", "47k", 89.6, 12.9 + DY, 0, "C25819")
 R3 = P(LIB, "R0603", "R3", "47k", CARD_C - 7.6, BUS, 0, "C25819")
-R5 = P(RTUNE, R_HAND, "R5", "330", 94.25, 49.0, 90, "C23138")    # (CLK and MOSI in series where the SD branch leaves
-R6 = P(RTUNE, R_HAND, "R6", "330", 95.05, 45.5, 90, "C23138")    # the through-lines, at the J2 end of the column
+R5 = P(RTUNE, R_HAND, "R5", "270", 94.25, 49.0, 90, "C22966")    # (CLK and MOSI in series where the SD branch leaves
+R6 = P(RTUNE, R_HAND, "R6", "270", 95.05, 45.5, 90, "C22966")    # the through-lines, at the J2 end of the column
                                                  # (stock firmware with a card in its native mode: blank with CLK direct, distorted at
                                                  # 150 and fine at 510 on Julius prototype; 330 passed a cold boot at 60 MHz LCD; 245 bodged: black at 60 MHz, fine at 30 MHz, 2026-11-06)
 # ESD at the card's contacts: two USBLC6-2SC6, each line straight through one of its columns (pins 1 and 6 are one

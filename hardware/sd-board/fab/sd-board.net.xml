@@ -2,7 +2,7 @@
 <export version="E">
   <design>
     <source>/Users/mots/GitHub/optimist/hardware/sd-board/sd-board.kicad_sch</source>
-    <date>2026-11-11T09:36:15</date>
+    <date>2026-11-11T10:50:51</date>
     <tool>Eeschema 10.0.8</tool>
     <sheet number="1" name="/" tstamps="/">
       <title_block>
@@ -233,16 +233,16 @@
       </units>
     </comp>
     <comp ref="R1">
-      <value>150</value>
+      <value>120</value>
       <footprint>Resistor_SMD:R_0603_1608Metric_Pad0.98x0.95mm_HandSolder</footprint>
       <fields>
-        <field name="LCSC">C22808</field>
+        <field name="LCSC">C22787</field>
         <field name="Footprint">Resistor_SMD:R_0603_1608Metric_Pad0.98x0.95mm_HandSolder</field>
         <field name="Datasheet"/>
         <field name="Description"/>
       </fields>
       <libsource lib="Device" part="R" description="Resistor"/>
-      <property name="LCSC" value="C22808"/>
+      <property name="LCSC" value="C22787"/>
       <property name="Sheetname" value="sd-board"/>
       <property name="Sheetfile" value="sd-board.kicad_sch"/>
       <property name="ki_keywords" value="R res resistor"/>
@@ -337,16 +337,16 @@
       </units>
     </comp>
     <comp ref="R5">
-      <value>330</value>
+      <value>270</value>
       <footprint>Resistor_SMD:R_0603_1608Metric_Pad0.98x0.95mm_HandSolder</footprint>
       <fields>
-        <field name="LCSC">C23138</field>
+        <field name="LCSC">C22966</field>
         <field name="Footprint">Resistor_SMD:R_0603_1608Metric_Pad0.98x0.95mm_HandSolder</field>
         <field name="Datasheet"/>
         <field name="Description"/>
       </fields>
       <libsource lib="Device" part="R" description="Resistor"/>
-      <property name="LCSC" value="C23138"/>
+      <property name="LCSC" value="C22966"/>
       <property name="Sheetname" value="sd-board"/>
       <property name="Sheetfile" value="sd-board.kicad_sch"/>
       <property name="ki_keywords" value="R res resistor"/>
@@ -363,16 +363,16 @@
       </units>
     </comp>
     <comp ref="R6">
-      <value>330</value>
+      <value>270</value>
       <footprint>Resistor_SMD:R_0603_1608Metric_Pad0.98x0.95mm_HandSolder</footprint>
       <fields>
-        <field name="LCSC">C23138</field>
+        <field name="LCSC">C22966</field>
         <field name="Footprint">Resistor_SMD:R_0603_1608Metric_Pad0.98x0.95mm_HandSolder</field>
         <field name="Datasheet"/>
         <field name="Description"/>
       </fields>
       <libsource lib="Device" part="R" description="Resistor"/>
-      <property name="LCSC" value="C23138"/>
+      <property name="LCSC" value="C22966"/>
       <property name="Sheetname" value="sd-board"/>
       <property name="Sheetfile" value="sd-board.kicad_sch"/>
       <property name="ki_keywords" value="R res resistor"/>
