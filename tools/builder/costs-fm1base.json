@@ -422,7 +422,7 @@
   },
   "DRUMS": {
    "0": {
-    "flash": -150652,
+    "flash": -150656,
     "ram": -9484,
     "pool": 684,
     "ramtext": -13024
@@ -1004,7 +1004,7 @@
   },
   "PATTERNS": {
    "1": {
-    "flash": 21768,
+    "flash": 21780,
     "ram": 340,
     "pool": 656,
     "ramtext": 40
@@ -1028,7 +1028,7 @@
   },
   "ENERGY": {
    "1": {
-    "flash": 524,
+    "flash": 520,
     "ram": 32,
     "pool": 0,
     "ramtext": 0
@@ -1398,7 +1398,7 @@
   },
   "SEQ_RAM": {
    "1": {
-    "flash": 1356,
+    "flash": 1360,
     "ram": -8,
     "pool": 0,
     "ramtext": 12448
@@ -1724,19 +1724,19 @@
     "ramtext": -28
    },
    "6": {
-    "flash": 4,
+    "flash": 32,
     "ram": -4,
     "pool": -72,
     "ramtext": -28
    },
    "7": {
-    "flash": 24,
+    "flash": 36,
     "ram": -4,
     "pool": -104,
     "ramtext": -28
    },
    "3": {
-    "flash": -1280,
+    "flash": -1272,
     "ram": 4,
     "pool": 96,
     "ramtext": -32
@@ -1748,19 +1748,19 @@
     "ramtext": -28
    },
    "5": {
-    "flash": -48,
+    "flash": -40,
     "ram": -4,
     "pool": -104,
     "ramtext": -28
    },
    "8": {
-    "flash": -1252,
+    "flash": -1256,
     "ram": 4,
     "pool": -72,
     "ramtext": -32
    },
    "1": {
-    "flash": -1260,
+    "flash": -1272,
     "ram": 4,
     "pool": -104,
     "ramtext": -32
@@ -1808,25 +1808,25 @@
   },
   "SD_RING": {
    "4": {
-    "flash": 50828,
+    "flash": 50844,
     "ram": 6600,
     "pool": 44700,
     "ramtext": 3264
    },
    "8": {
-    "flash": 50824,
+    "flash": 50840,
     "ram": 6600,
     "pool": 44700,
     "ramtext": 3264
    },
    "12": {
-    "flash": 50824,
+    "flash": 50840,
     "ram": 6600,
     "pool": 44700,
     "ramtext": 3264
    },
    "16": {
-    "flash": 50824,
+    "flash": 50840,
     "ram": 6600,
     "pool": 44700,
     "ramtext": 3264
@@ -1834,26 +1834,26 @@
   },
   "SD_REC": {
    "16": {
-    "flash": 2836,
+    "flash": 2820,
     "ram": 668,
     "pool": 17328,
     "ramtext": 288
    },
    "32": {
-    "flash": 2832,
+    "flash": 2820,
     "ram": 668,
     "pool": 33712,
     "ramtext": 288
    },
    "64": {
-    "flash": 2840,
+    "flash": 2816,
     "ram": 668,
     "pool": 66480,
     "ramtext": 288
    }
   }
  },
- "measured": "2026-11-11 15:13",
+ "measured": "2026-11-11 18:07",
  "cpu": {
   "scale_pct": 104,
   "calibrated": "2026-10-06, emulator at 96 MHz, bench.c scenarios 1 2 3 7 8 (docs/CPU-GUARD.md); X0X: 2026-10-07, scenario 8 on the X0X 909 and 808 kits (x0x-drums)",
@@ -1968,7 +1968,7 @@
    },
    "built_hash": "372b8c74",
    "sizes": {
-    "flash": 635028,
+    "flash": 635052,
     "ram": 126796,
     "pool": 267260,
     "ramtext": 56108
@@ -2071,7 +2071,7 @@
    },
    "built_hash": "21a7f7f0",
    "sizes": {
-    "flash": 676720,
+    "flash": 676736,
     "ram": 138752,
     "pool": 289384,
     "ramtext": 57252
@@ -2147,7 +2147,7 @@
    },
    "built_hash": "196f353c",
    "sizes": {
-    "flash": 655240,
+    "flash": 655260,
     "ram": 112840,
     "pool": 165504,
     "ramtext": 41128
@@ -2270,7 +2270,7 @@
    },
    "built_hash": "3c7542e7",
    "sizes": {
-    "flash": 821460,
+    "flash": 821472,
     "ram": 123936,
     "pool": 50184,
     "ramtext": 59236
@@ -2386,7 +2386,7 @@
    },
    "built_hash": "31adca1e",
    "sizes": {
-    "flash": 823044,
+    "flash": 823056,
     "ram": 126832,
     "pool": 93012,
     "ramtext": 64224
@@ -2489,7 +2489,7 @@
    },
    "built_hash": "43f27d50",
    "sizes": {
-    "flash": 712168,
+    "flash": 712200,
     "ram": 128264,
     "pool": 285044,
     "ramtext": 55752
@@ -2499,7 +2499,7 @@
      "from": 1,
      "to": 0,
      "delta": {
-      "flash": -42904,
+      "flash": -42900,
       "ram": -3488,
       "pool": -14220,
       "ramtext": 0
@@ -2606,7 +2606,7 @@
    },
    "built_hash": "5ce56801",
    "sizes": {
-    "flash": 677316,
+    "flash": 677336,
     "ram": 139108,
     "pool": 289384,
     "ramtext": 57308
@@ -2713,7 +2713,7 @@
    },
    "built_hash": "54d5608a",
    "sizes": {
-    "flash": 669112,
+    "flash": 669136,
     "ram": 124776,
     "pool": 270824,
     "ramtext": 55752
@@ -3006,7 +3006,7 @@
    },
    "built_hash": "2f00cd45",
    "sizes": {
-    "flash": 636792,
+    "flash": 636816,
     "ram": 144320,
     "pool": 234492,
     "ramtext": 56480
@@ -3109,7 +3109,7 @@
    },
    "built_hash": "38441ac7",
    "sizes": {
-    "flash": 657268,
+    "flash": 657276,
     "ram": 138580,
     "pool": 286008,
     "ramtext": 66072
@@ -3183,7 +3183,7 @@
    },
    "built_hash": "532dc0dc",
    "sizes": {
-    "flash": 615128,
+    "flash": 615132,
     "ram": 112864,
     "pool": 160160,
     "ramtext": 41156
@@ -3301,7 +3301,7 @@
    },
    "built_hash": "5d7be632",
    "sizes": {
-    "flash": 776488,
+    "flash": 776520,
     "ram": 115740,
     "pool": 43572,
     "ramtext": 58728
@@ -3413,7 +3413,7 @@
    },
    "built_hash": "7c30fa8d",
    "sizes": {
-    "flash": 828844,
+    "flash": 828868,
     "ram": 128948,
     "pool": 93484,
     "ramtext": 64236
@@ -3518,7 +3518,7 @@
    },
    "built_hash": "3e98b232",
    "sizes": {
-    "flash": 712140,
+    "flash": 712164,
     "ram": 122504,
     "pool": 285044,
     "ramtext": 55752
@@ -3528,7 +3528,7 @@
      "from": 1,
      "to": 0,
      "delta": {
-      "flash": -42892,
+      "flash": -42916,
       "ram": -3484,
       "pool": -14220,
       "ramtext": 0
@@ -3634,7 +3634,7 @@
    },
    "built_hash": "5f9e3222",
    "sizes": {
-    "flash": 668456,
+    "flash": 668452,
     "ram": 138128,
     "pool": 256364,
     "ramtext": 55180
@@ -3934,7 +3934,7 @@
    },
    "built_hash": "19684c78",
    "sizes": {
-    "flash": 616724,
+    "flash": 616740,
     "ram": 134452,
     "pool": 229816,
     "ramtext": 54744
@@ -3944,7 +3944,7 @@
  },
  "pairs": {
   "MOTION=1,SECTIONS=4": {
-   "flash": -1816,
+   "flash": -1812,
    "ram": 44,
    "pool": 0,
    "ramtext": 0
@@ -4148,7 +4148,7 @@
    "ramtext": 0
   },
   "MOTION=1,PLOCK=1": {
-   "flash": -2295,
+   "flash": -2299,
    "ram": -371,
    "pool": -1232,
    "ramtext": 0
@@ -4232,7 +4232,7 @@
    "ramtext": 0
   },
   "SDCARD=1,LAYOUT=1,ENG_SAMPLE=0,DRUM_USR=0,SNAPSHOTS=0,PATTERNS=1": {
-   "flash": 45272,
+   "flash": 45296,
    "ram": 2380,
    "pool": 13224,
    "ramtext": 0
@@ -4244,25 +4244,25 @@
    "ramtext": 0
   },
   "ENG_GRAIN=0,SD_RING=4": {
-   "flash": -3012,
+   "flash": -2992,
    "ram": -2036,
    "pool": 4,
    "ramtext": 20
   },
   "ENG_GRAIN=0,SD_RING=8": {
-   "flash": -3012,
+   "flash": -2992,
    "ram": -2036,
    "pool": 4,
    "ramtext": 20
   },
   "ENG_GRAIN=0,SD_RING=12": {
-   "flash": -3012,
+   "flash": -2992,
    "ram": -2036,
    "pool": 4,
    "ramtext": 20
   },
   "ENG_GRAIN=0,SD_RING=16": {
-   "flash": -3012,
+   "flash": -2992,
    "ram": -2036,
    "pool": 4,
    "ramtext": 20
