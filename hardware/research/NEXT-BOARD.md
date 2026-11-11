@@ -210,3 +210,4 @@ fails with no board resistor in the loop), so there is no clock gate, ever. 330/
 
 The folders were renamed on 2026-11-05 (`hardware/README.md` lists them). Left for after the design settles: one generator with a
 variant argument, since each board has its own `make_board.py` and the long ones differ by about 50-110 lines.
+- **Ordered values, 2026-11-11 (the user): R5 / R6 270 (C22966), R1 120 (C22787), all JLC basic.** 15 MHz was measured at 245 / 245 / 89 (the screen needs the LCD at 30 MHz there); 240 is an extended part, so 270, the nearest basic value above. 270 / 120 is not measured: if 15 MHz fails, a 1k on RT5 and RT6 gives 213, a 470 on RT1 gives 96.
