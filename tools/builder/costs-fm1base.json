@@ -300,10 +300,10 @@
   },
   "ENG_DRONE": {
    "1": {
-    "flash": 3768,
-    "ram": 904,
+    "flash": 4228,
+    "ram": 916,
     "pool": 0,
-    "ramtext": 68
+    "ramtext": 280
    }
   },
   "ENG_PLAITS": {
@@ -1028,7 +1028,7 @@
   },
   "ENERGY": {
    "1": {
-    "flash": 520,
+    "flash": 524,
     "ram": 32,
     "pool": 0,
     "ramtext": 0
@@ -1398,7 +1398,7 @@
   },
   "SEQ_RAM": {
    "1": {
-    "flash": 1360,
+    "flash": 1356,
     "ram": -8,
     "pool": 0,
     "ramtext": 12448
@@ -1724,7 +1724,7 @@
     "ramtext": -28
    },
    "6": {
-    "flash": 8,
+    "flash": 4,
     "ram": -4,
     "pool": -72,
     "ramtext": -28
@@ -1846,14 +1846,14 @@
     "ramtext": 288
    },
    "64": {
-    "flash": 2844,
+    "flash": 2840,
     "ram": 668,
     "pool": 66480,
     "ramtext": 288
    }
   }
  },
- "measured": "2026-11-11 05:57",
+ "measured": "2026-11-11 15:13",
  "cpu": {
   "scale_pct": 104,
   "calibrated": "2026-10-06, emulator at 96 MHz, bench.c scenarios 1 2 3 7 8 (docs/CPU-GUARD.md); X0X: 2026-10-07, scenario 8 on the X0X 909 and 808 kits (x0x-drums)",
@@ -2386,10 +2386,10 @@
    },
    "built_hash": "31adca1e",
    "sizes": {
-    "flash": 822652,
-    "ram": 126856,
+    "flash": 823044,
+    "ram": 126832,
     "pool": 93012,
-    "ramtext": 64104
+    "ramtext": 64224
    },
    "contexts": {}
   },
@@ -3413,10 +3413,10 @@
    },
    "built_hash": "7c30fa8d",
    "sizes": {
-    "flash": 828436,
-    "ram": 128940,
+    "flash": 828844,
+    "ram": 128948,
     "pool": 93484,
-    "ramtext": 64116
+    "ramtext": 64236
    },
    "contexts": {}
   },
