@@ -9,6 +9,7 @@ import json
 import os
 os.environ.setdefault("OPTIMIST_CLASSIC", "1")   # (Optimist's own firmware's tests: not the release on fm1-base)
 import re
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -117,6 +118,7 @@ finally:
     TC.ROOT = _root0
     if _home0 is None: os.environ.pop("HOME", None)
     else: os.environ["HOME"] = _home0
+    shutil.rmtree(_td, ignore_errors=True)          # (the fake root and home: nothing left in the temp folder)
 src = Path("/src/sloop")
 nat = TC.Backend("/tc").command("pi32v2/bin/clang", ["-c", "a.c"], src)
 check("native: the tool under sh with core files off", nat[:3] == ["sh", "-c", TC.NO_CORE] and
