@@ -420,6 +420,59 @@ static void t_beat_off(void)
     check(track_desc(&trk[0], P_E6)->fmt == F_LFOHZ, "BEAT 40: its rate in Hz");
 }
 
+/* GLIDE on DRONE reaches 5 min (voice.c glide_long, params.c glide_long_ticks; the user, 2026-11-11: "drone glide should go to
+ * minutes"): shown in minutes; TIME 5 min, MONO, an octave up: a tenth of the way after 30 s, there after 5 min and not
+ * before 4.9; a semitone too, within 2 %; RATE 5 min: an octave in 5 min; ANALOG's GLIDE 127 as before */
+static uint32_t glide_secs(uint32_t eng, int32_t mode, uint32_t from, uint32_t to, uint32_t limit, int32_t *at30)
+{
+    uint32_t s;
+    reset();
+    host_preset(&trk[0], eng, 0);
+    dry();
+    trk[0].p[P_VOICE] = V_MONO;
+    trk[0].p[P_GLIDE] = 127;
+    trk[0].p[P_GLMODE] = (int16_t)mode;
+    trk[0].p[P_E7] = 0;
+    trk_note_on(&trk[0], (uint8_t)from, 100);
+    blocks(FS / CTL / 10u);
+    trk_note_on(&trk[0], (uint8_t)to, 100);
+    for (s = 0; s < limit * FS / CTL; s++) {            /* (control blocks: CTL samples) */
+        if (trk[0].v[0].pitch_cur == trk[0].v[0].pitch16 && !trk[0].v[0].pitch_frac)
+            return (uint32_t)((uint64_t)s * CTL * 10u / FS);   /* (tenths of a second) */
+        blocks(1);
+        if (s + 1u == 30u * FS / CTL && at30)
+            *at30 = trk[0].v[0].pitch_cur;
+    }
+    return ~0u;
+}
+static void t_glide_long(void)
+{
+    const param_desc_t *d;
+    char val[16], v1[16];
+    const char *u, *u1;
+    int32_t p30 = 0;
+    uint32_t oct, semi, rate, ana;
+    reset();
+    host_preset(&trk[0], ENG_IX_DRONE, 0);
+    d = track_desc(&trk[0], P_GLIDE);
+    param_format(d, 127, val, &u);
+    param_format(d, 1, v1, &u1);
+    printf("drone: GLIDE 1: %s %s, 127: %s %s\n", v1, u1, val, u);
+    check(d->fmt == F_GLONG && !strcmp(val, "5.00") && !strcmp(u, "min") && !strcmp(u1, "ms"),
+          "GLIDE on DRONE: shown to 5.00 min, ms at its short end");
+    oct = glide_secs(ENG_IX_DRONE, 1, 60, 72, 320, &p30);
+    semi = glide_secs(ENG_IX_DRONE, 1, 60, 61, 320, 0);
+    rate = glide_secs(ENG_IX_DRONE, 0, 60, 72, 320, 0);
+    ana = glide_secs(ENG_SLOT_ANALOG, 1, 60, 72, 20, 0);
+    printf("drone: GLIDE 5 min: an octave %u.%u s (at 30 s: %d of %d .. %d), a semitone %u.%u s, RATE an octave %u.%u s; ANALOG 127: %u.%u s\n",
+           oct / 10u, oct % 10u, (int)p30, 60 * 16, 72 * 16, semi / 10u, semi % 10u, rate / 10u, rate % 10u, ana / 10u, ana % 10u);
+    check(oct >= 2950u && oct <= 3060u && p30 >= 60 * 16 + 17 && p30 <= 60 * 16 + 21,
+          "GLIDE on DRONE, TIME 5 min: an octave in 5 min, a tenth of the way at 30 s");
+    check(semi >= 2940u && semi <= 3060u, "GLIDE on DRONE, TIME 5 min: a semitone in 5 min (within 2 %)");
+    check(rate >= 2950u && rate <= 3060u, "GLIDE on DRONE, RATE 5 min: an octave in 5 min");
+    check(ana >= 115u && ana <= 122u, "GLIDE on ANALOG: 127 as before (10 s, its step rounded down: an octave in 11.9 s)");
+}
+
 int main(int argc, char **argv)
 {
     host_tracks_init();
@@ -435,6 +488,7 @@ int main(int argc, char **argv)
     t_hold();
     t_switch();
     t_poly();
+    t_glide_long();
     printf("drone: %d failed\n", fails);
     return fails;
 }

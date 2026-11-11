@@ -747,6 +747,14 @@ static int32_t glide_ticks(int32_t g)                    /* control ticks of TIM
     int32_t k = (int32_t)ENV_LIN[g & 127];
     return k ? (int32_t)((1u << 24) / (uint32_t)k) : 1;
 }
+#if FELUCCA_ENG_DRONE
+/* DRONE's GLIDE: 1 ms .. 5 min (params.c glide_long_ticks; the user, 2026-11-11: "drone glide should go to minutes"), the other
+ * engines' 1 ms .. 10 s. Slower than 1/4096 semitone a tick, so a DRONE track glides in 1/2^24 semitone (gstep x 4096;
+ * a semitone in 5 min within 1.5 %), the 12 bits below pitch_frac in v->s[7] (DRONE keeps its state in drone_mem_t,
+ * never in the voice's s[]); note 127 is 2032 << 20 < 2^31. RATE (an octave in GLIDE) takes its step at the note, as
+ * TIME does: a GLIDE turned mid-glide applies from the next note */
+static FASTI(seq) int glide_long(const track_t *t) { return ENG_IS(ENGINES[t->engine % NENGINES], DRONE); }
+#endif
 static FASTI(seq) void glide_set(track_t *t, voice_t *v, int glide)
 {
     int32_t d, ticks;
@@ -756,6 +764,18 @@ static FASTI(seq) void glide_set(track_t *t, voice_t *v, int glide)
         v->gstep = 0;
         return;
     }
+#if FELUCCA_ENG_DRONE
+    if (glide_long(t)) {
+        int32_t g = t->p[P_GLIDE] & 127;
+        d = (v->pitch16 << 20) - ((v->pitch_cur << 20) + (v->pitch_frac << 12) + (v->s[7] & 4095));
+        d = d < 0 ? -d : d;
+        if (g && !t->p[P_GLMODE])
+            d = 12 * 4096 * 4096;                       /* RATE: an octave */
+        ticks = g ? (int32_t)glide_long_ticks((uint32_t)g) : glide_ticks(SLIDE_T);
+        v->gstep = d / ticks > 0 ? d / ticks : 1;
+        return;
+    }
+#endif
     if (t->p[P_GLMODE] || !t->p[P_GLIDE]) {
         d = (v->pitch16 << 8) - ((v->pitch_cur << 8) + v->pitch_frac);
         d = d < 0 ? -d : d;
@@ -1617,6 +1637,16 @@ static HOT uint32_t track_render(track_t *t, int32_t *out, uint32_t n)
             m.amp0 = v->env_out;
             v->env_out = m.amp1;
         }
+#if FELUCCA_ENG_DRONE
+        if (glide_long(t) && (v->pitch_cur != v->pitch16 || v->pitch_frac || (v->s[7] & 4095))) {   /* (in 1/2^24 semitone) */
+            int32_t q = (v->pitch_cur << 20) + (v->pitch_frac << 12) + (v->s[7] & 4095), d = (v->pitch16 << 20) - q;
+            int32_t st = v->gstep > 0 ? v->gstep : 1;
+            q += d > 0 ? (d < st ? d : st) : (-d < st ? d : -st);
+            v->pitch_cur = q >> 20;
+            v->pitch_frac = (uint8_t)((q >> 12) & 255);
+            v->s[7] = q & 4095;
+        } else
+#endif
         if (v->pitch_cur != v->pitch16 || v->pitch_frac) {   /* glide, in 1/4096 semitone */
             int32_t q = (v->pitch_cur << 8) + v->pitch_frac, d = (v->pitch16 << 8) - q;
             int32_t st = v->gstep ? v->gstep : (int32_t)((ENV_LIN[p[P_GLIDE] & 127] * 3u) >> 10);   /* RATE: an octave in GLIDE */
