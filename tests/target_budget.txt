@@ -17,7 +17,7 @@ super_render 481
 slicer_track 7476
 # drums_mix 2026-11-06: 8540 -> 28009 with the drum halves (drum_halves.c): the sends, inserts and sinks that were calls are
 # loops inside the voice loop now, so the static count multiplies them by the nesting weight; the work per sample did not
-# grow: pink measured 52 us a sampled voice a block with inserts after, 51 before (hardware/NEXT-BOARD.md "Dense kits").
+# grow: pink measured 52 us a sampled voice a block with inserts after, 51 before (hardware/research/NEXT-BOARD.md "Dense kits").
 drums_mix 28009
 fm1_alnk0_irq 214
 a2_saw 65
