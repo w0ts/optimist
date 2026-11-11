@@ -35,7 +35,7 @@ Turn on **SD card mode** in the builder.
 
 3. In the preview, check J2 sits on the bottom side.
 
-Also buy a 10-pin, 0.5 mm FFC cable (type A, about 80 mm) and a microSD card.
+Also buy a [10-pin, 0.5 mm FFC cable](https://www.aliexpress.com/item/4000022050815.html) (type A, about 80 mm) and a microSD card.
 
 ## Fit it
 
