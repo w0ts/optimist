@@ -22,15 +22,15 @@ Six wires, one inverter, two resistors, no pin of the main chip touched.
 
 ## 2. Parts
 
-> **Superseded (2026-10-25):** the SD board (`hardware/archive-v6-tested/`, v5: the board is the splitter, two 10-pin
+> **Superseded (2026-10-25):** the SD board (`hardware/research/archive-v6-tested/`, v5: the board is the splitter, two 10-pin
 > sockets, no soldering) replaces the hand-wired kit and the "v2" tap board below. The 1 kOhm figures below belong to
 > that kit; the board uses 150 Ohm (v6: 220; section 4). The board's README is the current parts list.
 
-**For everyone: the SD board (hardware/archive-v6-tested/, 2026-10-25).** One small board with the socket (push-push), the
-inverter, the resistors and the capacitors, ordered assembled from JLCPCB with the files in `hardware/archive-v6-tested/fab/` (or
+**For everyone: the SD board (hardware/research/archive-v6-tested/, 2026-10-25).** One small board with the socket (push-push), the
+inverter, the resistors and the capacitors, ordered assembled from JLCPCB with the files in `hardware/research/archive-v6-tested/fab/` (or
 from OSHWLab once published there). v2 (20 x 45.5 mm, the back of the board above the battery) takes a 6-pin 0.5 mm flat cable from a tap board at J12, so nothing is soldered; the tap board is still to design (J12's pin map is in section 3; pin 7's supply confirmed
-2026-10-28). The taps on the FM-1's board: `hardware/fm1/j12-wiring-points.png`; the chip's pins 28-32, J12's numbering
-and the two 74HC595s' VCC / GND: `hardware/fm1/j12-chip-pins.png`. See `hardware/README.md`.
+2026-10-28). The taps on the FM-1's board: `hardware/research/fm1/j12-wiring-points.png`; the chip's pins 28-32, J12's numbering
+and the two 74HC595s' VCC / GND: `hardware/research/fm1/j12-chip-pins.png`. See `hardware/README.md`.
 
 
 **The kit (2026-10-25, for every user: off the shelf, through-hole, no board to order):**
@@ -166,7 +166,7 @@ The card's start-up runs at 400 kHz (SPI1 BAUD 149: 60 MHz / 150), then the floo
 by the FM-1 and the card at once for a few clocks inside a session (the card not yet let go when D/C goes high):
 R1 (91 Ohm for the next order, 150 before; v6 220, which gave about 15 mA) keeps that small.
 
-**Measured since (2026-11-05, `hardware/NEXT-BOARD.md`):** 12 MHz on the tuned board, 15 fails, one bit late; the estimates below
+**Measured since (2026-11-05, `hardware/research/NEXT-BOARD.md`):** 12 MHz on the tuned board, 15 fails, one bit late; the estimates below
 did not hold. Copper solves at about half the capacitance assumed, so the 35 pF below is likely high (about 20 pF, unmeasured).
 The card clock in service is 10-12 MHz (R5/R6 330, R1 150; 15 MHz measured at 245 / 89 bodged, the next order's 240 / 91 with the LCD at 30 MHz); 20 MHz was never reached on any real card, so the 20 MHz and "real cards
 reach 20 MHz" below are first estimates, not results. The limit on streaming was the firmware's polled reader, not the card or the
@@ -276,7 +276,7 @@ DMA on only when it read right (`dma ok` / `dma off` in its answer; `sd dma on|o
 send a block by DMA the LCD's own way (transmit DMA, proven by the screen) when the DMA is on.
 
 **Measured since (2026-11-05):** 1,147 KB/s at 12 MHz on one long read. On a dense kit far less, and the card is not why: see
-"Dense kits" in `hardware/NEXT-BOARD.md`.
+"Dense kits" in `hardware/research/NEXT-BOARD.md`.
 
 **Estimates (not measured):** a block is 4,096 bits: 205 us of wire at 20 MHz, 137 us at 30 MHz. CMD18 by DMA: about
 2.2-2.4 MB/s at 20 MHz and 3.2-3.5 MB/s at 30 MHz, less the card's gap before each block (a few to tens of us); the CPU
@@ -707,7 +707,7 @@ presets for all devices".
 - **The streams at 44.1 kHz** (`tests/sd_stream_bus_test.c`, the card model with the screen's strips, SD_RING 4: a
   4 KB ring is 46 ms of 44.1 kHz 16-bit mono, a 50 ms head 4,412 B): a voice reads 88.2 KB/s at its pitch, twice an
   octave up. Voices with none dry: 8 at 1.9 MB/s (20 MHz by DMA), 7 at 937 KB/s, 6 at 733 KB/s (the measured 7.5 MHz). These are
-  the card model's. On an FM-1, 8 voices read 653 KB/s with none dry at 12 MHz (2026-11-05, pink); what limits a dense kit: `hardware/NEXT-BOARD.md`.
+  the card model's. On an FM-1, 8 voices read 653 KB/s with none dry at 12 MHz (2026-11-05, pink); what limits a dense kit: `hardware/research/NEXT-BOARD.md`.
   Over the bus a voice whose ring runs dry fades out over 1.5 ms and is counted (`sst_dry`, the console's `sd stream`),
   its stream given back: at 733 KB/s 8 voices at once lose 3 and the other 5 play to their end; the next notes play
   again (never garbage, never a hang). GRAIN on a 44.1 kHz set (PIANO, FLUTE) spreads its grains over twice the bytes,
