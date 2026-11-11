@@ -68,7 +68,7 @@
   },
   "ENG_DIGITAL": {
    "0": {
-    "flash": -1376,
+    "flash": -1372,
     "ram": -16,
     "pool": -4,
     "ramtext": -1292
@@ -276,10 +276,10 @@
   },
   "ENG_DRONE": {
    "1": {
-    "flash": 3796,
-    "ram": 912,
+    "flash": 4216,
+    "ram": 944,
     "pool": 0,
-    "ramtext": 72
+    "ramtext": 232
    }
   },
   "ENG_PLAITS": {
@@ -508,7 +508,7 @@
   },
   "KIT_BRIGHT": {
    "0": {
-    "flash": 20,
+    "flash": 24,
     "ram": 0,
     "pool": 0,
     "ramtext": 0
@@ -802,7 +802,7 @@
   },
   "INS_PHASER": {
    "1": {
-    "flash": 604,
+    "flash": 608,
     "ram": 1416,
     "pool": 0,
     "ramtext": 0
@@ -826,7 +826,7 @@
   },
   "INS_SFOLD": {
    "1": {
-    "flash": 564,
+    "flash": 568,
     "ram": 1032,
     "pool": 0,
     "ramtext": 0
@@ -1012,7 +1012,7 @@
   },
   "MACROS": {
    "1": {
-    "flash": 2588,
+    "flash": 2584,
     "ram": 468,
     "pool": 0,
     "ramtext": 132
@@ -1020,7 +1020,7 @@
   },
   "ENERGY": {
    "1": {
-    "flash": 436,
+    "flash": 440,
     "ram": 64,
     "pool": 0,
     "ramtext": 0
@@ -1224,7 +1224,7 @@
   },
   "ED_SEQ": {
    "0": {
-    "flash": -384,
+    "flash": -380,
     "ram": 0,
     "pool": 0,
     "ramtext": 0
@@ -1456,7 +1456,7 @@
   },
   "BLE_BOND": {
    "1": {
-    "flash": 3836,
+    "flash": 3840,
     "ram": 392,
     "pool": 0,
     "ramtext": 0
@@ -1647,7 +1647,7 @@
   },
   "COND": {
    "1": {
-    "flash": 11856,
+    "flash": 11860,
     "ram": -269,
     "pool": 388,
     "ramtext": 0
@@ -1679,7 +1679,7 @@
   },
   "GRIDS_LFO": {
    "1": {
-    "flash": 1116,
+    "flash": 1120,
     "ram": 64,
     "pool": 80,
     "ramtext": 0
@@ -1793,7 +1793,7 @@
   },
   "PLOCK": {
    "1": {
-    "flash": 11176,
+    "flash": 11172,
     "ram": 672,
     "pool": 1232,
     "ramtext": 0
@@ -1846,7 +1846,7 @@
    }
   }
  },
- "measured": "2026-11-11 06:02",
+ "measured": "2026-11-11 15:18",
  "cpu": {
   "scale_pct": 104,
   "calibrated": "2026-10-06, emulator at 96 MHz, bench.c scenarios 1 2 3 7 8 (docs/CPU-GUARD.md); X0X: 2026-10-07, scenario 8 on the X0X 909 and 808 kits (x0x-drums)",
@@ -2374,10 +2374,10 @@
    },
    "built_hash": "0142cd2e",
    "sizes": {
-    "flash": 721208,
-    "ram": 115728,
+    "flash": 721652,
+    "ram": 115772,
     "pool": 143112,
-    "ramtext": 35164
+    "ramtext": 35312
    },
    "contexts": {}
   },
@@ -3612,10 +3612,10 @@
    },
    "built_hash": "6d920945",
    "sizes": {
-    "flash": 726924,
-    "ram": 117780,
+    "flash": 727364,
+    "ram": 117824,
     "pool": 143584,
-    "ramtext": 35176
+    "ramtext": 35324
    },
    "contexts": {}
   },
@@ -4242,10 +4242,10 @@
    },
    "built_hash": "313cadd5",
    "sizes": {
-    "flash": 650612,
-    "ram": 107116,
+    "flash": 651024,
+    "ram": 107072,
     "pool": 94652,
-    "ramtext": 26152
+    "ramtext": 26260
    },
    "contexts": {}
   },
@@ -4364,7 +4364,7 @@
    "ramtext": 0
   },
   "ED_MIX=0,ED_SEQ=0,ED_SCREENS=0": {
-   "flash": 8,
+   "flash": 4,
    "ram": -64,
    "pool": 0,
    "ramtext": 0
@@ -4394,7 +4394,7 @@
    "ramtext": -120
   },
   "REV_PLATE=1,REV_FDN8=1,SPRING=1": {
-   "flash": -1356,
+   "flash": -1360,
    "ram": -980,
    "pool": 4,
    "ramtext": -112
@@ -4448,19 +4448,19 @@
    "ramtext": 0
   },
   "MICRO=1,PLOCK=1": {
-   "flash": 220,
+   "flash": 224,
    "ram": 0,
    "pool": 0,
    "ramtext": 0
   },
   "FILLS=1,PLOCK=1": {
-   "flash": 148,
+   "flash": 152,
    "ram": -12,
    "pool": -4,
    "ramtext": 0
   },
   "MICRO=1,FILLS=1,PLOCK=1": {
-   "flash": -172,
+   "flash": -176,
    "ram": 0,
    "pool": 0,
    "ramtext": 0
@@ -4508,7 +4508,7 @@
    "ramtext": 0
   },
   "BLE=1,BLE_BOND=1,BLE_CENTRAL=1": {
-   "flash": -3844,
+   "flash": -3848,
    "ram": -392,
    "pool": 0,
    "ramtext": 0
@@ -4520,7 +4520,7 @@
    "ramtext": 0
   },
   "BLE=1,BLE_BOND=1,BLE_CENTRAL=3": {
-   "flash": -144,
+   "flash": -148,
    "ram": 0,
    "pool": 0,
    "ramtext": 0
@@ -4562,7 +4562,7 @@
    "ramtext": 0
   },
   "MOTION=1,PLOCK=1": {
-   "flash": -2603,
+   "flash": -2597,
    "ram": -352,
    "pool": -1232,
    "ramtext": 0
@@ -4580,13 +4580,13 @@
    "ramtext": 560
   },
   "SEQTOOLS=1,ED_SEQ=0": {
-   "flash": -332,
+   "flash": -336,
    "ram": 8,
    "pool": 0,
    "ramtext": 0
   },
   "NOTEGEN=1,ED_SEQ=0": {
-   "flash": -940,
+   "flash": -944,
    "ram": 8,
    "pool": 0,
    "ramtext": 0
@@ -4610,7 +4610,7 @@
    "ramtext": 0
   },
   "GEN_GRIDS=1,ED_SEQ=0": {
-   "flash": -800,
+   "flash": -804,
    "ram": 8,
    "pool": 0,
    "ramtext": 0
@@ -4622,25 +4622,25 @@
    "ramtext": 0
   },
   "SEQTOOLS=1,NOTEGEN=1,ED_SEQ=0": {
-   "flash": 120,
+   "flash": 124,
    "ram": -72,
    "pool": 0,
    "ramtext": 0
   },
   "SEQTOOLS=1,GEN_GRIDS=1,ED_SEQ=0": {
-   "flash": 132,
+   "flash": 136,
    "ram": -72,
    "pool": 0,
    "ramtext": 0
   },
   "NOTEGEN=1,GEN_GRIDS=1,ED_SEQ=0": {
-   "flash": 784,
+   "flash": 788,
    "ram": -8,
    "pool": 0,
    "ramtext": 0
   },
   "SEQTOOLS=1,NOTEGEN=1,GEN_GRIDS=1,ED_SEQ=0": {
-   "flash": -132,
+   "flash": -136,
    "ram": 72,
    "pool": 0,
    "ramtext": 0
@@ -4676,7 +4676,7 @@
    "ramtext": 20
   },
   "ENG_GRAIN=0,SD_RING=16": {
-   "flash": -2488,
+   "flash": -2484,
    "ram": -1976,
    "pool": 4,
    "ramtext": 20
@@ -4761,7 +4761,7 @@
     "COND"
    ],
    "shared": {
-    "flash": 11137,
+    "flash": 11139,
     "ram": -269,
     "pool": 388,
     "ramtext": 0
