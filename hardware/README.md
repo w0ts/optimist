@@ -13,7 +13,8 @@ cable and the main board.
 - More room for code: your data leaves the FM-1's flash.
 - Install firmware from the card with [m-bootloader](https://github.com/jvitkauskas/m-bootloader).
 
-Turn on **SD card mode** in the builder.
+Turn on **SD card mode** in the builder. If the screen stays black with the board in, build with `LCD_BAUD=1`
+(screen at 30 MHz).
 
 > **Not built yet:** this board is not tested, and its resistor values may still change. The board before it
 > ([`research/archive-v6-tested/`](research/archive-v6-tested/)) runs in an FM-1.
