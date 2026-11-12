@@ -52,7 +52,12 @@ _Static_assert(!KLFO_ENC || KLFO_ENC == KREC_LEN, "the kit LFOs' block: 16 bytes
 #define XREC_NV 4u
 static const uint8_t XREC_ID[XREC_NV] = {P_L1TRIG, P_L1POL, P_L2PHS, P_L2FADE};
 #define XREC_LEN (2u + NPART * XREC_NV)
-#define DLR_MAX (2u + DLFO_ENC_MAX + NPART * MREC_PART + 1u + KLFO_ENC + XREC_LEN)
+/* then (2026-11-11) WREC_TAG, the parts' count n and each part's byte: ANALOG 2's WIDTH (P_A2WDTH, FELUCCA_A2W), when one is
+ * not 0. Every build's DLR_MAX counts its bytes, so a build without WIDTH keeps the record and leaves the block (a build of
+ * before 2026-11-11 refuses the record as longer than its DLR_MAX, as XREC's readers of before). Without it: 0 (mono) */
+#define WREC_TAG 0xD8u
+#define WREC_LEN (2u + NPART)
+#define DLR_MAX (2u + DLFO_ENC_MAX + NPART * MREC_PART + 1u + KLFO_ENC + XREC_LEN + WREC_LEN)
 static void proj_patch(int16_t *v, uint32_t k);        /* (project.c: a track's values as stored, under the motion) */
 /* the first id of field group g (0 LFO, 1 LFO 2, 2 ENV, 3 ENV2, 4 FLT B) and its size; P_COUNT: not in this build */
 static uint32_t mrec_grp(uint32_t g, uint32_t *n)
@@ -138,15 +143,45 @@ static void xrec_get(const uint8_t *a, uint32_t n)
             trk[k].p[XREC_ID[i]] = (int16_t)(k < np ? clamp((int8_t)a[2u + k * XREC_NV + i], TP[XREC_ID[i]].min,
                                                             TP[XREC_ID[i]].max) : TP[XREC_ID[i]].def);
 }
-/* the record's stored form -> o: the tag, the lanes', the parts', the kit's LFOs, XREC; 0 bytes when every one is at its
+#if FELUCCA_A2W
+/* the parts' WREC block -> o (WREC_LEN bytes) -> 1 when a part's WIDTH is not 0 (else nothing to write) */
+static uint32_t wrec_put(uint8_t *o)
+{
+    int16_t v[P_COUNT];
+    uint32_t k, nd = 0;
+    o[0] = WREC_TAG, o[1] = NPART;
+    for (k = 0; k < NPART; k++) {
+        proj_patch(v, k);
+        o[2u + k] = (uint8_t)(int8_t)v[P_A2WDTH];
+        nd |= v[P_A2WDTH] != TP[P_A2WDTH].def;
+    }
+    return nd;
+}
+/* a block (n bytes at a, 0: none) onto the parts: each WIDTH inside its range; a part it lacks, or none: 0 */
+static void wrec_get(const uint8_t *a, uint32_t n)
+{
+    uint32_t k, np = a && n >= 2u && a[0] == WREC_TAG ? a[1] : 0u;
+    if (n < 2u + np)
+        np = 0;
+    for (k = 0; k < NPART; k++)
+        trk[k].p[P_A2WDTH] = (int16_t)(k < np ? clamp((int8_t)a[2u + k], TP[P_A2WDTH].min, TP[P_A2WDTH].max) : TP[P_A2WDTH].def);
+}
+#endif
+/* the record's stored form -> o: the tag, the lanes', the parts', the kit's LFOs, XREC, WREC; 0 bytes when every one is at its
  * defaults (no record: read as a project of before, whose words at 0 give those very defaults) */
 static uint32_t mrec_encode(uint8_t *o)
 {
     uint8_t x[XREC_LEN];
     uint32_t n = dlfo_encode(o + 2), parts, xr = xrec_put(x);
+#if FELUCCA_A2W
+    uint8_t w[WREC_LEN];
+    uint32_t wr = wrec_put(w);
+#else
+    const uint32_t wr = 0;
+#endif
     o[0] = MREC_TAG_W, o[1] = (uint8_t)n;
     parts = mrec_parts_put(o + 2 + n);
-    if (!parts && !n && klfo_is_def() && !xr)
+    if (!parts && !n && klfo_is_def() && !xr && !wr)
         return 0;
     n += 2u + NPART * MREC_PART;
     if (!klfo_is_def()) {
@@ -158,6 +193,12 @@ static uint32_t mrec_encode(uint8_t *o)
         memcpy(o + n, x, XREC_LEN);                     /* (issue 129: LFO's TRIG POL, LFO 2's PHS FADE) */
         n += XREC_LEN;
     }
+#if FELUCCA_A2W
+    if (wr) {
+        memcpy(o + n, w, WREC_LEN);                     /* (ANALOG 2's WIDTH) */
+        n += WREC_LEN;
+    }
+#endif
     return n;
 }
 /* a stored form (0 / 0: none) onto the lanes (refused: every LFO off) and the parts (when it has them) -> the record's
@@ -166,6 +207,9 @@ static uint32_t mrec_decode(const uint8_t *a, uint32_t n)
 {
     uint32_t l;
     xrec_get(0, 0);                                     /* (XREC's values: their defaults till the block) */
+#if FELUCCA_A2W
+    wrec_get(0, 0);                                     /* (WIDTH: 0 till its block) */
+#endif
     if (!a || n < 2u || !MREC_TAG_OK(a[0])) {           /* (none, or a record of before: the lanes' alone) */
         klfo_decode(0, 0);
         if (!a || !dlfo_decode(a, n))
@@ -186,6 +230,12 @@ static uint32_t mrec_decode(const uint8_t *a, uint32_t n)
         l += 1u + KREC_LEN;                             /* (the kit's two LFOs: their bytes in every build, built or not) */
     if (n > l && a[l] == XREC_TAG)
         xrec_get(a + l, n - l);
+#if FELUCCA_A2W
+    if (n > l + 1u && a[l] == XREC_TAG)
+        l += 2u + a[l + 1u] * XREC_NV;                  /* (WREC after XREC, or alone) */
+    if (n > l && a[l] == WREC_TAG)
+        wrec_get(a + l, n - l);
+#endif
     return a[0];
 }
 #define DLR_AUX 4u

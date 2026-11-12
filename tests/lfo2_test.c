@@ -99,10 +99,10 @@ static void t_params(void)
           param_step(r, -1, 1) == -23 && param_step(r, -25, 1) == 0 && param_step(r, -1, -1) == -2;
     ok &= param_step(&TP[P_LRATE], 0, -1) == -25 && param_step(&TP[P_LRATE], -23, -9) == -1;
     check(ok, "knob: RATE turns as LFO's (stops at 0 first, then a note value a detent: 16BAR 8BAR 6BAR 4BAR .. 1/64)");
-    check(P_L2RATE > P_E7 && P_E1PIT == P_L2AB + 1 && P_VOICES > P_E1PIT && P_L1POL == P_L1TRIG + 1 && P_SLAST == P_L1POL &&
-              P_VOICES == P_L1POL + 1 && P_L2PHS == P_VOICES + 1 && P_L2FADE == P_L2PHS + 1 && P_COUNT == P_L2FADE + 1,
+    check(P_L2RATE > P_E7 && P_E1PIT == P_L2AB + 1 && P_VOICES > P_E1PIT && P_L1POL == P_L1TRIG + 1 &&
+              P_SLAST == P_L1POL + FELUCCA_A2W && P_VOICES == P_SLAST + 1 && P_L2PHS == P_VOICES + 1 && P_L2FADE == P_L2PHS + 1 && P_COUNT == P_L2FADE + 1,
           "ids: after P_E7, before ENV 1 MOD's values, ENV2's slots and VOICES (no id before moves); LFO's TRIG POL the "
-          "sound's last, LFO 2's PHS FADE the last");
+          "sound's last (then ANALOG 2's WIDTH where built), LFO 2's PHS FADE the last");
 }
 
 /* one tick of part k's LFO 2 at phase ph (the step: LFO_INC[0] at RATE 0) -> its block's offsets */

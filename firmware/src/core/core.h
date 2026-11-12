@@ -73,6 +73,11 @@ enum { Q_OFF, Q_SNAP, Q_WHITE, Q_ALL, Q_SEQ };   /* P_QUANT (SCL › KEYS): seq.
                                   * filter modes, drift, SUPER's swarm (SUPER is no engine of its own then: FM6
                                   * is 9); 0 = the original ANALOG and SUPER (and project format 5) */
 #endif
+#ifndef FELUCCA_A2_WIDTH
+#define FELUCCA_A2_WIDTH 1       /* ANALOG 2's WIDTH (2026-11-11, builder A2_WIDTH, on by default: the user): the swarm's copies
+                                  * across the stereo field (eng_analog2.c a2w_*); 0: not built (mono, as before) */
+#endif
+#define FELUCCA_A2W (FELUCCA_A2_WIDTH && FELUCCA_ANALOG2)
 #include "registry.h"     /* NENGINES, the engines' UIDs (FUN7 numbers: ANALOG 0 .. FM6 9, SLICE 10) and switches */
 #include "../system/cpuguard.h"     /* the CPU guard's level, read by the render (FELUCCA_CPU_GUARD; else the constant 0) */
 #define UP_SLOTS 32u             /* user presets (upreset.c) */
@@ -488,6 +493,13 @@ enum {                          /* per-track parameters */
      * BI UNI); NOTE BI by default, LFO as it always was. Part of a sound (model.c param_kept: P_SLAST; a user preset of
      * before loads them at their defaults, upreset.c); a project keeps them in its modulation record (dlfo_rec.c XREC) */
     P_L1TRIG, P_L1POL,
+#if FELUCCA_A2W
+    /* ANALOG 2's WIDTH (2026-11-11, from the Digitone II port's WDTH; the user: "can you send that to fm1"): 0..127 (0..100 %),
+     * the swarm's copies panned alternately left and right (osc 1 and 2 in the middle), nothing with fewer than two copies.
+     * 0: mono, as before. Part of a sound (P_SLAST: a user preset of before loads it at 0); a project keeps it in its
+     * modulation record (dlfo_rec.c WREC) */
+    P_A2WDTH,
+#endif
     /* VOICES (voice.c trk_nvoice): the part's voice count in POLY and UNISON, 0 = the engine's max (JUNO 6, ACID 1 ...; the card shows it as that number, params.c page_desc),
      * else 1..8 and at most the engine's (MONO stays a mode of P_VOICE). Every build. Not part of a sound nor of a user
      * preset (param_kept), not lockable; stored in a project in the FX record (fx_rec.c VCNT_TLV) */
@@ -503,7 +515,11 @@ enum {                          /* per-track parameters */
 #else
 #define P_NLAST P_E1Z
 #endif
+#if FELUCCA_A2W
+#define P_SLAST P_A2WDTH        /* a sound's values after P_E7: P_E1PIT .. P_SLAST (the envelopes', FLT B's, LFO's TRIG POL, WIDTH) */
+#else
 #define P_SLAST P_L1POL         /* a sound's values after P_E7: P_E1PIT .. P_SLAST (the envelopes', FLT B's, LFO's TRIG POL) */
+#endif
 /* an LFO's TRIG (P_L1TRIG, P_L2TRIG): NOTE a fresh phrase restarts it at PHS (and its FADE), FREE never, PLAY at PLAY (synced:
  * its phase from the transport, voice.c lfo_play_ph; stopped it runs on as FREE) */
 enum { LTRIG_NOTE, LTRIG_FREE, LTRIG_PLAY };

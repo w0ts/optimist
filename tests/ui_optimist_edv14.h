@@ -35,6 +35,8 @@ static uint32_t edstl_expect(uint32_t track, uint32_t lane, uint8_t (*kid)[2])
             uint8_t kd, v;
             if (id < 0 || ((uint32_t)id & LOCK_SLOT) || (!ui.lane && ((uint32_t)id & LOCK_LANE)))   /* (a slot's value: not listed) */
                 continue;
+            if (!((uint32_t)id & LOCK_LANE) && id > 127)  /* (past the protocol's 7 bits, ANALOG 2's WIDTH: not listed) */
+                continue;
             kd = ((uint32_t)id & LOCK_LANE) ? 1u : 0u, v = (uint8_t)(kd ? (uint32_t)id & 7u : (uint32_t)id);
             for (i = 0; i < n && !(kid[i][0] == kd && kid[i][1] == v); i++)
                 ;

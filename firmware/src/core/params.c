@@ -309,6 +309,9 @@ static const param_desc_t TP[P_COUNT] = {
     [P_A2BCUT] = PU("FREQ", F_CUTOFF, 0, 127, 0, 0),
     [P_A2BRES] = PU("RES", F_PCT, 0, 127, 0, 0),
 #endif
+#if FELUCCA_A2W
+    [P_A2WDTH] = PD("WIDTH", F_PCT, 0, 127, 0),        /* ANALOG 2's swarm across the stereo field (eng_analog2.c a2w_*) */
+#endif
     [P_VOICES] = PD("VOICES", F_INT, 0, NPOLY, 0),         /* POLY / UNISON voice count (voice.c trk_nvoice); 0 = the engine's max (track_desc: 1..max shown) */
 };
 #include "lfo_store.h"                                /* LFO DEST's slots <-> the depths of before (stored form) */
@@ -957,7 +960,11 @@ static const page_t PAGES[] = {
 #endif
 #if FELUCCA_ANALOG2
     {"OSC 2", FAM_EDIT, SC_TRACK, GR_NONE, {P_A2WAVE, P_A2SEMI, P_A2SYNC, 0xFF}},   /* ANALOG only: page_shown */
+#if FELUCCA_A2W
+    {"SWARM", FAM_EDIT, SC_TRACK, GR_NONE, {P_A2SWRM, P_A2SDTN, P_A2DRFT, P_A2WDTH}},   /* (ENV2 on the spread: its DEST SDTN) */
+#else
     {"SWARM", FAM_EDIT, SC_TRACK, GR_NONE, {P_A2SWRM, P_A2SDTN, P_A2DRFT, 0xFF}},   /* (ENV2 on the spread: its DEST SDTN) */
+#endif
 #if FELUCCA_A2_MODELS
     {"FLT 2", FAM_EDIT, SC_TRACK, GR_NONE, {P_A2FTYP, PID_A2MDL, 0xFF, 0xFF}},   /* FTYP, MODEL: one stored value (a2f_view) */
 #else

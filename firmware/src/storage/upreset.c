@@ -45,7 +45,7 @@ typedef struct {
 _Static_assert(sizeof(up_rec_t) == 216 && sizeof(up_bank_t) <= 3840u, "user preset record layout (UPB4)");
 _Static_assert(P_E0 + 8u + UP_NTAIL <= UP_NV && P_ENG_END + UP_NTAIL < 256u, "user preset record: the sound's values");
 #if FELUCCA_ANALOG2
-#define UP_LAYOUT (P_E0 == 67u && UP_NTAIL == 13u)   /* (13: + LFO's TRIG POL, issue 129) */
+#define UP_LAYOUT (P_E0 == 67u && UP_NTAIL == 13u + FELUCCA_A2W)   /* (13: + LFO's TRIG POL, issue 129; 14: + WIDTH) */
 #else
 #define UP_LAYOUT (UP_NTAIL == 6u)
 #endif
