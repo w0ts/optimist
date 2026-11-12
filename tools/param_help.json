@@ -213,7 +213,7 @@
     {"kind": "page", "ctx": "OSC 2", "if": "FELUCCA_ANALOG2 && FELUCCA_ENG_ANALOG", "params": {
       "WAVE2": "Osc 2 wave (=1: as osc 1)", "SEMI": "Osc 2 interval", "SYNC": "Osc 2 hard sync"}},
     {"kind": "page", "ctx": "SWARM", "if": "FELUCCA_ANALOG2 && FELUCCA_ENG_ANALOG", "params": {
-      "SWARM": "Copies of osc 1", "SDTN": "Swarm spread", "DRFT": "Pitch drift"}},
+      "SWARM": "Copies of osc 1", "SDTN": "Swarm spread", "DRFT": "Pitch drift", "WIDTH": {"text": "Copies left and right", "if": "FELUCCA_A2W"}}},
     {"kind": "page", "ctx": "FLT 2", "if": "FELUCCA_ANALOG2 && FELUCCA_ENG_ANALOG", "params": {
       "FTYP": "Filter type",
       "MODEL": {"text": "Filter circuit model", "if": "FELUCCA_A2_MODELS"}}},

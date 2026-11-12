@@ -80,6 +80,23 @@
 typedef struct { int32_t fb[NVOICE][A2FB_N]; } a2_mem_t;
 static a2_mem_t a2_st[NPART] IN_POOL;
 #define A2_FB(k) (a2_st[k].fb)
+#if FELUCCA_A2W
+/* WIDTH (core.h P_A2WDTH, 2026-11-11; the Digitone II port's WDTH): with two copies or more and WIDTH > 0 the copies go left
+ * (1, 4, 5: COPY_AT +1 -2 +3) and right (2, 3, 6: -1 +2 -3), osc 1 and 2 in the middle. The copies are summed in two passes,
+ * the right ones then the left ones, so the mid is the very sum of before (integer adds: WIDTH changes nothing in it); the
+ * side (L - R) x WIDTH runs through FLT B and FLT on states of its own (A2W_*), DRV, NOIS and the output knee on the mid
+ * only, into the part's side (fx.c mix_part adds it after the level: L + side, R - side, as DRONE's BEAT). One copy (SWARM 1,
+ * or the CPU cap's): nothing, mono. The cost: a second filter (and FLT B when on) a voice, only while it is on */
+#define A2W_LEFT 0x19u                                /* the copies on the left, bit k copy k (COPY_AT[k]: +1 -2 +3) */
+typedef struct {
+    int32_t side[CTL];                                /* the part's side this block (sd: written; fx.c mix_part clears it) */
+    int32_t fs[NVOICE][8];                            /* each voice's FLT on the side, v->s's layout (s[6] unused) */
+    int32_t fb[NVOICE][A2FB_N];                       /* and its FLT B, a2_fb's */
+    uint8_t on[NVOICE];                               /* the side ran in the voice's last block (else its states from rest) */
+    uint8_t sd;
+} a2w_mem_t;
+static a2w_mem_t a2w_st[NPART] IN_POOL;
+#endif
 /* f[0..5] of a2_fb <-> s[0] s[1] s[4] s[5] s[6] s[7] of the filter's layout (no table: nothing read from flash here) */
 #define A2FB_MOVE(f, s, TO) TO(f[0], s[0]); TO(f[1], s[1]); TO(f[2], s[4]); TO(f[3], s[5]); TO(f[4], s[6]); TO(f[5], s[7])
 #define A2FB_LD(a, b) (b) = (a)
@@ -99,6 +116,10 @@ static void analog_note_on(track_t *t, voice_t *v)
         v->ph[1] = v->ph[0] + 0x40000000u;
     }
     v->s[0] = v->s[1] = v->s[4] = v->s[5] = 0;        /* filter */
+#if FELUCCA_A2W
+    if (k < NPART)
+        a2w_st[k].on[(uint32_t)(v - t->v) % NVOICE] = 0;   /* (WIDTH's side: from rest, as the filter) */
+#endif
     v->s[6] = A2_NOCUT;
     if (!v->s[2])
         v->s[2] = 0x1234567 + (int32_t)v->age;        /* noise state */
@@ -437,17 +458,14 @@ static FAST(analog) void a2_filter(int32_t *b, int32_t *s, int32_t c0, int32_t c
  * the models (a2_models.c; one not built: the SVF in the same mode); its cutoff FREQ alone (no key tracking, no ENV 1:
  * an LFO or an envelope moves FREQ itself, DEST FLTB), smoothed as FLT's. Its output clamped to +-65535: FLT's input
  * contract (the osc bound above), which a resonant peak of B would break */
-static FAST(analog) __attribute__((noinline)) void a2_fltb(const track_t *t, const voice_t *v, int32_t *b, uint32_t n)
+static FAST(analog) __attribute__((noinline)) void a2_fltb(const track_t *t, int32_t *f, int32_t *b, uint32_t n)
 {
     const int16_t *p = t->p;
-    uint32_t k = (uint32_t)(t - trk), w = (uint32_t)p[P_A2BTYP], mode = w % A2M_MODES, i;
-    int32_t *f, s[8], cut = clamp(p[P_A2BCUT], 0, 127) << 8, c0;
+    uint32_t w = (uint32_t)p[P_A2BTYP], mode = w % A2M_MODES, i;
+    int32_t s[8], cut = clamp(p[P_A2BCUT], 0, 127) << 8, c0;
 #if FELUCCA_A2_MODELS
     uint32_t mdl = w / A2M_MODES - 1u;
 #endif
-    if (k >= NPART)
-        return;
-    f = A2_FB(k)[(uint32_t)(v - t->v) % NVOICE];
     A2FB_MOVE(f, s, A2FB_LD);                          /* the states in the filter's layout (v->s's), back at the end */
     c0 = s[6] == A2_NOCUT ? cut : s[6];
     s[6] = cut;
@@ -498,6 +516,10 @@ static uint32_t dual_vbusy;                           /* voices_busy() at the bl
 #endif                                                /* parts render on two cores, in no fixed order */
 static FAST(analog) void super_block(track_t *t)
 {
+#if FELUCCA_A2W
+    if (t < &trk[NPART])
+        a2w_st[t - trk].sd = 0;                       /* (WIDTH's side: none yet this block) */
+#endif
     if (t->p[P_A2SWRM] > 2)                           /* (only a swarm asks: the idle part costs nothing) */
 #if DUAL_RENDER
         super_nv = (uint8_t)dual_vbusy;               /* (both cores store the same value) */
@@ -518,6 +540,32 @@ static FAST(analog) uint32_t super_copies(uint32_t want)
         want = 2;
     return CG_SWARM(want);                            /* (the CPU guard, cpuguard.h) */
 }
+
+static const uint32_t COPY_PH[6] = {0x2B7E1516u, 0x9E3779B9u, 0x6A09E667u, 0xBB67AE85u, 0x3C6EF372u, 0xA54FF53Au};
+static const int8_t COPY_AT[6] = {1, -1, 2, -2, 3, -3};   /* spread steps of copy k */
+#if FELUCCA_A2W
+/* the copies of sel (bit k: copy k) into b, as the swarm's loop does them all (saws two at a time). Inlined into
+ * analog_render: its oscillators' table (A2_OSC) is called from the RAM code fm1.toml's ram_code_allow names */
+AINL void a2w_copies(int32_t *b, uint32_t sel, uint32_t w1, uint32_t ph0, uint32_t spr, uint32_t inc1,
+                                    uint32_t dinc, uint32_t pw1, int32_t gc, uint32_t n)
+{
+    uint32_t q[6], m = 0, k;
+    for (k = 0; k < 6u; k++)
+        if ((sel >> k) & 1u)
+            q[m++] = k;
+    k = 0;
+#if FELUCCA_ASM
+    if (w1 == 0u)
+        for (; k + 1u < m; k += 2u)
+            a2_saw2(b, ph0 + (uint32_t)(int32_t)COPY_AT[q[k]] * spr + COPY_PH[q[k]], inc1 + (uint32_t)(int32_t)COPY_AT[q[k]] * dinc,
+                    ph0 + (uint32_t)(int32_t)COPY_AT[q[k + 1u]] * spr + COPY_PH[q[k + 1u]],
+                    inc1 + (uint32_t)(int32_t)COPY_AT[q[k + 1u]] * dinc, gc, n);
+#endif
+    for (; k < m; k++)
+        A2_OSC[w1](b, ph0 + (uint32_t)(int32_t)COPY_AT[q[k]] * spr + COPY_PH[q[k]], inc1 + (uint32_t)(int32_t)COPY_AT[q[k]] * dinc,
+                   pw1, gc, n);
+}
+#endif
 
 /* ------------------------------------------------------------ render --- */
 #if FELUCCA_ASM_CHECK
@@ -601,8 +649,6 @@ static FAST(analog) void analog_render(track_t *t, voice_t *v, int32_t *__restri
         FAR(a2_asm_selftest)();                   /* (XIP: once) */
     }
 #endif
-    static const uint32_t COPY_PH[6] = {0x2B7E1516u, 0x9E3779B9u, 0x6A09E667u, 0xBB67AE85u, 0x3C6EF372u, 0xA54FF53Au};
-    static const int8_t COPY_AT[6] = {1, -1, 2, -2, 3, -3};   /* spread steps of copy k */
     const int16_t *p = t->p;
     uint32_t w1 = (uint32_t)p[P_E0] % 5u, w2 = p[P_A2WAVE] ? (uint32_t)(p[P_A2WAVE] - 1) % 5u : w1;
     uint32_t ftyp = (uint32_t)p[P_A2FTYP] % A2M_MODES, ncopy = super_copies((uint32_t)p[P_A2SWRM]), j, k;
@@ -613,6 +659,11 @@ static FAST(analog) void analog_render(track_t *t, voice_t *v, int32_t *__restri
     int32_t shape = m->shape, sdtn = p[P_A2SDTN], cut, c0;
     int32_t b[CTL];
     uint32_t inc1 = m->inc, inc2, ph0 = v->ph[0], spr = v->ph[2], dinc = 0, pw, pw1;
+    uint32_t kp = (uint32_t)(t - trk), vi = (uint32_t)(v - t->v) % NVOICE;   /* (the part, the voice: FLT B's, WIDTH's states) */
+#if FELUCCA_A2W
+    int32_t sb[CTL];                                  /* WIDTH: the side (L - R) x WIDTH, as b through FLT B and FLT */
+    a2w_mem_t *wm = 0;                                /* (0: mono, nothing done) */
+#endif
     int32_t off = p[P_A2SEMI] * 16;                  /* osc 2, 1/16 st */
     int32_t g1 = m2 ? (32767 - m2) >> 1 : 16384;     /* osc 1's gain: MIX, half scale */
     /* ENV2 (voice.c env2_tick, its slots: ENV2 DEST): FLT PIT SHP in m's cutoff, pitch, shape; OSC2 and SDTN here */
@@ -642,18 +693,37 @@ static FAST(analog) void analog_render(track_t *t, voice_t *v, int32_t *__restri
         int32_t cg = (32767 * 1024) / (1024 + (((int32_t)ncopy * A2_SWARM_GC) >> 5));
         int32_t gc = mulq15(mulq15(A2_SWARM_GC, cg), g1 << 1);
         dinc = (inc1 >> 16) * (uint32_t)(clamp(sdtn, 0, 127) * 60 * 2367 * 16 / (127 * 3 * 1000));
-        k = 0;
-#if FELUCCA_ASM
-        if (w1 == 0u)                                 /* saws: two copies a pass (the SIMD slot) */
-            for (; k + 1u < ncopy; k += 2u)
-                a2_saw2(b, ph0 + (uint32_t)(int32_t)COPY_AT[k] * spr + COPY_PH[k],
-                        inc1 + (uint32_t)(int32_t)COPY_AT[k] * dinc,
-                        ph0 + (uint32_t)(int32_t)COPY_AT[k + 1u] * spr + COPY_PH[k + 1u],
-                        inc1 + (uint32_t)(int32_t)COPY_AT[k + 1u] * dinc, gc, n);
+#if FELUCCA_A2W
+        if (p[P_A2WDTH] > 0 && ncopy >= 2u && kp < NPART) {   /* WIDTH: the right copies, then the left (b: the same sum) */
+            uint32_t all = (1u << ncopy) - 1u;
+            int32_t wd = p[P_A2WDTH] * 258;           /* (Q15: 127 -> 32766) */
+            wm = &a2w_st[kp];
+            for (k = 0; k < 2u; k++) {                /* (one call site: inlined once) */
+                a2w_copies(b, k ? all & A2W_LEFT : all & ~A2W_LEFT, w1, ph0, spr, inc1, dinc, pw1, gc, n);
+                if (!k)
+                    for (j = 0; j < n; j++)
+                        sb[j] = -b[j];                /* -R */
+            }
+            for (j = 0; j < n; j++)
+                sb[j] = mulq15(b[j] + 2 * sb[j], wd);   /* (R + L) - 2 R = L - R, x WIDTH */
+            for (; j < CTL; j++)
+                sb[j] = 0;
+        } else
 #endif
-        for (; k < ncopy; k++)
-            A2_OSC[w1](b, ph0 + (uint32_t)(int32_t)COPY_AT[k] * spr + COPY_PH[k],
-                       inc1 + (uint32_t)(int32_t)COPY_AT[k] * dinc, pw1, gc, n);
+        {
+            k = 0;
+#if FELUCCA_ASM
+            if (w1 == 0u)                             /* saws: two copies a pass (the SIMD slot) */
+                for (; k + 1u < ncopy; k += 2u)
+                    a2_saw2(b, ph0 + (uint32_t)(int32_t)COPY_AT[k] * spr + COPY_PH[k],
+                            inc1 + (uint32_t)(int32_t)COPY_AT[k] * dinc,
+                            ph0 + (uint32_t)(int32_t)COPY_AT[k + 1u] * spr + COPY_PH[k + 1u],
+                            inc1 + (uint32_t)(int32_t)COPY_AT[k + 1u] * dinc, gc, n);
+#endif
+            for (; k < ncopy; k++)
+                A2_OSC[w1](b, ph0 + (uint32_t)(int32_t)COPY_AT[k] * spr + COPY_PH[k],
+                           inc1 + (uint32_t)(int32_t)COPY_AT[k] * dinc, pw1, gc, n);
+        }
         g1 = mulq15(g1, cg);
     }
     A2_OSC[w1](b, ph0, inc1, pw1, g1, n);
@@ -673,8 +743,22 @@ static FAST(analog) void analog_render(track_t *t, voice_t *v, int32_t *__restri
         a2_noise(b, &v->s[2], nz, n);
     if (drv)                                          /* DRV: dry -> driven (1x .. 4x; a clean range low) */
         a2_drive(b, 32768 + drv * 768, drv * 258, n);
-    if ((uint32_t)p[P_A2BTYP] >= A2M_MODES)           /* FLT B (MODEL OFF: nothing done) */
-        a2_fltb(t, v, b, n);
+#if FELUCCA_A2W
+    if (wm && !wm->on[vi]) {                          /* (the side starts: its states from rest) */
+        for (j = 0; j < 8u; j++)
+            wm->fs[vi][j] = 0;
+        for (j = 0; j < A2FB_N; j++)
+            wm->fb[vi][j] = 0;
+        wm->fb[vi][4] = A2_NOCUT;                     /* (FLT B's last cutoff: none) */
+    }
+#endif
+    if ((uint32_t)p[P_A2BTYP] >= A2M_MODES && kp < NPART) {   /* FLT B (MODEL OFF: nothing done; a synth part's voice) */
+        a2_fltb(t, A2_FB(kp)[vi], b, n);
+#if FELUCCA_A2W
+        if (wm)
+            a2_fltb(t, wm->fb[vi], sb, n);
+#endif
+    }
     cut =(p[P_E4] << 8) + m->cutoff + (p[P_E7] * (v->pitch16 - 60 * 16) >> 4);
     cut = clamp(cut, 0, 127 << 8);
     c0 = v->s[6] == A2_NOCUT ? cut : v->s[6];
@@ -691,5 +775,31 @@ static FAST(analog) void analog_render(track_t *t, voice_t *v, int32_t *__restri
         }
         a2_filter(b, v->s, c0, cut, ftyp, kd);
     }
+#if FELUCCA_A2W
+    if (wm) {                                         /* the side: the same filter on its own states, no knee */
+        int32_t *fs = wm->fs[vi], *sd = wm->side + (CTL - n), acc = m->amp0 << 5, da = m->amp1 - m->amp0;
+#if FELUCCA_A2_MODELS
+        if (fmdl - 1u < A2M_N - 1u && (A2M_BUILT >> fmdl & 1u))
+            FAR(a2m_block)(sb, fs, c0, cut, fmdl, ftyp, p[P_E5], n);
+        else
+#endif
+        {
+            if (fs[7]) {
+                fs[0] = fs[1] = fs[4] = fs[5] = 0;
+                fs[7] = 0;
+            }
+            a2_filter(sb, fs, c0, cut, ftyp, kd);
+        }
+        if (!wm->sd) {                                /* (the part's side: zeroed by its first voice this block) */
+            for (j = 0; j < CTL; j++)
+                wm->side[j] = 0;
+            wm->sd = 1;
+        }
+        for (j = 0; j < n; j++, acc += da)            /* (as a2_out: x 2, the amplitude ramp; |s| < 2^15: the product fits) */
+            sd[j] += VOICE_OUT(clamp(sb[j], -32767, 32767) << 1, acc >> 5, 1);
+    }
+    if (kp < NPART)
+        a2w_st[kp].on[vi] = (uint8_t)(wm != 0);
+#endif
     a2_out(out, b, m->amp0, m->amp1, n);
 }

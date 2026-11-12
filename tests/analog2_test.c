@@ -6,6 +6,7 @@
  *   analog2_test zipper    a fast filter envelope on a sine: the power at the block rate (1378 Hz) and its multiples
  *   analog2_test env2      ENV2: SUS2 held, REL2 (0: DEC2's time), the attack to the top, the destinations (each
  *                          alone as DST2 + AMT2 rendered before ENV2 DEST, bit for bit; several at once)
+ *   analog2_test width     WIDTH (FELUCCA_A2_WIDTH=1): the mid the very same samples, the side, SWARM 1 mono, both filters on it
  *   analog2_test check     the above as pass / fail limits (tests/run_tests.sh)
  *   analog2_test wav E P OUT.wav [id:v,..]   engine E preset P (the whole preset, its sends; then the track
  *                          parameters given) on a phrase, 5 s, to a WAV; prints its RMS and peak */
@@ -745,6 +746,114 @@ static int fltb_test(int quiet)
 }
 #endif
 
+#if FELUCCA_A2W
+/* WIDTH (core.h P_A2WDTH; eng_analog2.c a2w_*): a saw swarm (SWARM sw, SDTN 60) at C3 through FLT (CUT cut, RES 20), WIDTH w,
+ * FLT B btyp; the part's output (the mid) into mid[], its side (the part's a2w side, mix_part's L + / R -) into sd[] -> 1 when
+ * a block wrote a side */
+#define WN 8192u
+static double wmid[WN], wsd[WN];
+static int width_run(int32_t sw, int32_t w, int32_t cut, int32_t btyp, double *mid, double *sd)
+{
+    static const int16_t E8[8] = {0, 10, 0, 0, 127, 20, 0, 0};
+    int32_t o[CTL];
+    uint32_t f, i;
+    int any = 0;
+    part_setup(&trk[0], E8);
+    trk[0].p[P_E4] = (int16_t)cut;
+    trk[0].p[P_A2SWRM] = (int16_t)sw, trk[0].p[P_A2SDTN] = 60, trk[0].p[P_A2DRFT] = 0;
+    trk[0].p[P_A2WDTH] = (int16_t)w;
+    trk[0].p[P_A2BTYP] = (int16_t)btyp, trk[0].p[P_A2BCUT] = 70, trk[0].p[P_A2BRES] = 0;
+    trk_note_on(&trk[0], 48, 100);
+    for (f = 0; f < WN; f += CTL) {
+        track_render(&trk[0], o, CTL);
+        for (i = 0; i < CTL; i++) {
+            mid[f + i] = o[i];
+            sd[f + i] = a2w_st[0].sd ? a2w_st[0].side[i] : 0;
+        }
+        any |= a2w_st[0].sd;
+        a2w_st[0].sd = 0;                             /* (as mix_part, once used) */
+    }
+    return any;
+}
+static double rms(const double *x, uint32_t n)
+{
+    double p = 0;
+    uint32_t i;
+    for (i = 0; i < n; i++)
+        p += x[i] * x[i];
+    return sqrt(p / n);
+}
+static int width_test(int quiet)
+{
+    static double m0[WN], s0[WN];
+    double rm, rs, rso, rsc, pk = 0;
+    uint32_t i, same = 1, same1 = 1;
+    int ok = 1, any;
+    any = width_run(6, 0, 127, 0, m0, s0);
+    ok &= !any;                                       /* WIDTH 0: no side */
+    any = width_run(6, 127, 127, 0, wmid, wsd);
+    for (i = 0; i < WN; i++)
+        same &= wmid[i] == m0[i];
+    rm = rms(wmid + 2048, WN - 2048), rso = rs = rms(wsd + 2048, WN - 2048);
+    ok &= any && same && rs > 0.2 * rm;               /* WIDTH 127: the mid the very same samples, a side */
+    if (!quiet)
+        printf("width: 6 copies, WIDTH 127: mid identical %s, side %.0f against mid %.0f (%.2f)\n", same ? "yes" : "NO", rs,
+               rm, rs / rm);
+    (void)width_run(1, 0, 127, 0, m0, s0);
+    any = width_run(1, 127, 127, 0, wmid, wsd);       /* SWARM 1: nothing (mono, the same samples) */
+    for (i = 0; i < WN; i++)
+        same1 &= wmid[i] == m0[i];
+    ok &= !any && same1;
+    (void)width_run(6, 127, 30, 0, wmid, wsd);        /* FLT closed: the side closed as the mid (the same filter) */
+    rsc = rms(wsd + 2048, WN - 2048);
+    {
+        double kc = rsc / rso, km = rms(wmid + 2048, WN - 2048) / rm;
+        ok &= kc < 0.6 && kc > 0.5 * km && kc < 2 * km;
+        if (!quiet)
+            printf("width: CUT 30 against 127: side x%.2f, mid x%.2f\n", kc, km);
+    }
+    any = width_run(6, 127, 127, A2M_MODES + 3, wmid, wsd);   /* FLT B HP on: the side through it too, bounded */
+    for (i = 0; i < WN; i++)
+        pk = fabs(wsd[i]) > pk ? fabs(wsd[i]) : pk;
+    ok &= any && pk > 0 && pk < 3e6 && rms(wsd + 2048, WN - 2048) < 0.6 * rso;   /* (the side's lows gone with the mid's) */
+    if (!quiet)
+        printf("width: FLT B HP 70 side %.0f (off %.0f)\n", rms(wsd + 2048, WN - 2048), rso);
+#if FELUCCA_A2_MODELS
+    {   /* FLT 2 a model (each built one, LP24 at CUT 60): the side through its own states, bounded, closed as the mid */
+        uint32_t mdl;
+        for (mdl = 1; mdl < A2M_N; mdl++) {
+            double mpk = 0;
+            if (!(A2M_BUILT >> mdl & 1u))
+                continue;
+            part_setup(&trk[0], (const int16_t[8]){0, 10, 0, 0, 60, 60, 0, 0});
+            any = 0;
+            {
+                int32_t o[CTL];
+                uint32_t f, j;
+                trk[0].p[P_A2FTYP] = (int16_t)(mdl * A2M_MODES + 1u);
+                trk[0].p[P_A2SWRM] = 6, trk[0].p[P_A2SDTN] = 60, trk[0].p[P_A2DRFT] = 0, trk[0].p[P_A2WDTH] = 127;
+                trk_note_on(&trk[0], 48, 100);
+                for (f = 0; f < WN; f += CTL) {
+                    track_render(&trk[0], o, CTL);
+                    any |= a2w_st[0].sd;
+                    for (j = 0; a2w_st[0].sd && j < CTL; j++)
+                        mpk = fabs((double)a2w_st[0].side[j]) > mpk ? fabs((double)a2w_st[0].side[j]) : mpk;
+                    a2w_st[0].sd = 0;
+                }
+            }
+            ok &= any && mpk > 100 && mpk < 3e6;
+            if (!quiet)
+                printf("width: FLT 2 model %u: side peak %.0f\n", mdl, mpk);
+        }
+    }
+#endif
+    if (!quiet)
+        printf("width: SWARM 1 no side, same %s; CUT 30 side %.0f (open %.0f); FLT B HP side peak %.0f: %s\n",
+               same1 ? "yes" : "NO", rsc, rso, pk, ok ? "PASS" : "FAIL");
+    return ok;
+}
+#endif
+
 int main(int argc, char **argv)
 {
     const char *cmd = argc > 1 ? argv[1] : "check";
@@ -760,6 +869,10 @@ int main(int argc, char **argv)
         return !env2_test(0);
     if (!strcmp(cmd, "fltb"))
         return !fltb_test(0);
+#if FELUCCA_A2W
+    if (!strcmp(cmd, "width"))
+        return !width_test(0);
+#endif
     if (!strcmp(cmd, "env2hash")) {                   /* ENV2_OLD's table as this tree renders it (to rewrite it) */
         static const int AMT[4] = {63, -64, 17, -5};
         int c, d, a;
@@ -797,6 +910,12 @@ int main(int argc, char **argv)
             printf("analog2: FLT B FAIL\n");
             ok = 0;
         }
+#if FELUCCA_A2W
+        if (!width_test(0)) {
+            printf("analog2: WIDTH FAIL\n");
+            ok = 0;
+        }
+#endif
 #endif
         printf("analog2: saw C7 off-harmonic %.1f dB, self-oscillation pitch error %.1f %% level %.0f, zipper %.1f dB %s\n",
                sawdb, err * 100, lvl, zip, ok ? "PASS" : "FAIL");

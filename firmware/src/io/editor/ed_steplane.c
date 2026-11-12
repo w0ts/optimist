@@ -36,8 +36,9 @@ typedef struct {
 static void stl_add(stl_walk_t *w, uint32_t kind, uint32_t id, uint32_t page, uint32_t cell, const char *title, const param_desc_t *d)
 {
     stl_e e;
-    if (!d || w->n >= STL_MAX || (kind == 0u ? id >= P_COUNT : id > 7u))
-        return;                                         /* (an id seen[] / lseen cannot hold: none) */
+    if (!d || w->n >= STL_MAX || (kind == 0u ? id >= P_COUNT || id > 127u : id > 7u))
+        return;                                         /* (an id seen[] / lseen cannot hold, or past the protocol's 7 bits
+                                                         * (ANALOG 2's WIDTH, 128): none; the device locks it, the list not) */
     if (kind == 0u ? (w->seen[id >> 3] >> (id & 7u)) & 1u : (w->lseen >> (id & 7u)) & 1u)
         return;                                         /* (a value once) */
     if (kind == 0u)

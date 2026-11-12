@@ -2837,6 +2837,12 @@ static HOT void mix_part(track_t *t, uint32_t n MIXACC_PARAM)
         if (ENG_IS(ENGINES[t->engine % NENGINES], DRONE) && DRONE_MEM((uint32_t)(t - trk) % NPART)->sd)   /* DRONE's BEAT: */
             FAST_CALL(insx, ifx_side_mix)(DRONE_MEM((uint32_t)(t - trk) % NPART)->side, lvl0, dl, ga, gb, MX(mix_l), MX(mix_r), n);   /* the ears' side */
 #endif
+#if FELUCCA_A2W
+        if (a2w_st[(uint32_t)(t - trk) % NPART].sd) {  /* ANALOG 2's WIDTH (eng_analog2.c): the copies' side, used once */
+            a2w_st[(uint32_t)(t - trk) % NPART].sd = 0;
+            FAST_CALL(insx, ifx_side_mix)(a2w_st[(uint32_t)(t - trk) % NPART].side, lvl0, dl, ga, gb, MX(mix_l), MX(mix_r), n);
+        }
+#endif
     }
 }
 #include "punch/punch.c"            /* PUNCH-IN FX on the whole mix (FX held + a white key) */

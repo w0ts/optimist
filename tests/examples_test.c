@@ -148,7 +148,7 @@ static void t_exgn(void)
     check("EXGN: its TLV round trip (T1 T2 T3 DR)", n == NTRK && trk[1].p[P_TEXGN] == 90 && TDRUM->p[P_TEXGN] == 112 &&
           !trk[0].p[P_TEXGN]);
     sid = mot_sid(P_TEXGN);
-    check("EXGN: the motion's stored id, the second tail + 11, both ways", sid == AUTO_TAIL2 + 11u && mot_id(sid) == P_TEXGN);
+    check("EXGN: the motion's stored id, the second tail + 12, both ways", sid == AUTO_TAIL2 + 12u && mot_id(sid) == P_TEXGN);
     gx_reset();
 }
 

@@ -309,7 +309,7 @@ static int fltb_models_test(void)
         trk[0].p[P_A2BCUT] = (int16_t)(rnd(&seed) % 128u), trk[0].p[P_A2BRES] = 127;
         for (i = 0; i < CTL; i++)
             b[i] = (int32_t)(rnd(&seed) >> 16) - 32768;
-        a2_fltb(&trk[0], &trk[0].v[0], b, CTL);
+        a2_fltb(&trk[0], A2_FB(0)[0], b, CTL);       /* (part 0's voice 0: its FLT B states) */
         for (i = 0; i < CTL; i++)
             pk = abs(b[i]) > pk ? abs(b[i]) : pk;
         ok &= pk <= 65535;

@@ -1487,6 +1487,8 @@ job; ( jobin
 job; ( jobin
     $CC -w -I"$HGEN" -Ifirmware/src -o "$OUT/project_test" tests/project_test.c -lm
     run "project formats (FUN6 x2 / FUN5 / FUN4 / FUN3 / FUN2 / FUN1 -> FUN7), FM6 voices, capture / apply, autosave" "$OUT/project_test"
+    $CC -w -I"$HGEN" -Ifirmware/src -DFELUCCA_A2_WIDTH=0 -o "$OUT/project_nw_test" tests/project_test.c -lm
+    run "project formats without ANALOG 2's WIDTH (A2_WIDTH 0): the same, no WREC block" "$OUT/project_nw_test"
 ) >"$U.out" 2>&1 & jobbg
 job; ( jobin
     $CC -w -I"$HGEN" -Ifirmware/src -o "$OUT/brt_full" tests/builder_rt_test.c -lm
@@ -1940,6 +1942,10 @@ job; ( jobin
 job; ( jobin
     $CC -O2 -w -I"$HGEN" -Ifirmware/src -o "$OUT/analog2_test" tests/analog2_test.c -lm
     run "ANALOG 2: aliasing, filter response and self-oscillation, zipper, ENV2 (voice.c env2_tick, its slots: the 160 renders of DST2 + AMT2 bit for bit), FLT B (OFF identical, HP, LP, ringing bounded, DEST FLT B) (analog2_test alias / filter / zipper / env2 / fltb)" "$OUT/analog2_test" check
+    $CC -O2 -w -I"$HGEN" -Ifirmware/src -DFELUCCA_A2_WIDTH=0 -o "$OUT/analog2_nw_test" tests/analog2_test.c -lm
+    run "ANALOG 2 without WIDTH (A2_WIDTH 0): the same checks, mono" "$OUT/analog2_nw_test" check
+    $CC -O2 -w -I"$HGEN" -Ifirmware/src -DFELUCCA_A2_WIDTH=1 -DFELUCCA_A2_LADR=1 -DFELUCCA_A2_OTA=1 -DFELUCCA_A2_DIOD=1 -DFELUCCA_A2_MS20=1 -o "$OUT/analog2_w_test" tests/analog2_test.c -lm
+    run "ANALOG 2 with WIDTH (A2_WIDTH): the checks above, and WIDTH: the mid the very same samples, a side, SWARM 1 mono, FLT, FLT B and each model on the side (analog2_test width)" "$OUT/analog2_w_test" check
     $CC -O2 -w -I"$HGEN" -Ifirmware/src -DFELUCCA_A2_LADR=1 -DFELUCCA_A2_OTA=1 -DFELUCCA_A2_DIOD=1 -DFELUCCA_A2_MS20=1 -o "$OUT/a2_models_test" tests/a2_models_test.c -lm
     run "ANALOG 2's filter models LADR OTA DIOD MS20: each FTYP's shape, self-oscillation in tune, full-scale noise at RES 127 bounded, a model switched under a note, FLT 2's MODEL / FTYP cards, FLT B's cards and every model through it bounded (a2_models_test resp / osc / speed)" "$OUT/a2_models_test" check
 ) >"$U.out" 2>&1 & jobbg

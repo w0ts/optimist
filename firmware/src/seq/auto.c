@@ -131,8 +131,13 @@ static const uint8_t MOT_TAIL2[] = {
     P_COUNT, P_COUNT,                                        /* (ROOM's and TDLY's MIX, +9 +10, 2026-10-29: the REV and DLY
                                                               * inserts' MIX is P_REV P_DLY since, their own ids; kept
                                                               * here as none so EXGN's stays +11) */
+#if FELUCCA_A2W
+    P_A2WDTH,                                                /* (ANALOG 2's WIDTH, 2026-11-11: +11; EXGN's +12 since) */
+#else
+    P_COUNT,
+#endif
 #if FELUCCA_EX_GAIN
-    P_TEXGN,                                                 /* (EXGN's GAIN, the example insert: +11, only in its builds; a
+    P_TEXGN,                                                 /* (EXGN's GAIN, the example insert: +12, only in its builds; a
                                                               * value added for good goes before it, as P_COUNT where not built) */
 #endif
 };

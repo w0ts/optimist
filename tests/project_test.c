@@ -571,6 +571,54 @@ int main(void)
             ok &= trk[t].p[P_A2BTYP] == (int16_t)(A2M_MODES + t) && trk[t].p[P_A2BCUT] == (int16_t)(20 + 50 * t) &&
                   trk[t].p[P_A2BRES] == (int16_t)(127 - t);
         bad += check("FLT B (modulation record 0xD5): each part's MODEL+TYPE, FREQ, RES back", ok);
+#if FELUCCA_A2W
+        {   /* WIDTH (the record's WREC block): each part's back; alone (every other value at its default) it still writes the
+             * record; none set: no block, 0 back */
+            static const int16_t W[NPART] = {7, 127, 0};
+            for (t = 0; t < NPART; t++)
+                trk[t].p[P_A2WDTH] = W[t % 3u];
+            trk[0].p[P_L1TRIG] = 2;                     /* (an XREC block before it) */
+            proj_capture(&q, &rt_dl);
+            for (t = 0; t < NPART; t++)
+                trk[t].p[P_A2WDTH] = 99;
+            trk[0].p[P_L1TRIG] = 0;
+            proj_apply(&q, &rt_dl, 1);
+            ok = trk[0].p[P_L1TRIG] == 2;
+            for (t = 0; t < NPART; t++)
+                ok &= trk[t].p[P_A2WDTH] == W[t % 3u];
+            trk[0].p[P_L1TRIG] = TP[P_L1TRIG].def;
+            bad += check("WIDTH (modulation record, its WREC block 0xD8): each part's back, after XREC", ok);
+            host_tracks_init();
+            trk[1].p[P_A2WDTH] = 64;
+            proj_capture(&q, &rt_dl);
+            trk[1].p[P_A2WDTH] = 0;
+            proj_apply(&q, &rt_dl, 1);
+            ok = trk[1].p[P_A2WDTH] == 64 && trk[0].p[P_A2WDTH] == 0;
+            trk[1].p[P_A2WDTH] = 0;
+            proj_capture(&q, &rt_dl);
+            trk[1].p[P_A2WDTH] = 33;
+            proj_apply(&q, &rt_dl, 1);
+            ok &= trk[1].p[P_A2WDTH] == 0;
+            bad += check("WIDTH alone: the record written for it, back; none: 0 back", ok);
+            for (t = 0; t < NPART; t++)                 /* (as before this block: the checks after it read q) */
+                trk[t].p[P_A2WDTH] = 0;
+            host_tracks_init();
+            for (t = 0; t < NPART; t++) {
+                trk[t].p[P_A2ESUS] = (int16_t)(10 + t);
+                trk[t].p[P_A2EREL] = (int16_t)(120 + t);
+                trk[t].p[P_A2EPIT] = (int16_t)(-64 + (int)t);
+                trk[t].p[P_A2ESHP] = (int16_t)(63 - (int)t);
+                trk[t].p[P_A2EOS2] = trk[t].p[P_A2ESDT] = trk[t].p[P_A2FENV] = 0;
+                (void)env_load(trk[t].p);
+                trk[t].p[P_A2FATK] = (int16_t)(30 + t);
+                trk[t].p[P_E7] = (int16_t)(40 + t);
+                trk[t].p[P_A2BTYP] = (int16_t)(A2M_MODES + t), trk[t].p[P_A2BCUT] = (int16_t)(20 + 50 * t);
+                trk[t].p[P_A2BRES] = (int16_t)(127 - t);
+            }
+            proj_capture(&q, &rt_dl);
+            proj_apply(&q, &rt_dl, 1);
+        }
+#endif
         for (t = 0; t < NPART; t++)
             ok &= trk[t].p[P_A2ESUS] == (int16_t)(10 + t) && trk[t].p[P_A2EREL] == (int16_t)(120 + t) &&
                   env_rt(trk[t].p)[P_A2EPIT] == (int16_t)(-64 + (int)t) && env_rt(trk[t].p)[P_A2ESHP] == (int16_t)(63 - (int)t) &&
@@ -663,6 +711,9 @@ int main(void)
             v[i] = trk[0].p[i];
         v[P_E4] = 33, v[P_E5] = 127, v[P_A2SWRM] = 4, v[P_A2SEMI] = -24, v[P_L1DA] = LT_FLTB, v[P_L1AA] = -128;
         v[P_A2BTYP] = (int16_t)(A2M_MODES + 3), v[P_A2BCUT] = 77, v[P_A2BRES] = 101;
+#if FELUCCA_A2W
+        v[P_A2WDTH] = 90;                             /* (WIDTH: a sound's value, after LFO's TRIG POL) */
+#endif
         memset(&r, 0, sizeof r);
         r.used = UP_USED, r.engine = (uint8_t)eng_uid(0), r.name[0] = 'A';
         up_vals_put(&r, v);

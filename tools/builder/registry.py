@@ -271,6 +271,11 @@ _add("A2_MS20", "FELUCCA_A2_MS20", "ANALOG 2 filter: MS20 (Sallen-Key, MS-20-sty
      tested="on the FM-1: in use, working (the user, 2026-10-25); host-tested (responses, self-oscillation, stability)",
      desc="A Sallen-Key 2-pole with its band fed back through a tanh: it screams at high RES and rings loud. LP, BP, "
           "HP and NOTCH its own, LP24 a further pole (18 dB)." + _A2M_DESC)
+_add("A2_WIDTH", "FELUCCA_A2_WIDTH", "ANALOG 2: swarm WIDTH (stereo)", E, 455, parent="ENG_ANALOG", default=1,
+     tested="host-tested (the mid unchanged, the side, projects and presets); not on the FM-1 yet",
+     desc="WIDTH on the SWARM page: the swarm's copies panned alternately left and right, osc 1 and 2 in the middle, "
+          "0 (mono, as before) .. 100 %. Nothing with fewer than two copies. The side runs through its own copy of "
+          "both filters, so a voice with WIDTH up costs more (a second filter, and FLT B's when on); at 0, nothing.")
 _add("ENG_DIGITAL", "FELUCCA_ENG_DIGITAL", "DIGITAL (4-operator FM)", E, 1,
      desc="Four-operator FM synth: 8 classic algorithms, feedback on operator 4 and one modulation INDEX with its "
           "own envelope. About 2 KB of flash; the stand-in for FM6 when FM6 is left out.")
