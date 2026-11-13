@@ -1,6 +1,6 @@
 {
  "base": {
-  "flash": 755348,
+  "flash": 755352,
   "ram": 108108,
   "pool": 346088,
   "ramtext": 61392
@@ -1861,7 +1861,7 @@
    }
   }
  },
- "measured": "2026-11-13 10:05",
+ "measured": "2026-11-13 12:00",
  "cpu": {
   "scale_pct": 104,
   "calibrated": "2026-10-06, emulator at 96 MHz, bench.c scenarios 1 2 3 7 8 (docs/CPU-GUARD.md); X0X: 2026-10-07, scenario 8 on the X0X 909 and 808 kits (x0x-drums)",
@@ -2088,7 +2088,7 @@
    "contexts": {}
   },
   "drum-machines": {
-   "hash": "305f7d9a",
+   "hash": "4fed6d51",
    "cfg": {
     "ENG_ANALOG": 0,
     "ENG_DIGITAL": 2,
@@ -2121,7 +2121,6 @@
     "FX_DJF": 0,
     "FX_DUST": 0,
     "MASTER_COMP": 0,
-    "INS_FOLD": 1,
     "INS_FUZZ": 1,
     "INS_FLANGER": 1,
     "INS_GATER": 1,
@@ -2154,12 +2153,12 @@
     "GRIDS_LFO": 1,
     "GRIDS_VEL": 1
    },
-   "built_hash": "0b18e934",
+   "built_hash": "6e4f3f4b",
    "sizes": {
-    "flash": 655352,
-    "ram": 112836,
+    "flash": 655184,
+    "ram": 112468,
     "pool": 167312,
-    "ramtext": 41312
+    "ramtext": 41184
    },
    "contexts": {}
   },
@@ -3129,7 +3128,7 @@
    "contexts": {}
   },
   "drum-machines~": {
-   "hash": "048a0100",
+   "hash": "7503c85b",
    "cfg": {
     "ENG_ANALOG": 0,
     "ENG_DIGITAL": 2,
@@ -3160,7 +3159,6 @@
     "FX_DJF": 0,
     "FX_DUST": 0,
     "MASTER_COMP": 0,
-    "INS_FOLD": 1,
     "INS_FUZZ": 1,
     "INS_FLANGER": 1,
     "INS_GATER": 1,
@@ -3193,12 +3191,12 @@
     "GRIDS_LFO": 1,
     "GRIDS_VEL": 1
    },
-   "built_hash": "561c3d34",
+   "built_hash": "00f2f53f",
    "sizes": {
-    "flash": 615200,
-    "ram": 112856,
+    "flash": 615004,
+    "ram": 112488,
     "pool": 161968,
-    "ramtext": 41344
+    "ramtext": 41216
    },
    "contexts": {}
   },
