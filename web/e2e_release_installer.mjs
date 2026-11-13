@@ -24,8 +24,8 @@ let failed = 0;
 const ok = (c, what) => { console.log(`${what.padEnd(100)} ${c ? "ok" : "FAIL"}`); if (!c) failed++; };
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
-/* ---- the release's site, from a simulated package (identity FM-1_79 and the version's six digits) */
-const PRODUCT = "FM-1_79000300";
+/* ---- the release's site, from a simulated package (identity FM-1_709 and the version's six digits) */
+const PRODUCT = "FM-1_709000400";
 const WORK = join(ROOT, "worktrees", "g3-release-e2e");
 rmSync(WORK, { recursive: true, force: true });
 mkdirSync(WORK, { recursive: true });

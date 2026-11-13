@@ -81,7 +81,7 @@ export function packageKind(product, sha256 = "", flashLen = null, ownLoader = t
   else if (/^FM-1_0(0[1-9]|1\d)$/.test(product)) kind = "stock";
   else if (/^FM-1_7(00|[2-6]\d)$/.test(product) && OWN_SLOTS.includes(flashLen) && ownLoader) kind = "optimist";
   else if (/^FM-1_9\d\d$/.test(product) && OWN_SLOTS.includes(flashLen)) kind = "felucca";
-  else if (/^FM-1_(0\d{6}|79\d{2,})$/.test(product) || /^FM-1_\d{4,}$/.test(product)) kind = "fm1base";
+  else if (/^FM-1_(0\d{6}|(79|709)\d{2,})$/.test(product) || /^FM-1_\d{4,}$/.test(product)) kind = "fm1base";
   else kind = "other";
   return { kind, product, flashLen, ownLoader };
 }
@@ -89,7 +89,7 @@ export function packageKind(product, sha256 = "", flashLen = null, ownLoader = t
 /* the running Optimist's word on its bootloader (fm1_route.py boot_of_info): the editor's INFO, tag 0x68 "boot=mboot",
    "boot=stock" or "boot=unknown" (firmware/src/system/bootid.h). Asked of Optimist's identities only; no answer: not known */
 export const ED_INFO = [0xF0, 0x7D, 0x46, 0x4C, 0x01, 0xF7];
-export const ASKS_BOOT = /^FM-1_(7(00|[2-6]\d)|000|79\d{2,})$/;
+export const ASKS_BOOT = /^FM-1_(7(00|[2-6]\d)|000|(79|709)\d{2,})$/;
 /** the word of INFO's tag 0x68 in an INFO reply (bytes), null without (an older Optimist) */
 export function bootOfInfo(bytes) {
   const b = Array.from(bytes || []);

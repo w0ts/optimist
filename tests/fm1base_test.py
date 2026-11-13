@@ -94,8 +94,8 @@ check("--classic: Optimist's own exact-sizes file and costs.json", C.exact_file(
 C.CLASSIC = False
 check("without costs-fm1base.json the release's budget reads costs.json (and says so)",
       C.COSTS_RELEASE.is_file() or (C.costs_file() == C.COSTS and not C.costs_measured()))
-check("flash accepts the release's identity FM-1_7900 and FM-1_79010203, not FM-1_781",
-      all(flash.OPTIMIST_ID.fullmatch(x) for x in ("FM-1_7900", "FM-1_79010203", "FM-1_700", "FM-1_731"))
+check("flash accepts the release's identity FM-1_70900 and FM-1_709000400 (0.3: FM-1_7900, FM-1_79010203), not FM-1_781",
+      all(flash.OPTIMIST_ID.fullmatch(x) for x in ("FM-1_7900", "FM-1_79010203", "FM-1_70900", "FM-1_709000400", "FM-1_700", "FM-1_731"))
       and not flash.OPTIMIST_ID.fullmatch("FM-1_781"))
 import core as K  # noqa: E402
 import fm1base_ld  # noqa: E402

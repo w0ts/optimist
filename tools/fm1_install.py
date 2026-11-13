@@ -45,7 +45,7 @@ UPGRADE = bytes([0xF0, 0x22, 0x24, 0x35, 0x7F, 0xF7])
 MIDI_STOP = bytes([0xFC])      # real-time STOP: the running firmware stops its transport before an update (harmless if it already does)
 ED_INFO = bytes([0xF0, 0x7D, 0x46, 0x4C, 0x01, 0xF7])   # the editor's INFO (web/EDITOR_PROTOCOL.md): its tag 0x68 says which
                                                         # bootloader the FM-1 has (an Optimist since 2026-10-31)
-ASKS_BOOT = re.compile(r"FM-1_(7(00|[2-6]\d)|000|79\d{2,})")   # (Optimist's identities, its release's: only these are asked)
+ASKS_BOOT = re.compile(r"FM-1_(7(00|[2-6]\d)|000|(79|709)\d{2,})")   # (Optimist's identities, its release's: only these are asked)
 FINISH_CHECK, FINISH_WRITE = 0xE0000000, 0xF0000000
 MAXDATA = 512
 # the fast install (docs/INSTALL-SPEED.md): before step 2's upgrade command the host says it can serve 4 KiB reads and the
@@ -751,13 +751,13 @@ def flash_size(image):
 
 def platform_warning(running, product, image):
     """why the running firmware may refuse this package, said before anything is sent, or None. Optimist's own
-    updater (a running FM-1_7NN) takes its own layouts only and refuses fm1-base's packages (FM-1_79..., the
+    updater (a running FM-1_7NN) takes its own layouts only and refuses fm1-base's packages (FM-1_709..., FM-1_79..., the
     release identities): 2026-10-29, an fm1-base SD card mode package (flash.bin 0xCE000) over an Optimist build
     stopped at the device's loader check (-16), nothing written"""
     if running.loader or not re.fullmatch(r"FM-1_7\d\d", running.text):
         return None
     size = flash_size(image)
-    if re.fullmatch(r"FM-1_79\d\d+", product):
+    if re.fullmatch(r"FM-1_(79|709)\d\d+", product):
         why = f"{product} is an fm1-base package"
     elif size is not None and size not in OWN_SLOTS:
         why = f"its flash.bin is {size:#x} B, Optimist's layouts {', '.join(f'{s:#x}' for s in OWN_SLOTS)}"
