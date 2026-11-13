@@ -72,7 +72,7 @@ writes the package's stock bootloader, not m-bootloader.
 | SLOOP (FM-1_9NN, its port named SLOOP) | update loader; with m-bootloader: download mode | update loader; with m-bootloader: download mode | update loader; with m-bootloader: download mode | download mode | download mode |
 | Optimist's own firmware (FM-1_700, FM-1_720 .. 769) | update loader; with m-bootloader: download mode | update loader; with m-bootloader: download mode | update loader; with m-bootloader: download mode | download mode | download mode |
 | FM-1_000: Optimist in its USB rescue, or an fm1-base development build | update loader; with m-bootloader: download mode | update loader; with m-bootloader: download mode | update loader; with m-bootloader: download mode | download mode | download mode |
-| an fm1-base firmware (FM-1_0 + 6 digits, Optimist's release FM-1_79..) | update loader; with m-bootloader: download mode | update loader; with m-bootloader: download mode | update loader; with m-bootloader: download mode | update loader; with m-bootloader: download mode | download mode |
+| an fm1-base firmware (FM-1_0 + 6 digits, Optimist's release FM-1_709.., 0.3: FM-1_79..) | update loader; with m-bootloader: download mode | update loader; with m-bootloader: download mode | update loader; with m-bootloader: download mode | update loader; with m-bootloader: download mode | download mode |
 | Baud Girl (FM-1_020 .. 098) | update loader; with m-bootloader: download mode | update loader; with m-bootloader: download mode | update loader; with m-bootloader: download mode | update loader; with m-bootloader: download mode | download mode |
 | nothing answers on USB-MIDI (off, no data cable, a firmware that does not start, already in download mode) | download mode | download mode | download mode | download mode | download mode |
 
@@ -107,7 +107,7 @@ see the FM-1 (`m-flasher find`).
 | SLOOP (FM-1_9NN, its port named SLOOP) | not known | OCT- + OCT+ held 5 s |
 | Optimist's own firmware (FM-1_700, FM-1_720 .. 769) | yes (io/usb/usb.c) | OCT- + OCT+ held 5 s while stopped; or held while switching on, 3 s |
 | FM-1_000: Optimist in its USB rescue, or an fm1-base development build | yes (both) | OCT- + OCT+ held while switching on, 3 s (Optimist); REC while switching on (fm1-base) |
-| an fm1-base firmware (FM-1_0 + 6 digits, Optimist's release FM-1_79..) | yes (felucca-bsp chip/usb.c) | REC held while switching on |
+| an fm1-base firmware (FM-1_0 + 6 digits, Optimist's release FM-1_709.., 0.3: FM-1_79..) | yes (felucca-bsp chip/usb.c) | REC held while switching on |
 | another firmware (FM-1_5NN Lunar, FM-1_701 ...) | not known | not known: m-bootloader's REC at power-on |
 | nothing answers on USB-MIDI (off, no data cable, a firmware that does not start, already in download mode) | no | m-bootloader: REC while switching on, or PLAY then MIDI MODE; Optimist: OCT- + OCT+ while switching on, 3 s; else the USB_KEY dongle |
 | m-bootloader installed (any firmware) | - | hold REC while switching on (m-bootloader's download mode; PLAY: its menu, DOWNLOAD MODE or MIDI MODE) |

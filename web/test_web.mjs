@@ -3393,7 +3393,7 @@ async function packages() {   /* needs build/felucca.fwsc */
     "sys.stdout.buffer.write(head + blob[960:])",
   ].join("\n"), pkg);
   ok(eq(logicalImage(bytes), logical), "fm1pkg.js: logicalImage == Python's");
-  ok(/^FM-1_([79]\d\d|79\d{2,6})$/.test(productOf(bytes)), "fm1pkg.js productOf");
+  ok(/^FM-1_([79]\d\d|(79|709)\d{2,7})$/.test(productOf(bytes)), "fm1pkg.js productOf");
   ok(["ota-FM-1_700", "ota-FM-1_712", "ota-FM-1_900", "ota-FM-1_906"].every((text) => OUR_LOADER({ text })) &&
      !["ota-FM-1_015", "ota-FM-1_500", "ota-FM-1", "FM-1_700"].some((text) => OUR_LOADER({ text })),
      "fm1ota.js OUR_LOADER: Optimist (7XX) and SLOOP / Felucca (9XX) loaders, no other");

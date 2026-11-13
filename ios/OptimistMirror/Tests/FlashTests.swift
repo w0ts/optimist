@@ -471,6 +471,7 @@ final class FlashTests: XCTestCase {
         }
         XCTAssertEqual(InstallRoute.runningKind("FM-1_906", port: "SLOOP 2.7"), "sloop")
         XCTAssertEqual(InstallRoute.runningKind("FM-1_7900"), "fm1base")
+        XCTAssertEqual(InstallRoute.runningKind("FM-1_709000400"), "fm1base")
         XCTAssertEqual(InstallRoute.runningKind("FM1_OFFICIAL_OPEN"), "open")
         XCTAssertEqual(InstallRoute.packageKind(product: "FM-1_700", sha256: "", flashLen: 0xCE000).kind, "other")
         XCTAssertNil(InstallRoute.flashLen([1, 2, 3]))
@@ -485,6 +486,7 @@ final class FlashTests: XCTestCase {
         XCTAssertNil(InstallRoute.bootOfInfo(head + [0xF7]))
         XCTAssertNil(InstallRoute.bootOfInfo([0x68, 3] + Array("boot=mboot".utf8)))
         XCTAssertTrue(InstallRoute.asksBoot("FM-1_7900") && InstallRoute.asksBoot("FM-1_700") && !InstallRoute.asksBoot("FM-1_905"))
+        XCTAssertTrue(InstallRoute.asksBoot("FM-1_70900") && InstallRoute.asksBoot("FM-1_709000400"))   // (the release from 0.4)
         let own = InstallRoute.Package(kind: "optimist", product: "FM-1_700", flashLen: 0x93000, ownLoader: true)
         let v15 = InstallRoute.Package(kind: "v15", product: "FM-1_015", flashLen: 0x93000, ownLoader: false)
         XCTAssertEqual(InstallRoute.choose("optimist", own, bootloader: "m-bootloader", mbootPresent: true).method, "loader")

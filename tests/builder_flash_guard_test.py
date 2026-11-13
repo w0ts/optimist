@@ -129,7 +129,7 @@ with tempfile.TemporaryDirectory() as td:
     # the platform warning (2026-10-29: an fm1-base package over an Optimist build stopped at the device's loader
     # check, -16): shown in the confirmation, and only an accepted plan passes --force to the installer
     fm1b = ROOT / "build" / "felucca.fwsc"
-    if fm1b.is_file() and FL.FI.product_of(fm1b.read_bytes()).startswith("FM-1_79"):
+    if fm1b.is_file() and FL.FI.product_of(fm1b.read_bytes()).startswith(("FM-1_709", "FM-1_79")):
         product = FL.FI.product_of(fm1b.read_bytes())
         note = FL.platform_note(fm1b, product, "FM-1_700  [running]  port: Optimist")
         check("platform: an fm1-base package over an Optimist build is warned about", note and "fm1-base" in note)

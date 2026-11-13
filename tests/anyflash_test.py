@@ -86,7 +86,7 @@ def detection():
     cases = {("FM-1_015", "FM-1"): R.STOCK, ("FM-1_016", ""): R.STOCK, ("FM-1_045", ""): R.BAUDGIRL,
              ("FM-1_906", "Felucca"): R.FELUCCA, ("FM-1_906", "SLOOP 2.7"): R.SLOOP, ("FM-1_700", "FM1-1A2B"): R.OPTIMIST,
              ("FM-1_731", ""): R.OPTIMIST, ("FM-1_000", ""): R.AMBIG_000, ("FM-1_7900", "FM1-1A2B"): R.FM1BASE,
-             ("FM-1_79000200", ""): R.FM1BASE, ("FM-1_0000100", ""): R.FM1BASE, ("FM1_OFFICIAL_OPEN", ""): R.OPEN,
+             ("FM-1_79000200", ""): R.FM1BASE, ("FM-1_709000400", ""): R.FM1BASE, ("FM-1_70900", ""): R.FM1BASE, ("FM-1_0000100", ""): R.FM1BASE, ("FM1_OFFICIAL_OPEN", ""): R.OPEN,
              ("FM1_COMMUNITY_3", ""): R.OPEN, ("FM-1_501", ""): R.OTHER, ("FM-1_701", ""): R.OTHER,
              ("ota-FM-1_700", ""): R.LOADER, (None, ""): R.NONE}
     bad = {k: R.running_kind(*k) for k, v in cases.items() if R.running_kind(*k) != v}

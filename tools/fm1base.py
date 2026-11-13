@@ -381,7 +381,7 @@ def site(pkg, version, out, cfgfile=None, emu=True, python=sys.executable):
     optimist-site, removed after) that has Optimist's inputs: the front page (APP/site/landing.md), the manual built from
     docs/guide (tools/site_manual.py), the name, tagline and repo of fm1.toml; its emulator is APP/build/emu (built here
     unless emu is False: a directory with app.wasm is there already). pkg: the release build's package (identity
-    FM-1_79 and the version's six digits: tools/build.py --release)"""
+    FM-1_709 (0.3 and before: FM-1_79) and the version's six digits: tools/build.py --release)"""
     import site_manual
     ready()
     if emu:

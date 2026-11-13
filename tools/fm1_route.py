@@ -39,7 +39,7 @@ FIRMWARES = {
                "OCT- + OCT+ held 5 s while stopped; or held while switching on, 3 s"),
     AMBIG_000: ("FM-1_000: Optimist in its USB rescue, or an fm1-base development build", "yes (both)",
                 "OCT- + OCT+ held while switching on, 3 s (Optimist); REC while switching on (fm1-base)"),
-    FM1BASE: ("an fm1-base firmware (FM-1_0 + 6 digits, Optimist's release FM-1_79..)", "yes (felucca-bsp chip/usb.c)",
+    FM1BASE: ("an fm1-base firmware (FM-1_0 + 6 digits, Optimist's release FM-1_709.., FM-1_79..)", "yes (felucca-bsp chip/usb.c)",
               "REC held while switching on"),
     OTHER: ("another firmware (FM-1_5NN Lunar, FM-1_701 ...)", "not known", "not known: m-bootloader's REC at power-on"),
     LOADER: ("an update loader (an install was cut off, or m-bootloader's MIDI MODE)", "no", "-"),
@@ -55,7 +55,7 @@ P_V15, P_STOCK, P_MBOOT, P_OPTIMIST, P_FM1BASE, P_FELUCCA, P_OTHER = (
     "v15", "stock", "mboot", "optimist", "fm1base", "felucca", "other")
 PACKAGES = {P_V15: "M-VAVE's V15, unchanged (its SHA-256)", P_STOCK: "another M-VAVE package (FM-1_0NN)",
             P_MBOOT: "m-bootloader's installer (FM-1_099)", P_OPTIMIST: "an Optimist build of its own (FM-1_7NN)",
-            P_FM1BASE: "an fm1-base package (Optimist's release FM-1_79.., any FM-1_0 + 6 digits)",
+            P_FM1BASE: "an fm1-base package (Optimist's release FM-1_709.., FM-1_79.., any FM-1_0 + 6 digits)",
             P_FELUCCA: "a Felucca / SLOOP package (FM-1_9NN)", P_OTHER: "another firmware's package"}
 
 
@@ -111,7 +111,7 @@ def package_kind(raw: bytes, flash_len: int | None = None) -> PackageInfo:
         kind = P_OPTIMIST
     elif re.fullmatch(r"FM-1_9\d\d", product) and flash_len in OWN_SLOTS:
         kind = P_FELUCCA
-    elif re.fullmatch(r"FM-1_(0\d{6}|79\d{2,})", product) or re.fullmatch(r"FM-1_\d{4,}", product):
+    elif re.fullmatch(r"FM-1_(0\d{6}|(79|709)\d{2,})", product) or re.fullmatch(r"FM-1_\d{4,}", product):
         kind = P_FM1BASE
     else:
         kind = P_OTHER
@@ -237,7 +237,7 @@ def bootloader_choice(build_value: str | None, install_mboot: bool = False) -> t
 # this installer's own erase of the new firmware's settings (fm1_layouts.WIPE), in the planned flash, nothing else.
 
 OWN_ID = re.compile(r"FM-1_7(00|[2-6]\d)")
-RELEASE_ID = re.compile(r"FM-1_79\d{2,}")
+RELEASE_ID = re.compile(r"FM-1_(79|709)\d{2,}")
 
 
 @dataclass(frozen=True)

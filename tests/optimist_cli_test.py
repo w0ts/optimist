@@ -303,8 +303,8 @@ with tempfile.TemporaryDirectory() as d:
     ms = importlib.import_module("make_site")
     check("site: the identities it takes: Optimist's (FM-1_7NN), the release's (FM-1_79NN, FM-1_79NNNNNN), Felucca's; "
           "not stock's or a malformed one",
-          all(ms.SITE_ID.fullmatch(p) for p in ("FM-1_700", "FM-1_721", "FM-1_7900", "FM-1_79010203", "FM-1_905"))
-          and not any(ms.SITE_ID.fullmatch(p) for p in ("FM-1_015", "FM-1_79012", "FM-1_7", "FM-1_8900")))
+          all(ms.SITE_ID.fullmatch(p) for p in ("FM-1_700", "FM-1_721", "FM-1_7900", "FM-1_79010203", "FM-1_70900", "FM-1_709000400", "FM-1_905"))
+          and not any(ms.SITE_ID.fullmatch(p) for p in ("FM-1_015", "FM-1_79012", "FM-1_709012", "FM-1_7", "FM-1_8900")))
     fwsc = next((c for c in (ROOT / "build" / "felucca.fwsc", *sorted((ROOT / "build").glob("optimist-*.fwsc"))) if c.exists()), None)
     if fwsc is None:
         print("notices: no package in build/: the site check is skipped")

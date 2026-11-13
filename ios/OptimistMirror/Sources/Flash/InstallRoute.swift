@@ -32,7 +32,7 @@ enum InstallRoute {
     static let edInfo: [UInt8] = [0xF0, 0x7D, 0x46, 0x4C, 0x01, 0xF7]
 
     /// whether this identity is asked (Optimist's, its release's)
-    static func asksBoot(_ identity: String) -> Bool { m(identity, #"^FM-1_(7(00|[2-6]\d)|000|79\d{2,})$"#) }
+    static func asksBoot(_ identity: String) -> Bool { m(identity, #"^FM-1_(7(00|[2-6]\d)|000|(79|709)\d{2,})$"#) }
 
     /// the word of INFO's tag 0x68 in an INFO reply, nil without (an older Optimist)
     static func bootOfInfo(_ b: [UInt8]) -> String? {
@@ -93,7 +93,7 @@ enum InstallRoute {
         else if m(product, #"^FM-1_0(0[1-9]|1\d)$"#) { kind = "stock" }
         else if m(product, #"^FM-1_7(00|[2-6]\d)$"#), let f = flashLen, ownSlots.contains(f), ownLoader { kind = "optimist" }
         else if m(product, #"^FM-1_9\d\d$"#), let f = flashLen, ownSlots.contains(f) { kind = "felucca" }
-        else if m(product, #"^FM-1_(0\d{6}|79\d{2,})$"#) || m(product, #"^FM-1_\d{4,}$"#) { kind = "fm1base" }
+        else if m(product, #"^FM-1_(0\d{6}|(79|709)\d{2,})$"#) || m(product, #"^FM-1_\d{4,}$"#) { kind = "fm1base" }
         else { kind = "other" }
         return Package(kind: kind, product: product, flashLen: flashLen, ownLoader: ownLoader)
     }
