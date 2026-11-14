@@ -3654,6 +3654,10 @@ async function installerModule() {
   ok(own.product === "FM-1_905" && await code(INST.checkPackage(fakePackage("FM-1_015"))) === "notours" && await code(INST.checkPackage(noLoader)) === "noloaderpkg"
     && await code(INST.checkPackage(new Uint8Array(100))) === "notours",
     "installer: checkPackage: a file of yours: Optimist / SLOOP packages with the loader; nothing else (not the stock identity, no loader, too short)");
+  const fm1b = [];
+  for (const id of ["FM-1_7900", "FM-1_79000300", "FM-1_70900", "FM-1_709000400"]) fm1b.push((await INST.checkPackage(fakePackage(id))).product === id);
+  ok(fm1b.every(Boolean) && await code(INST.checkPackage(fakePackage("FM-1_79012"))) === "notours",
+    "installer: checkPackage: a cloud build or a release on fm1-base (FM-1_7900, FM-1_709..) is taken (issue 259: every cloud build was refused)");
   let prev = 0;
   const seq = [["start"], ["verify", 10], ["verify", 74], ["loader"], ["write", 1, 0], ["write", 9, 0x8000], ["write", 2, 0x100], ["write", 99, 0xFE00], ["reboot"], ["done"]]
     .map(([k, a, addr]) => (prev = INST.progressOf(k, a, addr, 0x10000, prev).pct));

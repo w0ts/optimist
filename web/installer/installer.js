@@ -31,7 +31,10 @@ import { DROPPED, SOFT_KEY, fm1Devices, notChosen, resumePlan, askBoot, mbootPre
 const STYLE_ID = "optimist-installer-style";
 const BUNDLED_CSS = null;                           /* make_site.py puts web/installer/installer.css here */
 const REPO = "https://github.com/w0ts/optimist";
-const LOADER_MARK = "FELUCCA-LOADER-1";             /* firmware/loader: in every package this page installs (make_site.py) */
+const LOADER_MARK = "FELUCCA-LOADER-1";
+/* the identities this page takes from a file of the user's or a cloud build (make_site.py SITE_ID, tools/flash.py
+   OPTIMIST_ID): Optimist's own FM-1_7NN, SLOOP / Felucca FM-1_9NN, the fm1-base release FM-1_709NN[NNNN] (0.3: FM-1_79NN[NNNN]) */
+export const OUR_ID = /^(FM-1_[79]\d\d|FM-1_(79|709)\d{2}(\d{4})?)$/;             /* firmware/loader: in every package this page installs (make_site.py) */
 const isOta = (id) => /^ota-/i.test(id.model);
 const STEP1_READS = 74;                             /* the reads of step 1 on a real FM-1 (SLOOP 2.0's loader) */
 const DEFAULT_LINKS = { build: "../builder/", backup: "../editor/#backup", editor: "../editor/", sim: "../editor/", about: "../../LICENSING.md" };
@@ -220,7 +223,7 @@ export async function checkPackage(bytes, expect = null) {
   if (!expect) {
     const stock = await validateStockPackage(bytes).catch(() => null);
     if (stock) return { product: stock.product, sha256: stock.sha256, image: stock.image, stock: true, banks: await stockBanks(bytes) };
-    if (!/^FM-1_[79]\d\d$/.test(product)) throw codeError("notours", product || "no identity");
+    if (!OUR_ID.test(product)) throw codeError("notours", product || "no identity");
   } else if (product !== expect.product) throw codeError("badpkg");
   if (!has(bytes, LOADER_MARK)) throw codeError("noloaderpkg");
   try { checkUfw(logicalImage(bytes)); } catch (e) { throw codeError("damaged", e.message); }   /* (before anything is sent) */
