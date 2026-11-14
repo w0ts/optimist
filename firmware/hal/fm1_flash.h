@@ -143,7 +143,11 @@ RAMINL int fl_wait_ready(uint32_t max_us, uint32_t *took_us)
 
 /* ---- entry points: IRQs OFF, args/buffers in RAM ---- */
 
-static RAMFN uint32_t fl_jedec_ram(void)                 /* expect 0x856014 */
+/* the 1 MiB parts an FM-1 carries: the Puya P25Q80H (0x856014) and, on units sold since autumn 2026, the UC25HQ80
+ * (0xB36014; same size, same commands: issue 261, as fm1-base FM1B_FLASH_JEDEC_OK) */
+#define FL_JEDEC_OK(id) ((id) == 0x856014u || (id) == 0xB36014u)
+
+static RAMFN uint32_t fl_jedec_ram(void)                 /* expect FL_JEDEC_OK */
 {
     fl_saved_t s; uint32_t id;
     if (fl_enter(&s)) return 0;

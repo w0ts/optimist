@@ -86,7 +86,7 @@ static void ldr_record_clear(void)
 {
     fm1_updata_parm_clear();                        /* CRC 0: the SPL ignores it on a warm reset */
 }
-static int ldr_flash_known(void) { return fl_jedec_ram() == 0x856014u; }   /* as the app (project.c) */
+static int ldr_flash_known(void) { return FL_JEDEC_OK(fl_jedec_ram()); }   /* as the app (project.c) */
 /* the erase while the sector comes in (ldr_core.c, the fast install): nothing touches the flash in between */
 static fl_saved_t ldr_er_saved;
 static uint8_t ldr_er_on;

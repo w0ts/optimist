@@ -62,6 +62,8 @@ import flash_layout
 import fm1_install
 import fm1pkg_make
 
+FLASH_IDS = (0x856014, 0xB36014)     # Puya P25Q80 (stock), UC25HQ80 (units sold since autumn 2026, issue 261): both 1 MiB
+
 VID, PID = 0x4C4A, 0x8057
 STOCK_SHA256 = fm1_install.STOCK_SHA256
 # M-VAVE's V15 as this tree keeps it (Apache-2.0: M-VAVE's FM1 Open kit, sdk/firmware/FM-1_015.fwsc, sha256 STOCK_SHA256)
@@ -368,8 +370,8 @@ def rescue(dev, image, loader, write, backup_dir, say=print, confirm=None, key=N
     dev.start_loader(loader)
     chip_key, typ, fid = dev.chip()
     say(f"  chip key {chip_key:04X}, flash type {typ}, id {fid:06X}")
-    if (chip_key, typ, fid) != (0x980F, 3, 0x856014):
-        raise Fail("this is not the FM-1's chip and flash (expected key 980F, type 3, id 856014); nothing written")
+    if (chip_key, typ) != (0x980F, 3) or fid not in FLASH_IDS:
+        raise Fail("this is not the FM-1's chip and flash (expected key 980F, type 3, id 856014 or B36014); nothing written")
     if key is not None and key != chip_key:
         raise Fail(f"the package is built for chip key {key:04X}, the FM-1 has {chip_key:04X}; nothing written")
     say("  reading the whole flash ...")

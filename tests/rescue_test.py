@@ -131,6 +131,10 @@ def main():
             except R.Fail:
                 ok(not dev.writes, f"{what}: refused before anything is read or written")
 
+        dev = FakeUboot(flash, chip=(0x980F, 3, 0xB36014))
+        r = R.rescue(dev, stock, b"LDR", True, tmp, say=say)
+        ok(r is True and bytes(dev.flash[:R.APP_END]) == stock, "the newer flash part UC25HQ80 (B36014): taken as the Puya (issue 261)")
+
         dev = FakeUboot(flash, fail_writes=2)
         r = R.rescue(dev, stock, b"LDR", True, tmp, say=say)
         ok(r is True and bytes(dev.flash[:R.APP_END]) == stock, "a sector write that fails twice is retried")
