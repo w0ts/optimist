@@ -8,7 +8,8 @@
  *                        i + 1, the drums G_DRCH (0 = channel 10), as before.
  *   midi_track_idx(ch)   the track a note on channel ch plays, -1 when none does. FELUCCA_MIDI_CH: the track that has
  *                        the channel (the first one when two have it); a channel no track has plays the selected
- *                        track (as before), unless its channel is OFF. Without: part ch, the drums on G_DRCH,
+ *                        track when it is SEL CH's (bp_set.c BPS_SELCH: one channel, ANY or OFF; default 4, issue
+ *                        265), unless the selected track's channel is OFF. Without: part ch, the drums on G_DRCH,
  *                        else the selected track.
  *   midi_key_out(...)    a key of the panel to MIDI OUT (KEYS and BOTH; not with SEQ, but its note off; nothing on a
  *                        channel that is OFF)
@@ -47,8 +48,10 @@ static int midi_track_idx(uint32_t ch)
     for (i = 0; i < NTRK; i++)
         if (trk_midi_ch(i) == ch)
             return (int)i;
+    if (bp_set[BPS_SELCH] != SELCH_ANY && (uint32_t)bp_set[BPS_SELCH] != ch + 1u)
+        return -1;                                      /* (SEL CH: only its channel plays the selected track; OFF none) */
     i = song.sel % NTRK;
-    return trk_midi_ch(i) == MCH_OFF ? -1 : (int)i;     /* (a channel nobody has: the selected track, as before) */
+    return trk_midi_ch(i) == MCH_OFF ? -1 : (int)i;     /* (a channel nobody has: the selected track) */
 #else
     if (FELUCCA_DRUMS && song.g[G_DRCH] && ch + 1u == (uint32_t)song.g[G_DRCH])
         return TRK_DRUM;

@@ -352,6 +352,33 @@ static void t_flash(void)
     check("nothing is written outside the settings object's two sectors", 1);
 }
 
+/* SEL CH (bp_set.c BPS_SELCH, issue 265) in the settings record's rsv_pj[0] (VU FLOOR's retired byte): 0x80 | the value;
+ * a byte without bit 7 (0, or VU FLOOR's 0..7 of 2026-10-28..31) reads the default 4; OFF, 1..16, ANY read back as saved */
+static void t_selch(void)
+{
+#if FELUCCA_MIDI_CH
+    static const int16_t V[] = {0, 1, 4, 16, SELCH_ANY};
+    unsigned i;
+    int ok = 1;
+    for (i = 0; i < 8u; i++) {                      /* (VU FLOOR's old bytes, and 0) */
+        bp_set[BPS_SELCH] = 9;
+        selch_from_rec(i);
+        ok &= bp_set[BPS_SELCH] == SELCH_DEF;
+    }
+    for (i = 0; i < sizeof V / sizeof V[0]; i++) {
+        uint8_t b;
+        bp_set[BPS_SELCH] = V[i];
+        b = selch_to_rec();
+        bp_set[BPS_SELCH] = 9;
+        selch_from_rec(b);
+        ok &= (b & 0x80u) && bp_set[BPS_SELCH] == V[i];
+    }
+    selch_from_rec(0x80u | 99u);                    /* (out of range: the default) */
+    ok &= bp_set[BPS_SELCH] == SELCH_DEF;
+    check("settings record: SEL CH OFF / 1..16 / ANY read back; VU FLOOR's old byte, 0 or out of range: 4", ok);
+#endif
+}
+
 /* CLK OUT's mode, LINK, LINK OFS and CLK IN = LINK beside the settings word (project.c persist_ext_*; 2026-10-29): a record from before has ext_ver 0 and
  * reads CLK OUT BOTH (USB without BLE), LINK ON+S/S, LINK OFS = CLK OFS; a newer one reads what was saved */
 static void t_syncext(void)
@@ -435,6 +462,7 @@ int main(void)
     t_record();
     t_vufloor();
     t_syncext();
+    t_selch();
 #if FELUCCA_USB_AUDIO
     t_ua();
 #endif

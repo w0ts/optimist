@@ -91,7 +91,8 @@ static void glo_list_tests(void)
     ok &= !strcmp(c.label, "QUANT") && c.kind == CK_VAL;
     i = SCREENS[SCR_GLOBAL].rows() - 1u;
     SCREENS[SCR_GLOBAL].cell(i, gl_kn(SCR_GLOBAL, i), &c);
-    check(ok && !strcmp(c.label, "DRUMS"), "GLOBAL's lines: TUNE QUANT first (Tune), DRUMS last (Channels)");
+    check(ok && !strcmp(c.label, FELUCCA_MIDI_CH ? "SEL CH" : "DRUMS"),
+          "GLOBAL's lines: TUNE QUANT first (Tune), SEL CH last (Channels; DRUMS without MIDI_CH)");
     check(glo_sections(SCR_GLOBAL, GS, 3) && glo_sections(SCR_SYSTEM, SS, sizeof SS / sizeof SS[0]) && glo_find(SCR_GLOBAL, "REC 2") == SCREENS[SCR_GLOBAL].rows(),
           "the sections in order: Tune (TUNE QUANT FILT RESO) MIDI (CLK OUT on it) Channels; Info Bluetooth Devices General USB Meters Top USB-audio About Credits");
     {   /* SYSTEM's first page is INFO: one line (the page is drawn whole), its read-outs the page's own (sys_info_cell) */

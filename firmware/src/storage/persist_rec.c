@@ -184,7 +184,7 @@ typedef struct {
     uint32_t ua_mark3;
     uint8_t bt_rec[32], bt_key[32];
     uint8_t open_proj, rsv_pj[3];                  /* 2026-10-22: the open project (PATTERNS: sections.c); a record from before: 0.
-                                                    * rsv_pj[0]: retired (was VU FLOOR, 2026-10-28; fixed at -40 since 2026-10-31, the byte is ignored and written 0).
+                                                    * rsv_pj[0]: SEL CH since 2026-11-15 (bp_set.c selch_to_rec: 0x80 | value); was VU FLOOR 2026-10-28..31 (0..7, read as the default).
                                                     * rsv_pj[1] bit 0: DEBUG STATS (core/dbgstats.h: 0 = OFF), 2026-10-29;
                                                     * rsv_pj[2]: METERS, mode + 1 (core/meters.h; 0 = a record from before: CPUS), 2026-11-01 */
     int16_t clk_ofs[2];                            /* 2026-10-24: GLOBAL > MIDI CLK OFS, BT OFS, ms (clock_sync.c sync_ofs);

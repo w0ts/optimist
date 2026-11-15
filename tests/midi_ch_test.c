@@ -109,6 +109,7 @@ static void reset(void)
     midi_nheld = 0;
     host_tracks_init();
     bps_defaults();
+    bp_set[BPS_SELCH] = SELCH_DEF;                        /* (the FM-1's, not a project's: as at power-on) */
     fm1_in.notes = fm1_in.buttons = kb_prev = 0;
     mi_w = mi_r = 0;
     mo_w = mo_r = 0;
@@ -154,6 +155,32 @@ static void t_defaults(void)
     check(trk_midi_ch(TRK_DRUM) == MCH_OFF, "the drum channel 0 is OFF (nothing out)");
 }
 
+/* SEL CH (bp_set.c BPS_SELCH, issue 265): only its channel plays the selected track; OFF none; ANY every free one */
+static void t_selch(void)
+{
+    reset();
+    song.sel = 1;
+    check(bp_set[BPS_SELCH] == 4, "SEL CH: 4 by default");
+    send(0x93, 60, 100);                                  /* channel 4 */
+    check(gated(&trk[1], 60), "SEL CH 4: channel 4 plays the selected track");
+    send(0x83, 60, 0);
+    send(0x94, 62, 100);                                  /* channel 5: free, not SEL CH */
+    check(ngated(&trk[0]) + ngated(&trk[1]) + ngated(&trk[2]) == 0u, "SEL CH 4: channel 5 (another free one) plays nothing");
+    send(0x90, 64, 100);                                  /* channel 1: track 1's own */
+    check(gated(&trk[0], 64), "SEL CH 4: a track's own channel still plays it");
+    send(0x80, 64, 0);
+    bp_set[BPS_SELCH] = 0;                                /* OFF */
+    send(0x93, 65, 100);
+    check(ngated(&trk[1]) == 0u, "SEL CH OFF: no free channel plays the selected track");
+    bp_set[BPS_SELCH] = SELCH_ANY;
+    send(0x94, 67, 100);
+    check(gated(&trk[1], 67), "SEL CH ANY: every free channel plays the selected track");
+    send(0x84, 67, 0);
+    bp_set[BPS_SELCH] = 9;
+    bps_defaults();
+    check(bp_set[BPS_SELCH] == 9, "SEL CH is the FM-1's: a NEW project keeps it");
+}
+
 static void t_in(void)
 {
     uint32_t d0;
@@ -164,8 +191,9 @@ static void t_in(void)
     check(gated(&trk[0], 60) && !gated(&trk[2], 60), "a note on a track's channel plays that track");
     send(0x84, 60, 0);
     check(!gated(&trk[0], 60), "its note off ends it");
+    bp_set[BPS_SELCH] = SELCH_ANY;                        /* SEL CH ANY: every free channel (as before 2026-11-15) */
     send(0x90, 62, 100);
-    check(gated(&trk[2], 62) && !gated(&trk[0], 62), "channel 1, no track's now: the selected track plays it (as before)");
+    check(gated(&trk[2], 62) && !gated(&trk[0], 62), "channel 1, no track's now: the selected track plays it (SEL CH ANY)");
     send(0x80, 62, 0);
     bp_set[BPS_CH2] = 0;                                  /* the selected track is OFF */
     send(0x90, 64, 100);
@@ -272,6 +300,7 @@ int main(void)
 {
     t_defaults();
     t_in();
+    t_selch();
     t_keys();
     t_boot_hold();
     t_project();

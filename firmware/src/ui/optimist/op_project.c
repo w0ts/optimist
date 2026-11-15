@@ -432,6 +432,7 @@ enum { SI_NONE, SI_TUNE, SI_RECQ, SI_PUNCH, SI_OUT, SI_SYNC, SI_CH1, SI_CH2,
        SI_DUALT,                                        /* SYSTEM > CPU TIMES: the dual render's times (SYS_DEBUG, the second core) */
        SI_BTSTAT,                                       /* SYSTEM > BT STATS: the Bluetooth audio stream's counters (SYS_DEBUG) */
        SI_TOP,                                          /* SYSTEM > TOP: what takes the CPU and the RAM (SYS_TOP: op_top.c) */
+       SI_SELCH,                                        /* GLOBAL > CHANNELS: SEL CH, the channel that plays the selected track */
        SI_UAS0 };                                       /* SI_UAS0 + s: USB AUDIO's line of source s (ua_tap.h UAS_*), last */
 /* a core's load number (% of the audio budget) in its colour: green under 60, amber 60..85, red over 85 (the predictive guard's
  * ceiling, system/cpuguard.c CG_CEIL = 85 %: above it the guard sheds quality / voices); INFO's bars and ticks the same. */
@@ -581,9 +582,13 @@ static const struct { const char *name; uint8_t it[4]; } SYS[] = {
                             * a wired clock's / a Bluetooth (BLE) clock's: clock_sync.c sync_lead_t; the settings record) */
 #endif
     {"CHANNELS", {SI_CH1, SI_CH2, SI_CH3, SI_CHD}},
+#if FELUCCA_MIDI_CH
+    {"CHANNELS", {SI_SELCH, SI_NONE, SI_NONE, SI_NONE}},   /* SEL CH (bp_set.c BPS_SELCH; issue 265): a channel no track has
+                            * plays the selected track only on this one (ANY: every one, OFF: none) */
+#endif
 };
 #define NSYS (sizeof SYS / sizeof SYS[0])
-#define NSYS_GLO (3u + FELUCCA_MIDI_CLOCK)              /* the global rows at SYS's end: TUNE, MIDI (and its offsets), CHANNELS */
+#define NSYS_GLO (3u + FELUCCA_MIDI_CLOCK + FELUCCA_MIDI_CH)   /* the global rows at SYS's end: TUNE, MIDI (and its offsets), CHANNELS (and SEL CH) */
 #define NSYS_SETUP (NSYS - NSYS_GLO)                    /* SYSTEM's rows: the setup (SCREEN, AUDIO, BLUETOOTH ...) */
 static uint8_t sys_dirty;                               /* a setting changed: saved when SYSTEM or GLOBAL is left */
 static uint32_t sys_rows(void)
@@ -624,6 +629,10 @@ static const param_desc_t *sys_desc(uint32_t it, int16_t **vp)
 #endif
     if (it >= SI_OUT && it <= SI_CHD)
         return bps_desc(BPS[it - SI_OUT], vp);
+#if FELUCCA_MIDI_CH
+    if (it == SI_SELCH)
+        return bps_desc(BPS_SELCH, vp);
+#endif
 #if FELUCCA_MIDI_CLOCK
     if (it == SI_CLKOFS || it == SI_BTOFS || it == SI_LINKOFS) {   /* (clock_sync.c sync_ofs, ms) */
         uint32_t x = it == SI_BTOFS ? 1u : it == SI_LINKOFS ? 2u : 0u;

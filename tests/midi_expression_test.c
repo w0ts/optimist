@@ -260,22 +260,22 @@ static void sustain_test(void)
         assert(!gated(0, 60));
     }
     reset_test();
-    send_midi(0xB4, 64, 127); send_midi(0x94, 60, 90);   /* channel 5 plays the selected track */
+    send_midi(0xB3, 64, 127); send_midi(0x93, 60, 90);   /* channel 4 (SEL CH's default) plays the selected track */
     song.sel = 1;
-    send_midi(0x94, 60, 0);                   /* velocity 0: its own track */
+    send_midi(0x93, 60, 0);                   /* velocity 0: its own track */
     assert(gated(0, 60));
-    send_midi(0x94, 60, 90);                  /* a retrigger: the newly selected track */
+    send_midi(0x93, 60, 90);                  /* a retrigger: the newly selected track */
     assert(!gated(0, 60) && gated(1, 60));
-    send_midi(0xB4, 64, 0);                   /* its key is down: it stays */
+    send_midi(0xB3, 64, 0);                   /* its key is down: it stays */
     assert(gated(1, 60));
-    send_midi(0x84, 60, 0);
+    send_midi(0x83, 60, 0);
     assert(!gated(1, 60));
     /* the same note on two channels: releasing one keeps the other */
     song.sel = 0;
-    send_midi(0x90, 60, 90); send_midi(0x94, 60, 90);
+    send_midi(0x90, 60, 90); send_midi(0x93, 60, 90);
     send_midi(0x80, 60, 0);
-    assert(midi_find(4, 60) >= 0 && midi_find(0, 60) < 0);
-    send_midi(0x84, 60, 0); assert(!gated(0, 60));
+    assert(midi_find(3, 60) >= 0 && midi_find(0, 60) < 0);
+    send_midi(0x83, 60, 0); assert(!gated(0, 60));
     trk[0].p[P_AMODE] = 1;
     send_midi(0xB0, 64, 127); send_midi(0x90, 60, 90);
     send_midi(0x80, 60, 0); assert(trk[0].nheld == 1);
@@ -291,14 +291,14 @@ static void ownership_test(void)
 {
     uint32_t i;
     reset_test();
-    send_midi(0x94, 60, 90); send_midi(0x84, 60, 0);
-    song.sel = 1; send_midi(0xE4, 127, 127);  /* a released track does not stay linked */
+    send_midi(0x93, 60, 90); send_midi(0x83, 60, 0);
+    song.sel = 1; send_midi(0xE3, 127, 127);  /* a released track does not stay linked */
     assert(trk[0].bend_target == 0 && trk[1].bend_target == 512);
     reset_test();
-    send_midi(0x94, 60, 90);                  /* a held one does */
-    song.sel = 1; send_midi(0xE4, 127, 127);
+    send_midi(0x93, 60, 90);                  /* a held one does */
+    song.sel = 1; send_midi(0xE3, 127, 127);
     assert(trk[0].bend_target == 512 && trk[1].bend_target == 512);
-    send_midi(0x84, 60, 0);
+    send_midi(0x83, 60, 0);
     reset_test();
     trk[0].p[P_AMODE] = 1;
     send_midi(0xB0, 64, 127);

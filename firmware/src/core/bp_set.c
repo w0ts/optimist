@@ -9,15 +9,21 @@
  *              track's is the old GLO > DRUMS CH (song.g[G_DRCH], 0 = OFF), reached here through a pointer
  *   BPS_MOUT, BPS_MIN  MIDI OUT OFF / KEYS / SEQ / BOTH (FELUCCA_MIDI_OUT; stored KEYS 0, BOTH 1, SEQ 2, OFF 3), MIDI IN NOTES / CLOCK (FELUCCA_MIDI_INCLK): settings
  *              of the FM-1, not of a project (the settings word, project.c bp23_word); a NEW project leaves them
+ *   BPS_SELCH  SEL CH: the channel that plays the selected track (FELUCCA_MIDI_CH, seq_midi.c midi_track_idx): 0 OFF
+ *              (a channel no track has plays nothing), 1..16, 17 ANY (every channel no track has, as before 2026-11-15);
+ *              default 4 (issue 265: the other channels free for other gear). Of the FM-1, not of a project (the settings
+ *              record's ext byte, persist_ext.c), so a NEW project leaves it
  *   BPS_GDENS..BPS_GGO  ACID GEN (FELUCCA_ENG_ACID, eng_acid.c): TB-3PO's density, accent and slide (%), GO;
  *                      not saved (TB-3PO's defaults at power-on and NEW) */
 enum { BPS_RTYPE, BPS_GDENS, BPS_GACC, BPS_GSLD, BPS_GGO, BPS_CH0, BPS_CH1, BPS_CH2, BPS_CHD, BPS_MOUT, BPS_MIN,
-       BPS_COUNT };
+       BPS_SELCH, BPS_COUNT };
+#define SELCH_ANY 17                                   /* SEL CH: OFF 0, 1..16, ANY 17 (seq_midi.c midi_track_idx) */
+#define SELCH_DEF 4
 static int16_t bp_set[BPS_COUNT] = {[BPS_GDENS] = 70, [BPS_GACC] = 40, [BPS_GSLD] = 25, [BPS_CH0] = 1, [BPS_CH1] = 2,
-                                    [BPS_CH2] = 3};
+                                    [BPS_CH2] = 3, [BPS_SELCH] = SELCH_DEF};
 static const char *const N_BPGO[] = {"--", "GO"};
 static const char *const N_MCH[] = {"OFF", "1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12", "13", "14", "15",
-                                    "16"};                                    /* a track's MIDI channel */
+                                    "16", "ANY"};                             /* a track's MIDI channel (OFF, 1..16); SEL CH's also ANY (17) */
 /* N_MOUT, MOUT_*: params.c (before the order tables) */
 static const char *const N_MIN[] = {"NOTES", "CLOCK"};                        /* MIDI IN: notes and clock, or the clock only */
 static const param_desc_t BPS_DESC[BPS_COUNT] = {
@@ -26,12 +32,13 @@ static const param_desc_t BPS_DESC[BPS_COUNT] = {
     [BPS_GACC] = PD("ACC", F_INT, 0, 100, 40),
     [BPS_GSLD] = PD("SLD", F_INT, 0, 100, 25),
     [BPS_GGO] = PE("GEN", N_BPGO, 0),
-    [BPS_CH0] = PE("TRK 1", N_MCH, 1),
-    [BPS_CH1] = PE("TRK 2", N_MCH, 2),
-    [BPS_CH2] = PE("TRK 3", N_MCH, 3),
-    [BPS_CHD] = PE(FELUCCA_DRUMS ? "DRUMS" : "TRK 4", N_MCH, FELUCCA_DRUMS ? 10 : 4),
+    [BPS_CH0] = PN("TRK 1", F_ENUM, 0, 16, 1, N_MCH),
+    [BPS_CH1] = PN("TRK 2", F_ENUM, 0, 16, 2, N_MCH),
+    [BPS_CH2] = PN("TRK 3", F_ENUM, 0, 16, 3, N_MCH),
+    [BPS_CHD] = PN(FELUCCA_DRUMS ? "DRUMS" : "TRK 4", F_ENUM, 0, 16, FELUCCA_DRUMS ? 10 : 4, N_MCH),
     [BPS_MOUT] = PE("OUT", N_MOUT, 0),
     [BPS_MIN] = PE("IN", N_MIN, 0),
+    [BPS_SELCH] = PE("SEL CH", N_MCH, SELCH_DEF),
 };
 
 static const param_desc_t *bps_desc(uint32_t id, int16_t **vp)
@@ -42,6 +49,14 @@ static const param_desc_t *bps_desc(uint32_t id, int16_t **vp)
     }
     *vp = id == BPS_CHD ? &song.g[G_DRCH] : &bp_set[id];   /* (the drum channel is the project's G_DRCH) */
     return &BPS_DESC[id];
+}
+
+/* SEL CH in the settings record (storage/project.c: rsv_pj[0], VU FLOOR's retired byte): 0x80 | the value (0 OFF, 1..16,
+ * 17 ANY); a byte without bit 7 (0, or VU FLOOR's 0..7 from a build of 2026-10-28..31) reads the default, 4 */
+static uint8_t selch_to_rec(void) { return (uint8_t)(0x80u | (uint32_t)clamp(bp_set[BPS_SELCH], 0, SELCH_ANY)); }
+static void selch_from_rec(uint32_t b)
+{
+    bp_set[BPS_SELCH] = (int16_t)((b & 0x80u) && (b & 0x7Fu) <= SELCH_ANY ? b & 0x7Fu : SELCH_DEF);
 }
 
 /* a new project: the defaults */

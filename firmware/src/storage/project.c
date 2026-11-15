@@ -1741,6 +1741,9 @@ static void persist_boot(void)                    /* before settings_init / pane
             meters_from_rec(p.rsv_pj[2]);            /* (METERS: mode + 1, rsv_pj[2]; a record from before reads 0: CPUS) */
             dbg_stats_set(p.rsv_pj[1] & 1u);         /* (DEBUG STATS, core/dbgstats.h: a record from before reads OFF) */
             sd_ring_from_rec((p.rsv_pj[1] >> 1) & 7u);   /* (SD CARD > SMPL RING, core/sdring.h: bits 1..3, a record from before: the build's) */
+#if FELUCCA_MIDI_CH
+            selch_from_rec(p.rsv_pj[0]);             /* (SEL CH, bp_set.c: 0x80 | the value; a record from before: 4) */
+#endif
             persist_saved = p;
         } else if (n == (int)(8u + sizeof(panel_t)) && p3.magic == 0x50455231u) {   /* "PER1": palette, panel */
             const uint32_t *w = (const uint32_t *)&p3;
@@ -1827,7 +1830,11 @@ static void settings_save(void)
     persist_ofs_save(&p);
     persist_ext_save(&p);
     p.rsv_pj[2] = meters_to_rec();                 /* (METERS: mode + 1) */
-    p.rsv_pj[0] = 0;                               /* (retired: was VU FLOOR, now fixed at -40; old records' byte is ignored) */
+#if FELUCCA_MIDI_CH
+    p.rsv_pj[0] = selch_to_rec();                  /* (SEL CH, bp_set.c; was VU FLOOR until 2026-10-31: its 0..7 read as SEL CH's default) */
+#else
+    p.rsv_pj[0] = (uint8_t)(p.rsv_pj[0] & 0x80u ? p.rsv_pj[0] : 0u);   /* (SEL CH kept as read; VU FLOOR's old byte cleared) */
+#endif
     p.rsv_pj[1] = (uint8_t)((p.rsv_pj[1] & ~0x0Fu) | dbg_stats | sd_ring_to_rec() << 1);   /* (DEBUG STATS: bit 0; SD CARD > SMPL RING: bits 1..3; the rest kept) */
 #if FELUCCA_FAVORITES
     persist_fav_save(&p);

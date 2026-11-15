@@ -18,6 +18,8 @@ static int knobcol_labels(uint32_t scr, uint32_t on)
 {
     uint32_t j, ok = 1, seen = 0;
     knob_colors = on;
+    if (scr == SCR_GLOBAL)
+        ui.row[scr] = 0;                                /* (its first page: a full one; GLOBAL's last, SEL CH, has one line) */
     op_enter(scr);
     ui.force = 1; frame(); frame();
     for (j = 0; j < 4u && gld.first + j < gld.end; j++) {

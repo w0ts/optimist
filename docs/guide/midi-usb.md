@@ -4,7 +4,7 @@ Where each setting is: GLOBAL > MIDI and Channels, SYSTEM > BT MIDI, BT AUDIO an
 
 ## MIDI in
 
-A keyboard or a DAW on USB or the TRS MIDI IN jack plays the FM-1. Each track has a channel (defaults: tracks 1-3 on channels 1-3, the drums on 10; OFF is silent). A channel no track has plays the selected track. A note always ends on the track it started on.
+A keyboard or a DAW on USB or the TRS MIDI IN jack plays the FM-1. Each track has a channel (defaults: tracks 1-3 on channels 1-3, the drums on 10; OFF is silent). GLOBAL > CHANNELS > SEL CH is the channel that plays the selected track (default 4; ANY: every channel no track has; OFF: none). Other channels play nothing, free for other gear. A note always ends on the track it started on.
 
 - MIDI notes go through the track's **SCL** settings like the FM-1's own keys (KEYS WHITE, ALL, SNAP; CHORD on: one key plays the chord of its degree). TRANSPOSE applies, the FM-1's OCT buttons do not.
 - **Pitch bend** +-2 semitones (RPN 0 sets another range), **mod wheel** (a vibrato of its own), **sustain pedal** (CC64), and the panic messages CC120, CC121 and CC123. Drums ignore bend, wheel and sustain. A drum note plays the lane whose instrument it is ([drums](drums.md)).

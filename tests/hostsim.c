@@ -1180,14 +1180,14 @@ static int trs_test(void)
     }
     song.sel = 1;
     d0 = drums.age;
-    trs_bytes((const uint8_t[]){0x90, 60, 100, 65, 0xF8, 100, 0x91, 62, 100, 0x92, 64, 100, 0x99, 36, 110, 0x94, 67, 90}, 18);
+    trs_bytes((const uint8_t[]){0x90, 60, 100, 65, 0xF8, 100, 0x91, 62, 100, 0x92, 64, 100, 0x99, 36, 110, 0x93, 67, 90}, 18);
     ok_parts = trs_held(&trk[0], 60) && trs_held(&trk[0], 65) && trs_held(&trk[1], 62) && trs_held(&trk[2], 64) && !trs_held(&trk[0], 62);
     ok_drum = drums.age == d0 + 1u;
     ok_sel = trs_held(&trk[1], 67) && !trs_held(&trk[0], 67);
     trs_bytes((const uint8_t[]){0x90, 60, 0, 65, 0, 0x81, 62, 0, 0x82, 64, 64}, 11);   /* vel 0 = off, 0x8n */
     ok_off = !trs_held(&trk[0], 60) && !trs_held(&trk[0], 65) && !trs_held(&trk[1], 62) && !trs_held(&trk[2], 64);
-    song.sel = 2;                                   /* another track selected while ch 5's note is down */
-    trs_bytes((const uint8_t[]){0x84, 67, 0}, 3);
+    song.sel = 2;                                   /* another track selected while ch 4's note is down */
+    trs_bytes((const uint8_t[]){0x83, 67, 0}, 3);
     ok_hang = !trs_held(&trk[1], 67);
     song.rec = 1u << 2;                             /* track 3 armed, transport on: ch 3 records */
     transport_req = 1;
@@ -1195,7 +1195,7 @@ static int trs_test(void)
     trs_bytes((const uint8_t[]){0x92, 72, 100}, 3);
     trs_bytes((const uint8_t[]){0x92, 72, 0}, 3);
     ok_rec = trk[2].step[0].n == 1u && trk[2].step[0].note[0] == 72u && trk[2].step[0].time == ST_NOTE && trk[1].step[0].n == 0u;
-    printf("tracks: TRS MIDI IN: ch 1..3 -> parts %s, ch 10 -> drums %s, ch 5 -> the selected track %s; note-offs "
+    printf("tracks: TRS MIDI IN: ch 1..3 -> parts %s, ch 10 -> drums %s, ch 4 (SEL CH) -> the selected track %s; note-offs "
            "(running status, vel 0) %s\n", ok_parts ? "ok" : "FAIL", ok_drum ? "ok" : "FAIL", ok_sel ? "ok" : "FAIL",
            ok_off ? "ok" : "FAIL");
     printf("tracks: TRS MIDI IN: note-off after another track was selected reaches the note's track %s; ch 3 records "
