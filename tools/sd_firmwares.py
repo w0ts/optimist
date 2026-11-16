@@ -44,7 +44,8 @@ MVAVE_PACKAGE = "https://yms-file-store.oss-cn-hongkong.aliyuncs.com/software/fi
 BAUDGIRL = "https://baudgirl.com"
 BAUDGIRL_PAGE = BAUDGIRL + "/work/FM-1+VA/install"
 
-CHOSEN = ("sloop", "skiff", "melodee", "x0x", "amb", "felucca", "jiant", "choralroot", "loom", "clipper", "obervave")
+CHOSEN = ("sloop", "skiff", "melodee", "x0x", "amb", "felucca", "jiant", "choralroot", "loom", "clipper", "obervave",
+          "ghoulbox", "hortator", "grimm", "dub", "orbit", "jangada", "fmini", "zp12")
 
 
 def fetch(url):
