@@ -22,8 +22,10 @@
  * lines become NAME (the network's name: FM1- and four digits of the radio's address, or the one set by the web editor), CHANNEL (KNOB 3
  * turns it, 1..13; the AP restarts when the knob has rested), STATE (STARTING, ACTIVE, n CLIENTS, NO CAL). SAVE opens the
  * password entry for the AP's key (8..63 characters, as a network's), SAVE held asks CLEAR KEY (the default password again; with none typed, in AP MAN, SAVE held opens the entry).
- * The password: the one typed, else the default one, a function of the name alone (wifi_ap_default_key: another Optimist that hears
- * the name knows it), which STATE shows as KEY xxxxxxxx every fourth 2 s (KEY TYPED when one typed replaces it).
+ * The password: the one typed, else the default one (classic: a function of the name, wifi_ap_default_key; on fm1-base: 12
+ * characters made for this FM-1 at random and kept, plat_wifi_ap_default_key), which STATE shows as KEY xxxx every fourth 2 s
+ * (KEY TYPED when one typed replaces it). Another FM-1's network is joined with its password typed like any other; FM-1s
+ * meet without one in MODE JANK (the user, 2026-11-18: the auto-join by name went with Charles's random key).
  * The password entry (pw_*): KNOB 1 the character in its family, KNOB 2 the family, KNOB 3 the cursor; SAVE tapped adds the
  * character, SAVE held joins (DONE), HOME tapped erases, HOME held cancels (the user, 2026-10-27). The text is shown as
  * typed (the panel is small), case-sensitive, 8..63 characters; the buffer (op_pwbuf.h) is wiped when the entry closes and
@@ -744,20 +746,6 @@ static void wf_join(const uint8_t *ssid, uint32_t len, const char *pass)   /* th
     }
 }
 static void pw_open(const uint8_t *ssid, uint32_t len);
-#if WF_JANK
-#define WF_AP_KEY_LEN 8u                                /* (fm1-base wifi/wifi_ap.h WIFI_AP_KEY_LEN) */
-void wifi_ap_default_key(const uint8_t *ssid, uint32_t len, char out[WF_AP_KEY_LEN + 1u]);   /* (fm1-base wifi/wifi_ap_key.c) */
-static int wf_fm1_name(const uint8_t *s, uint32_t n)    /* an FM-1 access point's automatic name (MODE AP): FM1- and 4 hex digits */
-{
-    uint32_t i;
-    if (n != 8u || s[0] != 'F' || s[1] != 'M' || s[2] != '1' || s[3] != '-')
-        return 0;
-    for (i = 4; i < 8u; i++)
-        if (!((s[i] >= '0' && s[i] <= '9') || (s[i] >= 'A' && s[i] <= 'F')))
-            return 0;
-    return 1;
-}
-#endif
 static void wf_save(void)                               /* SAVE tapped on the page, any line */
 {
     uint32_t len;
@@ -811,16 +799,6 @@ static void wf_save(void)                               /* SAVE tapped on the pa
         wf_join(ssid, len, 0);                          /* (its saved key: no password) */
         break;
     case WFC_NEW:
-#if WF_JANK
-        if (wf_fm1_name(ssid, len)) {                   /* another FM-1's network (FM1-xxxx): its default password is known
-                                                         * from the name: joined at once, no entry (the user, 2026-11-03) */
-            char k[WF_AP_KEY_LEN + 1u];
-            wifi_ap_default_key(ssid, len, k);
-            wf_join(ssid, len, k);
-            memset(k, 0, sizeof k);
-            break;
-        }
-#endif
         pw_open(ssid, len);
         break;
     case WFC_AWAY:

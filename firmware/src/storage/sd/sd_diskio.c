@@ -20,15 +20,18 @@
  *   sd_map_run(fp, &sector)  an open file's sectors from its pointer (on a sector boundary) to the end of the
  *                     contiguous run they are in, or the file's end, from its cluster-link map (fp->cltbl, made by
  *                     f_lseek(fp, CREATE_LINKMAP)): one CMD18 for sd_rd_*; 0 when there is no map or no data there
- *   sd_map_runs(fp)   the runs the map holds (1: the file is contiguous) */
+ *   sd_map_runs(fp)   the runs the map holds (1: the file is contiguous)
+ * SD_DISKIO_EXTERNAL (a card driver that brings FatFs and its disk layer: the fm1-base build, its lib/sd_fs.c): the run
+ * maps and sd_gone only; the card started by sdcard.c's mount (sd_card_init) */
 #ifndef SD_SESSION
 #define SD_SESSION_SLOW() ((void)0)                  /* (a host test: no bus to share) */
 #define SD_SESSION() ((void)0)
 #define SD_SESSION_END() ((void)0)
 #endif
 
-static DSTATUS sd_dstat = STA_NOINIT;
 static BYTE sd_gone;
+#ifndef SD_DISKIO_EXTERNAL
+static DSTATUS sd_dstat = STA_NOINIT;
 static DWORD sd_fattime = (DWORD)(2026 - 1980) << 25 | (DWORD)1 << 21 | (DWORD)1 << 16;   /* 2026-01-01 00:00 */
 
 DSTATUS disk_status(BYTE pdrv) { return pdrv ? STA_NOINIT : sd_dstat; }
@@ -95,6 +98,7 @@ DRESULT disk_ioctl(BYTE pdrv, BYTE cmd, void *buff)
 }
 
 DWORD get_fattime(void) { return sd_fattime; }
+#endif
 
 static UINT sd_map_run(const FIL *fp, LBA_t *sector)
 {
