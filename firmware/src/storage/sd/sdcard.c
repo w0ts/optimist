@@ -146,6 +146,12 @@ static FRESULT sd_mount_fs(void)                     /* the card's start-up at 4
 {
     FRESULT r;
 #if FELUCCA_SD_FATFS
+#ifdef SD_DISKIO_EXTERNAL
+    sd_gone = sd_card_init() != 0;                   /* (the driver's own disk layer: the card started here, its
+                                                      * disk_initialize only asks) */
+    if (sd_gone)
+        return FR_NOT_READY;
+#endif
     r = f_mount(&sd_fs, "", 1);                      /* (sessions of its own: sd_diskio.c) */
     if (r != FR_OK)
         (void)f_mount(0, "", 0);                     /* unregistered: a later f_* call is FR_NOT_ENABLED at once, never
