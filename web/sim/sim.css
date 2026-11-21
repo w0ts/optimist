@@ -3,7 +3,7 @@
    rust-emulator/src/ui.rs) — its exact 1160x700 geometry, scaled to fit. The bar and status use the shared tokens
    (style/optimist.css); the device uses its own --os-* variables, set per theme by applyTheme(). */
 /* the device on the left, its controls in a column on the right; one column on a narrow screen (controls first) */
-.os { display: grid; grid-template-columns: minmax(0, 1fr) 15rem; gap: var(--sp-4, 16px); align-items: start; max-width: 1400px; }
+.os { display: grid; grid-template-columns: minmax(0, 1fr) 15rem; gap: var(--sp-4, 16px); align-items: start; max-width: 1100px; margin: 0 auto; }   /* (the pages' content width; the stage scales the device to it) */
 .os-main { display: grid; gap: var(--sp-2); min-width: 0; }
 .os-side { display: grid; gap: var(--sp-3); }
 .os-group { display: grid; gap: var(--sp-1); padding: var(--sp-2); border: 1px solid var(--line); border-radius: var(--r, 2px); min-width: 0; }

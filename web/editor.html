@@ -13,7 +13,7 @@
      span, kept invisible until the face is ready (html.fk) so a font that never arrives draws no empty boxes. */
   @font-face { src: url("fukiai.ttf") format("truetype"); font-family: "Fukiai"; unicode-range: U+EA00-EB09; font-display: block; }
   :root { --bg: #fff; --fg: #000; --dim: #666; --line: #ccc; --panel: var(--bg); --accent: var(--fg);
-          --ok: #2e9e5b; --warn: #c98a12; --err: #d23c3c; }   /* status: green OK / live, amber notice, red error or distortion */
+          --ok: #2e9e5b; --warn: #55544e; --err: #d23c3c; }   /* status: green OK / live, grey notice (the shared style's), red error or distortion */
   html { color-scheme: light dark; } body { color: var(--fg); background: var(--bg); margin: 0;
     font: 13px/1.4 -apple-system, BlinkMacSystemFont, "Helvetica Neue", Arial, sans-serif; font-variant-numeric: tabular-nums; }
   main { padding: 16px; margin: 0 auto; max-width: 1100px; }
@@ -554,9 +554,9 @@
      Look and ideas from the SLOOP 2.4 web editor, isod89/sloop-fm1 v2.4 (8d3823f), GPL-3.0.
      ==================================================================================================================== */
   :root {
-    --bg: #000; --fg: #f2f2f2; --panel: #0b0b0e; --dim: #8a8a92; --line: #26262c; --accent: var(--trk);
-    --ok: var(--t1); --warn: #ffc618; --err: #ff4a50;   /* one colour: the blue (--t1); --t2..--t4 and an OK are that blue too */
-    --t1: #287cff; --t2: var(--t1); --t3: var(--t1); --t4: var(--t1); --trk: var(--t1);
+    --bg: #171716; --fg: #eeede8; --panel: #212120; --dim: #9c9b94; --line: #363633; --accent: var(--trk);
+    --ok: var(--t1); --warn: #b9b8b0; --err: #ff4a50;   /* one colour: the accent (--t1, Optimist's pink as the other pages); --t2..--t4 and an OK are that colour too */
+    --t1: #da92cc; --t2: var(--t1); --t3: var(--t1); --t4: var(--t1); --trk: var(--t1);
     --s1: color-mix(in srgb, var(--bg) 94%, var(--fg)); --s2: color-mix(in srgb, var(--bg) 86%, var(--fg));
     --s3: color-mix(in srgb, var(--bg) 70%, var(--fg)); --fg2: color-mix(in srgb, var(--fg) 82%, var(--bg));
     --font: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
@@ -567,9 +567,9 @@
   }
   @media (prefers-color-scheme: light) {
     :root {
-      --bg: #f4f4f2; --fg: #14141a; --panel: #ffffff; --dim: #5e5e66; --line: #c3c3c9;
-      --warn: #825000; --err: #a82229;
-      --t1: #1a52b8;
+      --bg: #f6f5f1; --fg: #1d1d1b; --panel: #ffffff; --dim: #6b6a64; --line: #dddbd3;
+      --warn: #55544e; --err: #a82229;
+      --t1: #b13c9a;
       --on: #fff;   /* the light track colours are deep enough for white text (>= 6) and for coloured text on every surface (>= 4.5) */
       --mute: var(--dim);
       --s2: color-mix(in srgb, var(--bg) 90%, var(--fg)); --s3: color-mix(in srgb, var(--bg) 62%, var(--fg));
@@ -1048,9 +1048,9 @@
      Look and ideas from the SLOOP 2.4 web editor, isod89/sloop-fm1 v2.4 (8d3823f), GPL-3.0.
      ==================================================================================================================== */
   :root {
-    --bg: #000; --fg: #f2f2f2; --panel: #0b0b0e; --dim: #8a8a92; --line: #26262c; --accent: var(--trk);
-    --ok: var(--t1); --warn: #ffc618; --err: #ff4a50;   /* one colour: the blue (--t1); --t2..--t4 and an OK are that blue too */
-    --t1: #287cff; --t2: var(--t1); --t3: var(--t1); --t4: var(--t1); --trk: var(--t1);
+    --bg: #171716; --fg: #eeede8; --panel: #212120; --dim: #9c9b94; --line: #363633; --accent: var(--trk);
+    --ok: var(--t1); --warn: #b9b8b0; --err: #ff4a50;   /* one colour: the accent (--t1, Optimist's pink as the other pages); --t2..--t4 and an OK are that colour too */
+    --t1: #da92cc; --t2: var(--t1); --t3: var(--t1); --t4: var(--t1); --trk: var(--t1);
     --s1: color-mix(in srgb, var(--bg) 94%, var(--fg)); --s2: color-mix(in srgb, var(--bg) 86%, var(--fg));
     --s3: color-mix(in srgb, var(--bg) 70%, var(--fg)); --fg2: color-mix(in srgb, var(--fg) 82%, var(--bg));
     --font: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
@@ -1061,9 +1061,9 @@
   }
   @media (prefers-color-scheme: light) {
     :root {
-      --bg: #f4f4f2; --fg: #14141a; --panel: #ffffff; --dim: #5e5e66; --line: #c3c3c9;
-      --warn: #825000; --err: #a82229;
-      --t1: #1a52b8;
+      --bg: #f6f5f1; --fg: #1d1d1b; --panel: #ffffff; --dim: #6b6a64; --line: #dddbd3;
+      --warn: #55544e; --err: #a82229;
+      --t1: #b13c9a;
       --on: #fff;   /* the light track colours are deep enough for white text (>= 6) and for coloured text on every surface (>= 4.5) */
       --mute: var(--dim);
       --s2: color-mix(in srgb, var(--bg) 90%, var(--fg)); --s3: color-mix(in srgb, var(--bg) 62%, var(--fg));
@@ -1128,7 +1128,6 @@
   kbd { border-radius: 0; }
   .keyhelp kbd { font-size: 16px; border-radius: 0; background: var(--s2); border: 0; }
 
-  .titlebar { display: flex; align-items: flex-end; gap: 16px; min-height: 32px; }
   #status { margin-left: auto; color: var(--dim); text-align: right; min-height: 20px; overflow-wrap: anywhere; max-width: 70%; }
   .tbar #status { order: 99; }   /* (the status last, on the right: the transport's controls from the left; the user, 2026-10-25) */
   .tbar { border: 0; padding: 12px 0 0; gap: 8px 16px; }
@@ -1145,7 +1144,6 @@
   #trackbtns button[aria-pressed="true"] { background: var(--c); color: var(--on); }
   .panel { margin: 0; padding-top: 20px; }
   .hint { margin: 32px 0; }
-  html[data-conn=off] .titlebar { display: none !important; }
   html[data-app] #transport, html[data-page]:not([data-page=mixer]) #transport { display: none; }   /* (the transport: the Editor's only; the user, 2026-10-25) */ html[data-conn=off][data-app] #connectcard { display: none; } html[data-conn=off][data-app] .panel.appview:not([hidden]) { display: block !important; }
   .appview { padding-top: 12px; } .appview .appnote { margin: 0 0 8px; }
   .connectcard .clogo { font-size: 32px; line-height: 32px; font-weight: 400; text-transform: uppercase; color: var(--trk); }
@@ -1473,6 +1471,7 @@
   #mixer .strip .srow[data-row="nav"] .bchips { display: flex; gap: 2px; flex: 1; justify-content: center; min-width: 0; } #mixer .strip .srow[data-row="nav"] .bchips button { min-width: 20px; height: 24px; padding: 0 3px; font-size: 12px; }
   #mixer .strip .srow[data-row="nav"] .bchips button[aria-pressed="true"] { background: var(--fg); color: var(--bg); } #mixer .strip .srow[data-row="nav"] > button.ib { width: 22px; min-width: 22px; flex: none; }
   html[data-conn=off] #disconnect, html[data-conn=off] .devcard #version { display: none; } .o-host .num, .o-host .oi-num { margin-right: 8px; }
+  .sitehead { max-width: 1100px; margin: 0 auto; padding: 16px 16px 0; }   /* (the title bar: the pages' content width) */
   .panel.o-host { max-width: 1100px; margin: 0 auto; }   /* (Install, Build and Simulator: the shared content width of the site's pages) */
   html[data-conn=off] #tabs > :not([data-tab=install]):not([data-tab=build]):not([data-tab=sim]):not([data-tab=mixer]):not(.navh:first-of-type):not(.gh) { display: none; } html[data-conn=off] #tabs .navh { display: none; }   /* (no device: the pages that need one are not offered; Install, Build and Simulator do not; the Editor tab stays, it shows the connect card: Install releases the device, and without it there was no way back) */
   /* automated steps (p-locks, motion) in the device's COL_MK_AUTO: the tiles, the drum cells, the strips' overview */
@@ -1485,6 +1484,8 @@
 </head>
 <body>
 <div class="app" id="app">
+<!-- the shared title bar (site-style: header.site + .titlebar), styled by the shared tokens through the same scoped loader as the Install / Build / Simulator panels -->
+<div class="o-host sitehead" id="sitehead"><header class="site"><div class="titlebar"><h1><a href="https://w0ts.github.io/">w0ts</a> / Optimist editor</h1></div></header></div>
 <!-- the side bar: the pages in groups (play, the selected track's editors, the FX buses, the screens, the system), and the device.
      Every editor is still a popup (NAV); a side button opens it for the selected track. -->
 <div class="menubar" id="side">
@@ -7703,7 +7704,7 @@ const hasTracks = () => Boolean(dev && dev.info && dev.info.ntrk);   /* (a firmw
    The installer needs the MIDI port to itself: the editor's device connection is released while that tab is shown and restored on leaving. */
 const appState = { install: null, build: null, sim: null, resume: false, style: null };
 const appBusy = () => !!(appState.install && appState.install.handle && appState.install.handle.busy);
-const APP_BRIDGE = `.o-host { overflow: visible; overflow-x: clip; font: 14px/1.45 var(--font-ui); color: var(--ink); }\n.o-host button, .o-host .button { text-transform: none; letter-spacing: normal; }`;
+const APP_BRIDGE = `.o-host h1 { font-weight: 700; }   /* (the editor's own h1 rule sets 400) */\n.o-host { overflow: visible; overflow-x: clip; font: 14px/1.45 var(--font-ui); color: var(--ink); }\n.o-host button, .o-host .button { text-transform: none; letter-spacing: normal; }`;
 async function appStyle() {              /* the shared style (style/common.css, vendored beside the page: the app works offline) and Optimist's accent (style/optimist.css),
                                             both scoped to .o-host with CSS nesting (:root becomes &, so their tokens stay inside the panel; the page-level html/body rules go) */
   if (appState.style) return appState.style;
@@ -7719,6 +7720,7 @@ async function appStyle() {              /* the shared style (style/common.css, 
   })();
   return appState.style;
 }
+appStyle();   /* (at once: the title bar above is styled by it) */
 async function appMount(name, a) {
   const note = $(`${name}-note`), host = $(`${name}-host`);
   note.textContent = t("appLoading");
@@ -7726,7 +7728,7 @@ async function appMount(name, a) {
     await appStyle();
     if (name === "install") {
       const [mod, site] = await Promise.all([import("./installer/installer.js"), fetch("installer/site.json", { cache: "no-cache" }).then((r) => (r.ok ? r.json() : null)).catch(() => null)]);
-      a.handle = mod.mountInstaller(host, { ...(site || { packages: [], version: "", source: "" }),
+      a.handle = mod.mountInstaller(host, { ...(site || { packages: [], version: "", source: "" }), heading: false,   /* (the page's one h1 is the title bar above) */
         deviceCaps: () => (dev && dev.bk && dev.bk.caps) || null,   /* (the connected FM-1's layout: the install's backup warning) */
         onNavigate: (where, detail) => (where === "about" ? $("about").showModal() : where === "sim" ? openSimBuild(detail && detail.build)
           : where === "build" && detail ? openBuildConfig(detail)
@@ -9414,7 +9416,7 @@ function rollColors() {
   const cs = getComputedStyle(document.documentElement), v = (n, d) => (cs.getPropertyValue(n) || d).trim() || d;
   const x = dev.mix && dev.mix.tracks[dev.sel], ename = x && x.engine < dev.info.nengines ? dev.info.engines[x.engine] : dev.info.engines[dev.dump.engine];
   return { bg: v("--bg", "#fff"), fg: v("--fg", "#000"), dim: v("--dim", "#666"), line: v("--line", "#ccc"), accent: v("--accent", "#000"),
-    eng: v("--t1", "#287cff"), engfg: v("--on", "#000"), warn: v("--warn", "#c98a12") };
+    eng: v("--t1", "#da92cc"), engfg: v("--on", "#000"), warn: v("--warn", "#55544e") };
 }
 function drawRoll() {
   if (!roll.el || !dev) return;
