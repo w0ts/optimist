@@ -136,7 +136,6 @@ EDITOR_ICON = ('<svg width="14" height="14" viewBox="0 0 14 14" fill="currentCol
 
 
 APP_STORE = "https://apps.apple.com/app/id6826362906"   # (Optimist Mirror: one record, iPhone, iPad and Mac)
-BADGES_MARK = "<!--APP-BADGES-->"                  # where the editor's menu bar takes the App Store badges
 
 
 BADGE_TINT = "grey"          # THE ONE-LINE SWITCH of the App Store badges' tint: "grey" (the style's --dim) or "accent" (--accent-text: #b13c9a light, #da92cc dark)
@@ -227,11 +226,11 @@ def styled(html, app, page):
 def editor_page():
     """web/editor.html as it is: its Install and Build tabs load the modules from beside it (editor_modules)"""
     html = (HERE / "editor.html").read_text(encoding="utf-8")
-    if html.count(BADGES_MARK) != 1:
-        raise SystemExit(f"web/editor.html must contain {BADGES_MARK} once; update make_site.py")
-    if html.count(TITLE_ICON_MARK) != 1:
-        raise SystemExit(f"web/editor.html must contain {TITLE_ICON_MARK} once; update make_site.py")
-    return html.replace(BADGES_MARK, app_badges()).replace(TITLE_ICON_MARK, title_icon())
+    head = re.search(r"<!--SITE-HEADER-->.*?<!--/SITE-HEADER-->", html, re.S)
+    if not head or html.count("<!--SITE-HEADER-->") != 1:
+        raise SystemExit("web/editor.html must contain <!--SITE-HEADER-->...<!--/SITE-HEADER--> once; update make_site.py")
+    # the one header of the site, as every page (the editor's own tabs below it are the connected FM-1's pages); scoped through .o-host
+    return html.replace(head.group(0), f'<div class="o-host sitehead" id="sitehead">{shared_header("editor", title="Optimist")}</div>')
 
 
 def site_commit():

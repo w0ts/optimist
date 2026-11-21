@@ -12,7 +12,7 @@
 .oi a:hover { color: var(--accent-text); }
 
 .oi-intro { margin: 0 0 var(--sp-4); }
-.oi-what { max-width: 680px; color: var(--ink); }
+.oi-what { max-width: none; color: var(--ink); }
 
 /* the cards, one column: Build your own, Install, then When something goes wrong (folded) */
 .oi-steps { margin: 0; padding: 0; display: grid; gap: var(--sp-4); }

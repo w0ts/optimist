@@ -1471,7 +1471,6 @@
   #mixer .strip .srow[data-row="nav"] .bchips { display: flex; gap: 2px; flex: 1; justify-content: center; min-width: 0; } #mixer .strip .srow[data-row="nav"] .bchips button { min-width: 20px; height: 24px; padding: 0 3px; font-size: 12px; }
   #mixer .strip .srow[data-row="nav"] .bchips button[aria-pressed="true"] { background: var(--fg); color: var(--bg); } #mixer .strip .srow[data-row="nav"] > button.ib { width: 22px; min-width: 22px; flex: none; }
   html[data-conn=off] #disconnect, html[data-conn=off] .devcard #version { display: none; } .o-host .num, .o-host .oi-num { margin-right: 8px; }
-  .sitehead { max-width: 1100px; margin: 0 auto; padding: 16px 16px 0; }   /* (the title bar: the pages' content width) */
   .panel.o-host { max-width: 1100px; margin: 0 auto; }   /* (Install, Build and Simulator: the shared content width of the site's pages) */
   html[data-conn=off] #tabs > :not([data-tab=install]):not([data-tab=build]):not([data-tab=sim]):not([data-tab=mixer]):not(.navh:first-of-type):not(.gh) { display: none; } html[data-conn=off] #tabs .navh { display: none; }   /* (no device: the pages that need one are not offered; Install, Build and Simulator do not; the Editor tab stays, it shows the connect card: Install releases the device, and without it there was no way back) */
   /* automated steps (p-locks, motion) in the device's COL_MK_AUTO: the tiles, the drum cells, the strips' overview */
@@ -1480,16 +1479,47 @@
   .dgrid button.lk, .dgrid button.on.lk, .dgrid button.on.l1.lk, .dgrid button.on.l2.lk, .dgrid button.on.l3.lk { background: var(--mk-auto); color: #000; box-shadow: inset 0 0 0 2px #000; }
   #mixer .strip .ov i.auto { background: var(--mk-auto); }
   /* (no device: every tab stays; a page that needs the FM-1 shows the connect card, Firmware and the Simulator do not) */
+  /* ---- the shared look (w0ts/site-style, as the other pages): one header row (the title bar, the tabs as nav.site), the pages at the
+     1100 px content width, the h1-h4 scale, cards and quiet buttons on the shared tokens (--panel, --line, the accent). Looks only. ---- */
+  :root { --col-pad: max(16px, calc((100vw - 1100px) / 2)); }
+  body { font: 15px/1.45 var(--font); color: var(--fg); }
+  .menubar { padding: 12px var(--col-pad) 8px; gap: 8px 16px; }
+  .menubar .sitehead { flex: 1 0 100%; max-width: 100%; min-width: 0; }
+  .menubar .sitehead header.site { margin: 0; }
+  .menubar .sitehead header.site > nav.site { padding-top: var(--sp-2); }
+  .menubar .tabs { justify-content: flex-start; gap: 6px; flex: 1 1 auto; }
+  .menubar .tabs [data-tab=install], .menubar .tabs [data-tab=sim], .menubar .tabs .navh { display: none; }   /* (Installer and Simulator are in the header's nav) */
+  html[data-conn=off] .menubar .tabs { display: none; }
+  .menubar .tabs button { color: var(--fg); padding: 5px 10px; font-size: 14px; text-transform: none; min-height: 0; border: 1px solid var(--line); border-radius: 6px; background: none; }
+  .menubar .tabs button:hover { background: var(--s1); }
+  .menubar .tabs button[aria-selected="true"] { color: var(--on); background: var(--trk); border-color: var(--trk); font-weight: 600; }
+  .menubar .tabs #helpbtn { color: var(--dim); padding: 5px 6px; border-color: transparent; margin-left: auto; }
+  .menubar .tabs #helpbtn:hover { color: var(--trk); background: none; }
+  .menubar .sidenote { font-size: 13px; }
+  .devcard #version { font-size: 14px; }
+  @media (min-width: 861px) { main.main { padding: 0 var(--col-pad) 32px; } }
+  .panel:not(#p-mixer):not(.o-host) h2 { font-size: 21px; line-height: 1.2; font-weight: 700; text-transform: none; color: var(--fg); margin: 24px 0 10px; }
+  .panel:not(#p-mixer):not(.o-host) h3 { font-size: 16px; line-height: 1.25; font-weight: 600; text-transform: none; color: var(--fg); margin: 16px 0 6px; }
+  .panel:not(#p-mixer):not(.o-host) h4 { font-size: 13px; line-height: 1.3; font-weight: 600; text-transform: uppercase; letter-spacing: .05em; color: var(--dim); margin: 12px 0 6px; }
+  .panel:not(#p-mixer):not(.o-host) :is(.group, .card) { background: var(--panel); border: 1px solid var(--line); border-radius: 6px; }
+  .panel:not(#p-mixer):not(.o-host) :is(.group, .card) > h2, .panel:not(#p-mixer):not(.o-host) .group h3 { font-size: 13px; line-height: 1.3; font-weight: 600; text-transform: uppercase; letter-spacing: .05em; color: var(--dim); margin: 0 0 8px; }
+  .panel:not(#p-mixer):not(.o-host) .group h3 { margin: 12px 0 6px; padding-top: 8px; }
+  .panel:not(#p-mixer):not(.o-host) .group > h2 + h3 { margin-top: 0; padding-top: 0; }
+  .panel:not(#p-mixer):not(#p-mirror):not(.o-host) button:not(.ib):not(.pill):not(.tog):not(.big):not([aria-pressed="true"]):not(:disabled),
+  .devcard button { background: none; color: var(--fg); border: 1px solid var(--line); border-radius: 6px; text-transform: none; padding: 6px 12px; }
+  .panel:not(#p-mixer):not(#p-mirror):not(.o-host) button:not(.ib):not(.pill):not(.tog):not(.big):not([aria-pressed="true"]):not(:disabled):hover, .devcard button:hover { background: var(--s1); }
+  .panel:not(#p-mixer):not(#p-mirror):not(.o-host) button:disabled:not(.ib) { background: none; border: 1px solid var(--line); border-radius: 6px; text-transform: none; padding: 6px 12px; }
+  .panel:not(#p-mixer):not(.o-host) :is(select, input[type=text], input[type=number], input[type=search], input[type=password]) { border: 1px solid var(--line); border-radius: 6px; padding: 5px 8px; }
+  .pill { text-transform: none; }
 </style>
 </head>
 <body>
 <div class="app" id="app">
-<!-- the shared title bar (site-style: header.site + .titlebar), styled by the shared tokens through the same scoped loader as the Install / Build / Simulator panels -->
-<div class="o-host sitehead" id="sitehead"><header class="site"><div class="titlebar"><h1><a href="https://w0ts.github.io/">w0ts</a> / Optimist editor<!--TITLE-ICON--></h1></div></header></div>
 <!-- the side bar: the pages in groups (play, the selected track's editors, the FX buses, the screens, the system), and the device.
      Every editor is still a popup (NAV); a side button opens it for the selected track. -->
 <div class="menubar" id="side">
-  <a class="brand" href="#mixer" title="Optimist editor" aria-label="Optimist editor" style="color:inherit;flex:none;display:flex;align-items:center"><svg width="28" height="28" style="display:block" xmlns="http://www.w3.org/2000/svg" viewBox="-20 1 150 150" aria-hidden="true" fill="currentColor"><mask id="op-sail-ed"><rect x="-20" y="0" width="150" height="152" fill="#fff"/><g fill="none" stroke="#000" stroke-width="3.6"><circle cx="46" cy="62" r="6.2"/></g><rect x="44.2" y="63" width="3.6" height="17" fill="#000"/></mask><path d="M15 49L53 4L89 102H15Z" mask="url(#op-sail-ed)"/><path d="M4 103Q50 116 102 113L95 127L16 126Q10 118 4 103Z"/><rect x="40" y="126" width="9" height="23"/><path d="M102 113L101 133L107 139L109 121Z"/><rect x="12.5" y="49" width="5" height="64"/></svg></a><b class="brand" title="Optimist Editor">Optimist</b>
+  <!--SITE-HEADER--><div class="o-host sitehead" id="sitehead"><header class="site"><div class="titlebar"><h1><a href="https://w0ts.github.io/">w0ts</a> / Optimist</h1></div></header></div><!--/SITE-HEADER-->
+  <!-- (the one header of the site, as every page: make_site.py puts the shared banner and nav.site (About, Builder, Installer, Simulator, Editor, the App Store badges, GitHub) between the marks, through the scoped loader of the Install / Build / Simulator panels; the tabs below are the connected FM-1's pages) -->
   <nav class="tabs" id="tabs" role="tablist" aria-label="Pages">
     <button role="tab" data-tab="install" data-t="tabInstall" data-ic="port_usb_c"></button>
     <button role="tab" data-tab="sim" data-t="tabSim" data-ic="symbol_waves"></button>
@@ -1507,8 +1537,6 @@
     <button role="tab" data-tab="device" data-t="tabDevice" data-ic="ui_knob" class="ionly" hidden></button>
     <button role="tab" data-tab="settings" data-t="tabSettings" data-ic="symbol_cog" class="ionly"></button>
     <button type="button" id="helpbtn" data-pop="help" data-t="help" data-si="help" class="ionly"></button>
-    <!--APP-BADGES-->
-    <a class="gh" href="https://github.com/w0ts/optimist" target="_blank" rel="noopener" title="Optimist on GitHub" aria-label="Optimist on GitHub"><svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0 0 16 8c0-4.42-3.58-8-8-8z"/></svg></a>
   </nav>
   <p class="dim sidenote" id="sidenote" role="note" hidden></p>
   <div class="devcard">
@@ -7785,6 +7813,19 @@ function appSwitch(prev, name) {
     if (QS.get("connect") !== "0" || MOCK) openPort();
   }
 }
+function siteNavCurrent() {                       /* the header's nav (shared, make_site.py): Simulator on its tab, else Editor; its two links to this page switch tabs here */
+  const nav = document.querySelector("#sitehead nav.site"); if (!nav) return;
+  for (const a of nav.querySelectorAll("a[href]")) {
+    const sim = /editor\/#sim$/.test(a.getAttribute("href")), ed = /editor\/$/.test(a.getAttribute("href"));
+    if (!sim && !ed) continue;
+    if (sim === (tab === "sim") && (sim || ed && tab !== "sim")) a.setAttribute("aria-current", "page"); else a.removeAttribute("aria-current");
+  }
+}
+document.addEventListener("click", (e) => {
+  const a = e.target.closest && e.target.closest("#sitehead nav.site a[href]"); if (!a) return;
+  const href = a.getAttribute("href");
+  if (/editor\/#sim$/.test(href)) { e.preventDefault(); showTab("sim"); } else if (/editor\/$/.test(href)) { e.preventDefault(); showTab("mixer"); }
+});
 function showTab(name) {                           /* a screen (or one of the apps); an old tab name: the mixer and that popup */
   name = tabName(name);
   if (name in OLD_TABS) { const p = OLD_TABS[name]; name = "mixer"; if (p && dev && dev.dump) setTimeout(() => openPop(p, p === "lane" ? drumIndex() : dev.sel, kl.sel), 0); }
@@ -7797,6 +7838,7 @@ function showTab(name) {                           /* a screen (or one of the ap
   if (!APPS.includes(name)) { try { localStorage.setItem(TAB_KEY, name); } catch (e) { /* no storage */ } }
   if (location.hash !== `#${name}`) history.replaceState(null, "", `${location.pathname}${location.search}` + "#" + name);   /* (no history entry per screen) */
   renderPanels();                                   /* the screen shown */
+  siteNavCurrent();
   if (name === "mixer" && prev !== "mixer" && hasTracks() && dev.dump) op(fetchMixer);
 }
 const drumIndex = () => (dev && dev.info ? drumOf(dev.info) : 3);   /* (-1: no drum track) */

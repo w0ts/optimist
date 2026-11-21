@@ -277,7 +277,7 @@ export function mountSim(container, opts = {}) {
       h("div.os-group", { role: "group", "aria-label": TEXT.device }, h("h4.os-glabel", {}, TEXT.device), el.load, el.write, el.pjGet, el.pjSend),
       el.pj));
   container.replaceChildren(root);
-  const fit = () => { const s = Math.min(1, el.stage.clientWidth / 1160); el.body.style.setProperty("--os-scale", s); el.stage.style.height = `${700 * s}px`; };
+  const fit = () => { const s = Math.min(1, el.stage.clientWidth / 1160); el.body.style.setProperty("--os-scale", s); el.stage.style.height = el.body.childElementCount ? `${700 * s}px` : ""; };   /* (no device drawn yet: no empty 700 px stage above the status line) */
   const ro = typeof ResizeObserver !== "undefined" ? new ResizeObserver(fit) : null;
   if (ro) ro.observe(el.stage); else if (typeof window !== "undefined") window.addEventListener("resize", fit);
   st.fitCleanup = () => { if (ro) ro.disconnect(); else if (typeof window !== "undefined") window.removeEventListener("resize", fit); };

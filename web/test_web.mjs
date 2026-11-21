@@ -3687,10 +3687,10 @@ async function installerModule() {
   const page = readFileSync(join(HERE, "installer", "index.html"), "utf8"), css = readFileSync(join(HERE, "installer", "installer.css"), "utf8");
   ok(["/*OPTIMIST-CSS*/", "<!--OPTIMIST-HEADER-->", "/*INSTALLER*/", "/*META*/"].every((m) => page.split(m).length === 2) && /mountInstaller\(document\.getElementById\("installer"\), \{ \.\.\.site, heading: false \}\)/.test(page),
     "installer page: a thin wrapper (the shared style and header, the module, the site's packages)");
-  ok(!/#[0-9a-f]{3,8}\b|rgba?\(|hsl/i.test(css.replace(/\/\*[\s\S]*?\*\//g, "")) && /var\(--surface-1\)/.test(css) && !/var\(--(on-track|t[1-4]|trk)\)/.test(css) && !/--t[1-4]/.test(readFileSync(join(HERE, "installer", "installer.js"), "utf8")) && !/\.tile|\.tiles/.test(css + page),
+  ok(!/#[0-9a-f]{3,8}\b|rgba?\(|hsl/i.test(css.replace(/\/\*[\s\S]*?\*\//g, "")) && /var\(--(panel|off|line)\)/.test(css) && !/var\(--(on-track|t[1-4]|trk)\)/.test(css) && !/--t[1-4]/.test(readFileSync(join(HERE, "installer", "installer.js"), "utf8")) && !/\.tile|\.tiles/.test(css + page),
     "installer style: colours only from the shared tokens (no colour of its own), no SLOOP track colours, no SLOOP tiles");
-  ok(/--t2: var\(--t1\); --t3: var\(--t1\); --t4: var\(--t1\);/.test(readFileSync(join(HERE, "style", "optimist.css"), "utf8")) && /--ok: var\(--t1\);/.test(readFileSync(join(HERE, "style", "optimist.css"), "utf8")),
-    "web style: one colour on every page (the blue --t1): the track names and an OK are that blue");
+  ok(/--accent: #da92cc/.test(readFileSync(join(HERE, "style", "optimist.css"), "utf8")) && !/--t[1-4]|--ok:/.test(readFileSync(join(HERE, "style", "optimist.css"), "utf8")),
+    "web style: Optimist's part of the shared style is the accent alone (the one colour of every page; the rest are the shared tokens)");
   /* the site's packages by release (make_site.py: releases first, newest first, then the development build) */
   const pk = (release, date) => ({ title: "x", release, date });
   const rg = INST.releaseGroups([pk("v0.2", "2026-10-15T00:00:00Z"), pk("v0.2", "2026-10-15T00:00:00Z"), pk("v0.1", "2026-10-01T00:00:00Z"), pk("", ""), pk("", "")], "85258b5c1234");
