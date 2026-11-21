@@ -1,4 +1,4 @@
-/* common.css: the one style of the three sites (jank, Optimist, DN2 wishes). Tokens + shared components, neutral names.
+/* common.css: the one style of the three sites (w0ts: Jank, Optimist, DN2 Wishes, Track Kommander). Tokens + shared components, neutral names.
    A site sets only its accent, three variables (and adds the few things that are truly its own):
      :root { --accent: #da92cc; --accent-text-l: #b13c9a; --accent-text-d: #da92cc; }
    Light and dark follow the system; data-theme="light"|"dark" on <html> (or on any element) forces one.
@@ -43,6 +43,8 @@ h4 { font-size: 13px; line-height: 1.3; font-weight: 600; color: var(--dim); tex
 p { margin: 8px 0; }
 a { color: var(--accent-text); }
 ::selection { background: var(--accent); color: var(--on); }
+/* on the title bar the accent selection colour is the bar's own colour (an invisible selection): invert it there */
+.titlebar ::selection { background: var(--on); color: var(--accent); }
 :focus-visible { outline: 2px solid var(--accent-text); outline-offset: 1px; }
 code, pre, kbd { font: 13px/1.4 var(--font-mono); }
 code { background: var(--off); border-radius: 4px; padding: 1px 5px; }
@@ -91,7 +93,7 @@ footer.site { margin-top: var(--sp-6); padding-top: var(--sp-3); border-top: 1px
   border-radius: var(--r) 0 0 var(--r); font-size: 28px; line-height: 1.15; overflow-wrap: anywhere; }
 @media (max-width: 480px) { .titlebar > h1 { font-size: 21px; padding: 7px 12px; } }
 /* "w0ts / App": the w0ts link back to the root page, in the title's own colour */
-.titlebar > h1 a { color: inherit; text-decoration: none; }
+.titlebar > h1 a { color: inherit; text-decoration: none; -webkit-user-select: text; user-select: text; -webkit-user-drag: none; user-drag: none; }
 .titlebar > h1 a:hover { text-decoration: underline; text-underline-offset: 4px; }
 
 /* ---- cards: section or .card, with an h2 title. .card.accent: a selected / primary card. .card.inset: a card inside a card */
