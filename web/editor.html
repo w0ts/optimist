@@ -1488,7 +1488,7 @@
   .menubar .sitehead header.site { margin: 0; }
   .menubar .sitehead header.site > nav.site { padding-top: var(--sp-2); }
   .menubar .tabs { justify-content: flex-start; gap: 6px; flex: 1 1 auto; }
-  .menubar .tabs [data-tab=install], .menubar .tabs [data-tab=sim], .menubar .tabs .navh { display: none; }   /* (Installer and Simulator are in the header's nav) */
+  .menubar .tabs [data-tab=install], .menubar .tabs [data-tab=sim] { display: none; }   /* (Installer and Simulator are in the header's nav) */
   html[data-conn=off] .menubar .tabs { display: none; }
   .menubar .tabs button { color: var(--fg); padding: 5px 10px; font-size: 14px; text-transform: none; min-height: 0; border: 1px solid var(--line); border-radius: 6px; background: none; }
   .menubar .tabs button:hover { background: var(--s1); }
@@ -1496,6 +1496,7 @@
   .menubar .tabs #helpbtn { color: var(--dim); padding: 5px 6px; border-color: transparent; margin-left: auto; }
   .menubar .tabs #helpbtn:hover { color: var(--trk); background: none; }
   .menubar .sidenote { font-size: 13px; }
+  html:not([data-page=mixer]) .menubar .sidenote, html[data-conn=off] .menubar .sidenote { display: none; }   /* (what the firmware lacks concerns the Editor's mixer and sequencer: not the other pages, Install, Simulator or no device) */
   .devcard #version { font-size: 14px; }
   @media (min-width: 861px) { main.main { padding: 0 var(--col-pad) 32px; } }
   .panel:not(#p-mixer):not(.o-host) h2 { font-size: 21px; line-height: 1.2; font-weight: 700; text-transform: none; color: var(--fg); margin: 24px 0 10px; }
@@ -1510,7 +1511,23 @@
   .panel:not(#p-mixer):not(#p-mirror):not(.o-host) button:not(.ib):not(.pill):not(.tog):not(.big):not([aria-pressed="true"]):not(:disabled):hover, .devcard button:hover { background: var(--s1); }
   .panel:not(#p-mixer):not(#p-mirror):not(.o-host) button:disabled:not(.ib) { background: none; border: 1px solid var(--line); border-radius: 6px; text-transform: none; padding: 6px 12px; }
   .panel:not(#p-mixer):not(.o-host) :is(select, input[type=text], input[type=number], input[type=search], input[type=password]) { border: 1px solid var(--line); border-radius: 6px; padding: 5px 8px; }
-  .pill { text-transform: none; }
+  /* the quiet button of the shared style on every page, the mixer and the dialogs too: only colour, outline and corner (the outline is an inset shadow, so no strip changes its size) */
+  button, button.ib, button.pill { background: none; color: var(--fg); box-shadow: inset 0 0 0 1px var(--line); border-radius: 6px; text-transform: none; }
+  button.pill { border-radius: 999px; }
+  .o-host button, .devcard button, .menubar .tabs button, .panel:not(#p-mixer):not(#p-mirror):not(.o-host) button:not(.ib):not(.pill):not(.tog):not(.big) { box-shadow: none; }   /* (these have a border of their own) */
+  button:hover:not(:disabled) { background: var(--s1); }
+  button:disabled { background: none; color: var(--mute); }
+  .pill, .pill[data-st] { text-transform: none; }
+  /* the mixer's, the dialogs' and the pages' own button and card rules, on the same tokens (colours and outline only: sizes, rows and the engine / track colours stay) */
+  .strip .pops button.ib, .strip button.ib.seqb, .seg button, button.tog, .chop .chip, .dgrid button.beat, .dgrid button.bar { background: none; box-shadow: inset 0 0 0 1px var(--line); }
+  .strip .pops button.ib:hover, .strip button.ib.seqb:hover, .seg button:hover:not(:disabled), button.tog:hover:not(:disabled) { background: var(--s1); }
+  .seg button[aria-pressed="true"], button.tog[aria-pressed="true"] { background: var(--fg); color: var(--bg); box-shadow: none; }
+  .group, .smp, .klane, .roll .rnote, .strip.master .fxg, .pophead { background: var(--panel); }
+  .group, .smp, .klane, .strip.master .fxg { border-radius: 6px; }
+  .strip .shead { background: none; }
+  .klanes button, .strip .lanes .ln { background: var(--panel); }
+  dialog#pop, dialog { border: 1px solid var(--line); border-radius: 8px; background: var(--bg); color: var(--fg); }
+  dialog h2 { font-size: 21px; line-height: 1.2; font-weight: 700; text-transform: none; color: var(--fg); }
 </style>
 </head>
 <body>
@@ -7813,18 +7830,20 @@ function appSwitch(prev, name) {
     if (QS.get("connect") !== "0" || MOCK) openPort();
   }
 }
-function siteNavCurrent() {                       /* the header's nav (shared, make_site.py): Simulator on its tab, else Editor; its two links to this page switch tabs here */
+const SITE_NAV = [[/installer\/$/, "install", (t) => t === "install" || t === "build"], [/editor\/#sim$/, "sim", (t) => t === "sim"],
+  [/editor\/$/, "mixer", (t) => !["install", "build", "sim"].includes(t)]];   /* (the header's links to this page's own tabs: Installer, Simulator, Editor) */
+function siteNavCurrent() {                       /* the header's nav (shared, make_site.py): the current tab's link is aria-current; those links switch tabs here */
   const nav = document.querySelector("#sitehead nav.site"); if (!nav) return;
   for (const a of nav.querySelectorAll("a[href]")) {
-    const sim = /editor\/#sim$/.test(a.getAttribute("href")), ed = /editor\/$/.test(a.getAttribute("href"));
-    if (!sim && !ed) continue;
-    if (sim === (tab === "sim") && (sim || ed && tab !== "sim")) a.setAttribute("aria-current", "page"); else a.removeAttribute("aria-current");
+    const hit = SITE_NAV.find(([re]) => re.test(a.getAttribute("href")));
+    if (!hit) continue;
+    if (hit[2](tab)) a.setAttribute("aria-current", "page"); else a.removeAttribute("aria-current");
   }
 }
 document.addEventListener("click", (e) => {
   const a = e.target.closest && e.target.closest("#sitehead nav.site a[href]"); if (!a) return;
-  const href = a.getAttribute("href");
-  if (/editor\/#sim$/.test(href)) { e.preventDefault(); showTab("sim"); } else if (/editor\/$/.test(href)) { e.preventDefault(); showTab("mixer"); }
+  const hit = SITE_NAV.find(([re]) => re.test(a.getAttribute("href")));
+  if (hit) { e.preventDefault(); showTab(hit[1]); }
 });
 function showTab(name) {                           /* a screen (or one of the apps); an old tab name: the mixer and that popup */
   name = tabName(name);

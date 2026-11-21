@@ -193,8 +193,8 @@ if (process.argv.includes("--readme-shots")) {
 await send("Page.navigate", { url: `http://127.0.0.1:${port}/editor.html?mock=1&auto=0&store=1&connect=0#mixer` });
 await sleep(1200);
 ok(await run(`${U} return shown($("#connectcard")) && shown($("#connect")) && document.querySelectorAll("#mixer .strip").length === 0
-  && [...document.querySelectorAll(".panel")].every((p) => !shown(p)) && [...document.querySelectorAll("#tabs button[data-tab]")].filter(shown).map((b) => b.dataset.tab).join() === "install,sim,mixer" && !document.querySelector("#tp, #play") && !shown($("#disconnect"))
-  && /installer/i.test($("#connectcard").textContent);`), "e2e: not connected: the connect card only (no mixer; the Install, Simulator and Editor tabs; no transport)");
+  && [...document.querySelectorAll(".panel")].every((p) => !shown(p)) && [...document.querySelectorAll("#tabs button[data-tab]")].filter(shown).length === 0 && !!document.querySelector("#sitehead h1") && !document.querySelector("#tp, #play") && !shown($("#disconnect"))
+  && /installer/i.test($("#connectcard").textContent);`), "e2e: not connected: the connect card only (no mixer; no device tabs, the title bar; no transport)");
 await shot("editor-disconnected");
 /* the colours follow the system, live, with no switch anywhere: dark and light under an emulated prefers-color-scheme, restyled while open */
 const scheme = (v) => send("Emulation.setEmulatedMedia", { features: [{ name: "prefers-color-scheme", value: v }] });
