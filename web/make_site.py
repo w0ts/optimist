@@ -182,6 +182,12 @@ def shared_css():
 PAGE_TITLES = {"installer": "Install Optimist", "builder": "Firmware builder for the M-VAVE FM-1", "editor": "Optimist editor"}
 
 
+def brand_svg():
+    """the logo for inside the title's h1: no <title> and no whitespace between its tags (the h1's text stays the title alone)"""
+    svg = re.sub(r'<title>.*?</title>|\s(?:role|aria-label)="[^"]*"', "", logo_svg(), flags=re.S)
+    return re.sub(r">\s+<", "><", svg).strip()
+
+
 def shared_header(app, title=None):
     """the page header of the shared style (site-style's canonical markup), directly in <body>: ONE row, the title on the
     left (the dinghy, linking to the site's root, then the page's title, on the accent block) and the apps as tabs on the
@@ -191,7 +197,7 @@ def shared_header(app, title=None):
     links = '<span class="sep" role="separator" aria-orientation="vertical"></span>'.join(
         f'<a href="{href}"' + (' aria-current="page"' if a == app else "") + f">{(EDITOR_ICON + ' ' if a == 'editor' else '')}{t}</a>"
         for href, a, t in items)
-    brand = f'<a class="brand" href="../../" title="Optimist" aria-label="Optimist start page">{logo_svg()}</a>'
+    brand = f'<a class="brand" href="../../" title="Optimist" aria-label="Optimist start page">{brand_svg()}</a>'
     return (f'<header class="site"><div class="titlebar"><h1>{brand}{title or PAGE_TITLES[app]}</h1></div>'
             f'<nav class="site" aria-label="Optimist apps">{links}{app_badges(auto=False)}'
             f'<a href="https://github.com/{REPO}" target="_blank" rel="noopener" title="Optimist on GitHub" aria-label="Optimist on GitHub">{GITHUB_ICON}</a></nav></header>')

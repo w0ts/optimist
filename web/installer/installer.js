@@ -468,17 +468,17 @@ export function mountInstaller(container, opts = {}) {
     el.go, h("p.dim.oi-keep", {}, TEXT.keep),
     el.phases, el.bar, el.status, el.drop, el.err, el.ok, el.wifi,
     connectBox,
-    h("details.oi-logbox", {}, h("summary", {}, TEXT.logTitle), el.log));
+    h("details.sec.oi-logbox", {}, h("summary", {}, h("h3", {}, TEXT.logTitle)), el.log));
 
   /* ---- Build your own: its own flow (the builder), a card of its own, first (the user, 2026-10-25), Install under it */
   const ownCard = h("section.card.oi-step.oi-own", { "aria-labelledby": "oi-sown" },
-    h("div.card-head", {}, h("h2.oi-h", { id: "oi-sown" }, h("span", {}, TEXT.ownTitle))),
+    h("div.card-head", {}, h("h4.oi-h", { id: "oi-sown" }, h("span", {}, TEXT.ownTitle))),
     h("div.card-body", {}, h("p.dim", {}, TEXT.buildOwnDesc), el.own));
 
   /* ---- 4 When something goes wrong */
   el.stockFile = h("input.oi-file", { type: "file", accept: ".fwsc", "aria-label": TEXT.stockFile, onchange: () => loadStock() });
   el.stockMsg = h("p.oi-stockmsg", { role: "status", "aria-live": "polite" });
-  const rescueBox = h("details.oi-rescuebox", {}, h("summary", {}, TEXT.s4),
+  const rescueBox = h("details.sec.oi-rescuebox", {}, h("summary", {}, h("h2", {}, TEXT.s4)),
     h("dl.oi-rescue", {},
       h("dt", {}, TEXT.r1h), h("dd", {}, TEXT.r1),
       h("dt", {}, TEXT.r2h), h("dd", {}, TEXT.r2),
@@ -502,7 +502,7 @@ export function mountInstaller(container, opts = {}) {
   function card(name, title, ...body) {   /* (neutral: the track colours are the device's, not the installer's) */
     const hid = `oi-s${name}`;
     return h("section.card.oi-step", { "aria-labelledby": hid },
-      h("div.card-head", {}, h("h2.oi-h", { id: hid }, h("span", {}, title))),
+      h("div.card-head", {}, h("h4.oi-h", { id: hid }, h("span", {}, title))),
       h("div.card-body", {}, ...body));
   }
   function choiceRow(value, title, desc, product, extra = null) {

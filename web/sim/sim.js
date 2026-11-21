@@ -273,8 +273,8 @@ export function mountSim(container, opts = {}) {
     h("div.os-side", {},
       h("div.os-group", { role: "group", "aria-label": TEXT.build }, h("label", {}, h("span", {}, TEXT.build), el.pick), el.wasmFile,
         h("label", {}, h("span", {}, TEXT.themeLabel), el.theme), el.power, el.install, el.config),
-      h("div.os-group", { role: "group", "aria-label": TEXT.memory }, h("span.os-glabel", {}, TEXT.memory), el.save, el.loadf, el.reset, el.file),
-      h("div.os-group", { role: "group", "aria-label": TEXT.device }, h("span.os-glabel", {}, TEXT.device), el.load, el.write, el.pjGet, el.pjSend),
+      h("div.os-group", { role: "group", "aria-label": TEXT.memory }, h("h4.os-glabel", {}, TEXT.memory), el.save, el.loadf, el.reset, el.file),
+      h("div.os-group", { role: "group", "aria-label": TEXT.device }, h("h4.os-glabel", {}, TEXT.device), el.load, el.write, el.pjGet, el.pjSend),
       el.pj));
   container.replaceChildren(root);
   const fit = () => { const s = Math.min(1, el.stage.clientWidth / 1160); el.body.style.setProperty("--os-scale", s); el.stage.style.height = `${700 * s}px`; };

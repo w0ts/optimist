@@ -105,8 +105,6 @@
 
 /* When something goes wrong: folded under the cards */
 .oi-rescuebox { border: 1px solid var(--line); padding: var(--sp-2) var(--sp-3); background: var(--panel); }
-.oi-rescuebox > summary { cursor: pointer; color: var(--ink); }
-.oi-rescuebox[open] > summary { margin-bottom: var(--sp-3); }
 .oi-rescue { margin: 0 0 var(--sp-3); }
 .oi-rescue dt { color: var(--ink); text-transform: uppercase; margin: var(--sp-3) 0 var(--sp-1); }
 .oi-rescue dt:first-child { margin-top: 0; }

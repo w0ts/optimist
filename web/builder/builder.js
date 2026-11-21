@@ -44,7 +44,7 @@ const TEMPLATE = `
     </div>
     <aside id="bside" aria-label="Size, configuration and details">
       <section id="gauges" class="card" aria-label="Size estimate">
-        <div class="card-head"><h2>Size</h2><span class="tag" id="fitmark" hidden></span><span class="tag accent" id="previewtag" hidden>preview</span><button type="button" id="how" class="info" aria-label="About the estimate" aria-haspopup="dialog">i</button></div>
+        <div class="card-head"><h4>Size</h4><span class="tag" id="fitmark" hidden></span><span class="tag accent" id="previewtag" hidden>preview</span><button type="button" id="how" class="info" aria-label="About the estimate" aria-haspopup="dialog">i</button></div>
         <div class="card-body">
           <div id="bars"></div>
           <div class="side">
@@ -56,7 +56,7 @@ const TEMPLATE = `
         </div>
       </section>
       <section id="result" class="card" aria-label="Build">
-        <div class="card-head"><h2>Build</h2></div>
+        <div class="card-head"><h4>Build</h4></div>
         <div class="card-body">
           <div class="row2">
             <button type="button" id="build" disabled aria-describedby="buildmsg">Build</button>
@@ -67,11 +67,11 @@ const TEMPLATE = `
           <p class="note" id="buildmsg" role="status"></p>
           <div id="botcheck" hidden></div>
           <div class="note" id="buildwatch" role="status" aria-live="polite" hidden></div>
-          <details id="buildhow"><summary>Build it yourself</summary>
+          <details class="sec" id="buildhow"><summary><h3>Build it yourself</h3></summary>
             <p id="buildnote" class="note dim">From a checkout: <code>python3 tools/optimist.py build --config FILE</code> (or open it in the menu: <code>python3 tools/optimist.py builder --config FILE</code>).</p>
           </details>
-          <details id="import">
-            <summary>Load a .config file (or paste one)</summary>
+          <details class="sec" id="import">
+            <summary><h3>Load a .config file (or paste one)</h3></summary>
             <div>
               <div class="row2"><label class="button quiet" for="bfile">Choose a file</label><input id="bfile" type="file" accept=".config,.txt,text/plain" class="sr"><span id="filename" class="note dim"></span></div>
               <label for="paste" class="sr">.config text</label>
@@ -79,20 +79,20 @@ const TEMPLATE = `
               <div class="row2"><button class="quiet" type="button" id="pasteload">Load the pasted text</button><span id="importmsg" class="note" role="status"></span></div>
             </div>
           </details>
-          <details id="canondet"><summary>The canonical configuration (what the key hashes)</summary><pre id="canon"></pre></details>
-          <details id="dumpdet"><summary>The .config file</summary><pre id="dump"></pre></details>
+          <details class="sec" id="canondet"><summary><h3>The canonical configuration (what the key hashes)</h3></summary><pre id="canon"></pre></details>
+          <details class="sec" id="dumpdet"><summary><h3>The .config file</h3></summary><pre id="dump"></pre></details>
         </div>
       </section>
       <section id="proposals" class="card" aria-label="Ways to fit" hidden>
-        <div class="card-head"><h2>Ways to fit</h2><button type="button" id="propsclose" class="quiet sm" aria-label="Close the proposals">close</button></div>
+        <div class="card-head"><h4>Ways to fit</h4><button type="button" id="propsclose" class="quiet sm" aria-label="Close the proposals">close</button></div>
         <div class="card-body" id="propsb"></div>
       </section>
       <div id="alerts">
         <div id="msgs" aria-live="polite"></div>
-        <details id="notes" hidden><summary id="notessum">Notes</summary><ul id="noteslist"></ul></details>
+        <details class="sec" id="notes" hidden><summary><h3 id="notessum">Notes</h3></summary><ul id="noteslist"></ul></details>
       </div>
       <section id="info" class="card" aria-live="polite" aria-label="Details">
-        <div class="card-head"><h2>Info</h2></div>
+        <div class="card-head"><h4>Info</h4></div>
         <div class="card-body" id="infob"><p class="dim">Select an item to see what it does and what it costs.</p></div>
       </section>
     </aside>
@@ -420,7 +420,7 @@ function renderTree() {
     for (const t of g.items) list.append(li(t));
     const head = el("div", { class: "card-head", "data-fold": gid, role: "button", tabindex: "0", "aria-expanded": open ? "true" : "false", "aria-label": `${open ? "Fold" : "Unfold"} ${g.group}`,
       onclick: () => toggleFold(gid), onkeydown: (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); toggleFold(gid); } } },
-      el("span", { class: "chev", "aria-hidden": "true", text: open ? "▾" : "▸" }), el("h2", { text: g.group }));
+      el("span", { class: "chev", "aria-hidden": "true", text: open ? "▾" : "▸" }), el("h4", { text: g.group }));
     tree.append(el("div", { class: "group card", "data-group": g.group }, head, list));
   }
   if (!tree.childNodes.length) tree.append(el("p", { class: "dim", text: `Nothing matches "${S.filter}".` }));
