@@ -4,7 +4,7 @@
    mounted, light or dark. The cards are the shared .card, numbered in neutral grey; the accent (the Install button, the
    radios, the phase in progress) and an OK ("found", "done") are the pages' one colour, the blue. */
 
-.oi { max-width: 720px; margin: 0 auto; }
+.oi { max-width: none; margin: 0; }   /* (the host sets the width: the pages' 1100 px column, the editor tab's main) */
 .oi [hidden] { display: none !important; }   /* (a hidden message stays gone whatever its display) */
 .oi p { margin: 0 0 var(--sp-3); }
 .oi p:last-child { margin-bottom: 0; }
