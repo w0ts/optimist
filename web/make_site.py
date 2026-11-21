@@ -139,14 +139,14 @@ APP_STORE = "https://apps.apple.com/app/id6826362906"   # (Optimist Mirror: one 
 BADGES_MARK = "<!--APP-BADGES-->"                  # where the editor's menu bar takes the App Store badges
 
 
-def app_badges():
+def app_badges(auto=True):
     """Apple's badges, as Apple gives them (web/style/badges/), inlined: no request to Apple from the pages"""
-    imgs = []
+    imgs, push = [], ";margin-left:auto" if auto else ""
     for f, alt, w in (("app-store.svg", "Download on the App Store", 78), ("mac-app-store.svg", "Download on the Mac App Store", 102)):
         data = base64.b64encode((HERE / "style" / "badges" / f).read_bytes()).decode("ascii")
         imgs.append(f'<a href="{APP_STORE}" target="_blank" rel="noopener" style="padding:0;background:none;display:inline-flex">'
                     f'<img src="data:image/svg+xml;base64,{data}" alt="{alt}" height="26" width="{w}"></a>')
-    return f'<span class="o-badges" style="display:inline-flex;gap:6px;align-items:center;flex:none;margin-left:auto">{"".join(imgs)}</span>'
+    return f'<span class="o-badges" style="display:inline-flex;gap:6px;align-items:center;flex:none{push}">{"".join(imgs)}</span>'
 
 
 COMMON_CSS = "https://w0ts.github.io/site-style/common.css"   # the one shared style, loaded by URL (the pages are not offline files)
@@ -157,17 +157,22 @@ def shared_css():
     return (HERE / "style" / "optimist.css").read_text(encoding="utf-8")
 
 
-def shared_header(app):
-    """the header of the three apps, the editor's menu bar: the dinghy and OPTIMIST (to the site's root), the apps as
-    tabs with a separator between them (the current one aria-current)"""
+PAGE_TITLES = {"installer": "Install Optimist", "builder": "Firmware builder for the M-VAVE FM-1", "editor": "Optimist editor"}
+
+
+def shared_header(app, title=None):
+    """the page header of the shared style (site-style's canonical markup), directly in <body>: ONE row, the title on the
+    left (the dinghy, linking to the site's root, then the page's title, on the accent block) and the apps as tabs on the
+    right (the current one aria-current), both in the content's width; the App Store badges and GitHub close the tabs"""
     items = [(f"../{a}/", a, t) for a, t in APPS]
     items.insert(2, ("../editor/#sim", "simulator", "Simulator"))   # (a tab of the editor's page, no page of its own: web/sim/)
     links = '<span class="sep" role="separator" aria-orientation="vertical"></span>'.join(
         f'<a href="{href}"' + (' aria-current="page"' if a == app else "") + f">{(EDITOR_ICON + ' ' if a == 'editor' else '')}{t}</a>"
         for href, a, t in items)
-    return (f'<header class="site"><a class="brand" href="../../" title="Optimist">{logo_svg()}<b>Optimist</b></a>'
-            f'<nav class="site" aria-label="Optimist apps">{links}{app_badges()}'
-            f'<a style="margin-left:8px" href="https://github.com/{REPO}" target="_blank" rel="noopener" title="Optimist on GitHub" aria-label="Optimist on GitHub">{GITHUB_ICON}</a></nav></header>')
+    brand = f'<a class="brand" href="../../" title="Optimist" aria-label="Optimist start page">{logo_svg()}</a>'
+    return (f'<header class="site"><div class="titlebar"><h1>{brand}{title or PAGE_TITLES[app]}</h1></div>'
+            f'<nav class="site" aria-label="Optimist apps">{links}{app_badges(auto=False)}'
+            f'<a href="https://github.com/{REPO}" target="_blank" rel="noopener" title="Optimist on GitHub" aria-label="Optimist on GitHub">{GITHUB_ICON}</a></nav></header>')
 
 
 def styled(html, app, page):

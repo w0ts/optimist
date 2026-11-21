@@ -5,3 +5,4 @@
    bright for fills, darker for small text in light mode) and the few values the pages' layouts read. docs/WEB-STYLE.md. */
 :root { --accent: #da92cc; --accent-text-l: #b13c9a; --accent-text-d: #da92cc;
         --page-w: 1100px; --head-h: 0px; --bar-h: 3px; }
+.titlebar .brand { color: inherit; }   /* (the dinghy in the title block takes the block's dark text, not the link colour) */

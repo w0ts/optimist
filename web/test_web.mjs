@@ -3685,7 +3685,7 @@ async function installerModule() {
   ok(/Safari and the browsers on iPhone and iPad do not have Web MIDI/.test(T.nomidi) && /Chrome or Edge/.test(T.connectHow), "installer: Chrome or Edge; no Web MIDI on Safari, iPhone, iPad, said plainly");
   /* the page and the style */
   const page = readFileSync(join(HERE, "installer", "index.html"), "utf8"), css = readFileSync(join(HERE, "installer", "installer.css"), "utf8");
-  ok(["/*OPTIMIST-CSS*/", "<!--OPTIMIST-HEADER-->", "/*INSTALLER*/", "/*META*/"].every((m) => page.split(m).length === 2) && /mountInstaller\(document\.getElementById\("installer"\), site\)/.test(page),
+  ok(["/*OPTIMIST-CSS*/", "<!--OPTIMIST-HEADER-->", "/*INSTALLER*/", "/*META*/"].every((m) => page.split(m).length === 2) && /mountInstaller\(document\.getElementById\("installer"\), \{ \.\.\.site, heading: false \}\)/.test(page),
     "installer page: a thin wrapper (the shared style and header, the module, the site's packages)");
   ok(!/#[0-9a-f]{3,8}\b|rgba?\(|hsl/i.test(css.replace(/\/\*[\s\S]*?\*\//g, "")) && /var\(--surface-1\)/.test(css) && !/var\(--(on-track|t[1-4]|trk)\)/.test(css) && !/--t[1-4]/.test(readFileSync(join(HERE, "installer", "installer.js"), "utf8")) && !/\.tile|\.tiles/.test(css + page),
     "installer style: colours only from the shared tokens (no colour of its own), no SLOOP track colours, no SLOOP tiles");
