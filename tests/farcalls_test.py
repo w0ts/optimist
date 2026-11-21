@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: MPL-2.0
-# Copyright (C) 2026 Henri David
+# Copyright (C) 2026 w0ts
 """tools/farcalls.py, the build's check for a direct call between RAM code and XIP, on small disassemblies in objdump's
 pi32v2 form: a real call from RAM to a function in XIP (and back) fails; a jump table's data word that decodes as a
 call (2026-10-31: 'aa ea 04 02' in bk_commit_sec, 'call -2882552' to an address with no code) passes; a call on the same

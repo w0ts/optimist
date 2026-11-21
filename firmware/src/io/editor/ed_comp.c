@@ -1,5 +1,5 @@
 /* SPDX-License-Identifier: GPL-3.0-only
- * Copyright (C) 2026 Henri David */
+ * Copyright (C) 2026 w0ts */
 /* The backup's objects and the user sample slots as files of fm1-base's companion services (FELUCCA_ED_COMPANION: Optimist
  * as an fm1-base app, the trial; fm1-base's docs/COMPANION.md, web/EDITOR_PROTOCOL.md "fm1-base's companion services"), in place of the
  * editor's cmds 43..48 and 11..15: the same objects, read and written through the same paths, the platform speaking the

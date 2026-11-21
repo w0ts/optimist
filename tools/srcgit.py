@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: MPL-2.0
-# Copyright (C) 2026 Henri David
+# Copyright (C) 2026 w0ts
 """Which commit a source tree is: the one name every package, version string and SOURCE.txt gets it from.
 
   1. OPTIMIST_COMMIT in the environment, when set: the commit the caller says (a farm script exporting a tree with

@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: MPL-2.0
-# Copyright (C) 2026 Henri David
+# Copyright (C) 2026 w0ts
 """tools/romref.py, the check that nothing calls or reads the chip's ROM (0xFFC00000..0xFFCFFFFF), on small
 disassemblies in objdump's pi32v2 form: a call into the window fails; a constant in the window loaded into a register
 fails when the code then uses that register as an address (a load, a store, a call or a jump through it), and passes

@@ -1,5 +1,5 @@
 /* SPDX-License-Identifier: GPL-3.0-only
- * Copyright (C) 2026 Henri David */
+ * Copyright (C) 2026 w0ts */
 /* The output's correction by the headphone jack (the user, 2026-10-29): SYSTEM > GENERAL's SPK LOWCUT on the FM-1's own
  * speaker, HPHN BASS on headphones, each only on its side of the jack (PB5, system/hpjack.h), and only on the FM-1's own
  * codec output: never on Bluetooth, USB or the card's recording.

@@ -73,7 +73,7 @@ Optimist's own Bluetooth code is offered under either GPL-3.0-only or the Mozill
 text in `LICENSES/MPL-2.0.txt`), at the recipient's choice: its files carry `SPDX-License-Identifier: GPL-3.0-only OR
 MPL-2.0`. Optimist itself, and every firmware built from it, stays GPL-3.0-only; the second licence lets other FM-1
 firmwares and libraries (felucca-bsp, fm1-base) use the stack under MPL-2.0 whatever their own licence. The MPL's
-Exhibit B ("Incompatible With Secondary Licenses") does not apply. The files, all written for Optimist by hdavid:
+Exhibit B ("Incompatible With Secondary Licenses") does not apply. The files, all written for Optimist by w0ts:
 
 - `firmware/src/ble/` (all files)
 - `firmware/src/bt/`, except the third-party parts, which keep their own licences (the table below): the SBC encoder
@@ -95,7 +95,7 @@ GPL-3.0-only.
 
 The erase that keeps the sound playing (a 4 KiB sector erase suspended and resumed in 1 ms interrupts-off windows) is
 offered the same way, at the recipient's choice: `firmware/hal/fm1_flash_slice.h` and its test `tests/flash_slice_test.c`,
-written for Optimist by hdavid (commit 54d89896, 2026-10-16; git blame gives every line to him). Until 2026-10-26 their
+written for Optimist by w0ts (commit bf677a62, 2026-10-16; git blame gives every line to him). Until 2026-10-26 their
 headers carried the line "Copyright (C) 2026 Leo Kuroshita (@kurogedelic), Hügelton Instruments": it was copied with the
 header of `fm1_flash.h`, the Felucca / SLOOP file the same commit extended, not a credit for this code (an erase
 suspend, 75h / 7Ah, exists in none of Felucca, SLOOP, felucca-bsp, fm1-base, Melodee, X0X, Jangada or FoMni: checked
@@ -106,7 +106,7 @@ MPL-2.0 copy of those functions), which stays GPL-3.0-only.
 
 The data-cache ways used as RAM (the way masks set from RAM code, the tags invalidated, the memory tested at start-up and
 put back on a failure) are offered the same way, at the recipient's choice: `firmware/hal/fm1_cache.h`, written for
-Optimist by hdavid (commits f16f6683 and 9a1360ab, 2026-10-18; git blame gives every line to him). Its register addresses
+Optimist by w0ts (commits 39d71ec6 and 5533cff6, 2026-10-18; git blame gives every line to him). Its register addresses
 and the order of the steps are the AC79 SDK's facts (`cache_way_config`, `asm/csfr.h`; Apache-2.0, as M-VAVE's V15 runs
 them). felucca-bsp takes it under MPL-2.0 (`chip/fm1_cache_ram.h`). Not included: its users in Optimist (`seq/undo.c`,
 `engines/engines.c`, the console), which stay GPL-3.0-only.
@@ -122,7 +122,7 @@ writes; no vendor code was copied, and the register values it uses are JieLi's, 
 
 Optimist's own Wi-Fi code carries the same dual licence as the Bluetooth stack, at the recipient's choice, with the same
 terms (the section above; MPL-2.0 Exhibit B does not apply): `SPDX-License-Identifier: GPL-3.0-only OR MPL-2.0`. It is work
-in progress on the branch `link`. The files, all written for Optimist by hdavid:
+in progress on the branch `link`. The files, all written for Optimist by w0ts:
 
 - `firmware/src/wifi/` (all files: the WPA2 station, its crypto, the IP layer)
 - `firmware/hal/fm1_wifi.h`; its register addresses and values are JieLi's facts (Apache-2.0, the third-party table below)

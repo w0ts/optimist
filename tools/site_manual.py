@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: GPL-3.0-only
-# Copyright (C) 2026 Henri David
+# Copyright (C) 2026 w0ts
 """The release's manual, from Optimist's own guide (docs/guide/*.md): one page in the shape fm1-base's tools/make_site.py
 and tools/manual_html.py take (docs/MANUAL.md of the app: a title, a contents list, numbered sections).
 

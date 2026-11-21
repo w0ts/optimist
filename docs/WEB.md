@@ -293,8 +293,8 @@ What the relay holds and refuses (`cloud-relay-config.php`, outside the web root
 
 Set up: PHP 7.4+ with curl. `cloud-build.php` and `cloud-relay-config.php` (from `cloud-relay-config.example.php`) go
 outside the web root, with a `data_dir` writable by PHP. An exact nginx `location = /optimist/cloud-build.php` runs that
-one file through php-fpm (`fastcgi_param SCRIPT_FILENAME` pointing at it). On motscousus.com, they are in
-`/home/mots/cloud-relay/`. A Turnstile widget (dash.cloudflare.com > Turnstile, free) for the hostname `w0ts.github.io`
+one file through php-fpm (`fastcgi_param SCRIPT_FILENAME` pointing at it). On the relay's host, they are in
+`~/cloud-relay/`. A Turnstile widget (dash.cloudflare.com > Turnstile, free) for the hostname `w0ts.github.io`
 gives the site key (`logic.js`) and the secret (`turnstile_secret`). `tests/cloud_build_test.py` checks that the
 relay's issue body reads as the form's.
 

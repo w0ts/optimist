@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: MPL-2.0
-# Copyright (C) 2026 Henri David
+# Copyright (C) 2026 w0ts
 """The check for a direct call between RAM code and XIP code (core.h HOT, FAR), over the image's disassembly.
 
 A direct call between the two is out of reach: the linker should refuse it, and this catches one that wrapped instead.

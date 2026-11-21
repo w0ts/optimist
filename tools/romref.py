@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: MPL-2.0
-# Copyright (C) 2026 Henri David
+# Copyright (C) 2026 w0ts
 """The check that nothing calls or reads the chip's ROM (0xFFC00000..0xFFCFFFFF), over the image's disassembly
 (objdump's pi32v2 form; the same module as fm1-base's tools/romref.py). A direct call into the window is a reference. A constant in
 the window is one only when the code uses it as an address: loaded into a register that one of the next USE_WINDOW

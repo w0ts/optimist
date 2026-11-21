@@ -35,7 +35,7 @@ env:
   RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
   REPO: ${{ github.repository }}
   MAX_PER_DAY: "100"
-  RELAY_AUTHOR: hdavid                       # (tools/cloud_relay's account: GitHub calls it CONTRIBUTOR, not a maintainer)
+  RELAY_AUTHOR: ${{ vars.RELAY_AUTHOR }}     # (tools/cloud_relay's account, a repository variable: GitHub calls it CONTRIBUTOR, not a maintainer)
   RETAIN_DAYS: "30"
 
 jobs:

@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MPL-2.0
-// Copyright (C) 2026 Henri David
+// Copyright (C) 2026 w0ts
 // The companion services' client (docs/COMPANION.md, device/companion.c): what any fm1-base firmware built with
 // companion = true is and has, its files and its parameters, over a MIDI port pair (Web MIDI's, or the browser
 // emulator's: web/emu/parts/port_client.js). tools/fm1_companion.py is the same in Python.

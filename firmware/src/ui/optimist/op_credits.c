@@ -1,5 +1,5 @@
 /* SPDX-License-Identifier: GPL-3.0-only
- * Copyright (C) 2026 Henri David (hdavid), Optimist (github.com/w0ts/optimist) */
+ * Copyright (C) 2026 w0ts, Optimist (github.com/w0ts/optimist) */
 /* SYSTEM > CREDITS, the last page: whose work Optimist is built from, as film end titles (the user, 2026-10-29). Each
  * credit is the work's name in the small face (dim) over the person or project in the large face, centred; the list
  * rises by itself, slowly, and loops with a gap after the last credit. KNOB 1 scrolls it by hand, both ways; the

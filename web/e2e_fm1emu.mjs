@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-only
-// Copyright (C) 2026 Henri David
+// Copyright (C) 2026 w0ts
 // The editor in a real (headless) Chrome with its "fm1-base emulator" device: fm1-base's browser emulator running the
 // trial (Optimist as an fm1-base app) in one tab, its "port" part (fm1.toml emu = ["port"]) giving it to the editor in
 // another tab of the same site, as port_client.js's emuAccess(). The page connects, asks the capability query first,

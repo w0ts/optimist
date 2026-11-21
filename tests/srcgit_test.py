@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: MPL-2.0
-# Copyright (C) 2026 Henri David
+# Copyright (C) 2026 w0ts
 """tools/srcgit.py and the version the builder names a package with (tools/builder/configure.py version()): the tree's
 own repository gives its commit; a tree exported with `git archive` (no .git) inside another checkout (gpufarm:
 ~/optimist/worktrees/NAME) does NOT take the enclosing checkout's commit (2026-10-31: optimist-0.2-dev-60252ddd-modified.fwsc),

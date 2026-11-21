@@ -23,7 +23,7 @@ So a port is about flash-neutral (unmeasured exactly: that needs Optimist built 
 hardware through few calls: the engines, sequencer, effects and drums mostly `fm1_irq_on / off` (-> `plat_lock / unlock`) and
 `fm1_ticks` (-> `plat_ticks24`); 164 distinct `fm1_*` functions in all, most in ble/, bt/, system/, io/.
 
-**Licences.** fm1-base's MPL-2.0 files (no Exhibit B) can go into Optimist, which stays GPL-3.0-only. Only what hdavid wrote
+**Licences.** fm1-base's MPL-2.0 files (no Exhibit B) can go into Optimist, which stays GPL-3.0-only. Only what w0ts wrote
 alone, not derived from SLOOP, Felucca, Melodee or other GPL code, can go to fm1-base (their rule: no GPL code, each file's history
 checked). JieLi's binary libraries (fm1-base's default Bluetooth, its WiFi) cannot be linked into a GPL firmware: Optimist keeps its
 own Bluetooth and has no WiFi.

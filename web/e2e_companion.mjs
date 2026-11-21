@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-only
-// Copyright (C) 2026 Henri David
+// Copyright (C) 2026 w0ts
 // The editor's protocol code (editor.html between wire-section:begin and wire-section:end) against Optimist as an fm1-base app (the
 // trial) in fm1-base's browser emulator, headless under Node: the emulator's app.wasm (fm1-base tools/build.py optimist
 // --web) behind its "port" part's channel (fm1-base web/emu/parts/port.js: BroadcastChannel "fm1-emu", "here" / "to" /

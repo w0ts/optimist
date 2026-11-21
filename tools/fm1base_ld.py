@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: GPL-3.0-only
-# Copyright (C) 2026 Henri David
+# Copyright (C) 2026 w0ts
 """The linker of a measurement build of the release (tools/fm1base.py measure_toolchain): fm1-base's build has no
 measurement mode (Optimist's own tools/build.py --measure links past the slot and the pool), so its toolchain's `ld` is
 this wrapper, which gives the linker script room (the app slot, the SRAM, a NOINIT region beyond it, no check that

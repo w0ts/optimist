@@ -1,5 +1,5 @@
 /* SPDX-License-Identifier: MPL-2.0
- * Copyright (C) 2026 Henri David */
+ * Copyright (C) 2026 w0ts */
 /* The chip's CRC block (WL82.h JL_CRC: FIFO, REG at 0x13500): CRC-16/XMODEM, poly 0x1021 init 0, the SD card's data CRC. The SDK's
  * CRC16 (cpu.a crc16.c): REG = 0, each byte written to FIFO, csync, REG read; in an interrupt it falls back to its crc16_xmodem(.., 0),
  * so the two are the same sum. One user at a time: main loop only here; the SDK's own CRC16 takes a mutex and never uses the block in an interrupt. */

@@ -1,5 +1,5 @@
 /* SPDX-License-Identifier: GPL-3.0-only
- * Copyright (C) 2026 Henri David */
+ * Copyright (C) 2026 w0ts */
 /* The headphone jack's switch (measured on an FM-1 2026-10-29 with the GPIO probe, fm1-next-gpioprobe fe2f1ee9): PB5,
  * port B's input bit 5, 0 with headphones in, 1 with nothing plugged. Read only: its direction, pull and function are
  * left as the boot found them (input, enabled; no driver claims it). The speaker mutes itself in hardware on a plug;

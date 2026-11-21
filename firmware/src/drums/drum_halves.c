@@ -1,5 +1,5 @@
 /* SPDX-License-Identifier: GPL-3.0-only
- * Copyright (C) 2026 Henri David */
+ * Copyright (C) 2026 w0ts */
 /* The drum track's voices in two halves, a render job each, so the two cores share them (2026-11-05, the user's FM-1
  * with only drums playing: CPU0 at 60-75 %, CPU1 at 0 %; "basically every task/job should spread"). Included by the
  * split's owners after fx.c and slicer.c: fm1-base's core/opt_dual.c (the release) and system/dual.c (Optimist's own).

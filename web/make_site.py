@@ -19,6 +19,7 @@
   webapp/builder/             the web builder (web/builder/; data/ exported fresh by tools/export_builder_web.py,
                               build-info.json: the commit for the cloud key, none when the tree is modified)
   LICENSE, LICENSING.md, LICENSES/*.txt            the notices the package needs
+  privacy.html                the Optimist Mirror app's privacy policy (ios/OptimistMirror/privacy.html, unchanged)
   src/                        left alone
 Usage:
   web/make_site.py --flavours web/flavours.json X.Y OUT_DIR [--releases DIR]
@@ -468,6 +469,7 @@ def main(version, out, flavours=None, releases=None, sims=None):
         '<meta http-equiv="refresh" content="0; url=webapp/installer/">',          # straight on to the installer
         '<a href="webapp/installer/">Optimist installer</a>\n'))
     (out / "index.html").write_text(landing, encoding="utf-8")
+    shutil.copy(HERE.parent / "ios" / "OptimistMirror" / "privacy.html", out / "privacy.html")   # (the app's policy URL)
     print(f"site: {out}: webapp/installer, webapp/editor, webapp/builder, " + ", ".join(f"firmware/{n}" for _, n in files))
 
 

@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: GPL-3.0-only
-# Copyright (C) 2026 Henri David
+# Copyright (C) 2026 w0ts
 """The release build: Optimist as an fm1-base app (the submodule fm1base/, its app directory fm1base/optimist).
 
   ready()                 the submodule is there (else FM1BaseError: what to run)

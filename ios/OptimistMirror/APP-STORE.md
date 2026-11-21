@@ -4,7 +4,7 @@ What App Review will look at, and what is done. The app is free.
 
 ## Done
 
-- **Privacy policy:** https://motscousus.com/optimist/privacy.html (source: `privacy.html` here; the app collects nothing).
+- **Privacy policy:** https://w0ts.github.io/optimist/privacy.html (source: `privacy.html` here, published by `web/make_site.py`; the app collects nothing).
 - **Name:** "Optimist Mirror" (not "FM-1 ...": a name led by another company's product, M-VAVE's FM-1, can be flagged).
 - **Icon:** the FM-1 Emulator's lilac panel (`Resources/Assets.xcassets/AppIcon.appiconset`).
 - **Bluetooth permission text:** in `project.yml` (`NSBluetoothAlwaysUsageDescription`).
@@ -21,7 +21,7 @@ What App Review will look at, and what is done. The app is free.
 3. **App Privacy form** in App Store Connect: "Data Not Collected"; the privacy policy URL above.
 4. **Screenshots** for iPhone (6.9" and 6.5"), iPad (13") and Mac: the emulator and the mirror can make them.
 5. **Age rating** questionnaire (no objectionable content: 4+).
-6. **Support URL** (required): a page on motscousus.com or the GitHub repository.
+6. **Support URL** (required): the GitHub repository.
 7. **Category:** Music.
 8. **Copyright** line and the seller name (the developer account).
 9. **Bluetooth-only use:** Projects, Presets and Backup need the USB cable (over Bluetooth the firmware answers only the screen
@@ -38,8 +38,8 @@ What App Review will look at, and what is done. The app is free.
 **Name:** Optimist Mirror
 **Subtitle** (30 max): FM-1 screen, presets, backups
 **Category:** Music (secondary: Utilities) · **Price:** Free · **Age rating:** 4+ (every question "None" / "No")
-**Support URL:** https://github.com/w0ts/optimist · **Privacy Policy URL:** https://motscousus.com/optimist/privacy.html
-**Copyright:** 2026 Henri David
+**Support URL:** https://github.com/w0ts/optimist · **Privacy Policy URL:** https://w0ts.github.io/optimist/privacy.html
+**Copyright:** 2026 w0ts
 
 **Promotional text** (170 max):
 See your FM-1's screen big on your iPhone, iPad or Mac, play it from the keyboard, and keep your projects, presets and backups safe.

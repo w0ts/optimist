@@ -1,5 +1,5 @@
 /* SPDX-License-Identifier: GPL-3.0-only
- * Copyright (C) 2026 Henri David */
+ * Copyright (C) 2026 w0ts */
 /* The output's correction by the headphone jack (fx/outcorr.c, system/hpjack.h): SPK LOWCUT (OFF / ON / BASS+) only while
  * nothing is in the jack, HPHN BASS (OFF / +3 / +6 dB) only while headphones are in, and only on the FM-1's own codec
  * output. Through the real mixer, each case from the same start (a child process each, the same notes): the codec's

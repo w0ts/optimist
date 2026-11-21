@@ -1,5 +1,5 @@
 /* SPDX-License-Identifier: GPL-3.0-only
- * Copyright (C) 2026 Henri David (hdavid), Optimist (github.com/w0ts/optimist) */
+ * Copyright (C) 2026 w0ts, Optimist (github.com/w0ts/optimist) */
 /* SYSTEM > CREDITS as end titles (firmware/src/ui/optimist/op_credits.c; the user, 2026-10-29): the list rises by itself;
  * KNOB 1 moves it by hand both ways and the crawl waits CR_PAUSE_MS; the page loops; every credit comes by in one loop;
  * nothing is drawn, ticked or hashed while the page is not shown. Included by ui_optimist_test.c before
