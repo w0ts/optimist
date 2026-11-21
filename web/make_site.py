@@ -144,9 +144,9 @@ BADGES = (("app-store.svg", "Download on the App Store", "9.5 8 100.5 26"),     
           ("mac-app-store.svg", "Download on the Mac App Store", "9.5 8 137 26"))     # the text, without Apple's black plate and padding)
 BADGE_CSS = (".o-badges { --badge: var(--dim, light-dark(#6b6a65, #9c9b94)); display: inline-flex; gap: 14px; align-items: center; flex: none; }"
              " .o-badges.accent { --badge: var(--accent-text, light-dark(#b13c9a, #da92cc)); }"
-             " .o-badges a { display: inline-flex; padding: 0; background: none; color: var(--badge); text-decoration: none; }"
-             " .o-badges a:hover, .o-badges a:focus-visible { color: var(--ink, var(--fg, currentColor)); }"
-             " .o-badges svg { height: 24px; width: auto; display: block; fill: currentColor; }")
+             " .o-badges a { display: inline-flex; padding: 0; background: none; text-decoration: none; }"
+             " .o-badges a:hover, .o-badges a:focus-visible { opacity: .7; }"
+             " .o-badges svg { height: 20px; width: auto; display: block; fill: currentColor; }")
 
 
 def badge_glyph(name, label, crop):
@@ -166,7 +166,7 @@ def app_badges(auto=True):
     """the two App Store badges, tinted to the style (BADGE_TINT), linking to the app's record"""
     imgs, push = [], ";margin-left:auto" if auto else ""
     for f, alt, crop in BADGES:
-        imgs.append(f'<a href="{APP_STORE}" target="_blank" rel="noopener" title="{alt}">{badge_glyph(f, alt, crop)}</a>')
+        imgs.append(f'<a href="{APP_STORE}" target="_blank" rel="noopener" title="{alt}" style="color:var(--badge)">{badge_glyph(f, alt, crop)}</a>')
     cls = "o-badges" + (" accent" if BADGE_TINT == "accent" else "")
     return f'<style>{BADGE_CSS}</style><span class="{cls}" style="{push.lstrip(";")}">{"".join(imgs)}</span>'
 
