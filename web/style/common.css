@@ -101,6 +101,7 @@ section, .card { background: var(--panel); border: 1px solid var(--line); border
 .card-head h2, .card-head h3 { margin: 0; }
 details.sec > summary { cursor: pointer; color: var(--dim); font-size: 13px; font-weight: 600; text-transform: uppercase; letter-spacing: .05em; padding: 8px 2px; }
 details.sec > summary:hover { color: var(--ink); }
+details.sec > summary > h2, details.sec > summary > h3 { display: inline; margin: 0; text-transform: none; letter-spacing: normal; color: var(--ink); }
 details:not(.sec) > summary { cursor: pointer; color: var(--dim); }
 details:not(.sec)[open] > summary { margin-bottom: var(--sp-2); }
 dl.kv { display: grid; grid-template-columns: max-content 1fr; gap: 2px var(--sp-3); margin: 0 0 var(--sp-2); font-size: 14px; }
