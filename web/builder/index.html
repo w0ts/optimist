@@ -13,17 +13,18 @@
 <link rel="icon" href="../../favicon.ico" sizes="32x32">
 <link rel="apple-touch-icon" href="../../apple-touch-icon.png">
 <link rel="manifest" href="../../manifest.webmanifest">
+<link rel="stylesheet" href="https://w0ts.github.io/site-style/common.css">
 <style>/*OPTIMIST-CSS*/</style>
 <style>
   :root { --page-w: 1240px; }
-  .o-page { padding-top: var(--sp-4); }
+  .page { padding-top: var(--sp-2); }
 </style>
 </head>
-<body class="o-ui">
+<body>
 <!--OPTIMIST-HEADER-->
-<main class="o-page">
-  <h1 class="o-h1">Firmware builder for the M-VAVE FM-1</h1>
-  <p class="o-lead">Pick what goes into your firmware: the same items, rules and size estimate as <code>make builder</code>. What does not fit is shown, with by how much; you decide what to leave out.</p>
+<main class="page">
+  <div class="titlebar"><h1>Firmware builder for the M-VAVE FM-1</h1></div>
+  <p class="prose">Pick what goes into your firmware: the same items, rules and size estimate as <code>make builder</code>. What does not fit is shown, with by how much; you decide what to leave out.</p>
   <div id="app"></div>
 </main>
 <script type="module" src="ui.js"></script>

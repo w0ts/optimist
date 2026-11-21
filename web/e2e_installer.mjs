@@ -57,7 +57,7 @@ if (styleFile) {                                     /* another shared style (an
 const site = JSON.parse(readFileSync(join(SITE, "webapp", "installer", "site.json"), "utf8"));
 /* a host page: the shipped module, mounted as the one-page app will (two packages, onNavigate) */
 writeFileSync(join(SITE, "webapp", "host.html"), `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>host</title>
-<style>${readFileSync(join(HERE, "style", "optimist.css"), "utf8")}</style></head><body class="o-ui"><main class="o-page"><div id="tab"></div></main>
+<style>${readFileSync(join(HERE, "style", "optimist.css"), "utf8")}</style></head><body class=""><main class="page"><div id="tab"></div></main>
 <script type="module">import { mountInstaller } from "./installer/installer.js";
 const site = await fetch("./installer/site.json").then((r) => r.json());
 const two = [...site.packages, { ...site.packages[0], id: "drums", title: "Drum machine", description: "A second flavour, for the test." }];
@@ -158,9 +158,9 @@ const open = async (path, w = 1440, s = "dark") => {
 /* ---- 1 the page: Build your own, Install (the choices, the button, the FM-1 found), the rescue folded; the package checked */
 const start = await open("/webapp/installer/");
 const p0 = await run(`${U} return { steps: [...document.querySelectorAll(".oi-step .oi-h")].map((e) => e.textContent), h1: $("h1").textContent,
-  rescue: $(".oi-rescuebox > summary").textContent, folded: !$(".oi-rescuebox").open, under: !!$(".oi-step .oi-go ~ .oi-conn .o-btn"),
+  rescue: $(".oi-rescuebox > summary").textContent, folded: !$(".oi-rescuebox").open, under: !!$(".oi-step .oi-go ~ .oi-conn button"),
   radios: [...document.querySelectorAll(".oi-choice:not([hidden]) .oi-radio")].map((r) => [r.value, r.checked]), meta: $(".oi-meta").textContent, go: $(".oi-go").disabled,
-  find: $(".oi-conn .o-btn").disabled, tiles: document.querySelectorAll(".tile, .tiles").length, head: !!$(".o-head [aria-current=page]"),
+  find: $(".oi-conn button").disabled, tiles: document.querySelectorAll(".tile, .tiles").length, head: !!$("header.site [aria-current=page]"),
   unlabeled: [...document.querySelectorAll(".oi input")].filter((i) => !(i.labels && i.labels.length) && !i.getAttribute("aria-label")).length,
   nameless: [...document.querySelectorAll(".oi button")].filter((b) => !b.textContent.trim() && !b.getAttribute("aria-label")).length,
   source: $(".oi-foot a").href, about: [...document.querySelectorAll(".oi-foot a")].map((a) => a.getAttribute("href")) };`);
@@ -175,7 +175,7 @@ ok(!p0.unlabeled && !p0.nameless, "every field has a label, every button a name"
 await full("installer-desktop-dark-start", 1440);
 
 /* ---- 2 connect: nothing plugged -> not found and what to do; plugged -> found by itself (statechange) */
-const nf = await run(`${U} $(".oi-conn .o-btn").click(); await until(() => $(".oi-found").dataset.kind === "err");
+const nf = await run(`${U} $(".oi-conn button").click(); await until(() => $(".oi-found").dataset.kind === "err");
   return { t: $(".oi-found").textContent, help: vis(".oi-help"), items: $(".oi-help").textContent, calls: window.__midiCalls };`);
 ok(nf.t === "No FM-1 found." && nf.help && /OCT− alone/.test(nf.items) && nf.calls === 1, "step 1: no FM-1: said, with what to do (cable, hub, other apps, USB rescue)");
 await shot("installer-desktop-dark-notfound");
@@ -285,7 +285,7 @@ const none = await run(`${U} D().unplug(); await sleep(800); $(".oi-go").click()
 ok(/^No FM-1 found\. Check the cable \(see under the Install button\)/.test(none), `no FM-1 at Install: said, pointing at step 1 (${String(none).slice(0, 90)})`);
 
 /* ---- fm-1-base's discovery: an FM-1 under a name nobody knows is listed with Try, remembered once it answers; m-bootloader is offered */
-const odd = await run(`${U} D().plug("FM-1_015", "Mystery Port"); await sleep(300); $(".oi-conn .o-btn").click(); await until(() => $(".oi-portlist li button"), 10000);
+const odd = await run(`${U} D().plug("FM-1_015", "Mystery Port"); await sleep(300); $(".oi-conn button").click(); await until(() => $(".oi-portlist li button"), 10000);
   const before = [...document.querySelectorAll(".oi-portlist li")].map((l) => l.textContent);
   const btn = $(".oi-portlist li button"); btn.click(); await until(() => /^Found FM-1_015 on Mystery Port/.test($(".oi-portmsg").textContent), 10000);
   await until(() => $(".oi-found").dataset.kind === "ok", 10000);
@@ -311,7 +311,7 @@ const nst = await run(`${U} await until(() => $(".oi-stockmsg").dataset.kind, 50
 ok(/^Not the official file: /.test(nst.t) && !nst.row, "back to V15: any other file is refused (the SHA-256 of the official one)");
 if (process.env.FM1_V15 && existsSync(process.env.FM1_V15)) {
   await send("DOM.setFileInputFiles", { nodeId: stockNode.result.nodeId, files: [process.env.FM1_V15] });
-  const v = await run(`${U} await until(() => $(".oi-stockmsg").dataset.kind === "ok", 5000); return { go: $(".oi-go").textContent, warn: $(".oi-step:nth-child(1)") && vis(".o-msg.warn"), checked: $(".oi-radio[value=stock]").checked };`);
+  const v = await run(`${U} await until(() => $(".oi-stockmsg").dataset.kind === "ok", 5000); return { go: $(".oi-go").textContent, warn: $(".oi-step:nth-child(1)") && vis(".msg.warn"), checked: $(".oi-radio[value=stock]").checked };`);
   ok(v.go === "Install the official V15" && v.warn && v.checked, "back to V15: the official file chosen, the button says so, the warning about the data");
 }
 
@@ -325,7 +325,7 @@ for (let i = 0; i < 24; i++) {
   order.push(await run(`const e = document.activeElement; return e ? (e.className || e.tagName) + "|" + (e.textContent || e.value || "").slice(0, 20) + "|" + getComputedStyle(e).outlineStyle : "";`));
 }
 const at = (re) => order.findIndex((o) => re.test(o));
-ok(at(/^oi-radio/) >= 0 && at(/oi-go/) > at(/^oi-radio/) && at(/^o-btn\|Find (again|the FM-1)/) > at(/oi-go/) && order.filter((o) => /oi-go|Find the FM-1/.test(o)).every((o) => !o.endsWith("|none")),
+ok(at(/^oi-radio/) >= 0 && at(/oi-go/) > at(/^oi-radio/) && at(/^quiet\|Find (again|the FM-1)/) > at(/oi-go/) && order.filter((o) => /oi-go|Find the FM-1/.test(o)).every((o) => !o.endsWith("|none")),
   `keyboard: Tab goes the choices -> Install -> Find, each with a visible focus ring`);
 
 /* ---- the looks: 1440 and 390, dark and light; the phone has no sideways scroll and 16 px gutters */
@@ -342,7 +342,7 @@ for (const [w, dev] of [[1440, "desktop"], [390, "phone"]]) {
 }
 ok(colors[0] !== colors[1] && colors[0] === colors[2] && colors[1] === colors[3], `light / dark follow the system (${colors[0]} / ${colors[1]})`);
 const nm = await open("/webapp/installer/?nomidi", 390, "light");
-const nmv = await run(`${U} return { msg: vis(".oi-browser") && $(".oi-browser").textContent, go: $(".oi-go").disabled, find: !vis(".oi-conn .o-btn") };`);
+const nmv = await run(`${U} return { msg: vis(".oi-browser") && $(".oi-browser").textContent, go: $(".oi-go").disabled, find: !vis(".oi-conn button") };`);
 ok(nm.kind === "ok" && /Safari and the browsers on iPhone and iPad do not have Web MIDI/.test(nmv.msg) && nmv.go && nmv.find,
   "no Web MIDI (iPhone, Safari): said plainly in step 1, no Find, Install off, the package still checked");
 await full("installer-phone-light-nomidi", 390);
@@ -353,7 +353,7 @@ await full("installer-phone-dark-nomidi", 390);
 await open("/webapp/host.html", 1440, "dark");
 const host = await run(`${U} const r = { radios: document.querySelectorAll(".oi-choice:not([hidden]) .oi-radio").length, flavs: document.querySelectorAll(".oi-flav option").length,
     styles: document.querySelectorAll("#optimist-installer-style").length };
-  $(".oi-own .o-btn").click();
+  $(".oi-own button").click();
   [...document.querySelectorAll(".oi a")].find((a) => a.textContent === "About and licences").click();
   r.navs = window.navs.slice(); r.url = location.pathname; r.busy = window.inst.busy;
   const f = $(".oi-flav"); f.value = "1"; f.dispatchEvent(new Event("change")); await until(() => $(".oi-pkg").dataset.kind === "ok" && /Drum machine/.test($(".oi-pkg").textContent), 5000);

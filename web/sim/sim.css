@@ -7,11 +7,11 @@
 .os-main { display: grid; gap: var(--sp-2); min-width: 0; }
 .os-side { display: grid; gap: var(--sp-3); }
 .os-group { display: grid; gap: var(--sp-1); padding: var(--sp-2); border: 1px solid var(--line); border-radius: var(--r, 2px); min-width: 0; }
-.os-group .o-field { display: grid; gap: 2px; }
+.os-group label { display: grid; gap: 2px; }
 /* every control of a group the same width, edge to edge (the menus were narrower than the buttons) */
-.os-group select, .os-group .o-btn { box-sizing: border-box; width: 100%; max-width: none; margin: 0; }
-.os-group .o-btn { display: flex; align-items: center; gap: var(--sp-2); justify-content: flex-start; width: 100%; text-align: left; }
-.os-glabel { font-size: var(--fs-1); text-transform: uppercase; letter-spacing: .06em; color: var(--text-dim); }
+.os-group select, .os-group button { box-sizing: border-box; width: 100%; max-width: none; margin: 0; }
+.os-group button { display: flex; align-items: center; gap: var(--sp-2); justify-content: flex-start; width: 100%; text-align: left; }
+.os-glabel { font-size: var(--fs-1); text-transform: uppercase; letter-spacing: .06em; color: var(--dim); }
 .os-ic { width: 16px; height: 16px; flex: none; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
 .os-power .os-ic { fill: currentColor; }
 .os-pj { display: grid; gap: var(--sp-1); }

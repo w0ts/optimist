@@ -34,7 +34,7 @@ development build stays a choice (the user, 2026-10-26). The site holds:
 - the dinghy icon files (`assets/logo/`; the PNGs are rendered by `tools/gen_web_icon.py` and committed), `manifest.webmanifest`,
   `LICENSE`, `LICENSING.md`, `LICENSES/`.
 
-All pages share one look and header (docs/WEB-STYLE.md): `web/style/optimist.css`, which `make_site.py` inlines.
+All pages share one look and header (docs/WEB-STYLE.md): `web/style/common.css` (the shared style, loaded by URL from https://w0ts.github.io/site-style/common.css; the offline Mirror app and the editor's tabs use the vendored copy beside the page) plus `web/style/optimist.css` (the accent), which `make_site.py` inlines.
 
 ### The installer module
 
@@ -141,12 +141,12 @@ b.deactivate();    // hidden: shortcuts off, state and worker kept
 b.destroy();       // gone
 ```
 
-- `container` gets the classes `ob-root` and `o-ui`; nothing outside it is touched (every CSS rule is under `.ob-root`, ids do
+- `container` gets the classes `ob-root` and `dense`; nothing outside it is touched (every CSS rule is under `.ob-root`, ids do
   not collide with the editor's).
 - `onNavigate(name)` is called instead of following a `data-nav` link. `pyodideBase` is another Pyodide directory (tests).
 - **Python is not loaded before the first `activate()`.** The handle also has `state`, `ready`, `readyFlag`, `call(fn, ...)`,
   `choosePreset(id)`, `importText(text, source)` and `setItem(key, value)` (the tests use them).
-- The host must include `web/style/optimist.css` and set `--menubar-h` if it has a sticky bar.
+- The host must include `web/style/common.css` and `web/style/optimist.css` and set `--menubar-h` if it has a sticky bar.
 - Files, all in `webapp/builder/`: `builder.js`, `builder.css`, `logic.js`, `py-worker.js`, `data/`, `build-info.json`;
   `index.html` + `ui.js` are the standalone page (`window.optimistBuilder` is the handle).
 

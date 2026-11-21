@@ -1472,7 +1472,7 @@
   #mixer .strip .seg.lmode button[aria-pressed="true"] { background: var(--fg); color: var(--bg); }
   #mixer .strip .srow[data-row="nav"] .bchips { display: flex; gap: 2px; flex: 1; justify-content: center; min-width: 0; } #mixer .strip .srow[data-row="nav"] .bchips button { min-width: 20px; height: 24px; padding: 0 3px; font-size: 12px; }
   #mixer .strip .srow[data-row="nav"] .bchips button[aria-pressed="true"] { background: var(--fg); color: var(--bg); } #mixer .strip .srow[data-row="nav"] > button.ib { width: 22px; min-width: 22px; flex: none; }
-  html[data-conn=off] #disconnect, html[data-conn=off] .devcard #version { display: none; } .o-host .o-num, .o-host .oi-num { margin-right: 8px; }
+  html[data-conn=off] #disconnect, html[data-conn=off] .devcard #version { display: none; } .o-host .num, .o-host .oi-num { margin-right: 8px; }
   html[data-conn=off] #tabs > :not([data-tab=install]):not([data-tab=build]):not([data-tab=sim]):not([data-tab=mixer]):not(.navh:first-of-type):not(.gh) { display: none; } html[data-conn=off] #tabs .navh { display: none; }   /* (no device: the pages that need one are not offered; Install, Build and Simulator do not; the Editor tab stays, it shows the connect card: Install releases the device, and without it there was no way back) */
   /* automated steps (p-locks, motion) in the device's COL_MK_AUTO: the tiles, the drum cells, the strips' overview */
   :root { --mk-auto: #ffec80; }
@@ -7702,18 +7702,19 @@ const hasTracks = () => Boolean(dev && dev.info && dev.info.ntrk);   /* (a firmw
    The installer needs the MIDI port to itself: the editor's device connection is released while that tab is shown and restored on leaving. */
 const appState = { install: null, build: null, sim: null, resume: false, style: null };
 const appBusy = () => !!(appState.install && appState.install.handle && appState.install.handle.busy);
-const APP_BRIDGE = `.o-host { overflow: visible; overflow-x: clip; --surface-0: var(--bg); --surface-1: var(--s1); --surface-2: var(--s2); --surface-3: var(--s3); --line-strong: var(--s3); --text: var(--fg); --text-dim: var(--dim); --text-mute: var(--mute);
-  --accent: var(--trk); --accent-hi: var(--trk); --on-accent: var(--on); --on-track: var(--on); --font-ui: var(--font); --font-mono: var(--font);
-  --fs-1: 12px; --fs-2: 12px; --fs-3: 14px; --fs-4: 14px; --fs-5: 16px; --fs-6: 16px; --r: 0; font: 14px/18px var(--font); color: var(--fg2); }`;
-async function appStyle() {              /* the shared style, once: its tokens scoped to .o-host (they would overwrite this page's own), then the bridge */
+const APP_BRIDGE = `.o-host { overflow: visible; overflow-x: clip; font: 14px/1.45 var(--font-ui); color: var(--ink); }\n.o-host button, .o-host .button { text-transform: none; letter-spacing: normal; }`;
+async function appStyle() {              /* the shared style (style/common.css, vendored beside the page: the app works offline) and Optimist's accent (style/optimist.css),
+                                            both scoped to .o-host with CSS nesting (:root becomes &, so their tokens stay inside the panel; the page-level html/body rules go) */
   if (appState.style) return appState.style;
   appState.style = (async () => {
-    const r = await fetch(new URL("style/optimist.css", location.href)).catch(() => null);
-    const css = r && r.ok ? await r.text() : "";
-    const scoped = css.replace(/:root\b/g, ".o-host").replace(/:where\(body\)/g, ".o-host").replace(/:where\(html\)[^}]*}/g, "").replace(/(^|\n):focus-visible\s*{[^}]*}/, "$1")
-      .replace(/--(?:line|ok|warn|err|t1|t2|t3|t4)\s*:\s*[^;]+;/g, "");
-    document.head.append(Object.assign(document.createElement("style"), { id: "o-host-style", textContent: `${scoped}\n${APP_BRIDGE}` }));
-    return !!css;
+    const get = async (f) => { const r = await fetch(new URL("style/" + f, location.href)).catch(() => null); return r && r.ok ? r.text() : ""; };
+    const [common, own] = await Promise.all([get("common.css"), get("optimist.css")]);
+    const hoisted = [];
+    const scope = (css) => css.replace(/@keyframes\s+[\w-]+\s*\{(?:[^{}]*\{[^{}]*\})*[^{}]*\}/g, (m) => { hoisted.push(m); return ""; })
+      .replace(/:root\b/g, "&").replace(/(^|\n)(html|body|main, \.page) \{[^\n]*(?=\n)/g, "$1");
+    document.head.append(Object.assign(document.createElement("style"), { id: "o-host-style",
+      textContent: `.o-host {\n${scope(common)}\n${scope(own)}\n}\n${hoisted.join("\n")}\n${APP_BRIDGE}` }));
+    return !!common;
   })();
   return appState.style;
 }

@@ -235,25 +235,25 @@ export function mountSim(container, opts = {}) {
       if (!engine) start();
     } });
   const pickWasm = () => { options(); el.wasmFile.click(); };
-  el.power = setLabel(h("button.o-btn.primary.os-power", { type: "button",
+  el.power = setLabel(h("button.os-power", { type: "button",
     onclick: () => { if (engine) { st.userStopped = true; stop(); } else { st.userStopped = false; start(); } } }), "play", TEXT.power);
-  el.reset = setLabel(h("button.o-btn.quiet", { type: "button", onclick: () => resetMemory() }), "erase", TEXT.reset);
-  el.install = setLabel(h("button.o-btn", { type: "button", onclick: () => installThis() }), "flash", TEXT.install);
-  el.config = setLabel(h("button.o-btn.quiet", { type: "button", title: TEXT.configTip, onclick: () => configThis() }), "config", TEXT.config);
-  el.load = setLabel(h("button.o-btn", { type: "button", onclick: () => loadFromDevice() }), "read", TEXT.load);
-  el.write = setLabel(h("button.o-btn", { type: "button", onclick: () => writeToDevice() }), "write", TEXT.write);
-  el.pjGet = setLabel(h("button.o-btn", { type: "button", onclick: () => pjOpen("get") }), "pjGet", TEXT.pjGet);
-  el.pjSend = setLabel(h("button.o-btn", { type: "button", onclick: () => pjOpen("send") }), "pjSend", TEXT.pjSend);
+  el.reset = setLabel(h("button.quiet", { type: "button", onclick: () => resetMemory() }), "erase", TEXT.reset);
+  el.install = setLabel(h("button.quiet", { type: "button", onclick: () => installThis() }), "flash", TEXT.install);
+  el.config = setLabel(h("button.quiet", { type: "button", title: TEXT.configTip, onclick: () => configThis() }), "config", TEXT.config);
+  el.load = setLabel(h("button.quiet", { type: "button", onclick: () => loadFromDevice() }), "read", TEXT.load);
+  el.write = setLabel(h("button.quiet", { type: "button", onclick: () => writeToDevice() }), "write", TEXT.write);
+  el.pjGet = setLabel(h("button.quiet", { type: "button", onclick: () => pjOpen("get") }), "pjGet", TEXT.pjGet);
+  el.pjSend = setLabel(h("button.quiet", { type: "button", onclick: () => pjOpen("send") }), "pjSend", TEXT.pjSend);
   el.pjPick = h("select.oi-csearch.os-pick", { onchange: () => pjPicked() });
   el.pjPickLabel = h("span", {}, TEXT.pjFrom);
   el.pjName = h("input.os-pjname", { type: "text", maxlength: String(PJ_NAME), spellcheck: "false", autocomplete: "off",
     oninput: () => { el.pjName.value = el.pjName.value.toUpperCase().replace(/[^ A-Z0-9\-._/#+]/g, "").slice(0, PJ_NAME); } });
-  el.pjNameField = h("label.o-field", {}, h("span", {}, TEXT.pjNameLabel), el.pjName);
-  el.pjGo = h("button.o-btn.sm.primary", { type: "button", onclick: () => pjGo() }, TEXT.pjGo);
-  el.pj = h("div.os-bar.os-pj", { hidden: true }, h("label.o-field", {}, el.pjPickLabel, el.pjPick), el.pjNameField, el.pjGo,
-    h("button.o-btn.sm.quiet", { type: "button", onclick: () => pjClose() }, TEXT.pjCancel));
-  el.save = setLabel(h("button.o-btn", { type: "button", onclick: () => saveToFile() }), "save", TEXT.saveFile);
-  el.loadf = setLabel(h("button.o-btn", { type: "button", onclick: () => el.file.click() }), "load", TEXT.loadFile);
+  el.pjNameField = h("label", {}, h("span", {}, TEXT.pjNameLabel), el.pjName);
+  el.pjGo = h("button.sm", { type: "button", onclick: () => pjGo() }, TEXT.pjGo);
+  el.pj = h("div.os-bar.os-pj", { hidden: true }, h("label", {}, el.pjPickLabel, el.pjPick), el.pjNameField, el.pjGo,
+    h("button.sm.quiet", { type: "button", onclick: () => pjClose() }, TEXT.pjCancel));
+  el.save = setLabel(h("button.quiet", { type: "button", onclick: () => saveToFile() }), "save", TEXT.saveFile);
+  el.loadf = setLabel(h("button.quiet", { type: "button", onclick: () => el.file.click() }), "load", TEXT.loadFile);
   el.file = h("input", { type: "file", accept: ".optimist-backup,application/octet-stream", style: "display:none",
     onchange: () => { const f = el.file.files && el.file.files[0]; el.file.value = ""; if (f) loadFromFile(f); } });
   let themeIx = 0;
@@ -261,7 +261,7 @@ export function mountSim(container, opts = {}) {
   el.theme = h("select.oi-csearch.os-pick", { "aria-label": TEXT.themeLabel, onchange: () => applyTheme(el.theme.selectedIndex) },
     ...THEMES.map((t) => h("option", {}, t.name)));
   el.theme.selectedIndex = themeIx;
-  el.status = h("p.os-status.o-dim", { role: "status", "aria-live": "polite" });
+  el.status = h("p.os-status.dim", { role: "status", "aria-live": "polite" });
   el.canvas = h("canvas.os-screen", { width: "240", height: "240", "aria-label": "The FM-1's screen" });
   el.body = h("div.os-body");                 /* the device, drawn in a fixed 1160x700 space (the chip emulator's), scaled to fit */
   el.stage = h("div.os-stage", {}, el.body);
@@ -271,8 +271,8 @@ export function mountSim(container, opts = {}) {
   const root = h("div.os", {},
     h("div.os-main", {}, el.stage, el.status),   /* (no help paragraph: the keys are on the buttons; the user, 2026-10-25) */
     h("div.os-side", {},
-      h("div.os-group", { role: "group", "aria-label": TEXT.build }, h("label.o-field", {}, h("span", {}, TEXT.build), el.pick), el.wasmFile,
-        h("label.o-field", {}, h("span", {}, TEXT.themeLabel), el.theme), el.power, el.install, el.config),
+      h("div.os-group", { role: "group", "aria-label": TEXT.build }, h("label", {}, h("span", {}, TEXT.build), el.pick), el.wasmFile,
+        h("label", {}, h("span", {}, TEXT.themeLabel), el.theme), el.power, el.install, el.config),
       h("div.os-group", { role: "group", "aria-label": TEXT.memory }, h("span.os-glabel", {}, TEXT.memory), el.save, el.loadf, el.reset, el.file),
       h("div.os-group", { role: "group", "aria-label": TEXT.device }, h("span.os-glabel", {}, TEXT.device), el.load, el.write, el.pjGet, el.pjSend),
       el.pj));

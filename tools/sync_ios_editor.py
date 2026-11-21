@@ -17,7 +17,7 @@ ROOT = Path(__file__).resolve().parents[1]
 FILES = [
     ("web/editor.html", "index.html"),
     ("web/style/optimist.css", "style/optimist.css"),
-    ("web/style/terminus.ttf", "style/terminus.ttf"),
+    ("web/style/common.css", "style/common.css"),
     ("web/fukiai.ttf", "fukiai.ttf"),
     ("web/FUKIAI-LICENSE.txt", "FUKIAI-LICENSE.txt"),
     ("web/TERMINUS-LICENSE.txt", "TERMINUS-LICENSE.txt"),

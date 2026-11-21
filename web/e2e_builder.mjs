@@ -219,7 +219,7 @@ ok(!keyBad.length, `tools/optimist.py cloud-key --json on the page's .config: th
 /* ---- the page */
 const ui = await run(`${U} await B.choosePreset("flavour:default"); await until(() => B.state.view && B.state.name.toLowerCase() === ${JSON.stringify(DFLT_NAME.toLowerCase())});
   const ev = B.state.view.eval;
-  return { key: $("#key").textContent, keyIs: ev.key, bars: [...document.querySelectorAll("#gauges .o-gauge")].map((b) => b.dataset.region), build: $("#build").disabled,
+  return { key: $("#key").textContent, keyIs: ev.key, bars: [...document.querySelectorAll("#gauges .gauge")].map((b) => b.dataset.region), build: $("#build").disabled,
     note: $("#buildmsg").textContent, dl: $("#download").disabled, hash: $("#hash").textContent, msgs: $("#msgs").textContent.slice(0, 200) };`);
 ok(ui.key === ui.keyIs && /^[0-9a-f]{64}$/.test(ui.key) && same(ui.bars, ["flash", "sram"]) && !ui.build && /no GitHub account/.test(ui.note) && !ui.dl,
   "page: the key shown, two gauges (FLASH SRAM: one packed region since 7da2794c), Build in the cloud on with its note, Download on");
@@ -261,13 +261,13 @@ ok(cb.ready.flash && cb.ready.sim && cb.ready.mine && cb.ready.mine.id === cb.ke
   "Build: the same configuration built before: Flash it and Try it in the simulator at once, kept as your build for Flash");
 const tg = await run(`${U} const before = B.state.view.eval.budget.total.flash; const c = $("#it-ENG_FM6"); const was = +c.value, to = was ? 0 : 2; c.value = String(to); c.dispatchEvent(new Event("change", { bubbles: true }));   /* (a list since 2b7e3126: off / on / on, code in RAM) */
   await until(() => B.state.values.ENG_FM6 === to && B.state.view.eval.config.ENG_FM6 === to, 20000);
-  const after = B.state.view.eval.budget.total.flash; const shown = $(".o-gauge[data-region=flash]").title;
+  const after = B.state.view.eval.budget.total.flash; const shown = $(".gauge[data-region=flash]").title;
   const c2 = $("#it-ENG_FM6"); c2.value = String(was); c2.dispatchEvent(new Event("change", { bubbles: true })); await until(() => B.state.view.eval.config.ENG_FM6 === was, 20000);
   return { before, after, shown, back: B.state.view.eval.budget.total.flash };`);
 ok(tg.before !== tg.after && tg.shown.includes(tg.after.toLocaleString("en-US")) && tg.back === tg.before, `page: ticking FM6 moves the flash estimate (${tg.before} -> ${tg.after}) and back`);
 const er = await run(`${U} for (const k of B.state.reg.top["Synth engines"]) B.state.values[k] = 0; await B.setItem("ENG_ANALOG", 0);
   await until(() => B.state.view.eval.errors.length > 0);
-  const out = { msgs: [...document.querySelectorAll("#msgs .o-msg.err[data-kind=rule]")].map((p) => p.textContent), row: ($(".row[data-key=ENG_ANALOG] .xerr") || {}).textContent };
+  const out = { msgs: [...document.querySelectorAll("#msgs .msg.err[data-kind=rule]")].map((p) => p.textContent), row: ($(".row[data-key=ENG_ANALOG] .xerr") || {}).textContent };
   await B.choosePreset("flavour:default"); await until(() => !B.state.view.eval.errors.length); return out;`);
 ok(er.msgs.some((m) => /^Errorat least one synth engine/.test(m)) && /✗ at least one synth engine/.test(er.row || ""), "page: an error in plain words, in the messages and on the item (validate)");
 const se = await run(`${U} const s = $("#search"); s.value = "reverb"; s.dispatchEvent(new Event("input")); await sleep(50);
@@ -333,21 +333,21 @@ await run(`${U} const so = $("#sort"); so.value = ""; so.dispatchEvent(new Event
 
 /* ---- the notices policy: on the page only what must be acted on; the NOTICE texts in the (i) and the closed notes */
 const np = await run(`${U} await B.choosePreset("flavour:default"); await until(() => B.state.name.toLowerCase() === ${JSON.stringify(DFLT_NAME.toLowerCase())}); await sleep(100);
-  const v = B.state.view, ms = [...document.querySelectorAll("#msgs .o-msg")];
+  const v = B.state.view, ms = [...document.querySelectorAll("#msgs .msg")];
   const lab = (n) => { const k = (n.keys || [])[0], it = k && B.state.reg.byKey[k]; return it && n.text.startsWith(it.label + ": ") ? n.text.slice(it.label.length + 2) : n.text; };
   return { kinds: ms.map((p) => p.dataset.kind), text: $("#msgs").textContent, open: $("#notes").open, hidden: $("#notes").hidden, sum: $("#notessum").textContent,
     notes: $("#noteslist").textContent, notices: v.eval.notices.map(lab), expOn: v.built.filter((k) => B.state.reg.byKey[k].experimental),
-    expLines: [...document.querySelectorAll('#msgs [data-kind="experimental"]')].map((p) => p.dataset.key), red: document.querySelectorAll("#msgs .o-msg.err").length,
+    expLines: [...document.querySelectorAll('#msgs [data-kind="experimental"]')].map((p) => p.dataset.key), red: document.querySelectorAll("#msgs .msg.err").length,
     tags: [...document.querySelectorAll(".row .tags")].filter((t) => /NOTICE/.test(t.textContent)).length,
-    warnColour: [...document.querySelectorAll(".row .o-tag.warn")].every((t) => B.state.view.built.includes(t.closest(".row").dataset.key)) };`);
+    warnColour: [...document.querySelectorAll(".row .tag.warn")].every((t) => B.state.view.built.includes(t.closest(".row").dataset.key)) };`);
 ok(np.red === 0 && !/NOTICE/i.test(np.text) && np.kinds.every((k) => k === "experimental") && np.tags === 0,
   `notices, the default flavour: no red line, no NOTICE on the page or in the list (${np.kinds.length} experimental line${np.kinds.length === 1 ? "" : "s"})`);
 ok(np.expOn.every((k) => np.expLines.includes(k)) && new Set(np.expLines).size === np.expLines.length && np.warnColour,
   `notices: one line per experimental item that is on (${np.expOn.join(", ") || "none"}), amber only on the items that are on`);
 ok(np.notices.length === 0 ? np.hidden : (!np.open && !np.hidden && np.notices.every((t) => np.notes.includes(t)) && /^Notes \(\d+\)$/.test(np.sum)),
   `notices: the ${np.notices.length} NOTICE texts in "${np.sum}", closed by default`);
-const pop = await run(`${U} const it = B.state.reg.items.find((x) => x.notice && document.querySelector('.row[data-key="' + x.key + '"] .o-info'));
-  const b = document.querySelector('.row[data-key="' + it.key + '"] .o-info'); b.scrollIntoView({ block: "center" }); b.click(); await sleep(150);
+const pop = await run(`${U} const it = B.state.reg.items.find((x) => x.notice && document.querySelector('.row[data-key="' + x.key + '"] .info'));
+  const b = document.querySelector('.row[data-key="' + it.key + '"] .info'); b.scrollIntoView({ block: "center" }); b.click(); await sleep(150);
   const p = $("#bpop"), r = p.getBoundingClientRect(); const out = { key: it.key, open: p.matches(":popover-open"), text: p.textContent, notice: it.notice, inView: r.top >= 0 && r.bottom <= innerHeight && r.left >= 0 && r.right <= innerWidth };
   document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true })); p.hidePopover(); return out;`);
 ok(pop.open && pop.text.includes(pop.notice) && pop.inView, `notices: an item's (i) opens its notes in a popover, in view (${pop.key})`);
@@ -382,11 +382,11 @@ const fp = await run(`${U} const before = JSON.stringify(B.state.values);
   const info = cards.map((c) => ({ id: c.dataset.id, fits: c.dataset.fits, title: c.querySelector("h3").textContent, changes: c.querySelectorAll("li").length, res: c.querySelectorAll(".res > span").length,
     btns: [...c.querySelectorAll(".acts button")].map((b) => b.dataset.act) }));
   const fitting = cards.find((c) => c.dataset.fits === "true");
-  const gaugesBefore = [...document.querySelectorAll("#gauges .o-gauge")].map((g) => g.dataset.state).join();
+  const gaugesBefore = [...document.querySelectorAll("#gauges .gauge")].map((g) => g.dataset.state).join();
   fitting.dispatchEvent(new MouseEvent("mouseenter")); await sleep(100);
-  const prev = { tag: !$("#previewtag").hidden, states: [...document.querySelectorAll("#gauges .o-gauge")].map((g) => g.dataset.state).join() };
+  const prev = { tag: !$("#previewtag").hidden, states: [...document.querySelectorAll("#gauges .gauge")].map((g) => g.dataset.state).join() };
   fitting.dispatchEvent(new MouseEvent("mouseleave")); await sleep(100);
-  const back = [...document.querySelectorAll("#gauges .o-gauge")].map((g) => g.dataset.state).join();
+  const back = [...document.querySelectorAll("#gauges .gauge")].map((g) => g.dataset.state).join();
   const rej = cards.find((c) => c !== fitting); const rid = rej && rej.dataset.id;
   if (rej) rej.querySelector('[data-act=reject]').click(); await sleep(100);
   const afterReject = document.querySelectorAll("#proposals .prop").length;
@@ -401,8 +401,8 @@ await looks("proposals");
 const acc = await run(`${U} const c = [...document.querySelectorAll("#proposals .prop")].find((x) => x.dataset.fits === "true"); const start = ${JSON.stringify(fp.startVals)};
   c.querySelector("[data-act=accept]").click(); await until(() => JSON.stringify(B.state.values) !== start && !Object.keys(B.state.view.over).length, 60000);
   await sleep(200);
-  const out = { over: Object.keys(B.state.view.over).length, fitHidden: getComputedStyle($("#fit")).display === "none", propsHidden: getComputedStyle($("#proposals")).display === "none", undo: !!$('.o-toast [data-act=undo]') };
-  $('.o-toast [data-act=undo]').click(); await until(() => JSON.stringify(B.state.values) === start, 60000); await sleep(200);
+  const out = { over: Object.keys(B.state.view.over).length, fitHidden: getComputedStyle($("#fit")).display === "none", propsHidden: getComputedStyle($("#proposals")).display === "none", undo: !!$('.toast [data-act=undo]') };
+  $('.toast [data-act=undo]').click(); await until(() => JSON.stringify(B.state.values) === start, 60000); await sleep(200);
   out.restored = JSON.stringify(B.state.values) === start; out.overAgain = Object.keys(B.state.view.over).length > 0; out.fitAgain = getComputedStyle($("#fit")).display !== "none";
   return out;`);
 ok(acc.over === 0 && acc.fitHidden && acc.propsHidden && acc.undo, "Make it fit: Accept applies the changes, the gauges fit, the button and the panel are gone");
@@ -410,12 +410,12 @@ ok(acc.restored && acc.overAgain && acc.fitAgain, "Make it fit: Undo (on the toa
 await run(`${U} await B.choosePreset("flavour:default"); await until(() => B.state.name.toLowerCase() === ${JSON.stringify(DFLT_NAME.toLowerCase())} && !B.state.room); return true;`);
 
 /* ---- the item tree: a section opens and closes by its head (no fold button), kept by this browser */
-const fold = await run(`${U} const g = document.querySelector('.group[data-group="Synth engines"]'); const h = g.querySelector(".o-panel-h"); const ul = () => g.querySelector(":scope > ul");
+const fold = await run(`${U} const g = document.querySelector('.group[data-group="Synth engines"]'); const h = g.querySelector(".card-head"); const ul = () => g.querySelector(":scope > ul");
   const words = [...document.querySelectorAll("#tree button")].filter((b) => /fold/i.test(b.textContent)).length;
-  const open0 = h.getAttribute("aria-expanded"); h.click(); const closed = document.querySelector('.group[data-group="Synth engines"] .o-panel-h');
+  const open0 = h.getAttribute("aria-expanded"); h.click(); const closed = document.querySelector('.group[data-group="Synth engines"] .card-head');
   const out = { words, open0, a1: closed.getAttribute("aria-expanded"), hidden: document.querySelector('.group[data-group="Synth engines"] > ul').hidden, chev: closed.querySelector(".chev").textContent,
     saved: localStorage.getItem("optimist-builder-folds"), role: closed.getAttribute("role"), tab: closed.tabIndex };
-  closed.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true })); const reopened = document.querySelector('.group[data-group="Synth engines"] .o-panel-h');
+  closed.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true })); const reopened = document.querySelector('.group[data-group="Synth engines"] .card-head');
   out.a2 = reopened.getAttribute("aria-expanded"); out.chev2 = reopened.querySelector(".chev").textContent; out.focusKept = document.activeElement === reopened || true;
   const par = document.querySelector(".row.parent"); out.parent = par ? { chev: par.querySelector(".fold").textContent, exp: par.querySelector(".fold").getAttribute("aria-expanded") } : null;
   if (par) { const k = par.dataset.key; par.click(); await sleep(50); out.parentFolded = document.querySelector('.row[data-key="' + k + '"] .fold').getAttribute("aria-expanded"); document.querySelector('.row[data-key="' + k + '"] .fold').click(); }
@@ -430,7 +430,7 @@ ok(/Synth engines/.test(fold.saved || "") && fold.parent && fold.parent.chev ===
    phone they stack above the list with the gauges card sticky at the top */
 const sticky = (what, test, maxH) => run(`${U} window.scrollTo(0, 2500); await sleep(200); const g = $("#gauges").getBoundingClientRect();
   const hit = document.elementFromPoint(Math.min(g.left + 40, innerWidth - 1), g.top + 8);
-  return { y: scrollY, top: g.top, h: g.height, inside: !!(hit && hit.closest("#gauges")), n: document.querySelectorAll("#gauges .o-gauge").length,
+  return { y: scrollY, top: g.top, h: g.height, inside: !!(hit && hit.closest("#gauges")), n: document.querySelectorAll("#gauges .gauge").length,
     fit: $("#fit").getBoundingClientRect().bottom <= g.bottom, key: $("#keychip").getBoundingClientRect().bottom <= g.bottom };`).then((s) => {
   ok(s.y > 1000 && test(s.top) && s.inside && s.n === 2 && s.fit && s.key && s.h < maxH, `${what}: the gauges card, Make it fit and the key stay in view while scrolling (${Math.round(s.h)} px high, at ${Math.round(s.top)})`);
 });
@@ -457,8 +457,8 @@ ok(stk.order, "1440 px: Your configuration is right under the gauges card, above
 const allOn = items.map((it) => `${it.key}=${Math.max(...valuesOf(it))}`).join("\n") + "\n";
 const ov = await run(`${U} await B.importText(${JSON.stringify("# name: everything\n" + allOn)}, "all on"); await until(() => B.state.name === "everything");
   window.scrollTo(0, 0); await sleep(200);
-  return { over: [...document.querySelectorAll(".o-gauge[data-state=over] .go")].map((e) => e.textContent), msg: [...document.querySelectorAll('#msgs [data-kind="over"]')].map((p) => p.textContent),
-    hot: document.querySelectorAll(".cost.hot").length, dl: $("#download").disabled, regions: Object.keys(B.state.view.over).length, red: document.querySelectorAll("#msgs .o-msg.err").length,
+  return { over: [...document.querySelectorAll(".gauge[data-state=over] .go")].map((e) => e.textContent), msg: [...document.querySelectorAll('#msgs [data-kind="over"]')].map((p) => p.textContent),
+    hot: document.querySelectorAll(".cost.hot").length, dl: $("#download").disabled, regions: Object.keys(B.state.view.over).length, red: document.querySelectorAll("#msgs .msg.err").length,
     rules: B.state.view.eval.errors.length + (B.state.view.undo && B.state.view.undo.short ? 1 : 0), fitPrimary: getComputedStyle($("#fit")).display !== "none" };`);
 ok(ov.over.length === ov.regions && ov.over.every((t) => /^\+[\d,]+\.\dK$/.test(t)) && ov.msg.length === 1 && /^Over budget/.test(ov.msg[0]) && /Biggest .* items: /.test(ov.msg[0])
   && /◀ off = fits/.test(ov.msg[0]) && ov.hot > 0 && !ov.dl && ov.fitPrimary,
@@ -474,7 +474,7 @@ const dark = await colors();
 await scheme("light");
 await sleep(200);
 const light = await colors();
-ok(dark.bg === "rgb(0, 0, 0)" && light.bg === "rgb(244, 244, 242)" && light.fg !== dark.fg, `light / dark follow the system (${dark.bg} / ${light.bg})`);
+ok(dark.bg === "rgb(23, 23, 22)" && light.bg === "rgb(246, 245, 241)" && light.fg !== dark.fg, `light / dark follow the system (${dark.bg} / ${light.bg})`);
 await run(`${U} const r = document.querySelector('.row[data-key="FX_REVERB"]'); r.scrollIntoView({ block: "center" }); await sleep(200); return true;`);
 await shot("builder-desktop-light-scrolled");
 await metrics(390, 844, true);
@@ -488,8 +488,8 @@ const ph360 = await scrollW();
 ok(ph360.sw <= ph360.cw, `360 px phone: no sideways scroll (${ph360.sw} <= ${ph360.cw}; Reset to default wraps)`);
 await metrics(390, 844, true);
 await sleep(400);
-const gut = await run(`const r = document.querySelector("main").getBoundingClientRect(); const p = getComputedStyle(document.querySelector("main")); return { pl: p.paddingLeft, pr: p.paddingRight, w: r.width };`);
-ok(gut.pl === "16px" && gut.pr === "16px", "390 px phone: 16 px gutters");
+const gut = await run(`const r = document.querySelector("main").getBoundingClientRect(); const p = getComputedStyle(document.body); return { pl: p.paddingLeft, pr: p.paddingRight, w: r.width };`);
+ok(gut.pl === "16px" && gut.pr === "16px", "390 px phone: 16 px gutters (the body's)");
 await sticky("390 px phone", (top) => top === 0, 190);
 const pb = await boxes();
 ok(pb.gauges.t < pb.info.t && pb.info.b <= pb.tree.t + 1, "390 px: the cards stack above the list, the gauges card first");

@@ -2589,7 +2589,7 @@ async function editorBackup() {
   ok(/id="backup"/.test(html) && /id="bkprog"/.test(html) && /function bkRestore\(/.test(html) && /function backupDo\(/.test(html) &&
     /<section class="panel" id="p-backup" data-tab="backup"/.test(html), "editor: Backup section (its own backup tab, #backup), progress, restore");
   const inst = readFileSync(join(HERE, "installer", "installer.js"), "utf8");
-  ok(/const answer = await ask\(pkg\.stock, layoutWarning\(pkg\)\)/.test(inst) && /warn\.line \? h\("p\.o-msg\.warn\.oi-layout"/.test(inst) && INST.TEXT.askTitle === "Back up first?" && /backup: "\.\.\/editor\/#backup"/.test(inst)
+  ok(/const answer = await ask\(pkg\.stock, layoutWarning\(pkg\)\)/.test(inst) && /warn\.line \? h\("p\.msg\.warn\.oi-layout"/.test(inst) && INST.TEXT.askTitle === "Back up first?" && /backup: "\.\.\/editor\/#backup"/.test(inst)
     && /opts\.onNavigate\("backup"\)/.test(inst), "installer: asks to back up first (with the layout warning when the layout changes), opens the editor's Backup (or the host's tab)");
   /* the installer's Wi-Fi after the install: the editor's bytes (EDITOR_PROTOCOL.md "Wi-Fi"), checked as ed_wifi.c checks them */
   ok(JSON.stringify(INST.wifiPack7([0x48, 0x81, 1, 2, 3, 4, 5, 0xFF])) === JSON.stringify([2, 0x48, 1, 1, 2, 3, 4, 5, 1, 0x7F])

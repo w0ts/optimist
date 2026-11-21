@@ -128,9 +128,9 @@ STYLE_MARK = "/*OPTIMIST-CSS*/"                    # where a page takes web/styl
 HEADER_MARK = "<!--OPTIMIST-HEADER-->"             # where a page takes the shared header
 REPO = os.environ.get("GITHUB_REPOSITORY") or "w0ts/optimist"   # (the header's GitHub link; a fork's cloud build: its own)
 APPS = (("builder", "Builder"), ("installer", "Installer"), ("editor", "Editor"))
-GITHUB_ICON = ('<svg class="o-ic" width="16" height="16" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">'   # (the GitHub mark, MIT: primer/octicons mark-github)
+GITHUB_ICON = ('<svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">'   # (the GitHub mark, MIT: primer/octicons mark-github)
                '<path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0 0 16 8c0-4.42-3.58-8-8-8z"/></svg>')
-EDITOR_ICON = ('<svg class="o-ic" width="14" height="14" viewBox="0 0 14 14" fill="currentColor" aria-hidden="true">'
+EDITOR_ICON = ('<svg width="14" height="14" viewBox="0 0 14 14" fill="currentColor" aria-hidden="true">'
                '<rect x="2" y="1" width="1.5" height="12"/><rect x="6.2" y="1" width="1.5" height="12"/><rect x="10.5" y="1" width="1.5" height="12"/>'
                '<rect x="0.5" y="8" width="4.5" height="2.5"/><rect x="4.7" y="3" width="4.5" height="2.5"/><rect x="9" y="6" width="4.5" height="2.5"/></svg>')
 
@@ -149,11 +149,12 @@ def app_badges():
     return f'<span class="o-badges" style="display:inline-flex;gap:6px;align-items:center;flex:none;margin-left:auto">{"".join(imgs)}</span>'
 
 
+COMMON_CSS = "https://w0ts.github.io/site-style/common.css"   # the one shared style, loaded by URL (the pages are not offline files)
+
+
 def shared_css():
-    """the shared tokens and components (web/style/optimist.css)"""
-    css = (HERE / "style" / "optimist.css").read_text(encoding="utf-8")
-    font = base64.b64encode((HERE / "style" / "terminus.ttf").read_bytes()).decode("ascii")   # (Terminus, inlined as the editor does)
-    return css.replace('url("terminus.ttf") format("truetype")', f'url(data:font/ttf;base64,{font}) format("truetype")')
+    """Optimist's own part of the style (web/style/optimist.css: the accent); the page links common.css before it"""
+    return (HERE / "style" / "optimist.css").read_text(encoding="utf-8")
 
 
 def shared_header(app):
@@ -161,12 +162,12 @@ def shared_header(app):
     tabs with a separator between them (the current one aria-current)"""
     items = [(f"../{a}/", a, t) for a, t in APPS]
     items.insert(2, ("../editor/#sim", "simulator", "Simulator"))   # (a tab of the editor's page, no page of its own: web/sim/)
-    links = '<span class="o-sep" role="separator" aria-orientation="vertical"></span>'.join(
+    links = '<span class="sep" role="separator" aria-orientation="vertical"></span>'.join(
         f'<a href="{href}"' + (' aria-current="page"' if a == app else "") + f">{(EDITOR_ICON + ' ' if a == 'editor' else '')}{t}</a>"
         for href, a, t in items)
-    return (f'<header class="o-head"><a class="o-brand" href="../../" title="Optimist">{logo_svg()}<b>Optimist</b></a>'
-            f'<nav class="o-nav" aria-label="Optimist apps"><span class="o-sep" role="separator" aria-orientation="vertical"></span>{links}{app_badges()}'
-            f'<a class="o-gh" style="margin-left:8px" href="https://github.com/{REPO}" target="_blank" rel="noopener" title="Optimist on GitHub" aria-label="Optimist on GitHub">{GITHUB_ICON}</a></nav></header>')
+    return (f'<header class="site"><a class="brand" href="../../" title="Optimist">{logo_svg()}<b>Optimist</b></a>'
+            f'<nav class="site" aria-label="Optimist apps">{links}{app_badges()}'
+            f'<a style="margin-left:8px" href="https://github.com/{REPO}" target="_blank" rel="noopener" title="Optimist on GitHub" aria-label="Optimist on GitHub">{GITHUB_ICON}</a></nav></header>')
 
 
 def styled(html, app, page):
@@ -204,7 +205,6 @@ def builder_site(out, dst=None):
     editor's builder/, for its Build tab: the same files, no index.html page needed but harmless)"""
     dst = Path(dst) if dst else Path(out) / "webapp" / "builder"
     (dst / "data").mkdir(parents=True, exist_ok=True)
-    shutil.copy(HERE / "TERMINUS-LICENSE.txt", dst / "TERMINUS-LICENSE.txt")      # (the style's font)
     for f in BUILDER_FILES:
         text = (HERE / "builder" / f).read_text(encoding="utf-8")
         if f == "index.html":
@@ -212,7 +212,7 @@ def builder_site(out, dst=None):
         elif f == "app.html":                           # (the Mirror app's page: the style, no header; the app adds its look)
             if text.count(STYLE_MARK) != 1:
                 raise SystemExit(f"web/builder/app.html must contain {STYLE_MARK} once; update make_site.py")
-            text = text.replace(STYLE_MARK, shared_css())
+            text = text.replace(STYLE_MARK, (HERE / "style" / "common.css").read_text(encoding="utf-8") + shared_css())   # (inlined: the app works offline)
         (dst / f).write_text(text, encoding="utf-8")
     sys.path.insert(0, str(HERE.parent / "tools"))
     import export_builder_web
@@ -230,7 +230,7 @@ def editor_modules(ed, out, site):
     (with its data)"""
     (ed / "style").mkdir(parents=True, exist_ok=True)
     (ed / "installer").mkdir(parents=True, exist_ok=True)
-    for f in ("optimist.css", "terminus.ttf"):
+    for f in ("optimist.css", "common.css"):
         shutil.copy(HERE / "style" / f, ed / "style" / f)
     (ed / "fm1base").mkdir(parents=True, exist_ok=True)
     for f in LIB_FILES:

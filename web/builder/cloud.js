@@ -94,7 +94,7 @@ export function mountCloud({ S, $, el, toast, opts }) {
       done: ["Built: getting it ready for Flash… ", gh],
       ready: [el("b", { text: `${(b && b.name) || w.name || "Your build"} is ready. ` }),
         el("button", { type: "button", class: "primary", text: "Flash it", onclick: () => go("install", w.id) }), " ",
-        b && b.sim ? el("button", { type: "button", text: "Try it in the simulator", onclick: () => go("sim", w.id) }) : el("span", { class: "o-dim", text: "(no simulator for this build) " }),
+        b && b.sim ? el("button", { type: "button", text: "Try it in the simulator", onclick: () => go("sim", w.id) }) : el("span", { class: "dim", text: "(no simulator for this build) " }),
         " ", gh],
       refused: ["Refused: ", gh, el("pre", { class: "why", text: w.reason || "" })],
       failed: ["The build failed: ", log || gh, el("pre", { class: "why", text: w.reason || "" })],

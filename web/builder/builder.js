@@ -15,97 +15,97 @@ import { mountCloud } from "./cloud.js";
 
 const TEMPLATE = `
   <div id="loading" role="status" aria-live="polite"><span id="loadtext">Loading the builder</span>
-    <progress id="loadbar" class="o-progress" max="100" aria-label="Loading Python"></progress>
-    <div class="o-dim" id="loadnote">The builder's rules are its Python code, run in this page (Pyodide, about 13 MB the first time, then cached by the browser).</div>
+    <progress id="loadbar" max="100" aria-label="Loading Python"></progress>
+    <div class="dim" id="loadnote">The builder's rules are its Python code, run in this page (Pyodide, about 13 MB the first time, then cached by the browser).</div>
   </div>
 
   <div class="ob-src" id="bsrc">
-    <label class="o-field">Build from<select id="bref" aria-describedby="brefnote"></select></label>
-    <span class="o-small o-dim" id="brefnote">Everything below (the items, their costs, the profiles) is this version's: pick it first.</span>
+    <label>Build from<select id="bref" aria-describedby="brefnote"></select></label>
+    <span class="note dim" id="brefnote">Everything below (the items, their costs, the profiles) is this version's: pick it first.</span>
   </div>
 
   <div class="cols">
     <div id="left">
     <div class="tools">
       <button type="button" id="back" class="quiet" hidden>← Firmware</button>
-      <label class="o-field">Start from<select id="bpreset" aria-describedby="presetdesc"></select></label>
-      <label class="o-field">Name<input id="name" type="text" maxlength="40" autocomplete="off" spellcheck="false"></label>
-      <button type="button" id="save" title="Keep this configuration under its name (in this browser, or the app)">Save</button>
+      <label>Start from<select id="bpreset" aria-describedby="presetdesc"></select></label>
+      <label>Name<input id="name" type="text" maxlength="40" autocomplete="off" spellcheck="false"></label>
+      <button class="quiet" type="button" id="save" title="Keep this configuration under its name (in this browser, or the app)">Save</button>
       <button type="button" id="unsave" class="quiet" hidden>Delete</button>
-      <label class="o-field grow">Search<input id="search" type="search" placeholder="label, key, group" autocomplete="off"></label>
-      <label class="o-field half">Sort<select id="sort"><option value="">default order</option><option value="flash">flash, largest first</option><option value="ram">ram, largest first</option><option value="arena">arena (one instance), largest first</option></select></label>
+      <label class="grow">Search<input id="search" type="search" placeholder="label, key, group" autocomplete="off"></label>
+      <label class="half">Sort<select id="sort"><option value="">default order</option><option value="flash">flash, largest first</option><option value="ram">ram, largest first</option><option value="arena">arena (one instance), largest first</option></select></label>
       <button type="button" id="expand" class="icon" title="Expand all (x)" aria-label="Expand all">▾▾</button>
       <button type="button" id="collapse" class="icon" title="Collapse all (c)" aria-label="Collapse all">▸▸</button>
-      <button type="button" id="reset" disabled>Reset to default</button>
+      <button class="quiet" type="button" id="reset" disabled>Reset to default</button>
     </div>
-    <p id="presetdesc" class="o-small o-dim"></p>
+    <p id="presetdesc" class="note dim"></p>
 
       <section id="tree" aria-label="Items"></section>
     </div>
     <aside id="bside" aria-label="Size, configuration and details">
-      <section id="gauges" class="o-panel" aria-label="Size estimate">
-        <div class="o-panel-h"><h2>Size</h2><span class="o-chip" id="fitmark" hidden></span><span class="o-chip accent" id="previewtag" hidden>preview</span><button type="button" id="how" class="o-info" aria-label="About the estimate" aria-haspopup="dialog">i</button></div>
-        <div class="o-panel-b">
+      <section id="gauges" class="card" aria-label="Size estimate">
+        <div class="card-head"><h2>Size</h2><span class="tag" id="fitmark" hidden></span><span class="tag accent" id="previewtag" hidden>preview</span><button type="button" id="how" class="info" aria-label="About the estimate" aria-haspopup="dialog">i</button></div>
+        <div class="card-body">
           <div id="bars"></div>
           <div class="side">
-            <button type="button" id="fit" class="primary" hidden>Make it fit</button>
-            <span id="arena" class="o-chip"></span>
-            <span id="undo" class="o-chip"></span>
-            <button type="button" id="keychip" class="o-chip tip-end" data-tip="The cloud key of this configuration" aria-label="Copy the configuration's key">key -</button>
+            <button type="button" id="fit" hidden>Make it fit</button>
+            <span id="arena" class="tag"></span>
+            <span id="undo" class="tag"></span>
+            <button type="button" id="keychip" class="tag tip-end" data-tip="The cloud key of this configuration" aria-label="Copy the configuration's key">key -</button>
           </div>
         </div>
       </section>
-      <section id="result" class="o-panel" aria-label="Build">
-        <div class="o-panel-h"><h2>Build</h2></div>
-        <div class="o-panel-b">
+      <section id="result" class="card" aria-label="Build">
+        <div class="card-head"><h2>Build</h2></div>
+        <div class="card-body">
           <div class="row2">
-            <button type="button" id="build" class="primary" disabled aria-describedby="buildmsg">Build</button>
-            <button type="button" id="download" disabled>Download .config</button>
+            <button type="button" id="build" disabled aria-describedby="buildmsg">Build</button>
+            <button class="quiet" type="button" id="download" disabled>Download .config</button>
           </div>
-          <p class="o-small" id="hashline">Hash <code id="hash">-</code> · cloud key <code id="key" role="button" tabindex="0" aria-label="Copy the cloud key">-</code></p>
-          <p class="o-small o-dim" id="keynote"></p>
-          <p class="o-small" id="buildmsg" role="status"></p>
+          <p class="note" id="hashline">Hash <code id="hash">-</code> · cloud key <code id="key" role="button" tabindex="0" aria-label="Copy the cloud key">-</code></p>
+          <p class="note dim" id="keynote"></p>
+          <p class="note" id="buildmsg" role="status"></p>
           <div id="botcheck" hidden></div>
-          <div class="o-small" id="buildwatch" role="status" aria-live="polite" hidden></div>
-          <details class="o-details" id="buildhow"><summary>Build it yourself</summary>
-            <p id="buildnote" class="o-small o-dim">From a checkout: <code>python3 tools/optimist.py build --config FILE</code> (or open it in the menu: <code>python3 tools/optimist.py builder --config FILE</code>).</p>
+          <div class="note" id="buildwatch" role="status" aria-live="polite" hidden></div>
+          <details id="buildhow"><summary>Build it yourself</summary>
+            <p id="buildnote" class="note dim">From a checkout: <code>python3 tools/optimist.py build --config FILE</code> (or open it in the menu: <code>python3 tools/optimist.py builder --config FILE</code>).</p>
           </details>
-          <details class="o-details" id="import">
+          <details id="import">
             <summary>Load a .config file (or paste one)</summary>
             <div>
-              <div class="row2"><label class="btn" for="bfile">Choose a file</label><input id="bfile" type="file" accept=".config,.txt,text/plain" class="o-sr"><span id="filename" class="o-small o-dim"></span></div>
-              <label for="paste" class="o-sr">.config text</label>
+              <div class="row2"><label class="button quiet" for="bfile">Choose a file</label><input id="bfile" type="file" accept=".config,.txt,text/plain" class="sr"><span id="filename" class="note dim"></span></div>
+              <label for="paste" class="sr">.config text</label>
               <textarea id="paste" placeholder="ENG_FM6=1&#10;FX_REVERB=1&#10;..." spellcheck="false"></textarea>
-              <div class="row2"><button type="button" id="pasteload">Load the pasted text</button><span id="importmsg" class="o-small" role="status"></span></div>
+              <div class="row2"><button class="quiet" type="button" id="pasteload">Load the pasted text</button><span id="importmsg" class="note" role="status"></span></div>
             </div>
           </details>
-          <details class="o-details" id="canondet"><summary>The canonical configuration (what the key hashes)</summary><pre id="canon"></pre></details>
-          <details class="o-details" id="dumpdet"><summary>The .config file</summary><pre id="dump"></pre></details>
+          <details id="canondet"><summary>The canonical configuration (what the key hashes)</summary><pre id="canon"></pre></details>
+          <details id="dumpdet"><summary>The .config file</summary><pre id="dump"></pre></details>
         </div>
       </section>
-      <section id="proposals" class="o-panel" aria-label="Ways to fit" hidden>
-        <div class="o-panel-h"><h2>Ways to fit</h2><button type="button" id="propsclose" class="quiet sm" aria-label="Close the proposals">close</button></div>
-        <div class="o-panel-b" id="propsb"></div>
+      <section id="proposals" class="card" aria-label="Ways to fit" hidden>
+        <div class="card-head"><h2>Ways to fit</h2><button type="button" id="propsclose" class="quiet sm" aria-label="Close the proposals">close</button></div>
+        <div class="card-body" id="propsb"></div>
       </section>
       <div id="alerts">
         <div id="msgs" aria-live="polite"></div>
-        <details class="o-details" id="notes" hidden><summary id="notessum">Notes</summary><ul id="noteslist"></ul></details>
+        <details id="notes" hidden><summary id="notessum">Notes</summary><ul id="noteslist"></ul></details>
       </div>
-      <section id="info" class="o-panel" aria-live="polite" aria-label="Details">
-        <div class="o-panel-h"><h2>Info</h2></div>
-        <div class="o-panel-b" id="infob"><p class="o-dim">Select an item to see what it does and what it costs.</p></div>
+      <section id="info" class="card" aria-live="polite" aria-label="Details">
+        <div class="card-head"><h2>Info</h2></div>
+        <div class="card-body" id="infob"><p class="dim">Select an item to see what it does and what it costs.</p></div>
       </section>
     </aside>
   </div>
 
 
-  <footer class="o-foot ob-foot">
+  <footer class="ob-foot">
     Optimist is GPL-3.0-only, no warranty. Source: <a href="https://github.com/w0ts/optimist" rel="noopener" target="_blank">github.com/w0ts/optimist</a>.
     Python in the page: Pyodide <span id="pyver"></span> (MPL-2.0), loaded from cdn.jsdelivr.net.
     Licences: <a href="../../LICENSE">LICENSE</a>, <a href="../../LICENSING.md">LICENSING.md</a>.
   </footer>
-<div id="bpop" class="o-pop" popover role="dialog" aria-labelledby="poph"></div>
-<div id="toasts" class="o-toasts" aria-live="polite"></div>
+<div id="bpop" class="pop" popover role="dialog" aria-labelledby="poph"></div>
+<div id="toasts" class="toasts" aria-live="polite"></div>
 
 `;
 
@@ -133,7 +133,7 @@ const el = (tag, attrs = {}, ...kids) => {
 
 export function mountBuilder(container, opts = {}) {
 const root = container;
-root.classList.add("ob-root", "o-ui");
+root.classList.add("ob-root", "dense");
 if (opts.app) root.classList.add("ob-app");      // (the Mirror app: builder.css shows the Build card first, no files or keys)
 root.innerHTML = TEMPLATE;
 loadStyle();
@@ -289,12 +289,12 @@ function renderBars() {
     over = over || m.state === "over";
     const bar = el("div", { class: "gb" }, el("div", { class: "gf", style: `width: ${(m.fill * 100).toFixed(1)}%` }));
     if (m.capAt !== null) bar.append(el("div", { class: "gx", style: `left: ${(m.capAt * 100).toFixed(1)}%; right: 0` }), el("div", { class: "gc", style: `left: calc(${(m.capAt * 100).toFixed(1)}% - 1px)` }));
-    bars.append(el("div", { class: "o-gauge", "data-region": r, "data-state": m.state, title: m.tip, role: "img", "aria-label": m.tip },
+    bars.append(el("div", { class: "gauge", "data-region": r, "data-state": m.state, title: m.tip, role: "img", "aria-label": m.tip },
       el("span", { class: "gl", text: r.toUpperCase() }),
       el("span", { class: "gn" }, el("span", { class: "gu", text: m.text }), m.overText ? el("span", { class: "go", text: m.overText }) : null), bar));
   }
   const parts = pv ? [] : sramParts(v.eval.budget && v.eval.budget.total);   /* (a previewed proposal has its gauges only) */
-  bars.append(el("div", { class: "o-parts", id: "sramparts", title: "The SRAM is one packed region: its three parts add up to the SRAM gauge, whose limit is the region less the 8 KiB spare" },
+  bars.append(el("div", { class: "ob-parts", id: "sramparts", title: "The SRAM is one packed region: its three parts add up to the SRAM gauge, whose limit is the region less the 8 KiB spare" },
     parts.map(([nm, b]) => el("span", { class: "pt" }, el("span", { class: "pn", text: nm }), el("span", { class: "pv", text: fmtK(b) })))));
   const overNow = Object.keys(v.over).length > 0;
   /* the card's marker: its head line green when it all fits, red when a region is over (the preview's, while previewed),
@@ -304,11 +304,11 @@ function renderBars() {
   $("fitmark").textContent = over ? "too big" : "fits";
   $("fit").hidden = !overNow;                // (only when the configuration does not fit: nothing in its place otherwise)
   const u = v.undo, ud = $("undo");
-  ud.className = "o-chip";
+  ud.className = "tag";
   ud.textContent = u ? (u.arena ? `undo keeps ${fmtKB(u.keep)}${u.cache ? ` + cache ${fmtKB(u.cache)}` : ""}` : `undo ${fmtKB(u.ring)}`) : "";
   ud.title = u ? (u.text || `UNDO ring ${fmt(u.ring)} B`) : "";
   const a = v.arena, ar = $("arena");
-  ar.className = "o-chip";
+  ar.className = "tag";
   ar.textContent = a ? `arena ${a.exact ? "" : "~"}${a.kb}K` : "";
   ar.title = a ? `ARENA ${a.exact ? "" : "estimate "}${a.kb} KB: the free SRAM (${fmt(a.free)} B) less the undo keep (${fmt(a.keep)} B)` : "";
   const key = ev.key || ev.cfg_hash || "";
@@ -318,14 +318,14 @@ function renderBars() {
 const fmtKB = (n) => `${Math.round(n / 1024)}K`;
 
 function line(cls, head, text, sub = []) {
-  return el("p", { class: `o-msg ${cls}` }, head ? el("b", { text: head }) : null,
+  return el("p", { class: `msg ${cls}` }, head ? el("b", { text: head }) : null,
     el("span", {}, text, sub.map((s) => el("span", { class: "sub", text: s }))));
 }
 
 function say(text) { $("msgs").prepend(line("err", "Error", text)); }
 
 function toast(text, cls = "") {
-  const t = el("div", { class: "o-toast " + cls, role: "status", text });
+  const t = el("div", { class: "toast" + cls, role: "status", text });
   $("toasts").append(t);
   setTimeout(() => t.remove(), 6000);
 }
@@ -340,8 +340,8 @@ function renderMsgs() {
     box.append(p);
   }
   for (const x of m.experimental) {
-    const p = el("p", { class: "o-msg warn", "data-kind": "experimental", "data-key": x.key }, el("b", { text: "Experimental" }), el("span", { text: `${x.label} is experimental` }),
-      el("button", { type: "button", class: "o-info", "aria-label": `About ${x.label}`, "aria-haspopup": "dialog", text: "i", onclick: (e) => openItemPop(x.key, e.currentTarget, S.reg.byKey[x.key].experimental ? "" : x.text) }));
+    const p = el("p", { class: "msg warn", "data-kind": "experimental", "data-key": x.key }, el("b", { text: "Experimental" }), el("span", { text: `${x.label} is experimental` }),
+      el("button", { type: "button", class: "info", "aria-label": `About ${x.label}`, "aria-haspopup": "dialog", text: "i", onclick: (e) => openItemPop(x.key, e.currentTarget, S.reg.byKey[x.key].experimental ? "" : x.text) }));
     box.append(p);
   }
   const notes = $("notes"), list = $("noteslist");
@@ -366,7 +366,7 @@ function itemRow(key, hasKids) {
     ctl = el("input", { id, type: "checkbox", "aria-labelledby": `lab-${key}`, "aria-describedby": `tags-${key}`, checked: !!val, disabled: !S.ready || !!it.fixed, onchange: (e) => setItem(key, e.target.checked ? 1 : 0), onfocus: () => select(key) });
   }
   const tags = el("span", { class: "tags", id: `tags-${key}` });
-  if (it.experimental) tags.append(el("span", { class: "o-tag " + (val && live ? "warn" : "outline"), text: "experimental" }));
+  if (it.experimental) tags.append(el("span", { class: "tag " + (val && live ? "warn" : "outline"), text: "experimental" }));
   const over = v ? v.over : {};
   const deltas = v ? deltaOf(key, v.savings, over) : [];
   for (const [r, n] of deltas) {
@@ -387,7 +387,7 @@ function itemRow(key, hasKids) {
   const lab = el("span", { class: "lab", onclick: () => select(key) }, el("span", { id: `lab-${key}`, text: it.label }), el("span", { class: "k", text: key }), tags);
   if (key === "BLE" && S.room && S.room.note) tags.append(el("span", { class: "bleline", text: S.room.note }));
   const row = el("div", { class: "row" + (live ? "" : " dead") + (S.sel === key ? " sel" : ""), "data-key": key }, ctl, lab);
-  if (hasInfo(it)) row.append(el("button", { type: "button", class: "o-info", "aria-label": `About ${it.label}`, "aria-haspopup": "dialog", text: "i", onclick: (e) => openItemPop(key, e.currentTarget) }));
+  if (hasInfo(it)) row.append(el("button", { type: "button", class: "info", "aria-label": `About ${it.label}`, "aria-haspopup": "dialog", text: "i", onclick: (e) => openItemPop(key, e.currentTarget) }));
   if (hasKids) {
     const open = !S.collapsed.has(key) || !!S.filter;
     row.classList.add("parent");
@@ -418,12 +418,12 @@ function renderTree() {
       return n;
     };
     for (const t of g.items) list.append(li(t));
-    const head = el("div", { class: "o-panel-h", "data-fold": gid, role: "button", tabindex: "0", "aria-expanded": open ? "true" : "false", "aria-label": `${open ? "Fold" : "Unfold"} ${g.group}`,
+    const head = el("div", { class: "card-head", "data-fold": gid, role: "button", tabindex: "0", "aria-expanded": open ? "true" : "false", "aria-label": `${open ? "Fold" : "Unfold"} ${g.group}`,
       onclick: () => toggleFold(gid), onkeydown: (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); toggleFold(gid); } } },
       el("span", { class: "chev", "aria-hidden": "true", text: open ? "▾" : "▸" }), el("h2", { text: g.group }));
-    tree.append(el("div", { class: "group o-panel", "data-group": g.group }, head, list));
+    tree.append(el("div", { class: "group card", "data-group": g.group }, head, list));
   }
-  if (!tree.childNodes.length) tree.append(el("p", { class: "o-dim", text: `Nothing matches "${S.filter}".` }));
+  if (!tree.childNodes.length) tree.append(el("p", { class: "dim", text: `Nothing matches "${S.filter}".` }));
   if (keepFocus && $(keepFocus) && keepFocus !== "search") $(keepFocus).focus({ preventScroll: true });
   else if (keepFold) { const f = [...tree.querySelectorAll("[data-fold]")].find((x) => x.dataset.fold === keepFold); if (f) f.focus({ preventScroll: true }); }
 }
@@ -441,7 +441,7 @@ function select(key) {
     popover and the details panel both show them, never in red */
 function itemNotes(it) {
   const out = [];
-  if (it.experimental) out.push(el("p", {}, el("span", { class: "o-tag " + (built(S.reg, S.values, it.key) ? "warn" : "outline"), text: "experimental" }), ` ${it.tested}`));
+  if (it.experimental) out.push(el("p", {}, el("span", { class: "tag " + (built(S.reg, S.values, it.key) ? "warn" : "outline"), text: "experimental" }), ` ${it.tested}`));
   if (it.notice) out.push(el("p", { text: it.notice }));
   if (it.provenance_line) {
     out.push(el("p", { class: "src", text: "From " + it.provenance_line }));
@@ -455,7 +455,7 @@ const hasPopover = typeof HTMLElement !== "undefined" && "showPopover" in HTMLEl
 function openItemPop(key, anchor, extra = "") {
   const it = S.reg.byKey[key];
   showPop(key, [el("h3", { id: "poph", text: it.label }), it.desc ? el("p", { class: "src", text: it.desc }) : null,
-    extra ? el("p", {}, el("span", { class: "o-tag warn", text: "experimental" }), ` ${extra}`) : null, ...itemNotes(it)], anchor);
+    extra ? el("p", {}, el("span", { class: "tag warn", text: "experimental" }), ` ${extra}`) : null, ...itemNotes(it)], anchor);
 }
 function openPop(title, paras, anchor) {
   showPop("", [el("h3", { id: "poph", text: title }), ...paras.map((t) => el("p", { text: t }))], anchor);
@@ -488,7 +488,7 @@ async function renderInfo(key) {
     const rows = d.values.map(([lab, , dd]) => dd && el("tr", {}, el("td", { text: lab }), COSTS.map((r) => el("td", { text: (costOf(dd, r) >= 0 ? "+" : "") + fmt(costOf(dd, r)) }))));
     const pairs = d.pairs.map(([txt, dd]) => el("tr", {}, el("td", { text: `${txt} adds` }), COSTS.map((r) => el("td", { text: (costOf(dd, r) >= 0 ? "+" : "") + fmt(costOf(dd, r)) }))));
     if (rows.some(Boolean) || pairs.length) {
-      info.append(el("div", { class: "tablewrap" }, el("table", {}, el("caption", { class: "o-sr", text: "bytes against the default build" }),
+      info.append(el("div", { class: "tablewrap" }, el("table", {}, el("caption", { class: "sr", text: "bytes against the default build" }),
         el("thead", {}, el("tr", {}, el("th", { text: "alone vs the defaults" }), COSTS.map((r) => el("th", { text: r })))),
         el("tbody", {}, rows.filter(Boolean), pairs))));
     }
@@ -582,11 +582,11 @@ function renderProposals() {
   if (box.hidden) { body.textContent = ""; return; }
   body.textContent = "";
   const all = S.proposals;
-  if (all === null) { body.append(el("p", { class: "o-dim", text: "Looking for ways to fit..." })); return; }
+  if (all === null) { body.append(el("p", { class: "dim", text: "Looking for ways to fit..." })); return; }
   const list = all.filter((p) => !S.rejected.has(p.id));
-  if (!all.length) body.append(el("p", { class: "o-msg", text: "Nothing to propose: the estimate shows nothing over." }));
-  else if (!list.length) body.append(el("p", { class: "o-dim", text: "All the proposals are dismissed. Make it fit shows them again." }));
-  else if (!list.some((p) => p.fits)) body.append(el("p", { class: "o-msg" }, el("b", { text: "No fit" }), el("span", { text: "Nothing fits by dropping what the builder may drop: these come closest. Switch more off by hand." })));
+  if (!all.length) body.append(el("p", { class: "msg", text: "Nothing to propose: the estimate shows nothing over." }));
+  else if (!list.length) body.append(el("p", { class: "dim", text: "All the proposals are dismissed. Make it fit shows them again." }));
+  else if (!list.some((p) => p.fits)) body.append(el("p", { class: "msg" }, el("b", { text: "No fit" }), el("span", { text: "Nothing fits by dropping what the builder may drop: these come closest. Switch more off by hand." })));
   for (const p of list) body.append(proposalCard(p));
 }
 
@@ -598,12 +598,12 @@ function proposalCard(p) {
   const left = budgetsOf(p.after).filter((r) => p.after[r].over > 0).map((r) => `${r.toUpperCase()} +${fmtK(p.after[r].over)}`);
   const card = el("article", { class: "prop", "data-id": p.id, "data-fits": String(p.fits), onmouseenter: () => setPreview(p.id), onmouseleave: () => { if (!card.dataset.pinned) setPreview(null); } },
     el("h3", { text: p.title }),
-    el("p", { class: "o-small o-dim", text: p.text }),
-    el("ul", { class: "chg" }, p.changes.map((c) => el("li", { "data-key": c.key }, el("b", { text: changeText(c, S.reg.byKey) }), c.desc ? el("span", { class: "o-dim", text: `: ${oneLine(c.desc)}` }) : null))),
+    el("p", { class: "note dim", text: p.text }),
+    el("ul", { class: "chg" }, p.changes.map((c) => el("li", { "data-key": c.key }, el("b", { text: changeText(c, S.reg.byKey) }), c.desc ? el("span", { class: "dim", text: `: ${oneLine(c.desc)}` }) : null))),
     el("p", { class: "verdict" + (p.fits ? " ok" : ""), text: p.fits ? "Fits by the estimate." : `Still over: ${left.join(", ")}.` }),
     el("div", { class: "res" }, rows),
     el("div", { class: "acts" },
-      el("button", { type: "button", class: "primary sm", "data-act": "accept", text: "Accept", onclick: () => acceptProposal(p) }),
+      el("button", { type: "button", class: "sm", "data-act": "accept", text: "Accept", onclick: () => acceptProposal(p) }),
       el("button", { type: "button", class: "sm", "data-act": "preview", "aria-pressed": String(S.preview === p.id), text: "Preview",
         onclick: () => { if (card.dataset.pinned) { delete card.dataset.pinned; setPreview(null); } else { root.querySelectorAll(".prop[data-pinned]").forEach((c) => delete c.dataset.pinned); card.dataset.pinned = "1"; setPreview(p.id); } } }),
       el("button", { type: "button", class: "quiet sm", "data-act": "reject", text: "Reject", onclick: () => { S.rejected.add(p.id); if (S.preview === p.id) S.preview = null; renderProposals(); renderBars(); } })));
@@ -617,7 +617,7 @@ async function acceptProposal(p) {
   S.fit = null;
   S.preview = null;
   await refresh();
-  const t = el("div", { class: "o-toast ok", role: "status" }, `Applied "${p.title}": ${p.changes.length} change${p.changes.length === 1 ? "" : "s"}. `,
+  const t = el("div", { class: "toast ok", role: "status" }, `Applied "${p.title}": ${p.changes.length} change${p.changes.length === 1 ? "" : "s"}. `,
     el("button", { type: "button", class: "quiet sm", "data-act": "undo", text: "Undo", onclick: async () => { t.remove(); S.values = before.values; S.room = before.room; S.fit = null; await refresh(); } }));
   $("toasts").append(t);
   setTimeout(() => t.remove(), 15000);
@@ -733,7 +733,7 @@ function onKey(e) {
     else if (e.key === "c") $("collapse").click();
   }
 }
-function onDocClick(e) { if (!hasPopover && !e.target.closest("#bpop, .o-info")) $("bpop").hidden = true; }
+function onDocClick(e) { if (!hasPopover && !e.target.closest("#bpop, .info")) $("bpop").hidden = true; }
 
 async function start() {
   const asked = askedRef();
@@ -796,7 +796,7 @@ const handle = {
   /** the tab is hidden: the shortcuts off (the page, the worker and the state stay) */
   deactivate() { active = false; document.removeEventListener("keydown", onKey); document.removeEventListener("click", onDocClick); },
   /** gone: the shortcuts off, the worker ended, the container emptied */
-  destroy() { handle.deactivate(); cloud.stop(); if (worker) worker.terminate(); root.replaceChildren(); root.classList.remove("ob-root", "o-ui"); },
+  destroy() { handle.deactivate(); cloud.stop(); if (worker) worker.terminate(); root.replaceChildren(); root.classList.remove("ob-root", "dense"); },
 };
 return handle;
 }

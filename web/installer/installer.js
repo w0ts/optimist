@@ -386,17 +386,17 @@ export function mountInstaller(container, opts = {}) {
   const log = (t) => { el.log.textContent += t + "\n"; };
 
   /* ---- 1 Connect */
-  el.find = h("button.o-btn", { type: "button", onclick: () => detect(true) }, TEXT.find);
+  el.find = h("button.quiet", { type: "button", onclick: () => detect(true) }, TEXT.find);
   el.found = h("p.oi-found", { role: "status", "aria-live": "polite" }, TEXT.unchecked);
   el.help = h("ul.oi-help", { hidden: true }, TEXT.notfoundHelp.map((t) => h("li", {}, t)));
-  el.browser = h("p.o-msg.err.oi-browser", { hidden: true, role: "alert" });
+  el.browser = h("p.msg.err.oi-browser", { hidden: true, role: "alert" });
   el.portsList = h("ul.oi-portlist");
   el.portsMsg = h("p.oi-portmsg", { role: "status", "aria-live": "polite" });
   el.pickList = h("ul.oi-portlist");
   el.pick = h("div.oi-ports.oi-pick", { hidden: true }, el.pickList);
-  el.ports = h("div.oi-ports", { hidden: true }, h("p.o-dim", {}, TEXT.portsHead), el.portsList, el.portsMsg);
+  el.ports = h("div.oi-ports", { hidden: true }, h("p.dim", {}, TEXT.portsHead), el.portsList, el.portsMsg);
   /* (the FM-1 found, under the Install button: the Mirror app's footer) */
-  const connectBox = h("div.oi-conn", {}, el.browser, h("div.oi-row", {}, el.found, el.find), el.pick, h("p.o-dim.oi-how", {}, TEXT.connectHow), el.help, el.ports);
+  const connectBox = h("div.oi-conn", {}, el.browser, h("div.oi-row", {}, el.found, el.find), el.pick, h("p.dim.oi-how", {}, TEXT.connectHow), el.help, el.ports);
 
   /* ---- 2 Choose */
   /* a release: its version, then its flavour (two menus in one row, as the Mirror app); st.choice is the package's index */
@@ -405,9 +405,9 @@ export function mountInstaller(container, opts = {}) {
   if (groups.length && st.choice === "0") st.choice = String(groups[0].idx[0]);   /* (the newest release's first flavour) */
   el.rel = h("select.oi-csearch.oi-rel", { "aria-label": TEXT.relLabel, onchange: () => pickGroup(el.rel.value) }, groups.map((g) => h("option", { value: g.key }, g.label)));
   el.flav = h("select.oi-csearch.oi-flav", { "aria-label": TEXT.flavLabel, onchange: () => { st.choice = el.flav.value; fillFlavours(); syncChoice(); loadChoice(); } });   /* (fillFlavours: its description) */
-  el.flavDesc = h("span.oi-desc.o-dim");
+  el.flavDesc = h("span.oi-desc.dim");
   const relRow = groups.length ? choiceRow("rel", TEXT.useRelease, null, null,
-    h("div.oi-relpick", {}, h("label.o-field", {}, h("span", {}, TEXT.relLabel), el.rel), h("label.o-field", {}, h("span", {}, TEXT.flavLabel), el.flav), el.flavDesc)) : null;
+    h("div.oi-relpick", {}, h("label", {}, h("span", {}, TEXT.relLabel), el.rel), h("label", {}, h("span", {}, TEXT.flavLabel), el.flav), el.flavDesc)) : null;
   function fillFlavours() {
     const g = groups.find((x) => x.key === st.group) || groups[0];
     if (!g) return;
@@ -427,89 +427,89 @@ export function mountInstaller(container, opts = {}) {
   fillFlavours();
   el.file = h("input.oi-file", { type: "file", accept: ".fwsc", "aria-label": TEXT.fileLabel, onchange: () => { st.choice = "file"; syncChoice(); loadChoice(); } });
   const fileRow = choiceRow("file", TEXT.useFile, null, null, el.file);
-  el.mineInfo = h("span.oi-desc.o-dim");
+  el.mineInfo = h("span.oi-desc.dim");
   el.mineRow = choiceRow("mine", TEXT.useMine, null, null, el.mineInfo);
-  el.own = h("button.o-btn", { type: "button", onclick: () => { if (opts.onNavigate) opts.onNavigate("build"); else location.href = links.build; } }, TEXT.buildOwn);
+  el.own = h("button.quiet", { type: "button", onclick: () => { if (opts.onNavigate) opts.onNavigate("build"); else location.href = links.build; } }, TEXT.buildOwn);
   el.stockRow = choiceRow("stock", TEXT.stockTitle, TEXT.stockNote, "FM-1_015");
   el.stockRow.hidden = true;
   el.pkginfo = h("p.oi-pkg", { role: "status", "aria-live": "polite" });
 
   /* ---- 3 Install */
   el.boot = h("input.oi-boot", { type: "checkbox", id: "oi-boot", checked: false, onchange: () => render() });
-  el.bootLine = h("p.oi-bootline.o-dim", {}, "");
-  el.bootOpt = h("div.oi-bootopt", { hidden: true }, h("label", { for: "oi-boot" }, el.boot, " ", TEXT.bootOpt), h("p.o-dim", {}, TEXT.bootWhy));
+  el.bootLine = h("p.oi-bootline.dim", {}, "");
+  el.bootOpt = h("div.oi-bootopt", { hidden: true }, h("label", { for: "oi-boot" }, el.boot, " ", TEXT.bootOpt), h("p.dim", {}, TEXT.bootWhy));
   el.bootRow = h("div.oi-bootrow", {}, el.bootLine, el.bootOpt);
-  el.soft = h("button.o-btn.sm.oi-softkey", { type: "button", hidden: true, onclick: () => sendSoftKey() }, TEXT.softKey);
-  el.go = h("button.o-btn.primary.big.oi-go", { type: "button", disabled: true, onclick: () => install() }, TEXT.install);
+  el.soft = h("button.quiet.sm.oi-softkey", { type: "button", hidden: true, onclick: () => sendSoftKey() }, TEXT.softKey);
+  el.go = h("button.big.oi-go", { type: "button", disabled: true, onclick: () => install() }, TEXT.install);
   el.phases = h("ol.oi-phases", {}, TEXT.phases.map((t) => h("li", { "data-st": "wait" }, t)));
-  el.bar = h("progress.o-progress.oi-bar", { max: "100", value: "0", "aria-label": TEXT.s3 });
+  el.bar = h("progress.oi-bar", { max: "100", value: "0", "aria-label": TEXT.s3 });
   el.status = h("p.oi-status", { role: "status", "aria-live": "polite" });
-  el.err = h("p.o-msg.err.oi-err", { role: "alert", hidden: true });
+  el.err = h("p.msg.err.oi-err", { role: "alert", hidden: true });
   el.dropMsg = h("p.oi-dropmsg", {}, TEXT.dropped);
-  el.dropCancel = h("button.o-btn.oi-dropcancel", { type: "button", onclick: () => { st.dropCancel = true; el.dropCancel.disabled = true; } }, TEXT.dropCancel);
-  el.drop = h("div.o-msg.warn.oi-drop", { role: "alert", hidden: true }, el.dropMsg, h("div.oi-row", {}, el.dropCancel));
-  el.ok = h("div.o-msg.ok.oi-ok", { hidden: true });
+  el.dropCancel = h("button.quiet.oi-dropcancel", { type: "button", onclick: () => { st.dropCancel = true; el.dropCancel.disabled = true; } }, TEXT.dropCancel);
+  el.drop = h("div.msg.warn.oi-drop", { role: "alert", hidden: true }, el.dropMsg, h("div.oi-row", {}, el.dropCancel));
+  el.ok = h("div.msg.ok.oi-ok", { hidden: true });
   /* Wi-Fi after the install: shown only when the installed build answers 112 WIFI; the password stays in the field until sent */
-  el.wfName = h("input.o-input.oi-wfname", { type: "text", autocomplete: "off", autocapitalize: "off", spellcheck: "false", "aria-label": TEXT.wifiSsid, placeholder: TEXT.wifiSsid, maxlength: 32 });
-  el.wfPass = h("input.o-input.oi-wfpass", { type: "password", autocomplete: "off", "aria-label": TEXT.wifiPass, placeholder: TEXT.wifiPass, maxlength: 63 });
+  el.wfName = h("input.oi-wfname", { type: "text", autocomplete: "off", autocapitalize: "off", spellcheck: "false", "aria-label": TEXT.wifiSsid, placeholder: TEXT.wifiSsid, maxlength: 32 });
+  el.wfPass = h("input.oi-wfpass", { type: "password", autocomplete: "off", "aria-label": TEXT.wifiPass, placeholder: TEXT.wifiPass, maxlength: 63 });
   el.wfShow = h("input", { type: "checkbox", id: "oi-wfshow", onchange: () => { el.wfPass.type = el.wfShow.checked ? "text" : "password"; } });
-  el.wfGo = h("button.o-btn.sm.oi-wfgo", { type: "button", onclick: () => wifiJoin() }, TEXT.wifiJoin);
+  el.wfGo = h("button.quiet.sm.oi-wfgo", { type: "button", onclick: () => wifiJoin() }, TEXT.wifiJoin);
   el.wfMsg = h("p.oi-wfmsg", { role: "status" });
-  el.wifi = h("div.o-msg.oi-wifi", { hidden: true }, h("strong", {}, TEXT.wifiTitle), h("p.o-dim", {}, TEXT.wifiWhy),
+  el.wifi = h("div.msg.oi-wifi", { hidden: true }, h("strong", {}, TEXT.wifiTitle), h("p.dim", {}, TEXT.wifiWhy),
     h("div.oi-row", {}, el.wfName, el.wfPass, h("label", { for: "oi-wfshow" }, el.wfShow, " ", TEXT.wifiShow), el.wfGo), el.wfMsg);
   el.log = h("pre.oi-log");
-  el.stockWarn = h("p.o-msg.warn", { hidden: true }, TEXT.stockNote);
+  el.stockWarn = h("p.msg.warn", { hidden: true }, TEXT.stockNote);
   /* Install: what to write (an official release's version and flavour, your build, a .fwsc file), then the button, its
      progress and the FM-1 found, together in one card (the Mirror app's Firmware tab, the user 2026-10-25) */
   const installCard = card("install", TEXT.s3,
-    h("fieldset.oi-choices", {}, h("legend.o-sr", {}, TEXT.chooseLegend), relRow, el.mineRow, fileRow, el.stockRow),
+    h("fieldset.oi-choices", {}, h("legend.sr", {}, TEXT.chooseLegend), relRow, el.mineRow, fileRow, el.stockRow),
     el.pkginfo, el.stockWarn, el.bootRow,
-    el.go, h("p.o-dim.oi-keep", {}, TEXT.keep),
+    el.go, h("p.dim.oi-keep", {}, TEXT.keep),
     el.phases, el.bar, el.status, el.drop, el.err, el.ok, el.wifi,
     connectBox,
-    h("details.o-details.oi-logbox", {}, h("summary", {}, TEXT.logTitle), el.log));
+    h("details.oi-logbox", {}, h("summary", {}, TEXT.logTitle), el.log));
 
   /* ---- Build your own: its own flow (the builder), a card of its own, first (the user, 2026-10-25), Install under it */
-  const ownCard = h("section.o-panel.oi-step.oi-own", { "aria-labelledby": "oi-sown" },
-    h("div.o-panel-h", {}, h("h2.oi-h", { id: "oi-sown" }, h("span", {}, TEXT.ownTitle))),
-    h("div.o-panel-b", {}, h("p.o-dim", {}, TEXT.buildOwnDesc), el.own));
+  const ownCard = h("section.card.oi-step.oi-own", { "aria-labelledby": "oi-sown" },
+    h("div.card-head", {}, h("h2.oi-h", { id: "oi-sown" }, h("span", {}, TEXT.ownTitle))),
+    h("div.card-body", {}, h("p.dim", {}, TEXT.buildOwnDesc), el.own));
 
   /* ---- 4 When something goes wrong */
   el.stockFile = h("input.oi-file", { type: "file", accept: ".fwsc", "aria-label": TEXT.stockFile, onchange: () => loadStock() });
   el.stockMsg = h("p.oi-stockmsg", { role: "status", "aria-live": "polite" });
-  const rescueBox = h("details.o-details.oi-rescuebox", {}, h("summary", {}, TEXT.s4),
+  const rescueBox = h("details.oi-rescuebox", {}, h("summary", {}, TEXT.s4),
     h("dl.oi-rescue", {},
       h("dt", {}, TEXT.r1h), h("dd", {}, TEXT.r1),
       h("dt", {}, TEXT.r2h), h("dd", {}, TEXT.r2),
       h("dt", {}, TEXT.r3h), h("dd", {}, TEXT.r3, h("a", { href: "https://github.com/kurogedelic/FM-1-transporter", target: "_blank", rel: "noopener" }, "FM-1-transporter"), "."),
       h("dt", {}, TEXT.r4h), h("dd", {},
-        opts.stock ? h("p", {}, TEXT.r4own, " ", h("button.o-btn.sm.oi-stockown", { type: "button", onclick: () => loadStock(true) }, TEXT.r4ownBtn)) : null,
+        opts.stock ? h("p", {}, TEXT.r4own, " ", h("button.quiet.sm.oi-stockown", { type: "button", onclick: () => loadStock(true) }, TEXT.r4ownBtn)) : null,
         opts.stock ? TEXT.r4a : TEXT.r4aOnly, h("a", { href: "https://www.m-vave.com/download", target: "_blank", rel: "noopener" }, "www.m-vave.com/download"), TEXT.r4,
-        h("label.o-field.oi-stockfield", {}, h("span", {}, TEXT.stockFile), el.stockFile), el.stockMsg)),
-    h("p.o-dim", {}, TEXT.untested, " ", link("docs", TEXT.docs)));
+        h("label.oi-stockfield", {}, h("span", {}, TEXT.stockFile), el.stockFile), el.stockMsg)),
+    h("p.dim", {}, TEXT.untested, " ", link("docs", TEXT.docs)));
 
   /* ---- the page */
   const srcHref = source ? `${REPO}/tree/${source}` : REPO;
-  el.meta = h("p.oi-meta.o-dim");
+  el.meta = h("p.oi-meta.dim");
   const root = h("div.oi", {},
-    h("header.oi-intro", {}, h("h1.oi-title", {}, TEXT.title), h("p.oi-what", {}, TEXT.what)),
+    h("header.oi-intro", {}, h("div.titlebar", {}, h("h1", {}, TEXT.title)), h("p.oi-what", {}, TEXT.what)),
     h("div.oi-steps", {}, ownCard, installCard, rescueBox),
     h("footer.oi-foot", {}, el.meta,
-      h("p.o-dim", {}, h("a", { href: srcHref, target: "_blank", rel: "noopener" }, TEXT.source), " · ", link("about", TEXT.about))));
+      h("p.dim", {}, h("a", { href: srcHref, target: "_blank", rel: "noopener" }, TEXT.source), " · ", link("about", TEXT.about))));
   container.replaceChildren(root);
 
   function card(name, title, ...body) {   /* (neutral: the track colours are the device's, not the installer's) */
     const hid = `oi-s${name}`;
-    return h("section.o-panel.oi-step", { "aria-labelledby": hid },
-      h("div.o-panel-h", {}, h("h2.oi-h", { id: hid }, h("span", {}, title))),
-      h("div.o-panel-b", {}, ...body));
+    return h("section.card.oi-step", { "aria-labelledby": hid },
+      h("div.card-head", {}, h("h2.oi-h", { id: hid }, h("span", {}, title))),
+      h("div.card-body", {}, ...body));
   }
   function choiceRow(value, title, desc, product, extra = null) {
     const id = `oi-c-${value}`;
     const input = h("input.oi-radio", { type: "radio", name: "oi-choice", id, value, onchange: () => { st.choice = value === "rel" ? el.flav.value : value; syncChoice(); loadChoice(); } });
     return h("div.oi-choice", { "data-value": value },
       input,
-      h("label", { for: id }, h("b", {}, title), product ? h("span.o-tag.outline", {}, product) : null, desc ? h("span.oi-desc.o-dim", {}, desc) : null),
+      h("label", { for: id }, h("b", {}, title), product ? h("span.tag.outline", {}, product) : null, desc ? h("span.oi-desc.dim", {}, desc) : null),
       extra);
   }
   function syncChoice() {
@@ -613,7 +613,7 @@ export function mountInstaller(container, opts = {}) {
       ({ mboot: ". The FM-1 has m-bootloader already (it says so).", stock: ". The FM-1 has M-VAVE's bootloader (it says so)." }[st.bootWord] || "") : "";
     el.boot.disabled = st.busy;
     el.meta.replaceChildren(...(p ? [h("span", {}, `${p.title}${p.version ? " " + p.version : ""}`), " · ", h("span", {}, p.product),
-      source && !p.stock && st.choice !== "file" && st.choice !== "mine" ? [" · ", TEXT.builtFrom, h("span.o-mono", {}, source)] : [],
+      source && !p.stock && st.choice !== "file" && st.choice !== "mine" ? [" · ", TEXT.builtFrom, h("span.mono", {}, source)] : [],
       p.sha256 ? [" · sha256 ", h("code.oi-sha", {}, p.sha256)] : []] : []).flat());
   }
 
@@ -644,7 +644,7 @@ export function mountInstaller(container, opts = {}) {
   }
   function showPick(keys) {
     el.pickList.replaceChildren(...keys.map((k) => h("li", {}, h("span", {}, k),
-      h("button.o-btn.sm", { type: "button", "aria-pressed": String(k === st.chosen), "aria-label": `${k}${k === st.chosen ? " (chosen)" : ""}`, disabled: st.busy,
+      h("button.quiet.sm", { type: "button", "aria-pressed": String(k === st.chosen), "aria-label": `${k}${k === st.chosen ? " (chosen)" : ""}`, disabled: st.busy,
         onclick: () => { st.chosen = k; detect(true); } }, k === st.chosen ? "Chosen" : "Use"))));
     el.pick.hidden = keys.length < 2;
   }
@@ -678,7 +678,7 @@ export function mountInstaller(container, opts = {}) {
     const up = newUpdater(midi, log);
     const names = up.ports().filter((n) => !up.askable(n));
     el.portsList.replaceChildren(...(names.length ? names.map((n) => h("li", {}, h("span", {}, n),
-      h("button.o-btn.sm", { type: "button", "aria-label": `${TEXT.tryPort}: ${n}`, onclick: (ev) => tryPort(midi, n, ev.currentTarget) }, TEXT.tryPort)))
+      h("button.quiet.sm", { type: "button", "aria-label": `${TEXT.tryPort}: ${n}`, onclick: (ev) => tryPort(midi, n, ev.currentTarget) }, TEXT.tryPort)))
       : [h("li", {}, TEXT.portsEmpty)]));
     el.ports.hidden = false;
   }
@@ -719,14 +719,14 @@ export function mountInstaller(container, opts = {}) {
     if (st.asked && !(warn.line && warn.known)) return Promise.resolve("go");
     return new Promise((resolve) => {
       const close = (v) => { dlg.close(); dlg.remove(); resolve(v); };
-      const dlg = h("dialog.o-pop.oi-ask", { "aria-labelledby": "oi-ask-h", oncancel: (ev) => { ev.preventDefault(); close("cancel"); } },
+      const dlg = h("dialog.pop.oi-ask", { "aria-labelledby": "oi-ask-h", oncancel: (ev) => { ev.preventDefault(); close("cancel"); } },
         h("h3", { id: "oi-ask-h" }, TEXT.askTitle),
         h("p", {}, stock ? TEXT.askBodyStock : TEXT.askBody),
-        warn.line ? h("p.o-msg.warn.oi-layout", {}, warn.line) : null,
+        warn.line ? h("p.msg.warn.oi-layout", {}, warn.line) : null,
         h("div.oi-row", {},
-          h("button.o-btn.primary", { type: "button", onclick: () => close("go") }, TEXT.askGo),
-          h("button.o-btn", { type: "button", onclick: () => close("backup") }, TEXT.askBackup),
-          h("button.o-btn.quiet", { type: "button", onclick: () => close("cancel") }, TEXT.askCancel)));
+          h("button", { type: "button", onclick: () => close("go") }, TEXT.askGo),
+          h("button.quiet", { type: "button", onclick: () => close("backup") }, TEXT.askBackup),
+          h("button.quiet", { type: "button", onclick: () => close("cancel") }, TEXT.askCancel)));
       root.append(dlg);
       dlg.showModal();
     });
@@ -783,9 +783,9 @@ export function mountInstaller(container, opts = {}) {
       el.bar.value = 100;
       say(el.status, "");
       el.ok.replaceChildren(h("span", {}, `${TEXT.done}${pkg.title} (${back}).`), " ",
-        pkg.stock ? (pkg.banks ? h("div.oi-banks", {}, h("p.o-dim", {}, TEXT.banksNote),
-          h("button.o-btn.sm.oi-banksgo", { type: "button", onclick: () => restoreBanks(pkg.banks) }, TEXT.banksBtn)) : null)
-          : h("button.o-btn.sm", { type: "button", onclick: () => (opts.onNavigate ? opts.onNavigate("editor") : (location.href = links.editor)) }, TEXT.openEditor));
+        pkg.stock ? (pkg.banks ? h("div.oi-banks", {}, h("p.dim", {}, TEXT.banksNote),
+          h("button.quiet.sm.oi-banksgo", { type: "button", onclick: () => restoreBanks(pkg.banks) }, TEXT.banksBtn)) : null)
+          : h("button.quiet.sm", { type: "button", onclick: () => (opts.onNavigate ? opts.onNavigate("editor") : (location.href = links.editor)) }, TEXT.openEditor));
       el.ok.hidden = false;
       el.go.textContent = TEXT.installAgain;
       if (!pkg.stock) offerWifi(midi);               /* (not awaited: the FM-1 is still starting) */
@@ -916,7 +916,7 @@ export function mountInstaller(container, opts = {}) {
     say(el.status, "");
     const mf = h("div", { class: "mflasher" });
     /* (m-bootloader asked for, not on the FM-1: the install over USB-MIDI that keeps the bootloader is the other choice, as good) */
-    const keep = route.wantsMboot ? h("button.o-btn.sm.oi-keepboot", { type: "button", onclick: () => { el.boot.checked = false; render(); install(); } }, TEXT.keepBoot) : null;
+    const keep = route.wantsMboot ? h("button.quiet.sm.oi-keepboot", { type: "button", onclick: () => { el.boot.checked = false; render(); install(); } }, TEXT.keepBoot) : null;
     el.err.replaceChildren(h("p", {}, TEXT.needsDownload + nextStep(route, pkg.file || "PACKAGE.fwsc")), ...(keep ? [keep] : []), mf, ...(route.softKey ? [el.soft] : []));
     mflasherLinks(mf);
     el.soft.hidden = !route.softKey;

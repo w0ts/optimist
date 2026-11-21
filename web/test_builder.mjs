@@ -229,9 +229,10 @@ ok(shell.includes("<!--OPTIMIST-HEADER-->") && shell.includes("/*OPTIMIST-CSS*/"
 ok(/export function mountBuilder\(container, opts = \{\}\)/.test(mod) && /activate\(\)/.test(mod) && /deactivate\(\)/.test(mod) && /destroy\(\)/.test(mod)
   && !/document\.getElementById|document\.body|document\.querySelector\(/.test(mod) && !/^\s*(body|html|:root)\b/m.test(bcss) && bcss.split("\n").filter((l) => /\{/.test(l) && !/^\s*(\/\*|@media|\})/.test(l) && !/^\s*\.ob-root/.test(l)).length === 0,
   "module: mountBuilder(container, opts) with activate / deactivate / destroy; no document-level lookup or body write; every CSS rule under .ob-root");
-const css = readFileSync(join(HERE, "style", "optimist.css"), "utf8");
-ok(/@media \(prefers-color-scheme: light\)/.test(css) && ["--surface-0", "--surface-3", "--text-dim", "--accent", "--ok", "--warn", "--err", "--t1", "--t4"].every((t) => css.includes(t + ":"))
-  && !/data-theme/.test(css), "style: the tokens, light / dark from the system (no switch)");
+const css = readFileSync(join(HERE, "style", "optimist.css"), "utf8"), common = readFileSync(join(HERE, "style", "common.css"), "utf8");
+ok(/--accent: #da92cc/.test(css) && /--accent-text-l/.test(css) && /--accent-text-d/.test(css) && css.split("\n").filter((l) => /^\s*(--|:root)/.test(l)).length <= 4
+  && /@media \(prefers-color-scheme: dark\)/.test(common) && ["--bg", "--panel", "--ink", "--dim", "--line", "--off", "--err", "--warn", "--on"].every((t) => common.includes(t + ":")),
+  "style: Optimist sets only its accent; the shared common.css has the tokens, light / dark from the system (data-theme forces one)");
 const inst = readFileSync(join(HERE, "installer", "index.html"), "utf8"), instJs = readFileSync(join(HERE, "installer", "installer.js"), "utf8");
 ok(/build: "\.\.\/builder\/"/.test(instJs) && /opts\.onNavigate\("build"\); else location\.href = links\.build/.test(instJs) && inst.includes("<!--OPTIMIST-HEADER-->") && inst.includes("/*OPTIMIST-CSS*/"),
   "installer: the shared header and style, Build your own opens the builder");
@@ -239,10 +240,11 @@ const hdr = JSON.parse(execFileSync(process.env.PYTHON || "python3", ["-c", "imp
 ok(hdr.every((h, i) => (h.match(/aria-current="page"/g) || []).length === 1 && h.includes(`href="../${["installer", "editor", "builder"][i]}/" aria-current="page"`)
   && /href="\.\.\/installer\/"/.test(h) && /href="\.\.\/editor\/"/.test(h) && /href="\.\.\/builder\/"/.test(h) && /<svg/.test(h)), "header: the dinghy, the three apps linked, the current one marked");
 
-ok(hdr.every((h) => !/o-tracks/.test(h) && /<b>Optimist<\/b>/.test(h) && /o-sep/.test(h)) && !/o-tracks|2fc1ae/.test(css) && /--trk: var\(--t1\)/.test(css) && /--font-ui: system-ui/.test(css) && !/border-bottom-color/.test(css.match(/\.o-nav a\[aria-current[^}]*\}/)[0]),
-  "header: the editor's menu bar (OPTIMIST, tabs, separators), no four-colour stripe, the active tab by its background; the editor's tokens and the system's sans-serif");
+ok(hdr.every((h) => /<header class="site">/.test(h) && /<nav class="site"/.test(h) && /<b>Optimist<\/b>/.test(h) && /class="sep"/.test(h)) && !/\bo-[a-z]/.test(css),
+  "header: header.site and nav.site of the shared style (OPTIMIST, the apps, separators), the current app by aria-current");
 const siteCss = JSON.parse(execFileSync(process.env.PYTHON || "python3", ["-c", "import json, sys; sys.path.insert(0, 'web'); import make_site; print(json.dumps(make_site.shared_css()))"], { cwd: join(HERE, ".."), encoding: "utf8" }));
-ok(/--font-ui: system-ui/.test(siteCss) && !/data:font/.test(siteCss), "style: the site's CSS uses the system's sans-serif, no font data");
+ok(siteCss.includes("--accent: #da92cc") && !/data:font/.test(siteCss) && /https:\/\/w0ts\.github\.io\/site-style\/common\.css/.test(readFileSync(join(HERE, "installer", "index.html"), "utf8") + readFileSync(join(HERE, "builder", "index.html"), "utf8")),
+  "style: the site's CSS is the accent only, no font data; the pages load common.css by URL");
 
 console.log(failed ? `${failed} FAILED` : "all ok");
 process.exit(failed ? 1 : 0);
