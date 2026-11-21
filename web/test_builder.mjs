@@ -240,17 +240,28 @@ const hdr = JSON.parse(execFileSync(process.env.PYTHON || "python3", ["-c", "imp
 ok(hdr.every((h, i) => (h.match(/aria-current="page"/g) || []).length === 1 && h.includes(`href="../${["installer", "editor", "builder"][i]}/" aria-current="page"`)
   && /href="\.\.\/installer\/"/.test(h) && /href="\.\.\/editor\/"/.test(h) && /href="\.\.\/builder\/"/.test(h) && /<svg/.test(h)), "header: the dinghy, the three apps linked, the current one marked");
 
-ok(hdr.every((h) => /^<header class="site"><div class="titlebar"><h1><a class="brand"[^>]*><svg/.test(h) && /<a href="https:\/\/w0ts\.github\.io\/">w0ts<\/a> \/ Optimist (installer|editor|builder)<\/h1><\/div><nav class="site"/.test(h) && h.endsWith("</nav></header>") && /class="sep"/.test(h)) && !/\bo-[a-z]/.test(css),
+ok(hdr.every((h) => /^<header class="site"><div class="titlebar"><h1><a href="https:\/\/w0ts\.github\.io\/">w0ts<\/a> \/ Optimist (installer|editor|builder)(<svg class="titleicon" aria-hidden="true"[^>]*>[\s\S]*?<\/svg>)?<\/h1><\/div><nav class="site"/.test(h) && h.includes('<a href="../../">About</a>') && h.endsWith("</nav></header>") && /class="sep"/.test(h)) && !/\bo-[a-z]/.test(css),
   "header: the canonical one row (header.site > .titlebar h1 with the dinghy + nav.site: the apps, separators), the current app by aria-current");
 const siteCss = JSON.parse(execFileSync(process.env.PYTHON || "python3", ["-c", "import json, sys; sys.path.insert(0, 'web'); import make_site; print(json.dumps(make_site.shared_css()))"], { cwd: join(HERE, ".."), encoding: "utf8" }));
 ok(siteCss.includes("--accent: #da92cc") && !/data:font/.test(siteCss) && /https:\/\/w0ts\.github\.io\/site-style\/common\.css/.test(readFileSync(join(HERE, "installer", "index.html"), "utf8") + readFileSync(join(HERE, "builder", "index.html"), "utf8")),
   "style: the site's CSS is the accent only, no font data; the pages load common.css by URL");
 
-/* the site's front page: a real page on the shared style and header (no redirect), with an entry to every app, the Mirror app and the policy */
+/* the site's About page (its front page): the README's content as sections on the shared style and header, About first in the tabs, no redirect;
+   written once in web/site_about.py and kept in step with README.md here (every link of the README's Credits, its features, flavours and steps) */
 const landing = execFileSync(process.env.PYTHON || "python3", ["-c", "import sys; sys.path.insert(0, 'web'); import make_site; print(make_site.landing_page())"], { cwd: join(HERE, ".."), encoding: "utf-8" });
-ok(/<title>w0ts \/ Optimist<\/title>/.test(landing) && landing.includes('<a href="https://w0ts.github.io/">w0ts</a> / Optimist</h1>') && !/http-equiv="refresh"/.test(landing)
-  && ["webapp/installer/", "webapp/builder/", "webapp/editor/#sim", "webapp/editor/", "privacy.html"].every((h) => landing.includes(`href="${h}"`)) && /apps\.apple\.com/.test(landing) && landing.includes("common.css"),
-  "front page: w0ts / Optimist title bar on the shared style, no redirect, links to installer, builder, simulator, editor, the Mirror app and the privacy policy");
+const readme = readFileSync(join(HERE, "..", "README.md"), "utf8");
+const readmeCredits = readme.slice(readme.indexOf("## Credits"), readme.indexOf("## Licence and contributing"));
+const creditUrls = [...readmeCredits.matchAll(/\]\((https:[^)\s]+)\)/g)].map((m) => m[1]);
+const pageCredits = landing.slice(landing.indexOf('id="credits"'), landing.indexOf("<h2>Licence and contributing"));
+ok(/<title>w0ts \/ Optimist<\/title>/.test(landing) && landing.includes('<a href="https://w0ts.github.io/">w0ts</a> / Optimist') && !/http-equiv="refresh"/.test(landing)
+  && landing.includes('<a href="./" aria-current="page">About</a>') && landing.includes("common.css")
+  && ["webapp/installer/", "webapp/builder/", "webapp/editor/#sim", "privacy.html"].every((h) => landing.includes(`href="${h}"`)) && /apps\.apple\.com/.test(landing)
+  && !/class="card"><h3>(Installer|Builder|Simulator|Editor)</.test(landing) && !/class="grid cards"/.test(landing) && !/<a class="button"/.test(landing)
+  && ["The web tools", "What is in it", "The flavours", "Your first install", "The app", "Credits", "Licence and contributing"].every((t) => landing.includes(`>${t}</h2>`)) && /<details class="sec"><summary><h3>The guide<\/h3>/.test(landing),
+  "About page: w0ts / Optimist title bar on the shared style, About first and current, no redirect, no entry cards for the apps (the tabs link to them), the sections (features, flavours, first install, the app, credits, licence) with the guide and local build as folds");
+ok(creditUrls.length >= 15 && creditUrls.every((u) => pageCredits.includes(`href="${u}"`)) && ["isod89", "Hügelton", "Kerem Kilic", "Charles Vestal", "bonszaimusic", "GPL-3.0-only"].every((w) => landing.includes(w) && readme.includes(w))
+  && ["Four tracks", "Many synth engines", "SD card mode", "JANK mode", "Back up", "synths-2", "drum machine", "mots-config"].every((w) => landing.includes(w) && readme.includes(w)),
+  `About page and README agree: all ${creditUrls.length} credit links of the README are on the page, and its features, flavours and install steps are named in both`);
 
 /* the title bar's text stays selectable (the owner, 2026-11-21): no rule of a page's style turns user-select off on the page chrome
    (html, body, main, header, .titlebar, h1, nav, .site), and nothing over the h1 takes the pointer (the live selection is e2e_installer.mjs) */

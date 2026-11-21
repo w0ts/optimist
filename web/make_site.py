@@ -179,8 +179,9 @@ def shared_css():
     return (HERE / "style" / "optimist.css").read_text(encoding="utf-8")
 
 
-PAGE_TITLES = {"home": "Optimist", "installer": "Optimist installer", "builder": "Optimist builder", "editor": "Optimist editor"}   # (the title bar reads "w0ts / <app>")
+PAGE_TITLES = {"about": "Optimist", "installer": "Optimist installer", "builder": "Optimist builder", "editor": "Optimist editor"}   # (the title bar reads "w0ts / <app>")
 W0TS = "https://w0ts.github.io/"
+TITLE_ICON = os.environ.get("OPTIMIST_TITLE_ICON", "after")   # THE ONE-LINE SWITCH of the title bar's dinghy: "after" (after the name, in the title block) or "none"
 
 
 def brand_svg():
@@ -189,18 +190,28 @@ def brand_svg():
     return re.sub(r">\s+<", "><", svg).strip()
 
 
+TITLE_ICON_MARK = "<!--TITLE-ICON-->"              # where a hand-written title bar (the editor's, the privacy page's) takes the dinghy
+
+
+def title_icon():
+    """the dinghy after the name in the title block (TITLE_ICON = "after"), else nothing; decorative (the text names it)"""
+    if TITLE_ICON != "after":
+        return ""
+    return brand_svg().replace("<svg ", '<svg class="titleicon" aria-hidden="true" focusable="false" ', 1)
+
+
 def shared_header(app, title=None, root=False):
     """the page header of the shared style (site-style's canonical markup), directly in <body>: ONE row, the title on the
     left (the dinghy, linking to the site's root, then the page's title, on the accent block) and the apps as tabs on the
     right (the current one aria-current), both in the content's width; the App Store badges and GitHub close the tabs"""
     base = "webapp/" if root else "../"          # (the site's front page sits beside webapp/, the apps' pages inside it)
-    items = [(f"{base}{a}/", a, t) for a, t in APPS]
-    items.insert(2, (f"{base}editor/#sim", "simulator", "Simulator"))   # (a tab of the editor's page, no page of its own: web/sim/)
+    items = [("./" if root else "../../", "about", "About")] + [(f"{base}{a}/", a, t) for a, t in APPS]
+    items.insert(3, (f"{base}editor/#sim", "simulator", "Simulator"))   # (a tab of the editor's page, no page of its own: web/sim/)
     links = '<span class="sep" role="separator" aria-orientation="vertical"></span>'.join(
         f'<a href="{href}"' + (' aria-current="page"' if a == app else "") + f">{(EDITOR_ICON + ' ' if a == 'editor' else '')}{t}</a>"
         for href, a, t in items)
-    brand = f'<a class="brand" href="{"./" if root else "../../"}" title="Optimist" aria-label="Optimist start page">{brand_svg()}</a>'
-    return (f'<header class="site"><div class="titlebar"><h1>{brand}<a href="{W0TS}">w0ts</a> / {title or PAGE_TITLES[app]}</h1></div>'
+    icon = title_icon()
+    return (f'<header class="site"><div class="titlebar"><h1><a href="{W0TS}">w0ts</a> / {title or PAGE_TITLES[app]}{icon}</h1></div>'
             f'<nav class="site" aria-label="Optimist apps">{links}{app_badges(auto=False)}'
             f'<a href="https://github.com/{REPO}" target="_blank" rel="noopener" title="Optimist on GitHub" aria-label="Optimist on GitHub">{GITHUB_ICON}</a></nav></header>')
 
@@ -218,7 +229,9 @@ def editor_page():
     html = (HERE / "editor.html").read_text(encoding="utf-8")
     if html.count(BADGES_MARK) != 1:
         raise SystemExit(f"web/editor.html must contain {BADGES_MARK} once; update make_site.py")
-    return html.replace(BADGES_MARK, app_badges())
+    if html.count(TITLE_ICON_MARK) != 1:
+        raise SystemExit(f"web/editor.html must contain {TITLE_ICON_MARK} once; update make_site.py")
+    return html.replace(BADGES_MARK, app_badges()).replace(TITLE_ICON_MARK, title_icon())
 
 
 def site_commit():
@@ -411,31 +424,16 @@ def install_bootloader(path, digest):
 
 
 def landing_page():
-    """the site's front page (https://w0ts.github.io/optimist/): the shared header and style, what Optimist is (the installer's
-    own words), and a card each for the installer, the builder, the simulator, the editor, the Mirror app, the source and the
-    privacy policy. No redirect: every old deep link (webapp/..., privacy.html) is unchanged"""
-    what = re.search(r'what: ((?:"[^"\n]*"\s*\+?\s*)+)', (HERE / "installer" / "installer.js").read_text(encoding="utf-8"))
-    paras = "".join(json.loads(x) for x in re.findall(r'"[^"\n]*"', what.group(1))) if what else ""
-    intro = re.sub(r"^This page installs Optimist, a", "Optimist is a", paras).replace(", from this browser over USB. ", ". ", 1)
-    cards = (("Installer", "webapp/installer/", "Install Optimist on the FM-1 from this browser over USB (Chrome or Edge)."),
-             ("Builder", "webapp/builder/", "Pick the features of an Optimist firmware for the M-VAVE FM-1 and see what fits."),
-             ("Simulator", "webapp/editor/#sim", "Try an Optimist build in the browser, with no FM-1."),
-             ("Editor", "webapp/editor/", "The web editor: backup, librarian, the screen mirrored."))
-    grid = "".join(f'<section class="card"><h3>{t}</h3><p>{d}</p><p><a class="button" href="{h}">Open the {t.lower()}</a></p></section>' for t, h, d in cards)
-    mirror = ("Optimist Mirror shows the screen of an FM-1 running the Optimist firmware and lets you manage its projects, presets and "
-              "backups.")
+    """the site's About page, its front page (https://w0ts.github.io/optimist/): the shared header and style, and the README's
+    content as sections (web/site_about.py). No redirect: every old deep link (webapp/..., privacy.html) is unchanged"""
+    import site_about
     head = "".join(('<!doctype html>\n<html lang="en">\n<head>\n<meta charset="utf-8">\n<meta name="viewport" content="initial-scale=1, width=device-width">\n',
                     "<title>w0ts / Optimist</title>\n",
-                    '<meta name="description" content="Optimist, a free, open-source firmware for the M-VAVE FM-1: installer, builder, simulator and editor.">\n',
+                    '<meta name="description" content="Optimist, a modular, free, open-source firmware for the M-VAVE FM-1: installer, builder, simulator and editor.">\n',
                     '<link rel="icon" href="icon.svg" type="image/svg+xml"><link rel="icon" href="favicon.ico" sizes="32x32">\n',
                     '<link rel="apple-touch-icon" href="apple-touch-icon.png"><link rel="manifest" href="manifest.webmanifest">\n',
                     f'<link rel="stylesheet" href="{COMMON_CSS}">\n<style>{shared_css()}</style>\n</head>\n'))
-    body = (f'<body>\n{shared_header("home", "Optimist", root=True)}\n<main>\n<p class="prose">{intro}</p>\n'
-            f'<h2>Start here</h2>\n<div class="grid cards" style="--min: 230px">{grid}</div>\n'
-            f'<h2>The app</h2>\n<section class="card"><h3>Optimist Mirror</h3><p>{mirror}</p><p>{app_badges(auto=False)}</p></section>\n'
-            f'<footer class="site"><a href="https://github.com/{REPO}" target="_blank" rel="noopener">Source</a> · <a href="privacy.html">Privacy policy</a> · '
-            f'<a href="LICENSING.md">About and licences</a></footer>\n</main>\n</body>\n</html>\n')
-    return head + body
+    return (head + f'<body>\n{shared_header("about", "Optimist", root=True)}\n<main>\n{site_about.about_body(app_badges(auto=False))}</main>\n</body>\n</html>\n')
 
 
 def main(version, out, flavours=None, releases=None, sims=None):
@@ -521,13 +519,20 @@ def main(version, out, flavours=None, releases=None, sims=None):
         "background_color": "#141617", "theme_color": "#141617",
         "icons": [{"src": "icon-192.png", "sizes": "192x192", "type": "image/png"},
                   {"src": "icon-512.png", "sizes": "512x512", "type": "image/png"}]}, indent=2) + "\n", encoding="utf-8")
+    (out / "assets" / "screens").mkdir(parents=True, exist_ok=True)       # the About page's pictures of the FM-1's screen
+    import site_about
+    for f in site_about.SCREENS:
+        shutil.copy(HERE.parent / "assets" / "screens" / f, out / "assets" / "screens" / f)
     for f in NOTICES:                               # the site root: ../../LICENSE etc. from the installer page
         dst = out / f
         dst.parent.mkdir(parents=True, exist_ok=True)
         shutil.copy(HERE.parent / f, dst)
     landing = landing_page()
     (out / "index.html").write_text(landing, encoding="utf-8")
-    shutil.copy(HERE.parent / "ios" / "OptimistMirror" / "privacy.html", out / "privacy.html")   # (the app's policy URL)
+    privacy = (HERE.parent / "ios" / "OptimistMirror" / "privacy.html").read_text(encoding="utf-8")   # (the app's policy URL)
+    if privacy.count(TITLE_ICON_MARK) != 1:
+        raise SystemExit(f"ios/OptimistMirror/privacy.html must contain {TITLE_ICON_MARK} once; update make_site.py")
+    (out / "privacy.html").write_text(privacy.replace(TITLE_ICON_MARK, title_icon()), encoding="utf-8")
     print(f"site: {out}: webapp/installer, webapp/editor, webapp/builder, " + ", ".join(f"firmware/{n}" for _, n in files))
 
 
