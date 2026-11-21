@@ -19,7 +19,7 @@
   webapp/builder/             the web builder (web/builder/; data/ exported fresh by tools/export_builder_web.py,
                               build-info.json: the commit for the cloud key, none when the tree is modified)
   LICENSE, LICENSING.md, LICENSES/*.txt            the notices the package needs
-  privacy.html                the Optimist Mirror app's privacy policy (ios/OptimistMirror/privacy.html, unchanged)
+  privacy.html                the Optimist Mirror app's privacy policy (ios/OptimistMirror/privacy.html, on the shared style)
   src/                        left alone
 Usage:
   web/make_site.py --flavours web/flavours.json X.Y OUT_DIR [--releases DIR]
@@ -139,14 +139,36 @@ APP_STORE = "https://apps.apple.com/app/id6826362906"   # (Optimist Mirror: one 
 BADGES_MARK = "<!--APP-BADGES-->"                  # where the editor's menu bar takes the App Store badges
 
 
+BADGE_TINT = "grey"          # THE ONE-LINE SWITCH of the App Store badges' tint: "grey" (the style's --dim) or "accent" (--accent-text: #b13c9a light, #da92cc dark)
+BADGES = (("app-store.svg", "Download on the App Store", "9.5 8 100.5 26"),          # (the file, its words, the crop: the Apple logo and
+          ("mac-app-store.svg", "Download on the Mac App Store", "9.5 8 137 26"))     # the text, without Apple's black plate and padding)
+BADGE_CSS = (".o-badges { --badge: var(--dim, light-dark(#6b6a65, #9c9b94)); display: inline-flex; gap: 14px; align-items: center; flex: none; }"
+             " .o-badges.accent { --badge: var(--accent-text, light-dark(#b13c9a, #da92cc)); }"
+             " .o-badges a { display: inline-flex; padding: 0; background: none; color: var(--badge); text-decoration: none; }"
+             " .o-badges a:hover, .o-badges a:focus-visible { color: var(--ink, var(--fg, currentColor)); }"
+             " .o-badges svg { height: 24px; width: auto; display: block; fill: currentColor; }")
+
+
+def badge_glyph(name, label, crop):
+    """one of Apple's badges (web/style/badges/, as Apple gives them) as a tintable glyph: the black plate and its grey
+    outline dropped, the white logo and words in currentColor, the view box cropped to them. Inline (no request to
+    Apple; the tint is CSS). This departs from Apple's badge rules, the owner's choice (2026-11-21)"""
+    svg = (HERE / "style" / "badges" / name).read_text(encoding="utf-8")
+    svg = re.sub(r"<title>.*?</title>", "", svg)
+    svg = re.sub(r'<path (?:id="[^"]*" )?(?:data-name="[^"]*" )?d="[^"]*"(?: style="fill: #a6a6a6")?/>', lambda m: "" if "a6a6a6" in m.group(0) else m.group(0), svg, count=1)
+    svg = re.sub(r'<path d="[^"]*"/>', "", svg, count=1)                    # (the black plate: the one path with no fill)
+    svg = re.sub(r'\s(?:id|data-name|width)="[^"]*"', "", svg).replace(' style="fill: #fff"', "")
+    svg = re.sub(r'height="40" viewBox="[^"]*"', f'viewBox="{crop}" role="img" aria-label="{label}"', svg, count=1)
+    return re.sub(r">\s+<", "><", svg)
+
+
 def app_badges(auto=True):
-    """Apple's badges, as Apple gives them (web/style/badges/), inlined: no request to Apple from the pages"""
+    """the two App Store badges, tinted to the style (BADGE_TINT), linking to the app's record"""
     imgs, push = [], ";margin-left:auto" if auto else ""
-    for f, alt, w in (("app-store.svg", "Download on the App Store", 78), ("mac-app-store.svg", "Download on the Mac App Store", 102)):
-        data = base64.b64encode((HERE / "style" / "badges" / f).read_bytes()).decode("ascii")
-        imgs.append(f'<a href="{APP_STORE}" target="_blank" rel="noopener" style="padding:0;background:none;display:inline-flex">'
-                    f'<img src="data:image/svg+xml;base64,{data}" alt="{alt}" height="26" width="{w}"></a>')
-    return f'<span class="o-badges" style="display:inline-flex;gap:6px;align-items:center;flex:none{push}">{"".join(imgs)}</span>'
+    for f, alt, crop in BADGES:
+        imgs.append(f'<a href="{APP_STORE}" target="_blank" rel="noopener" title="{alt}">{badge_glyph(f, alt, crop)}</a>')
+    cls = "o-badges" + (" accent" if BADGE_TINT == "accent" else "")
+    return f'<style>{BADGE_CSS}</style><span class="{cls}" style="{push.lstrip(";")}">{"".join(imgs)}</span>'
 
 
 COMMON_CSS = "https://w0ts.github.io/site-style/common.css"   # the one shared style, loaded by URL (the pages are not offline files)
