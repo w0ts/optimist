@@ -240,7 +240,7 @@ const hdr = JSON.parse(execFileSync(process.env.PYTHON || "python3", ["-c", "imp
 ok(hdr.every((h, i) => (h.match(/aria-current="page"/g) || []).length === 1 && h.includes(`href="../${["installer", "editor", "builder"][i]}/" aria-current="page"`)
   && /href="\.\.\/installer\/"/.test(h) && /href="\.\.\/editor\/"/.test(h) && /href="\.\.\/builder\/"/.test(h) && /<svg/.test(h)), "header: the dinghy, the three apps linked, the current one marked");
 
-ok(hdr.every((h) => /^<header class="site"><div class="titlebar"><h1><a class="brand"[^>]*><svg/.test(h) && /<\/h1><\/div><nav class="site"/.test(h) && h.endsWith("</nav></header>") && /class="sep"/.test(h)) && !/\bo-[a-z]/.test(css),
+ok(hdr.every((h) => /^<header class="site"><div class="titlebar"><h1><a class="brand"[^>]*><svg/.test(h) && /<a href="https:\/\/w0ts\.github\.io\/">w0ts<\/a> \/ Optimist (installer|editor|builder)<\/h1><\/div><nav class="site"/.test(h) && h.endsWith("</nav></header>") && /class="sep"/.test(h)) && !/\bo-[a-z]/.test(css),
   "header: the canonical one row (header.site > .titlebar h1 with the dinghy + nav.site: the apps, separators), the current app by aria-current");
 const siteCss = JSON.parse(execFileSync(process.env.PYTHON || "python3", ["-c", "import json, sys; sys.path.insert(0, 'web'); import make_site; print(json.dumps(make_site.shared_css()))"], { cwd: join(HERE, ".."), encoding: "utf8" }));
 ok(siteCss.includes("--accent: #da92cc") && !/data:font/.test(siteCss) && /https:\/\/w0ts\.github\.io\/site-style\/common\.css/.test(readFileSync(join(HERE, "installer", "index.html"), "utf8") + readFileSync(join(HERE, "builder", "index.html"), "utf8")),

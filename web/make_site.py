@@ -179,7 +179,8 @@ def shared_css():
     return (HERE / "style" / "optimist.css").read_text(encoding="utf-8")
 
 
-PAGE_TITLES = {"installer": "Install Optimist", "builder": "Firmware builder for the M-VAVE FM-1", "editor": "Optimist editor"}
+PAGE_TITLES = {"installer": "Optimist installer", "builder": "Optimist builder", "editor": "Optimist editor"}   # (the title bar reads "w0ts / <app>")
+W0TS = "https://w0ts.github.io/"
 
 
 def brand_svg():
@@ -198,7 +199,7 @@ def shared_header(app, title=None):
         f'<a href="{href}"' + (' aria-current="page"' if a == app else "") + f">{(EDITOR_ICON + ' ' if a == 'editor' else '')}{t}</a>"
         for href, a, t in items)
     brand = f'<a class="brand" href="../../" title="Optimist" aria-label="Optimist start page">{brand_svg()}</a>'
-    return (f'<header class="site"><div class="titlebar"><h1>{brand}{title or PAGE_TITLES[app]}</h1></div>'
+    return (f'<header class="site"><div class="titlebar"><h1>{brand}<a href="{W0TS}">w0ts</a> / {title or PAGE_TITLES[app]}</h1></div>'
             f'<nav class="site" aria-label="Optimist apps">{links}{app_badges(auto=False)}'
             f'<a href="https://github.com/{REPO}" target="_blank" rel="noopener" title="Optimist on GitHub" aria-label="Optimist on GitHub">{GITHUB_ICON}</a></nav></header>')
 

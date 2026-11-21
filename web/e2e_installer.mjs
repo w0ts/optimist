@@ -166,7 +166,7 @@ const p0 = await run(`${U} return { steps: [...document.querySelectorAll(".oi-st
   source: $(".oi-foot a").href, about: [...document.querySelectorAll(".oi-foot a")].map((a) => a.getAttribute("href")) };`);
 ok(start.kind === "ok" && /^Ready: .+ v0\.1-e2e · FM-1_720$/.test(start.text), `step 2: the site's package downloaded and checked (${start.text})`);
 ok(JSON.stringify(p0.steps) === JSON.stringify(["Build your own", "Install"]) && p0.rescue === "When something goes wrong" && p0.folded && p0.under
-  && p0.h1 === "Install Optimist" && p0.head && !p0.tiles,
+  && p0.h1 === "w0ts / Optimist installer" && p0.head && !p0.tiles,
   "the page: Build your own, Install (the choices, the button, the FM-1 found under it), the rescue folded; the shared header, no SLOOP tiles");
 ok(JSON.stringify(p0.radios) === JSON.stringify([["rel", true], ["file", false]]) && !p0.go && !p0.find, "the release's flavour chosen, a file of yours offered; Find and Install on");
 ok(p0.meta.includes(`sha256 ${SHA}`) && p0.meta.includes("built from v0.1-e2e") && p0.source === "https://github.com/w0ts/optimist/tree/v0.1-e2e" && p0.about.includes("../../LICENSING.md"),
