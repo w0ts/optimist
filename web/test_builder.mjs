@@ -246,5 +246,14 @@ const siteCss = JSON.parse(execFileSync(process.env.PYTHON || "python3", ["-c", 
 ok(siteCss.includes("--accent: #da92cc") && !/data:font/.test(siteCss) && /https:\/\/w0ts\.github\.io\/site-style\/common\.css/.test(readFileSync(join(HERE, "installer", "index.html"), "utf8") + readFileSync(join(HERE, "builder", "index.html"), "utf8")),
   "style: the site's CSS is the accent only, no font data; the pages load common.css by URL");
 
+/* the title bar's text stays selectable (the owner, 2026-11-21): no rule of a page's style turns user-select off on the page chrome
+   (html, body, main, header, .titlebar, h1, nav, .site), and nothing over the h1 takes the pointer (the live selection is e2e_installer.mjs) */
+const chromeSel = /(^|[\s,>+~])(html|body|main|header|nav|h1|\.titlebar|\.site|\*)([\s,>+~.:\[]|$)/;
+const styleFiles = [["style", "common.css"], ["style", "optimist.css"], ["installer", "installer.css"], ["builder", "builder.css"], ["installer", "index.html"], ["builder", "index.html"], ["..", "ios", "OptimistMirror", "privacy.html"]];
+const noSelect = styleFiles.flatMap((f) => [...readFileSync(join(HERE, ...f), "utf8").replace(/\/\*[\s\S]*?\*\//g, "").matchAll(/([^{}]+)\{([^{}]*)\}/g)]
+  .filter(([, , body]) => /(-webkit-)?user-select\s*:\s*none|-webkit-app-region\s*:\s*drag/.test(body)).map(([, sel]) => `${f.at(-1)}: ${sel.trim().split("\n").pop()}`));
+ok(noSelect.filter((sel) => chromeSel.test(sel.slice(sel.indexOf(": ") + 2).replace(/\.ob-root\s+/g, ""))).length === 0 && !/header\.site[^{]*::(before|after)[^{]*\{[^}]*position:\s*absolute/.test(common),
+  `title bar: no user-select none / app-region drag on the page chrome, no absolute overlay on header.site (found on: ${noSelect.join("; ") || "nothing"})`);
+
 console.log(failed ? `${failed} FAILED` : "all ok");
 process.exit(failed ? 1 : 0);

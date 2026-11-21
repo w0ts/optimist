@@ -168,6 +168,19 @@ ok(start.kind === "ok" && /^Ready: .+ v0\.1-e2e · FM-1_720$/.test(start.text), 
 ok(JSON.stringify(p0.steps) === JSON.stringify(["Build your own", "Install"]) && p0.rescue === "When something goes wrong" && p0.folded && p0.under
   && p0.h1 === "w0ts / Optimist installer" && p0.head && !p0.tiles,
   "the page: Build your own, Install (the choices, the button, the FM-1 found under it), the rescue folded; the shared header, no SLOOP tiles");
+/* the title bar's text is selectable (the owner, 2026-11-21: on every w0ts site): a Range over the app name, then over the whole h1, read back from the Selection;
+   no element from the h1 up to <html>, and no nav link, has user-select none */
+const sel = await run(`const h1 = document.querySelector("header.site h1"), text = h1.textContent, name = text.slice(text.indexOf(" / ") + 3);
+  const pick = (node, a, b) => { const r = document.createRange(); r.setStart(node, a); r.setEnd(node, b); const s = getSelection(); s.removeAllRanges(); s.addRange(r); return s.toString(); };
+  const tn = [...h1.childNodes].filter((n) => n.nodeType === 3).pop();
+  const part = pick(tn, tn.data.indexOf(" / ") + 3, tn.data.length);
+  const r2 = document.createRange(); r2.selectNodeContents(h1); getSelection().removeAllRanges(); getSelection().addRange(r2);
+  const whole = getSelection().toString(); getSelection().removeAllRanges();
+  const blocked = []; for (let e = h1; e; e = e.parentElement) { const u = getComputedStyle(e).userSelect; if (u === "none") blocked.push(e.tagName); }
+  for (const a of document.querySelectorAll("header.site nav.site a")) if (getComputedStyle(a).userSelect === "none") blocked.push("nav a");
+  return { name, part, whole, text, blocked };`);
+ok(sel.name === "Optimist installer" && sel.part === sel.name && sel.whole.includes("w0ts / Optimist installer") && !sel.blocked.length,
+  `the title bar's text is selectable (selected "${sel.part}" / "${sel.whole.trim()}", user-select none on: ${sel.blocked.join(",") || "nothing"})`);
 ok(JSON.stringify(p0.radios) === JSON.stringify([["rel", true], ["file", false]]) && !p0.go && !p0.find, "the release's flavour chosen, a file of yours offered; Find and Install on");
 ok(p0.meta.includes(`sha256 ${SHA}`) && p0.meta.includes("built from v0.1-e2e") && p0.source === "https://github.com/w0ts/optimist/tree/v0.1-e2e" && p0.about.includes("../../LICENSING.md"),
   "the version, the tag, the package's sha256 small at the end; Source at the tag; About and licences");
