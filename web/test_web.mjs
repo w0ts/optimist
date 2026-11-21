@@ -1865,8 +1865,8 @@ async function editorDaw() {
     "daw: a colour for every engine and drum kind, all different; an unknown engine: the neutral one");
   ok(all.concat(Object.values(E.COLORS.status)).every((c) => E.contrast(c, E.textOn(c)) >= 4.5), "daw: text on every engine / kind / status colour reads (contrast >= 4.5)");
   /* the colours follow the system (no switch): a dark set and a light set in the stylesheet, both readable (WCAG AA) */
-  const darkCss = html.slice(html.indexOf("  :root {\n    --bg: #000;"), html.indexOf("  @media (prefers-color-scheme: light) {\n    :root {\n      --bg: #f4f4f2"));
-  const lightCss = html.slice(html.indexOf("  @media (prefers-color-scheme: light) {\n    :root {\n      --bg: #f4f4f2"), html.indexOf("  html { background: var(--bg); }"));
+  const darkCss = html.slice(html.indexOf("  :root {\n    --bg: #171716;"), html.indexOf("  @media (prefers-color-scheme: light) {\n    :root {\n      --bg: #f6f5f1"));
+  const lightCss = html.slice(html.indexOf("  @media (prefers-color-scheme: light) {\n    :root {\n      --bg: #f6f5f1"), html.indexOf("  html { background: var(--bg); }"));
   const tok = (css, n) => { const m = (css.match(new RegExp("--" + n + ": #([0-9a-fA-F]{3,6});")) || [])[1]; return m && "#" + (m.length === 3 ? [...m].map((d) => d + d).join("") : m); };
   const bad = [];
   for (const [mode, css] of [["dark", darkCss], ["light", lightCss]]) {
@@ -3006,8 +3006,8 @@ async function masterStrip() {
   ok(!/@font-face \{ font-family: "(JetBrains Mono|SLOOP Terminus)"/.test(html) && /--font: system-ui/.test(html),
     "look: the editor's text is the system's own sans-serif (no font data inlined)");
   ok(/<div class="menubar" id="side"/.test(html) && !/<aside/.test(html) && !/id="toptracks"/.test(html) && (html.match(/class="navh"/g) || []).length === 2 && !/data-t="nav(Play|Lib|Sys)"/.test(html) && !["navTrack", "navFx"].some((k) => html.includes(`data-t="${k}"`))
-    && [...html.matchAll(/data-go="(\w+)"/g)].every((m) => E.NAV[m[1]]) && /function drawTiles\(/.test(html) && /--t1: #287cff; --t2: var\(--t1\); --t3: var\(--t1\); --t4: var\(--t1\);/.test(html) && !/data-sel="\d"\] \{ --trk/.test(html),
-    "look: a menu bar on top with the pages that are not in the mixer (library, projects, ..., settings, help; no editor buttons, no tab row: the strips' heads select), the step tiles, one colour (the blue) for every track");
+    && [...html.matchAll(/data-go="(\w+)"/g)].every((m) => E.NAV[m[1]]) && /function drawTiles\(/.test(html) && /--t1: #da92cc; --t2: var\(--t1\); --t3: var\(--t1\); --t4: var\(--t1\);/.test(html) && !/data-sel="\d"\] \{ --trk/.test(html),
+    "look: a menu bar on top with the pages that are not in the mixer (library, projects, ..., settings, help; no editor buttons, no tab row: the strips' heads select), the step tiles, one colour (the accent) for every track");
   /* the Samples page in three steps (SLOOP 2.4's): the slot, the sound (files with the key map, or CHOP), send + play on a track */
   ok(/function smpUseOn\(/.test(html) && /function drawKeymap\(/.test(html) && /function smpSendPage\(/.test(html) && /id="smpslots"/.test(html) && !/cutSend\(k\)\ \}, `USR/.test(html)
     && /\["files", "smpModeFiles"\], \["chop", "smpModeChop"\]/.test(html) && /isod89\/sloop-fm1 v2\.4 \(8d3823f\)/.test(html),

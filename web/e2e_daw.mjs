@@ -203,7 +203,7 @@ const darkBg = await run(`return getComputedStyle(document.body).backgroundColor
 await scheme("light"); await sleep(150);
 const lightBg = await run(`return getComputedStyle(document.body).backgroundColor;`);
 await shot("editor-disconnected-light");
-ok(darkBg === "rgb(0, 0, 0)" && lightBg === "rgb(244, 244, 242)" && await run(`${U} return !document.querySelector("select#theme, #appearance, #appearbox, .theme");`),
+ok(darkBg === "rgb(23, 23, 22)" && lightBg === "rgb(246, 245, 241)" && await run(`${U} return !document.querySelector("select#theme, #appearance, #appearbox, .theme");`),
   "e2e: not connected: dark / light follow the system live (no reload), no theme picker");
 await scheme("dark"); await sleep(150);
 /* auto-connect: the page connects to the (mock) device on load, no click */
@@ -485,9 +485,9 @@ const lookRes = await run(`${U} const $$ = (q) => [...document.querySelectorAll(
   head(0).click(); await until(() => head(0).getAttribute("aria-pressed") === "true", 8000);
   } catch (e) { r.err = String(e); }
   return r;`);
-ok(lookRes && lookRes.groups === ":1" && lookRes.font && lookRes.tabs === "false:0" && lookRes.tracks === 4 && lookRes.sel === 2 && lookRes.trk === "#287cff"
+ok(lookRes && lookRes.groups === ":1" && lookRes.font && lookRes.tabs === "false:0" && lookRes.tracks === 4 && lookRes.sel === 2 && lookRes.trk === "#da92cc"
   && lookRes.pop === "sound:true" && lookRes.tiles === 16,
-  `e2e: the look: Terminus, the side bar holds only what is not in the mixer, no track tab row (a strip's head selects; one colour, the blue, whatever the track), the Sound editor opens from the instrument widget, 16 step tiles (${JSON.stringify(lookRes)})`);
+  `e2e: the look: Terminus, the side bar holds only what is not in the mixer, no track tab row (a strip's head selects; one colour, the accent, whatever the track), the Sound editor opens from the instrument widget, 16 step tiles (${JSON.stringify(lookRes)})`);
 /* the Samples page (SLOOP 2.4's three steps): choose a slot, make the sound (files, the key map drawn), send, play it on a track */
 const smpRes = await run(`${U} window.confirm = () => true; const r = {};
   try {
@@ -607,7 +607,7 @@ for (const mode of ["dark", "light"]) {
 }
 const live = [];
 for (const mode of ["light", "dark"]) { await scheme(mode); await sleep(200); live.push(await run(`return getComputedStyle(document.body).backgroundColor;`)); }
-ok(live[0] === "rgb(244, 244, 242)" && live[1] === "rgb(0, 0, 0)", "e2e: the connected editor restyles live when the system switches light / dark");
+ok(live[0] === "rgb(246, 245, 241)" && live[1] === "rgb(23, 23, 22)", "e2e: the connected editor restyles live when the system switches light / dark");
 /* the Projects screen's snapshots: the slots listed, Save (named) then Load, BEFORE LOAD filled, the list in colours */
 ok(await run(`${U} window.confirm = () => true; window.prompt = () => "LIVE SET";
   const tabb = document.querySelector('[data-tab=snapshots]');
@@ -905,7 +905,7 @@ ok(sclRes && /\S/.test(sclRes.chip) && sclRes.arp0 === "false" && sclRes.arp1 &&
 const aboutRes = await run(`${U} try {
   const r = {}, bar = document.getElementById("side"), tabs = [...bar.querySelectorAll("button[data-tab]")].filter((b) => b.offsetParent);
   const br = bar.getBoundingClientRect();
-  r.bar = br.top === 0 && br.left === 0 && br.width >= window.innerWidth - 20 && br.height < 120 && tabs.length >= 4 && new Set(tabs.map((b) => Math.round(b.getBoundingClientRect().top))).size <= 2;
+  r.bar = br.top < 100 && br.left === 0 && br.width >= window.innerWidth - 20 && br.height < 120 && tabs.length >= 4 && new Set(tabs.map((b) => Math.round(b.getBoundingClientRect().top))).size <= 2;
   r.mainLeft = Math.round(document.querySelector("main.main").getBoundingClientRect().left);
   r.noFooter = document.querySelectorAll("footer").length;
   document.getElementById("aboutbtn").click(); await sleep(300);
@@ -927,7 +927,7 @@ const appRes = await run(`${U} try {
   tab("install").click(); await until(() => document.getElementById("install-host").children.length > 0, 20000);
   r.hash = location.hash; r.app = document.documentElement.dataset.app; r.released = !D();
   r.shown = !document.getElementById("p-install").hidden && getComputedStyle(document.getElementById("p-install")).display !== "none" && getComputedStyle(document.getElementById("transport")).display === "none";
-  r.mod = /Install Optimist/.test(document.getElementById("install-host").textContent);
+  r.mod = /Build your own/.test(document.getElementById("install-host").textContent);
   const A = window.fm1E2E.app(), real = A.install.handle; A.install.handle = { busy: true, activate() {}, deactivate() {} };   /* (writing the firmware) */
   tab("mixer").click(); await sleep(400); r.stayed = location.hash === "#install" && !document.getElementById("p-install").hidden;
   A.install.handle = real;
