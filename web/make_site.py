@@ -179,7 +179,7 @@ def shared_css():
     return (HERE / "style" / "optimist.css").read_text(encoding="utf-8")
 
 
-PAGE_TITLES = {"installer": "Optimist installer", "builder": "Optimist builder", "editor": "Optimist editor"}   # (the title bar reads "w0ts / <app>")
+PAGE_TITLES = {"home": "Optimist", "installer": "Optimist installer", "builder": "Optimist builder", "editor": "Optimist editor"}   # (the title bar reads "w0ts / <app>")
 W0TS = "https://w0ts.github.io/"
 
 
@@ -189,16 +189,17 @@ def brand_svg():
     return re.sub(r">\s+<", "><", svg).strip()
 
 
-def shared_header(app, title=None):
+def shared_header(app, title=None, root=False):
     """the page header of the shared style (site-style's canonical markup), directly in <body>: ONE row, the title on the
     left (the dinghy, linking to the site's root, then the page's title, on the accent block) and the apps as tabs on the
     right (the current one aria-current), both in the content's width; the App Store badges and GitHub close the tabs"""
-    items = [(f"../{a}/", a, t) for a, t in APPS]
-    items.insert(2, ("../editor/#sim", "simulator", "Simulator"))   # (a tab of the editor's page, no page of its own: web/sim/)
+    base = "webapp/" if root else "../"          # (the site's front page sits beside webapp/, the apps' pages inside it)
+    items = [(f"{base}{a}/", a, t) for a, t in APPS]
+    items.insert(2, (f"{base}editor/#sim", "simulator", "Simulator"))   # (a tab of the editor's page, no page of its own: web/sim/)
     links = '<span class="sep" role="separator" aria-orientation="vertical"></span>'.join(
         f'<a href="{href}"' + (' aria-current="page"' if a == app else "") + f">{(EDITOR_ICON + ' ' if a == 'editor' else '')}{t}</a>"
         for href, a, t in items)
-    brand = f'<a class="brand" href="../../" title="Optimist" aria-label="Optimist start page">{brand_svg()}</a>'
+    brand = f'<a class="brand" href="{"./" if root else "../../"}" title="Optimist" aria-label="Optimist start page">{brand_svg()}</a>'
     return (f'<header class="site"><div class="titlebar"><h1>{brand}<a href="{W0TS}">w0ts</a> / {title or PAGE_TITLES[app]}</h1></div>'
             f'<nav class="site" aria-label="Optimist apps">{links}{app_badges(auto=False)}'
             f'<a href="https://github.com/{REPO}" target="_blank" rel="noopener" title="Optimist on GitHub" aria-label="Optimist on GitHub">{GITHUB_ICON}</a></nav></header>')
@@ -409,6 +410,34 @@ def install_bootloader(path, digest):
     return meta["bootloader"] if ok else None
 
 
+def landing_page():
+    """the site's front page (https://w0ts.github.io/optimist/): the shared header and style, what Optimist is (the installer's
+    own words), and a card each for the installer, the builder, the simulator, the editor, the Mirror app, the source and the
+    privacy policy. No redirect: every old deep link (webapp/..., privacy.html) is unchanged"""
+    what = re.search(r'what: ((?:"[^"\n]*"\s*\+?\s*)+)', (HERE / "installer" / "installer.js").read_text(encoding="utf-8"))
+    paras = "".join(json.loads(x) for x in re.findall(r'"[^"\n]*"', what.group(1))) if what else ""
+    intro = re.sub(r"^This page installs Optimist, a", "Optimist is a", paras).replace(", from this browser over USB. ", ". ", 1)
+    cards = (("Installer", "webapp/installer/", "Install Optimist on the FM-1 from this browser over USB (Chrome or Edge)."),
+             ("Builder", "webapp/builder/", "Pick the features of an Optimist firmware for the M-VAVE FM-1 and see what fits."),
+             ("Simulator", "webapp/editor/#sim", "Try an Optimist build in the browser, with no FM-1."),
+             ("Editor", "webapp/editor/", "The web editor: backup, librarian, the screen mirrored."))
+    grid = "".join(f'<section class="card"><h3>{t}</h3><p>{d}</p><p><a class="button" href="{h}">Open the {t.lower()}</a></p></section>' for t, h, d in cards)
+    mirror = ("Optimist Mirror shows the screen of an FM-1 running the Optimist firmware and lets you manage its projects, presets and "
+              "backups.")
+    head = "".join(('<!doctype html>\n<html lang="en">\n<head>\n<meta charset="utf-8">\n<meta name="viewport" content="initial-scale=1, width=device-width">\n',
+                    "<title>w0ts / Optimist</title>\n",
+                    '<meta name="description" content="Optimist, a free, open-source firmware for the M-VAVE FM-1: installer, builder, simulator and editor.">\n',
+                    '<link rel="icon" href="icon.svg" type="image/svg+xml"><link rel="icon" href="favicon.ico" sizes="32x32">\n',
+                    '<link rel="apple-touch-icon" href="apple-touch-icon.png"><link rel="manifest" href="manifest.webmanifest">\n',
+                    f'<link rel="stylesheet" href="{COMMON_CSS}">\n<style>{shared_css()}</style>\n</head>\n'))
+    body = (f'<body>\n{shared_header("home", "Optimist", root=True)}\n<main>\n<p class="prose">{intro}</p>\n'
+            f'<h2>Start here</h2>\n<div class="grid cards" style="--min: 230px">{grid}</div>\n'
+            f'<h2>The app</h2>\n<section class="card"><h3>Optimist Mirror</h3><p>{mirror}</p><p>{app_badges(auto=False)}</p></section>\n'
+            f'<footer class="site"><a href="https://github.com/{REPO}" target="_blank" rel="noopener">Source</a> · <a href="privacy.html">Privacy policy</a> · '
+            f'<a href="LICENSING.md">About and licences</a></footer>\n</main>\n</body>\n</html>\n')
+    return head + body
+
+
 def main(version, out, flavours=None, releases=None, sims=None):
     """flavours: the development packages, flavours_of(manifest) (this commit's build); releases: releases_of(DIR); neither:
     a site with no firmware (the local one). sims: [{id, title, sim}] simulators with no package (the local one, make web):
@@ -496,12 +525,7 @@ def main(version, out, flavours=None, releases=None, sims=None):
         dst = out / f
         dst.parent.mkdir(parents=True, exist_ok=True)
         shutil.copy(HERE.parent / f, dst)
-    landing = "".join((
-        '<!doctype html><meta charset="utf-8"><title>Optimist</title>',
-        '<link rel="icon" href="icon.svg" type="image/svg+xml"><link rel="icon" href="favicon.ico" sizes="32x32">',
-        '<link rel="apple-touch-icon" href="apple-touch-icon.png"><link rel="manifest" href="manifest.webmanifest">',
-        '<meta http-equiv="refresh" content="0; url=webapp/installer/">',          # straight on to the installer
-        '<a href="webapp/installer/">Optimist installer</a>\n'))
+    landing = landing_page()
     (out / "index.html").write_text(landing, encoding="utf-8")
     shutil.copy(HERE.parent / "ios" / "OptimistMirror" / "privacy.html", out / "privacy.html")   # (the app's policy URL)
     print(f"site: {out}: webapp/installer, webapp/editor, webapp/builder, " + ", ".join(f"firmware/{n}" for _, n in files))

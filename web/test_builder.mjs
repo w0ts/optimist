@@ -246,6 +246,12 @@ const siteCss = JSON.parse(execFileSync(process.env.PYTHON || "python3", ["-c", 
 ok(siteCss.includes("--accent: #da92cc") && !/data:font/.test(siteCss) && /https:\/\/w0ts\.github\.io\/site-style\/common\.css/.test(readFileSync(join(HERE, "installer", "index.html"), "utf8") + readFileSync(join(HERE, "builder", "index.html"), "utf8")),
   "style: the site's CSS is the accent only, no font data; the pages load common.css by URL");
 
+/* the site's front page: a real page on the shared style and header (no redirect), with an entry to every app, the Mirror app and the policy */
+const landing = execFileSync(process.env.PYTHON || "python3", ["-c", "import sys; sys.path.insert(0, 'web'); import make_site; print(make_site.landing_page())"], { cwd: join(HERE, ".."), encoding: "utf-8" });
+ok(/<title>w0ts \/ Optimist<\/title>/.test(landing) && landing.includes('<a href="https://w0ts.github.io/">w0ts</a> / Optimist</h1>') && !/http-equiv="refresh"/.test(landing)
+  && ["webapp/installer/", "webapp/builder/", "webapp/editor/#sim", "webapp/editor/", "privacy.html"].every((h) => landing.includes(`href="${h}"`)) && /apps\.apple\.com/.test(landing) && landing.includes("common.css"),
+  "front page: w0ts / Optimist title bar on the shared style, no redirect, links to installer, builder, simulator, editor, the Mirror app and the privacy policy");
+
 /* the title bar's text stays selectable (the owner, 2026-11-21): no rule of a page's style turns user-select off on the page chrome
    (html, body, main, header, .titlebar, h1, nav, .site), and nothing over the h1 takes the pointer (the live selection is e2e_installer.mjs) */
 const chromeSel = /(^|[\s,>+~])(html|body|main|header|nav|h1|\.titlebar|\.site|\*)([\s,>+~.:\[]|$)/;
