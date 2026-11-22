@@ -37,6 +37,11 @@ ALLOW = [
     ("web/installer/installer.js", "https://www.m-vave.com/download", "installer: the vendor's download page (a link)"),
     ("web/builder/builder.js", "https://github.com/", "builder: a link the user clicks"),
     ("web/make_site.py", "https://github.com/", "the site's repository link (a link)"),
+    ("web/make_site.py", "==https://w0ts.github.io/", "the site's link to the owner's page, W0TS (a link; the shared style next to it is NOT listed: it is a load)"),
+    ("web/site_about.py", "https://github.com/", "About: the project, the credits' and the tools' repositories (links the user clicks, not loads)"),
+    ("web/site_sdcard.py", "https://github.com/", "SD card page: the repository, m-bootloader, m-card (links the user clicks, not loads)"),
+    ("web/site_sdcard.py", "https://www.aliexpress.com/", "SD card page: where to buy the FFC cable (a link)"),
+    ("web/site_sdcard.py", "https://cart.jlcpcb.com/", "SD card page: JLCPCB's quote page (a link)"),
     ("tools/site_manual.py", "https://github.com/", "the manual's link to the repository (a link)"),
     ("web/install_route.js", "https://github.com/", "installer: M-Flasher's release page and the install paths doc, links the user clicks (the page loads nothing)"),
     # the installer's cloud builds (the user's own build, by key)
@@ -70,7 +75,8 @@ SWIFT_URL = re.compile(r"\"(https?://[^\"\s]*)")
 
 
 def allowed(table, path, url):
-    return any(str(path).endswith(s) and (url.startswith(p) or p in url) for s, p, _ in table)
+    """an entry matches by prefix (or by part of the URL); one starting with == matches that URL only"""
+    return any(str(path).endswith(s) and (url == p[2:] if p.startswith("==") else url.startswith(p) or p in url) for s, p, _ in table)
 
 
 def page_loads(path, text):
@@ -108,6 +114,9 @@ def selftest():
               "fetch('data.json')", "const u = new URL('//', location)"]:
         assert not page_loads("x.html", t), f"false alarm: {t}"
     assert swift_urls('static let a = URL(string: "https://e.example/x")!\n// "https://commented.example"') == [(1, "https://e.example/x")]
+    exact = [("a.py", "==https://e.example/", "a link to the root")]       # (an entry that starts with == allows that URL only)
+    assert allowed(exact, "web/a.py", "https://e.example/") and not allowed(exact, "web/a.py", "https://e.example/style.css")
+    assert allowed([("a.py", "https://e.example/", "a prefix")], "web/a.py", "https://e.example/style.css")
 
 
 def scan():
