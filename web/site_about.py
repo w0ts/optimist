@@ -115,15 +115,15 @@ def about_body(badges):
     shots = "".join(f'<img src="assets/screens/{f}" alt="{a}" width="260" style="max-width:100%;height:auto" loading="lazy">' for f, a in zip(SCREENS, SCREEN_ALTS))
     mirror = ("The app: the FM-1's screen and panel on your iPhone, iPad or Mac, over USB or Bluetooth, and firmware installs.")
     return "".join((
-        f'<p class="prose">{WHAT}</p>\n<p class="msg warn">{WARNING}</p>\n',
-        '<h2>The web tools</h2>\n<p>', TOOLS, '</p>\n', apps, '\n',
-        f'<h2>What is in it</h2>\n{FEATURES}\n<p class="shots">{shots}</p>\n',
-        '<h2>The flavours</h2>\n', FLAVOURS, '\n',
-        '<h2>Your first install</h2>\n', FIRST_INSTALL, '\n',
-        f'<h2>The app</h2>\n<section class="card"><h3>Optimist Mirror</h3><p>{mirror}</p><p>{badges}</p></section>\n',
-        '<h2>Reference</h2>\n',
-        fold("The guide", GUIDE, 3), fold("Build it on your computer", BUILD_LOCAL, 3),
-        '<h2 id="credits">Credits</h2>\n', CREDITS, '\n',
-        '<h2>Licence and contributing</h2>\n', LICENCE, '\n',
+        f'<p class="lead">{WHAT}</p>\n<p class="msg warn">{WARNING}</p>\n',
+        '<section>\n<h2>The web tools</h2>\n<p>', TOOLS, '</p>\n', apps, '\n</section>\n',
+        f'<section>\n<h2>What is in it</h2>\n{FEATURES}\n<p class="shots">{shots}</p>\n</section>\n',
+        '<section>\n<h2>The flavours</h2>\n', FLAVOURS, '\n</section>\n',
+        '<section>\n<h2>Your first install</h2>\n', FIRST_INSTALL, '\n</section>\n',
+        f'<section>\n<h2>The app</h2>\n<div class="card"><h3>Optimist Mirror</h3><p>{mirror}</p><p>{badges}</p></div>\n</section>\n',
+        '<section>\n<h2>Reference</h2>\n',
+        fold("The guide", GUIDE, 3), fold("Build it on your computer", BUILD_LOCAL, 3), '</section>\n',
+        '<section>\n<h2 id="credits">Credits</h2>\n', CREDITS, '\n</section>\n',
+        '<section>\n<h2>Licence and contributing</h2>\n', LICENCE, '\n</section>\n',
         '<footer class="site"><a href="', GH, '" target="_blank" rel="noopener">Source</a> · <a href="', GH, '/issues" target="_blank" rel="noopener">Issues</a>',
         ' · <a href="privacy.html">Privacy policy</a> · <a href="LICENSING.md">About and licences</a></footer>\n'))

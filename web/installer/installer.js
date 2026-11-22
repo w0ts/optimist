@@ -472,7 +472,7 @@ export function mountInstaller(container, opts = {}) {
 
   /* ---- Build your own: its own flow (the builder), a card of its own, first (the user, 2026-10-25), Install under it */
   const ownCard = h("section.card.oi-step.oi-own", { "aria-labelledby": "oi-sown" },
-    h("div.card-head", {}, h("h4.oi-h", { id: "oi-sown" }, h("span", {}, TEXT.ownTitle))),
+    h("div.card-head", {}, h("h2.oi-h", { id: "oi-sown" }, h("span", {}, TEXT.ownTitle))),
     h("div.card-body", {}, h("p.dim", {}, TEXT.buildOwnDesc), el.own));
 
   /* ---- 4 When something goes wrong */
@@ -493,7 +493,7 @@ export function mountInstaller(container, opts = {}) {
   const srcHref = source ? `${REPO}/tree/${source}` : REPO;
   el.meta = h("p.oi-meta.dim");
   const root = h("div.oi", {},
-    h("header.oi-intro", {}, opts.heading === false ? null : h("div.titlebar", {}, h("h1", {}, TEXT.title)), h("p.oi-what", {}, TEXT.what)),
+    h("header.oi-intro", {}, opts.heading === false ? null : h("div.titlebar", {}, h("h1", {}, TEXT.title)), h("p.oi-what.lead", {}, TEXT.what)),
     h("div.oi-steps", {}, ownCard, installCard, rescueBox),
     h("footer.oi-foot", {}, el.meta,
       h("p.dim", {}, h("a", { href: srcHref, target: "_blank", rel: "noopener" }, TEXT.source), " · ", link("about", TEXT.about))));
@@ -502,7 +502,7 @@ export function mountInstaller(container, opts = {}) {
   function card(name, title, ...body) {   /* (neutral: the track colours are the device's, not the installer's) */
     const hid = `oi-s${name}`;
     return h("section.card.oi-step", { "aria-labelledby": hid },
-      h("div.card-head", {}, h("h4.oi-h", { id: hid }, h("span", {}, title))),
+      h("div.card-head", {}, h("h2.oi-h", { id: hid }, h("span", {}, title))),
       h("div.card-body", {}, ...body));
   }
   function choiceRow(value, title, desc, product, extra = null) {
