@@ -435,6 +435,33 @@ def landing_page():
     return (head + f'<body>\n{shared_header("about", "Optimist", root=True)}\n<main>\n{site_about.about_body(app_badges(auto=False))}</main>\n</body>\n</html>\n')
 
 
+def sdcard_page():
+    """the SD card page (webapp/sd-card/, web/site_sdcard.py): the shared header and style, and no tab of its own (the header's
+    tabs are About and the apps: this page is reached by its link only)"""
+    import site_sdcard
+    head = "".join(('<!doctype html>\n<html lang="en">\n<head>\n<meta charset="utf-8">\n<meta name="viewport" content="initial-scale=1, width=device-width">\n',
+                    "<title>w0ts / Optimist SD card</title>\n",
+                    '<meta name="description" content="The SD card board for the M-VAVE FM-1: order it from JLCPCB, print its tray, fit it.">\n',
+                    '<meta name="robots" content="noindex">\n',
+                    '<link rel="icon" href="../../icon.svg" type="image/svg+xml"><link rel="icon" href="../../favicon.ico" sizes="32x32">\n',
+                    f'<link rel="stylesheet" href="{COMMON_CSS}">\n<style>{shared_css()}</style>\n</head>\n'))
+    return (head + f'<body>\n{shared_header("sd-card", "Optimist SD card")}\n<main>\n{site_sdcard.sdcard_body()}</main>\n</body>\n</html>\n')
+
+
+def sdcard_site(out):
+    """webapp/sd-card/index.html and its pictures (assets/sd-card/); -> the photos still to come"""
+    import site_sdcard
+    html = sdcard_page()
+    page = out / "webapp" / "sd-card"
+    page.mkdir(parents=True, exist_ok=True)
+    (page / "index.html").write_text(html, encoding="utf-8")
+    pics = out / "assets" / "sd-card"
+    pics.mkdir(parents=True, exist_ok=True)
+    for name in site_sdcard.PICTURES:
+        shutil.copy(HERE.parent / "assets" / "sd-card" / name, pics / name)
+    return site_sdcard.todo_photos(html)
+
+
 def main(version, out, flavours=None, releases=None, sims=None):
     """flavours: the development packages, flavours_of(manifest) (this commit's build); releases: releases_of(DIR); neither:
     a site with no firmware (the local one). sims: [{id, title, sim}] simulators with no package (the local one, make web):
@@ -528,6 +555,9 @@ def main(version, out, flavours=None, releases=None, sims=None):
         shutil.copy(HERE.parent / f, dst)
     landing = landing_page()
     (out / "index.html").write_text(landing, encoding="utf-8")
+    todo = sdcard_site(out)
+    if todo:
+        print(f"site: webapp/sd-card: {len(todo)} photo(s) still to come: " + "; ".join(todo))
     privacy = (HERE.parent / "ios" / "OptimistMirror" / "privacy.html").read_text(encoding="utf-8")   # (the app's policy URL)
     if privacy.count(TITLE_ICON_MARK) != 1:
         raise SystemExit(f"ios/OptimistMirror/privacy.html must contain {TITLE_ICON_MARK} once; update make_site.py")

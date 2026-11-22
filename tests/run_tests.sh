@@ -1968,6 +1968,7 @@ job; ( jobin
     run "installer CLI (fm1_install.py) against a simulated FM-1" python3 tests/install_test.py
     run "install paths: detection, the route, BOOTLOADER, the layouts, download mode through a fake M-Flasher, --dry-run" python3 tests/anyflash_test.py
     run "M-Flasher for this machine: platform picking, the builder fetch (sha good/bad/offline), ask once, web links, app data, one source" python3 tests/mflasher_get_test.py
+    run "the site's SD card page: no tab, its pictures and order files, the photos still to come" python3 tests/sdcard_page_test.py
     run "the build's ROM check (tools/romref.py): a constant used as an address fails, a number kept passes" python3 tests/romref_test.py
     run "the build's RAM/XIP direct-call check (tools/farcalls.py): a real call fails, a jump table's data word that reads as a call passes" python3 tests/farcalls_test.py
     run "package version: an export inside another checkout is not named after that checkout's commit (tools/srcgit.py)" python3 tests/srcgit_test.py
