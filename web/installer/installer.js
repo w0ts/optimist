@@ -493,7 +493,9 @@ export function mountInstaller(container, opts = {}) {
   const srcHref = source ? `${REPO}/tree/${source}` : REPO;
   el.meta = h("p.oi-meta.dim");
   const root = h("div.oi", {},
-    h("header.oi-intro", {}, opts.heading === false ? null : h("div.titlebar", {}, h("h1", {}, TEXT.title)), h("p.oi-what.lead", {}, TEXT.what)),
+    opts.heading === false
+      ? h("section.oi-intro", {}, h("h2", {}, TEXT.title), h("p.oi-what.lead", {}, TEXT.what))
+      : h("header.oi-intro", {}, h("div.titlebar", {}, h("h1", {}, TEXT.title)), h("p.oi-what.lead", {}, TEXT.what)),
     h("div.oi-steps", {}, ownCard, installCard, rescueBox),
     h("footer.oi-foot", {}, el.meta,
       h("p.dim", {}, h("a", { href: srcHref, target: "_blank", rel: "noopener" }, TEXT.source), " · ", link("about", TEXT.about))));

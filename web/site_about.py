@@ -115,12 +115,12 @@ def about_body(badges):
     shots = "".join(f'<img src="assets/screens/{f}" alt="{a}" width="260" style="max-width:100%;height:auto" loading="lazy">' for f, a in zip(SCREENS, SCREEN_ALTS))
     mirror = ("The app: the FM-1's screen and panel on your iPhone, iPad or Mac, over USB or Bluetooth, and firmware installs.")
     return "".join((
-        f'<p class="lead">{WHAT}</p>\n<p class="msg warn">{WARNING}</p>\n',
+        f'<section>\n<h2>What Optimist is</h2>\n<p class="lead">{WHAT}</p>\n<p class="msg warn">{WARNING}</p>\n</section>\n',
         '<section>\n<h2>The web tools</h2>\n<p>', TOOLS, '</p>\n', apps, '\n</section>\n',
         f'<section>\n<h2>What is in it</h2>\n{FEATURES}\n<p class="shots">{shots}</p>\n</section>\n',
         '<section>\n<h2>The flavours</h2>\n', FLAVOURS, '\n</section>\n',
         '<section>\n<h2>Your first install</h2>\n', FIRST_INSTALL, '\n</section>\n',
-        f'<section>\n<h2>The app</h2>\n<div class="card"><h3>Optimist Mirror</h3><p>{mirror}</p><p>{badges}</p></div>\n</section>\n',
+        f'<section>\n<h2>The app</h2>\n<p>{mirror}</p><p>{badges}</p>\n</section>\n',
         '<section>\n<h2>Reference</h2>\n',
         fold("The guide", GUIDE, 3), fold("Build it on your computer", BUILD_LOCAL, 3), '</section>\n',
         '<section>\n<h2 id="credits">Credits</h2>\n', CREDITS, '\n</section>\n',

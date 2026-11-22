@@ -19,13 +19,18 @@ const TEMPLATE = `
     <div class="dim" id="loadnote">The builder's rules are its Python code, run in this page (Pyodide, about 13 MB the first time, then cached by the browser).</div>
   </div>
 
+  <section id="bhead" aria-label="Build from">
+    <h2>Build your firmware</h2>
+    <p class="lead ob-lead">Pick what goes into your firmware: the same items, rules and size estimate as <code>make builder</code>. What does not fit is shown, with by how much; you decide what to leave out.</p>
   <div class="ob-src" id="bsrc">
     <label>Build from<select id="bref" aria-describedby="brefnote"></select></label>
     <span class="note dim" id="brefnote">Everything below (the items, their costs, the profiles) is this version's: pick it first.</span>
   </div>
+  </section>
 
   <div class="cols">
     <div id="left">
+    <section id="btools" aria-label="Configuration">
     <div class="tools">
       <button type="button" id="back" class="quiet" hidden>← Firmware</button>
       <label>Start from<select id="bpreset" aria-describedby="presetdesc"></select></label>
@@ -39,6 +44,7 @@ const TEMPLATE = `
       <button class="quiet" type="button" id="reset" disabled>Reset to default</button>
     </div>
     <p id="presetdesc" class="note dim"></p>
+    </section>
 
       <section id="tree" aria-label="Items"></section>
     </div>
@@ -87,10 +93,11 @@ const TEMPLATE = `
         <div class="card-head"><h4>Ways to fit</h4><button type="button" id="propsclose" class="quiet sm" aria-label="Close the proposals">close</button></div>
         <div class="card-body" id="propsb"></div>
       </section>
-      <div id="alerts">
+      <section id="alerts" class="card" aria-label="Warnings and notes">
+        <div class="card-head"><h4>Warnings and notes</h4></div>
         <div id="msgs" aria-live="polite"></div>
         <details class="sec" id="notes" hidden><summary><h3 id="notessum">Notes</h3></summary><ul id="noteslist"></ul></details>
-      </div>
+      </section>
       <section id="info" class="card" aria-live="polite" aria-label="Details">
         <div class="card-head"><h4>Info</h4></div>
         <div class="card-body" id="infob"><p class="dim">Select an item to see what it does and what it costs.</p></div>

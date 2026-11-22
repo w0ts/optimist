@@ -152,6 +152,8 @@
   /* the Mirror app (opts.app): the Build card first and in view, without the files, the keys and the footer */
   .ob-root.ob-app #download, .ob-root.ob-app #hashline, .ob-root.ob-app #keynote, .ob-root.ob-app #buildhow,
   .ob-root.ob-app #import, .ob-root.ob-app #canondet, .ob-root.ob-app #dumpdet, .ob-root.ob-app #keychip,
+  .ob-root.ob-app #bhead > h2, .ob-root.ob-app .ob-lead { display: none; }
+  .ob-root .ob-src { margin-bottom: 0; }
   .ob-root.ob-app .ob-foot { display: none; }
   .ob-root.ob-app #bside { display: contents; }
   .ob-root.ob-app .cols { grid-template-columns: minmax(0, 1fr); gap: var(--sp-3); }
