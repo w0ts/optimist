@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: GPL-3.0-only
 """The site's SD card page (web/site_sdcard.py, make_site.py sdcard_page / sdcard_site): written with the shared header and
-no tab of its own (no header link to it, nothing marked current), noindex; every picture it shows is in assets/sd-card/ and
+a tab of its own (SD card) and a work-in-progress warning at the top; every picture it shows is in assets/sd-card/ and
 every one there is shown; it links the order files and the tray (the files exist in hardware/); make_site writes the page
 and its pictures, and names the photos still to come. Run from the repo root:
   python3 tests/sdcard_page_test.py"""
@@ -28,12 +28,16 @@ def ok(cond: bool, what: str) -> None:
 html = make_site.sdcard_page()
 nav = re.search(r'<nav class="site".*?</nav>', html, re.S)
 ok(nav is not None, "the page has the site's shared header")
-ok(nav is not None and "sd-card" not in nav.group(0) and "aria-current" not in nav.group(0),
-   "no tab: the header neither links to the page nor marks a tab current")
+ok(nav is not None and re.search(r'<a href="\.\./sd-card/" aria-current="page">SD card</a>', nav.group(0)) is not None,
+   "its tab: SD card, marked current on its own page")
 for a in ("installer", "editor", "builder"):
-    ok("sd-card" not in make_site.shared_header(a), f"the {a}'s header has no link to the SD card page")
-ok("sd-card" not in make_site.landing_page(), "the About page does not link to it")
-ok('<meta name="robots" content="noindex">' in html, "noindex: search engines leave the hidden page out")
+    ok('href="../sd-card/">SD card</a>' in make_site.shared_header(a), f"the {a}'s header has the SD card tab")
+ok('href="webapp/sd-card/">SD card</a>' in make_site.landing_page(), "the About page's header has it too")
+ok("noindex" not in html, "listed: no noindex")
+main = html[html.index("<main>"):]
+warn = re.search(r'<p class="msg warn">(.*?)</p>', main, re.S)
+ok(warn is not None and main.index(warn.group(0)) < main.index("<h2>") and "work in progress" in warn.group(1).lower(),
+   "a work-in-progress warning at the top, before the first heading")
 
 shown = set(re.findall(r'src="\.\./\.\./assets/sd-card/([^"]+)"', html))
 files = {p.name for p in (ROOT / "assets" / "sd-card").iterdir()}

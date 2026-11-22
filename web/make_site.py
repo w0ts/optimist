@@ -206,6 +206,7 @@ def shared_header(app, title=None, root=False):
     base = "webapp/" if root else "../"          # (the site's front page sits beside webapp/, the apps' pages inside it)
     items = [("./" if root else "../../", "about", "About")] + [(f"{base}{a}/", a, t) for a, t in APPS]
     items.insert(3, (f"{base}editor/#sim", "simulator", "Simulator"))   # (a tab of the editor's page, no page of its own: web/sim/)
+    items.append((f"{base}sd-card/", "sd-card", "SD card"))          # (the SD board: web/site_sdcard.py, a work in progress)
     links = '<span class="sep" role="separator" aria-orientation="vertical"></span>'.join(
         f'<a href="{href}"' + (' aria-current="page"' if a == app else "") + f">{(EDITOR_ICON + ' ' if a == 'editor' else '')}{t}</a>"
         for href, a, t in items)
@@ -436,13 +437,11 @@ def landing_page():
 
 
 def sdcard_page():
-    """the SD card page (webapp/sd-card/, web/site_sdcard.py): the shared header and style, and no tab of its own (the header's
-    tabs are About and the apps: this page is reached by its link only)"""
+    """the SD card page (webapp/sd-card/, web/site_sdcard.py): the shared header (its SD card tab current) and style"""
     import site_sdcard
     head = "".join(('<!doctype html>\n<html lang="en">\n<head>\n<meta charset="utf-8">\n<meta name="viewport" content="initial-scale=1, width=device-width">\n',
                     "<title>w0ts / Optimist SD card</title>\n",
                     '<meta name="description" content="The SD card board for the M-VAVE FM-1: order it from JLCPCB, print its tray, fit it.">\n',
-                    '<meta name="robots" content="noindex">\n',
                     '<link rel="icon" href="../../icon.svg" type="image/svg+xml"><link rel="icon" href="../../favicon.ico" sizes="32x32">\n',
                     f'<link rel="stylesheet" href="{COMMON_CSS}">\n<style>{shared_css()}</style>\n</head>\n'))
     return (head + f'<body>\n{shared_header("sd-card", "Optimist SD card")}\n<main>\n{site_sdcard.sdcard_body()}</main>\n</body>\n</html>\n')

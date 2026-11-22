@@ -1,7 +1,8 @@
 # SPDX-License-Identifier: GPL-3.0-only
 """The SD card page (webapp/sd-card/): order the SD board from JLCPCB, print its tray, fit it in the FM-1.
 
-A page of the site with no tab (reached by its link only): make_site.py writes it with the shared header and style. The
+A page of the site with its own tab (SD card) and a work-in-progress warning at the top: make_site.py writes it with the
+shared header and style. The
 text says only what hardware/README.md and the board's files say; the JLCPCB screenshots (assets/sd-card/jlc-*.webp)
 were taken on jlcpcb.com's quote page with the board's Gerber zip, up to its sign-in. A photo still to come is a
 placeholder (PHOTO_TODO), listed by todo_photos() so the build can say what is missing."""
@@ -48,6 +49,9 @@ def photo_todo(what):
 def step(title, body):
     return f"<li><b>{title}</b>{body}</li>\n"
 
+
+WIP = ("<b>Work in progress.</b> This board has not been built and tested yet, and this page is not finished: its parts, "
+       "values and steps may still change. Order it only if you are ready to debug it yourself.")
 
 WHAT = ("A small board that adds a microSD slot to the M-VAVE FM-1. <b>No soldering on the FM-1:</b> it plugs in between the "
         "LCD cable and the main board, and sits in a printed tray right of the battery.")
@@ -143,7 +147,7 @@ def todo_photos(html):
 def sdcard_body():
     """the page's <main> content"""
     return "".join((
-        f'<section>\n<h2>The SD card board</h2>\n<p class="lead">{WHAT}</p>\n'
+        f'<section>\n<p class="msg warn">{WIP}</p>\n<h2>The SD card board</h2>\n<p class="lead">{WHAT}</p>\n'
         f'<p style="display:flex;gap:1em;flex-wrap:wrap">{picture("board-top.webp", 260)}{picture("board-bottom.webp", 260)}</p>\n<h3>What it brings to Optimist</h3>\n{BRINGS}\n</section>\n',
         f'<section>\n<h2>What you need</h2>\n{NEED}\n<h3>The files</h3>\n{FILES}\n</section>\n',
         f'<section>\n<h2>Order it from JLCPCB</h2>\n<p>JLCPCB makes the board and solders every part on it.</p>\n{order_steps()}</section>\n',
