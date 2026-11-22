@@ -8,6 +8,10 @@
 
 <h1 align="center">Optimist</h1>
 
+<h3 align="center"><a href="https://w0ts.github.io/optimist/">➜ w0ts.github.io/optimist</a></h3>
+<p align="center"><b>The website is the front door: what Optimist is, the builder, the installer, the simulator and the editor.</b><br>
+This page is for developers: how to build it, the credits and the licence.</p>
+
 <p align="center"><b>A modular firmware for the M-VAVE FM-1: pick what goes into your FM-1, build it in the browser, try it in
 the browser, install it from the browser.</b><br>
 Free software (GPL-3.0-only), built on <a href="https://github.com/isod89/sloop-fm1">SLOOP</a>, Felucca, Melodee, X0X and other
@@ -23,7 +27,7 @@ FM-1 projects (see <a href="#credits">Credits</a>).</p>
 - **Effects:** two insert slots on every track, three returns, punch-in effects.
 - **Sequencer:** 64 steps a track, parameter locks, motion recording, chance and conditions, note generators, fills, patterns and scenes, undo.
 - **Connections:**
-  - **[JANK mode]([jank](https://github.com/w0ts/jank))**: Jam syned over Wi-Fi/Ableton Link with no router! 
+  - **[JANK mode](https://github.com/w0ts/jank)**: jam synced over Wi-Fi / Ableton Link with no router
   - **Ableton Link**, MIDI clock in/out
   - MIDI in: USB, TRS, Bluetooth
   - MIDI out: USB and Bluetooth
