@@ -171,7 +171,8 @@ def app_badges(auto=True):
     return f'<style>{BADGE_CSS}</style><span class="{cls}" style="{push.lstrip(";")}">{"".join(imgs)}</span>'
 
 
-COMMON_CSS = "https://w0ts.github.io/site-style/common.css"   # the one shared style, loaded by URL (the pages are not offline files)
+COMMON_CSS = "https://w0ts.github.io/site-style/common.css"
+SWITCHER = '<script src="https://w0ts.github.io/site-style/switcher.js" defer></script>'   # the w0ts project switcher after the title (every page; online only: offline the caret is simply not there)   # the one shared style, loaded by URL (the pages are not offline files)
 
 
 def shared_css():
@@ -218,12 +219,19 @@ def shared_header(app, title=None, root=False):
             f'<a href="https://github.com/{REPO}" target="_blank" rel="noopener" title="Optimist on GitHub" aria-label="Optimist on GitHub">{GITHUB_ICON}</a></nav></header>')
 
 
+def with_switcher(html, page):
+    """the page with the project switcher's script at the end of its head (one </head>, else the build stops)"""
+    if html.count("</head>") != 1:
+        raise SystemExit(f"{page} must contain </head> once; update make_site.py")
+    return html.replace("</head>", SWITCHER + "\n</head>")
+
+
 def styled(html, app, page):
     """a page with the shared style and header put in (each mark exactly once, else the build stops)"""
     for mark in (STYLE_MARK, HEADER_MARK):
         if html.count(mark) != 1:
             raise SystemExit(f"{page} must contain {mark} once; update make_site.py")
-    return html.replace(STYLE_MARK, shared_css()).replace(HEADER_MARK, shared_header(app))
+    return with_switcher(html.replace(STYLE_MARK, shared_css()).replace(HEADER_MARK, shared_header(app)), page)
 
 
 def editor_page():
@@ -233,7 +241,7 @@ def editor_page():
     if not head or html.count("<!--SITE-HEADER-->") != 1:
         raise SystemExit("web/editor.html must contain <!--SITE-HEADER-->...<!--/SITE-HEADER--> once; update make_site.py")
     # the one header of the site, as every page (the editor's own tabs below it are the connected FM-1's pages); scoped through .o-host
-    return html.replace(head.group(0), f'<div class="o-host sitehead" id="sitehead">{shared_header("editor", title="Optimist")}</div>')
+    return with_switcher(html.replace(head.group(0), f'<div class="o-host sitehead" id="sitehead">{shared_header("editor", title="Optimist")}</div>'), "web/editor.html")
 
 
 def site_commit():
@@ -434,7 +442,7 @@ def landing_page():
                     '<meta name="description" content="Optimist, a modular, free, open-source firmware for the M-VAVE FM-1: installer, builder, simulator and editor.">\n',
                     '<link rel="icon" href="icon.svg" type="image/svg+xml"><link rel="icon" href="favicon.ico" sizes="32x32">\n',
                     '<link rel="apple-touch-icon" href="apple-touch-icon.png"><link rel="manifest" href="manifest.webmanifest">\n',
-                    f'<link rel="stylesheet" href="{COMMON_CSS}">\n<style>{shared_css()}</style>\n</head>\n'))
+                    f'<link rel="stylesheet" href="{COMMON_CSS}">\n<style>{shared_css()}</style>\n{SWITCHER}\n</head>\n'))
     return (head + f'<body>\n{shared_header("about", "Optimist", root=True)}\n<main>\n{site_about.about_body(app_badges(auto=False))}</main>\n</body>\n</html>\n')
 
 
@@ -445,7 +453,7 @@ def sdcard_page():
                     "<title>w0ts / Optimist SD card</title>\n",
                     '<meta name="description" content="The SD card board for the M-VAVE FM-1: order it from JLCPCB, print its tray, fit it.">\n',
                     '<link rel="icon" href="../../icon.svg" type="image/svg+xml"><link rel="icon" href="../../favicon.ico" sizes="32x32">\n',
-                    f'<link rel="stylesheet" href="{COMMON_CSS}">\n<style>{shared_css()}</style>\n</head>\n'))
+                    f'<link rel="stylesheet" href="{COMMON_CSS}">\n<style>{shared_css()}</style>\n{SWITCHER}\n</head>\n'))
     return (head + f'<body>\n{shared_header("sd-card", "Optimist SD card")}\n<main>\n{site_sdcard.sdcard_body()}</main>\n</body>\n</html>\n')
 
 
@@ -470,7 +478,7 @@ def guide_page(title, body):
                     f"<title>w0ts / Optimist guide / {html_escape(title)}</title>\n",
                     '<meta name="description" content="The Optimist guide: how to use Optimist on the M-VAVE FM-1.">\n',
                     '<link rel="icon" href="../../icon.svg" type="image/svg+xml"><link rel="icon" href="../../favicon.ico" sizes="32x32">\n',
-                    f'<link rel="stylesheet" href="{COMMON_CSS}">\n<style>{shared_css()}\n{site_guide.STYLE}</style>\n</head>\n'))
+                    f'<link rel="stylesheet" href="{COMMON_CSS}">\n<style>{shared_css()}\n{site_guide.STYLE}</style>\n{SWITCHER}\n</head>\n'))
     return head + f'<body>\n{shared_header("guide", "Optimist guide")}\n<main>\n{body}</main>\n</body>\n</html>\n'
 
 

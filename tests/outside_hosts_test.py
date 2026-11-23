@@ -39,6 +39,7 @@ ALLOW = [
     ("web/make_site.py", "https://github.com/", "the site's repository link (a link)"),
     ("web/make_site.py", "==https://w0ts.github.io/", "the site's link to the owner's page, W0TS (a link; the shared style next to it is NOT listed: it is a load)"),
     ("web/make_site.py", "https://w0ts.github.io/site-style/", "the site's shared style (site-style/common.css, loaded by URL); the site pages are online, offline they lose only their style"),
+    ("web/make_site.py", "https://w0ts.github.io/site-style/switcher.js", "the w0ts project switcher after the title (site-style/switcher.js and the list it reads, w0ts.github.io/projects.json); offline the caret is not there, nothing else changes"),
     ("web/installer/index.html", "https://w0ts.github.io/site-style/", "the site's shared style (site-style/common.css, loaded by URL); the site pages are online, offline they lose only their style"),
     ("web/builder/index.html", "https://w0ts.github.io/site-style/", "the site's shared style (site-style/common.css, loaded by URL); the site pages are online, offline they lose only their style"),
     ("web/site_about.py", "https://github.com/", "About: the project, the credits' and the tools' repositories (links the user clicks, not loads)"),

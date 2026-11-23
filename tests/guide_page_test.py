@@ -68,6 +68,11 @@ manual = importlib.import_module("site_manual").build()
 ok(len(re.findall(r"^## \d+\. ", manual, re.M)) == len(topics) and "webapp/guide/sequencer.html" in manual,
    "the release manual has a numbered section a topic, each linking its page")
 
+pages_html = {"About": make_site.landing_page(), "SD card": make_site.sdcard_page(), "a guide page": page,
+              "the editor": make_site.editor_page()}
+ok(all(h.count(make_site.SWITCHER) == 1 and h.index(make_site.SWITCHER) < h.index("</head>") for h in pages_html.values()),
+   "every page loads the w0ts project switcher in its head (About, SD card, the guide, the editor)")
+
 with tempfile.TemporaryDirectory() as d:
     make_site.guide_site(Path(d))
     written = sorted(p.name for p in (Path(d) / "webapp" / "guide").iterdir())
