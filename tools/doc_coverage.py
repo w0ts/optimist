@@ -13,16 +13,17 @@ Sources, read from the tree (nothing is typed in twice):
     words a document has to carry before it counts as explained.
 
 A document is a *user* document when it is the builder reference (docs/BUILDER.md), the guides
-(docs/guide/*.md) or the site's About page (web/site_about.py; the README is for developers). A term found only in docs/UI-OPTIMIST-DESIGN.md is `design only`: written down for
+(web/guide/*.html, the site's guide) or the site's About page (web/site_about.py; the README is for developers). A term found only in docs/UI-OPTIMIST-DESIGN.md is `design only`: written down for
 the developers, not yet explained for a user. Status: ok, design only, MISSING (exit status 1).
 """
+import html
 import re
 import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 USER_DOCS = ["docs/BUILDER.md", "web/site_about.py"] + sorted(
-    str(p.relative_to(ROOT)) for p in (ROOT / "docs" / "guide").glob("*.md"))
+    str(p.relative_to(ROOT)) for p in (ROOT / "web" / "guide").glob("*.html"))
 DESIGN_DOCS = ["docs/UI-OPTIMIST-DESIGN.md"]
 
 # (area, name, [regexes that must all match in ONE document]); the regexes are case-sensitive unless they start (?i)
@@ -103,8 +104,10 @@ FX_NAMES = {"FXT_DIST": "DIST", "FXT_COMP": "DYN", "FXT_FILT": "FILT", "FXT_FOLD
 
 
 def read(rel):
+    """a document's text; a guide page (HTML) as its text: the tags dropped, the entities decoded"""
     p = ROOT / rel
-    return p.read_text(encoding="utf-8", errors="replace") if p.is_file() else ""
+    text = p.read_text(encoding="utf-8", errors="replace") if p.is_file() else ""
+    return html.unescape(re.sub(r"<[^>]+>", "", text)) if rel.endswith(".html") else text
 
 
 def hits(texts, pats):
@@ -174,7 +177,7 @@ def build_rows():
 def table(rows):
     out = ["# Documentation coverage", "",
            "A row is **ok** when a user "
-           "document (docs/BUILDER.md, docs/guide/*.md, README.md) carries the words that explain it, "
+           "document (docs/BUILDER.md, web/guide/*.html, web/site_about.py) carries the words that explain it, "
            "**design only** when only docs/UI-OPTIMIST-DESIGN.md does, **MISSING** when nothing does. The sources "
            "and the words each concept needs are in the tool.", "",
            "| Area | Item | Documented in | Status |", "|---|---|---|---|"]

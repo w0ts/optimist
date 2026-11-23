@@ -45,7 +45,8 @@ ALLOW = [
     ("web/site_sdcard.py", "https://github.com/", "SD card page: the repository, m-bootloader, m-card (links the user clicks, not loads)"),
     ("web/site_sdcard.py", "https://www.aliexpress.com/", "SD card page: where to buy the FFC cable (a link)"),
     ("web/site_sdcard.py", "https://cart.jlcpcb.com/", "SD card page: JLCPCB's quote page (a link)"),
-    ("tools/site_manual.py", "https://github.com/", "the manual's link to the repository (a link)"),
+    ("tools/site_manual.py", "https://w0ts.github.io/optimist/webapp/guide/", "the release manual's links to the guide on the site (links)"),
+    ("web/installer/installer.js", "https://w0ts.github.io/optimist/webapp/guide/", "installer: the guide's Getting back page (a link)"),
     ("web/install_route.js", "https://github.com/", "installer: M-Flasher's release page and the install paths doc, links the user clicks (the page loads nothing)"),
     # the installer's cloud builds (the user's own build, by key)
     ("web/installer/installer.js", "https://api.github.com/", "installer: cloud builds"),

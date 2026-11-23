@@ -367,7 +367,7 @@ export function mountInstaller(container, opts = {}) {
                                                        development build of main is not offered: the user, 2026-10-25) */
   const version = opts.version || "";
   const source = opts.source || "";
-  const links = { ...DEFAULT_LINKS, docs: `${REPO}/blob/${source || "main"}/docs/guide/getting-back.md`, ...(opts.links || {}) };
+  const links = { ...DEFAULT_LINKS, docs: "https://w0ts.github.io/optimist/webapp/guide/getting-back.html", ...(opts.links || {}) };
   const nav = (typeof navigator !== "undefined" && navigator) || {};
   const midiOf = opts.midi || (typeof nav.requestMIDIAccess === "function" ? (o) => nav.requestMIDIAccess(o) : null);
   const secure = typeof isSecureContext === "undefined" || isSecureContext;

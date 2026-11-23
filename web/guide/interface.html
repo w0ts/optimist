@@ -1,0 +1,211 @@
+<!-- SPDX-License-Identifier: GPL-3.0-only -->
+<!-- The Optimist UI: controls, pages and read-outs: a page of the user guide (web/site_guide.py wraps it). -->
+<section>
+<p>Every gesture in one list: <a href="shortcuts.html">the Shortcuts page</a>. This page says what the controls are and what each page shows. What a build contains depends on its profile: a page or line whose feature is not built is not shown.</p>
+</section>
+<section id="the-controls">
+<h2>The controls</h2>
+<div class="table"><table>
+<thead>
+<tr>
+<th>Control</th>
+<th>What it does</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>ALGORITHM</td>
+<td>Picks the track: MASTER, T1, T2, T3, DR, then the drum lanes and the ACCENT lane, on the mixer and every page that has a track. On GLOBAL and SYSTEM it moves the cursor one line at a time</td>
+</tr>
+<tr>
+<td>SELECT</td>
+<td>Moves the cursor, a row a detent, stopping at the ends. On the mixer it pages the knob sets of the selected row. On GLOBAL and SYSTEM it pages four lines</td>
+</tr>
+<tr>
+<td>PRESETS</td>
+<td>The selected track's sound: a synth track's preset, the drum track's kit, a drum lane's own sound. On STEP it scrolls the 16-step window. On GLOBAL and SYSTEM it does nothing</td>
+</tr>
+<tr>
+<td>the four knobs</td>
+<td>Knob 1 to 4 edit card or line 1 to 4 of the page. A turned knob makes its card the cursor and the help line names it</td>
+</tr>
+<tr>
+<td>SAVE</td>
+<td>YES. Tapped where YES has nothing to do (the mixer, pages that are not asking), it opens PROJECT</td>
+</tr>
+<tr>
+<td>HOME</td>
+<td>NO, or back</td>
+</tr>
+<tr>
+<td>OCT- held</td>
+<td><strong>SHIFT</strong>: off, down, away (a mute, a clear, a default)</td>
+</tr>
+<tr>
+<td>OCT+ held</td>
+<td><strong>SHIFT2</strong>: pick, on, add (select a track, lock a layer, a hard hit)</td>
+</tr>
+<tr>
+<td>ENV, LFO, EDIT, FX, SCL, ARP</td>
+<td>Tapped: the sound pages of that family. Held: a performance layer (keys and knobs change job; ENV only on an FM6 track)</td>
+</tr>
+<tr>
+<td>LFO held</td>
+<td>The patterns and scenes layer. With a knob: the value in fine steps</td>
+</tr>
+<tr>
+<td>PLAY</td>
+<td>Tapped: start / stop. Held: the tempo page</td>
+</tr>
+<tr>
+<td>REC</td>
+<td>Record the selected track. Held: the ring that clears recorded material</td>
+</tr>
+<tr>
+<td>GLO</td>
+<td>Tapped: from any other page, the one of GLOBAL / SYSTEM that was open last (GLOBAL after power-on; not kept over a restart); on GLOBAL, SYSTEM; on SYSTEM, GLOBAL. Each keeps its line</td>
+</tr>
+<tr>
+<td>SEQ</td>
+<td>Tapped: STEP. Held (not on STEP): SONG</td>
+</tr>
+</tbody>
+</table></div>
+<p>SAVE then HOME is undo, HOME then SAVE is redo. SHIFT and SHIFT2 are not buttons of their own: <a href="shortcuts.html">the Shortcuts page</a> lists what each does with a key, a knob or a button.</p>
+<div class="card" id="oct--oct-and-both">
+<h3>OCT-, OCT+ and both</h3>
+<ul>
+<li><strong>The octave.</strong> OCT- or OCT+ tapped (let go with nothing else used meanwhile) changes the keyboard octave by one, between -3 and +3, with the toast &quot;OCTAVE: n&quot;. It acts on release, so holding either is a SHIFT, not an octave change. On STEP the piano roll follows the octave. On the drum track a tap does nothing.</li>
+<li><strong>Both OCT</strong> tapped together: the track and MASTER toggle (back to the track you came from). Not on NAME, under a question, in a layer, or on pages with no track (GLOBAL, SYSTEM, PROJECT, SONG). On a synth track's STEP a quick tap (within 400 ms) toggles <strong>FOLD</strong> instead: the piano roll shows only the rows of the notes the pattern plays, or the scale's notes when a scale is set.</li>
+<li>On PROJECT a tap is the previous or next bank. On a held step OCT- / OCT+ move the step's notes an octave (synth tracks). On the tempo page they nudge the clock.</li>
+</ul>
+</div>
+<div class="card" id="the-leds">
+<h3>The LEDs</h3>
+<p>A button's LED glows only where the button does something. The button of the page you are on is lit fully; a button that would do something now is lit dimly; a button that would do nothing is dark. So LFO is dark on the drum track, OCT- and OCT+ are dark where they have no job, and SAVE is dark on a STEP line that has no YES action. GLO is full on GLOBAL and SYSTEM and dim elsewhere.</p>
+<p>PLAY has a second LED, green, which together with PLAY's red one is the transport light:</p>
+<div class="table"><table>
+<thead>
+<tr>
+<th>State</th>
+<th>Light</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>stopped</td>
+<td>green dim</td>
+</tr>
+<tr>
+<td>playing</td>
+<td>green full, the red on each beat</td>
+</tr>
+<tr>
+<td>recording</td>
+<td>red full, the green on each beat</td>
+</tr>
+</tbody>
+</table></div>
+<p>REC's own LED is red: lit while a take records, blinking while armed and waiting for the first note. The count-in pulses the green on each beat.</p>
+<p><strong>The memory line.</strong> The topmost 2 pixel rows of every page are a thin bar filled from the left in proportion to how full the memory is (the same quantity as SYSTEM &gt; INFO's RAM bar: the project's parts and the effects' lines in the arena; a build without an arena shows the fixed memory's use). It is dim below 80 % and red from 80 %. The splash and the other full-screen screens do not show it.</p>
+<p><strong>The load lines.</strong> SYSTEM &gt; METERS puts thin lines on the very bottom rows of every page: <strong>OFF</strong>, <strong>CPUS</strong> (at first), <strong>MEMORY</strong> or <strong>BOTH</strong>. CPUS draws two 1-pixel lines, the first core's above the second's; MEMORY one 2-pixel line for how full the memory is; BOTH the memory line (1 pixel) above the two CPU lines. A line grows from the left across the screen with the load, green below 60 %, amber from 60 %, red above 85 %, and a peak stays a moment so a spike can be read. The three bottom rows are kept free of everything else, whatever the setting is, so nothing on a page moves when you change it. With a single core (a build without the second one) the second CPU line stays dark.</p>
+</div>
+</section>
+<section id="the-mixer">
+<h2>The mixer</h2>
+<p>The mixer is the first screen. The rows are tracks: MASTER above T1, then T1, T2, T3, DR, the drum track's 10 lanes plus the ACCENT lane, and, in a USB audio build, a USB IN row after them. ALGORITHM walks the rows; the panel shows the selected row's group. Each row has its meter and its sequence. SELECT pages the knob sets of the row, in the same order on every row:</p>
+<ul>
+<li><strong>Mix:</strong> a track VOLUME and PAN; the drum track VOLUME; a lane LEVEL, CUT, DRIVE; the ACCENT lane its ACCENT amount (a velocity).</li>
+<li><strong>Inserts:</strong> the row's two insert slots, S1 TYPE and amount, S2 TYPE and amount (see <a href="effects.html">the Effects page</a>). MASTER: its two slots, then THRS, RATIO, GAIN, CEIL while DYN is in a slot.</li>
+<li><strong>Sends:</strong> REV, DLY, CHO (blank where no return holds that send) and card 4 PAN, on synth tracks, the drum track and the drum lanes. MASTER shows the returns, one card for each send a return holds (REV RET, DLY RET, CHO RET), the sends between returns, and DUCK where built.</li>
+<li><strong>USB IN:</strong> VOLUME, PAN, FX ON, its two insert slots, REV, DLY, CHO. FX tapped on this row shows its inserts.</li>
+</ul>
+<p>A muted track or lane is <strong>struck through</strong>: a line through its mixer row name, the header badge on its pages and its volume card. The mute is the sequencer's (the steps stop; what sounds rings out; keys you play still sound) and is saved with the project. There is no solo. On MASTER and USB IN the keys are silent.</p>
+</section>
+<section id="the-tempo-page-play-held">
+<h2>The tempo page: PLAY held</h2>
+<p>PLAY held past the hold time opens the tempo page; let go and the screen before returns. A short tap of PLAY stays start / stop. The page has TEMPO (BPM, NUDGE, SWING, SYNC), REC (MODE, LENGTH, START, CLICK) and REC 2 (QUANT).</p>
+<ul>
+<li><strong>BPM</strong> 40 to 240. <strong>SWING</strong> 0 to 100.</li>
+<li><strong>NUDGE:</strong> on the FM-1's own clock, OCT- or OCT+ held makes the clock about 3.9 % slower or faster while held, and the knob moves it 1 ms a click, once; the BPM value never changes and nothing is saved. While a clock is followed (USB, TRS or Ableton Link; Bluetooth MIDI) the card is that source's offset instead, CLK OFS (BT OFS for Bluetooth MIDI), in ms: the knob sets it, OCT- / OCT+ held move it 1 ms later / earlier, and it is saved with the settings, the same value GLOBAL's MIDI page shows.</li>
+<li><strong>Tap tempo:</strong> with PLAY held, tap a white key; two taps or more set the tempo.</li>
+<li><strong>SYNC</strong> (the MIDI clock to follow): INT, USB, TRS, BLE or AUTO (AUTO shows the clock it follows, as A:USB). On GLOBAL it is CLK IN.</li>
+<li><strong>REC:</strong> MODE FREE or TEMPO, LENGTH 1, 2 or 4 bars, START NOTE or COUNT (count-in), CLICK OFF, REC or ON. <strong>QUANT</strong> ON snaps a recorded note to the grid; OFF keeps its start as a nudge and its length as a gate lock.</li>
+</ul>
+</section>
+<section id="step">
+<h2>STEP</h2>
+<p>SEQ tapped opens STEP, one screen for synth tracks and the drum track. The 16 white keys are the 16 steps of the window; the window follows the playhead while playing, PRESETS scrolls it. Steps, held steps, the note picker and the pages PATTERN, TOOLS, GEN and GEN OUT are in <a href="sequencer.html">the sequencer</a>.</p>
+</section>
+<section id="project">
+<h2>PROJECT</h2>
+<p>PROJECT is where storage lives. A storage row (PROJECT, SNAPSHOT, USER) has up to four cards: <strong>BANK</strong> (only for a store of more than 16 slots), the operation (<strong>LOAD</strong>, the default, <strong>SAVE</strong> or <strong>DELETE</strong>), <strong>ITEM</strong> (the slot; the knob walks all of them and the bank follows) and, on PROJECT, <strong>NEW</strong> (a blank project but for the drum ACCENT lane's four on the floor, touching no slot). A build whose project slots are kept in RAM has no DELETE.</p>
+<ul>
+<li>The 16 white keys are the 16 slots of the current bank: key n selects item n and runs the operation on it, through a confirmation. YES runs it on the item the knob is on. A free slot has nothing to clear (or, for a snapshot or user preset, to load): a toast, no question. A key past the last slot (MEMORY keeps 2 or 4 projects, a snapshot store has fewer than 16) is a toast too: <em>Only 2 projects: see memory</em> (SNAPSHOT: <em>Only 3 snapshots</em>), never silence. Loading a free PROJECT slot instead asks &quot;NEW PROJECT n?&quot;: YES makes a clean project (default sounds, empty patterns, default tempo) the open one and saves it in that slot; HOME changes nothing. If the work has unsaved edits, the usual &quot;save the open project?&quot; question comes first. The operation returns to LOAD after each action, when the row changes or the screen is left, so a stray key never saves.</li>
+<li><strong>OCT- or OCT+ tapped</strong> on a row with slots: the previous or next <strong>bank</strong>, with the toast &quot;BANK n/N&quot;.</li>
+<li><strong>USER</strong> (32 user presets: two banks) has an INIT card: the selected track's sound back to its engine's defaults. SHIFT2 + ITEM marks a slot a favorite. A user preset's LOAD over an edited sound is asked in red.</li>
+<li><strong>FX MEM</strong> (builds with an arena): how much memory the big effects take in this project. <strong>DLY MEM</strong> FULL, 1/2, 1/4, 1/8 (the delay's longest echo; a longer TIME then plays at a half or a quarter of itself, still on the beat, and the message line says so), <strong>REV MEM</strong> FULL or SMALL (the FDN8 reverb's shorter lines; PLATE and ROOM sound the same), <strong>XDLY MEM</strong> FULL or HALF (every XDLY TIME half), and <strong>FREE</strong>, the memory left. Below: a bar of the memory (the effects bright) and every big effect's KB. A change applies at once (the effect is silent for a moment) and is saved with the project; an older project plays every effect at full size.</li>
+<li><strong>Making room.</strong> When a synth engine or an insert effect does not fit, the question <strong>SHRINK REV SMALL?</strong> (or DLY 1/2, XDLY HALF..) comes first, with what is needed on the message line (<em>FM6 needs 8 kb, 4 kb free</em>). SAVE takes the smaller sizes and the change goes through; HOME offers the next way (switching idle features off, dropping a part or an effect) for an engine, and puts an insert slot back as it was. In an insert's list an effect with no room is dim with a small memory mark; a struck one is the other slot's.</li>
+<li>NAME asks for a name before a save: the keys type, SAVE finishes, HOME deletes a character or cancels.</li>
+<li>SAVE held on PROJECT opens SONG; see <a href="sequencer.html#sections-and-the-song">the sequencer</a>.</li>
+</ul>
+</section>
+<section id="global-and-system">
+<h2>GLOBAL and SYSTEM</h2>
+<p>GLOBAL and SYSTEM are settings lists: one setting on a line, the name left and the value right, in pages of 4. SELECT moves a page at a time; knob k edits line k and makes it the cursor; ALGORITHM moves the cursor a line; SAVE is YES on the cursor line (an on / off value toggles, an action line runs); SHIFT + a knob returns a value to its default.</p>
+<p><strong>GLOBAL</strong></p>
+<ul>
+<li><strong>Tune:</strong> TUNE (the master tuning, -50 to 50 cents), QUANT (ON snaps a recorded note to the grid) and FILT RESO, the resonance of every track's FILTER, 0 (clean) to 10, saved with the project (builds with the track FILTER; <code>TFLT_RESO</code>). BPM, NUDGE, SWING and the REC settings are on the tempo page (PLAY held) only.</li>
+<li><strong>MIDI:</strong> CLK IN (the clock to follow: AUTO, LINK, TRS, USB, BLE, INT), CLK OUT (OFF, USB, BLE or BOTH; amber when the chosen port cannot send), LINK (Link builds: OFF, ON, ON+S/S), MIDI OUT (OFF, KEYS, SEQ, BOTH); CLK OFS, BT OFS and LINK OFS (<a href="midi-usb.html#midi-clock">the MIDI and USB page</a>). There is no MIDI IN line: notes come in through the track channels.</li>
+<li><strong>Channels:</strong> T1, T2, T3, DR (the MIDI channel of each track).</li>
+</ul>
+<p><strong>SYSTEM</strong></p>
+<ul>
+<li><strong>INFO:</strong> the read-out below. Always the first page.</li>
+<li><strong>SCREEN:</strong> KNOB COLORS (ON / OFF). The backlight is always full.</li>
+<li><strong>AUDIO:</strong> the output's correction, chosen by the headphone jack and applied to the FM-1's own output only (never to Bluetooth, USB or a recording on the card): the speaker's ~110 Hz low cut, always on while nothing is plugged in (no setting); HPHN BASS (OFF, +3 dB or +6 dB; OFF at first) while headphones are in, a bass shelf below ~110 Hz.</li>
+<li><strong>METERS:</strong> OFF, CPUS, MEMORY or BOTH (CPUS at first): the thin load lines at the screen's foot (see &quot;The load lines&quot; above); the page <em>Meters</em>, after USB.</li>
+<li><strong>DEBUG STATS</strong> (the release build; the last line of the General page, after HPHN BASS): ON or OFF, OFF at first. While ON the FM-1 keeps its load, late audio halves and stack depths in flash every 5 minutes, for a unit that misbehaves only after hours of play.</li>
+<li><strong>USB:</strong> SERIAL, ON or OFF; amber until a restart applies it (builds with the USB console).</li>
+<li><strong>BT MIDI</strong> (builds with <code>BLE</code>): MODE, DEVICE, ACTIVITY, STATE. <strong>BT AUDIO</strong> (builds with <code>BT_AUDIO</code>): MODE, DEVICE, FORMAT, STATE. Both can be on at once; MODE, the devices list and SAVE: <a href="midi-usb.html#bluetooth-midi-and-bluetooth-audio">the MIDI and USB page</a>. A connect not up in 30 s says NO ANSWER.</li>
+<li><strong>USB AUDIO:</strong> (USB audio builds) one line a source: MASTER, T1 to T3, DRUMS, DRUM BUS, DR1 to DR10, RET A to RET C (the FX returns). Each goes to NONE, 1, 2, 1+2, 3, 4 or 3+4 of the four capture channels sent to the computer. See <a href="midi-usb.html">the MIDI and USB page</a>.</li>
+<li><strong>ABOUT:</strong> VERSION (and the commit it was built from), BUILD (date and time) and the repository address. <strong>CREDITS</strong> follows, the last page: whose work Optimist is built from, as end titles that rise by themselves and loop; turn KNOB 1 to scroll by hand, either way (the crawl resumes 3 s after the last turn). LICENSING.md has the licences.</li>
+</ul>
+</section>
+<section id="system-gt-info">
+<h2>SYSTEM &gt; INFO</h2>
+<p>INFO is a text page, no knob edits it. What a musician reads:</p>
+<div class="table"><table>
+<thead>
+<tr>
+<th>Line</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>CPU0 (CPU LOAD without a second core)</td>
+<td>The audio render load in percent; with a second core it includes CPU0's wait for CPU1. The bar's bright tick marks the maximum of the last 10 seconds, the dim one the maximum since boot. Over 100 means a late audio half (a gap in the sound)</td>
+</tr>
+<tr>
+<td>CPU1</td>
+<td>The share of each audio half the second core takes. Instead: 2ND CORE OFF and the reason (NO START, TIMEOUT, FAULT, FLASH, MISREAD, CANARY, AFTER CRASH, SETTING, PARKED, BLUETOOTH, OVERLOAD, SUPPLY).</td>
+</tr>
+<tr>
+<td>UNDERRUNS</td>
+<td>Losses: late audio halves, USB audio's and MIDI in's, and where</td>
+</tr>
+</tbody>
+</table></div>
+<p>The battery is the page's header, not a line: no tempo and no bar number there, a battery sign instead, its fill the charge (green, amber under 40 %, red under 20 %) with the percentage beside it; no sign of a reading yet is an empty outline. The percentage is an estimate from the cell's volts: the divider and the ADC reference are not measured (assumed 1:2 divider, 3.3 V reference, the usual Li-ion curve), so check them against a meter at the cell. A bolt (and the word CHARGING where the title leaves room) show while the chip says it charges (5 V on its supply pin, its own charger on and not full); POWER shows when 5 V is there and the charge is not known (a USB host, a full cell, or a charger outside the chip). Both come from the chip's power registers, read from the SDK's map and not yet measured on an FM-1.</p>
+<p>SHIFT + SAVE on this page clears the counters. Builds made with the builder item <code>SYS_DEBUG</code> add INTERNALS (the last reset, flash interrupt time, the second core's internals), USB STATS (USB audio counters), DROPS and GUARD lines. They are for finding a fault, not for playing, and no ready-made build has them.</p>
+<p>Builds made with the builder item <code>SYS_TOP</code> add a <strong>TOP</strong> page after INFO (after CPU TIMES in a <code>SYS_DEBUG</code> build): what takes the CPU and the RAM, largest first. It has two views, <strong>KNOB 1 switches between them</strong> (CPU first, then RAM); <strong>KNOB 2 scrolls</strong> the lines of the view one by one (a bar at the right edge shows where you are; it stops at the first and the last line), <strong>SELECT</strong> and ALGORITHM go to the previous or next page as on every SYSTEM page. The header line names the view (boxed in KNOB 1's colour) and its columns. The CPU view is in percent of an audio block (32 frames, 0.73 ms): CPU0 and CPU1, then each job of the audio render, each track with its engine (<code>T1 ACID</code>), the drums, the reverb, Bluetooth's SBC encoding, PRE (CPU0's own work before the render: the sequencer's events) and POST (after it: the buses and the master chain). Its columns: AVG (the average) and MAX (the peak of the last 2 seconds); the text is large, so a long name is cut. The RAM view is in KB: its header shows the SRAM used / total, then the lines of what holds it: the memory arena's blocks as they are now (a track's engine, the delay, reverb and chorus lines, the inserts' lines, Bluetooth audio's buffers) and the firmware's own RAM by module (RAM CODE, BT AUDIO, UI ...: the 12 largest and OTHER, measured when the build was linked). The figures update twice a second.</p>
+</section>
+<section id="connections">
+<h2>Connections</h2>
+<p>MIDI in and out, the clock, Bluetooth MIDI and audio, USB audio and the web editor: <a href="midi-usb.html">the MIDI and USB page</a>.</p>
+</section>
+<section id="the-update-loader">
+<h2>The update loader</h2>
+<p>The update loader on the FM-1 draws one progress bar: the package check fills the first half, the write the second. The app's last step reads FLASHING. An update refuses another device's package before anything is erased. Optimist's packages are <code>FM-1_700</code> (development builds) and <code>FM-1_720</code> to <code>FM-1_769</code> (releases): <a href="https://github.com/w0ts/optimist/blob/main/BUILDING.md">BUILDING.md</a>, &quot;Package identity&quot;.</p>
+</section>

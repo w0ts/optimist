@@ -1,0 +1,812 @@
+<!-- SPDX-License-Identifier: GPL-3.0-only -->
+<!-- Shortcuts: every gesture of the Optimist UI: a page of the user guide (web/site_guide.py wraps it). -->
+<section>
+<p>Every button, knob and key gesture, grouped by what you want to do, then the ones that belong to one page. <a href="interface.html">The interface</a> explains the controls and pages, <a href="sequencer.html">the sequencer</a> steps, p-locks and patterns. A gesture whose feature is not in your build does nothing (the builder item is in brackets).</p>
+</section>
+<section id="reading-this-page">
+<h2>Reading this page</h2>
+<div class="table"><table>
+<thead>
+<tr>
+<th>Word</th>
+<th>Means</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>SHIFT</strong></td>
+<td>OCT- held. It turns things <strong>off, down, away</strong>: a mute, a clear, a value back to its default, a ghost hit, the panic, INIT</td>
+</tr>
+<tr>
+<td><strong>SHIFT2</strong></td>
+<td>OCT+ held. It <strong>picks, turns on, adds</strong>: a track or lane selected, a layer locked open, a hard hit, launch now, the next instrument</td>
+</tr>
+<tr>
+<td><strong>tap</strong></td>
+<td>press and let go before the hold time (350 ms, fixed) with nothing else used meanwhile. SAVE, HOME, the page buttons and the OCT buttons act <strong>when let go</strong></td>
+</tr>
+<tr>
+<td><strong>held</strong></td>
+<td>kept down past the hold time: a layer's key map shows (it works from the press)</td>
+</tr>
+<tr>
+<td><strong>A + B</strong></td>
+<td>A held, then B pressed or turned. The order matters only for SAVE and HOME together (undo, redo)</td>
+</tr>
+<tr>
+<td><strong>YES / NO</strong></td>
+<td>SAVE / HOME. A question (&quot;Store scene B?&quot;) waits 3 s: YES does it, NO or anything else cancels it</td>
+</tr>
+<tr>
+<td><strong>the track keys</strong></td>
+<td>the first four white keys: T1, T2, T3, DR</td>
+</tr>
+<tr>
+<td><strong>the lane keys</strong></td>
+<td>the black keys F#3 to D#5: drum lanes 1 to 10. F#5, the last upper key: the ACCENT lane</td>
+</tr>
+<tr>
+<td><strong>a lane picked</strong></td>
+<td>a drum lane selected (its lane key, SHIFT2 + its lane key, ALGORITHM past DR, a lane row on the mixer)</td>
+</tr>
+</tbody>
+</table></div>
+</section>
+<section id="moving-around">
+<h2>Moving around</h2>
+<div class="table"><table>
+<thead>
+<tr>
+<th>Gesture</th>
+<th>Where</th>
+<th>Does</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>ALGORITHM</td>
+<td>track pages, mixer, SCOPE, the layers</td>
+<td>the track: MASTER, T1, T2, T3, DR, the drum lanes, ACCENT (stops at the ends)</td>
+</tr>
+<tr>
+<td>ALGORITHM</td>
+<td>GLOBAL, SYSTEM</td>
+<td>the cursor, one line</td>
+</tr>
+<tr>
+<td>SELECT</td>
+<td>most pages</td>
+<td>the cursor, one row</td>
+</tr>
+<tr>
+<td>SELECT</td>
+<td>mixer</td>
+<td>the selected row's knob sets (MIX, INSERTS, SENDS)</td>
+</tr>
+<tr>
+<td>SELECT</td>
+<td>GLOBAL, SYSTEM</td>
+<td>a page of four lines</td>
+</tr>
+<tr>
+<td>SHIFT2 + a track key</td>
+<td>a page with keys, not STEP</td>
+<td>that track selected (the key plays nothing)</td>
+</tr>
+<tr>
+<td>SHIFT2 + a lane key</td>
+<td>a page with keys, not STEP</td>
+<td>the drum track and that lane selected, silent (the key alone plays it)</td>
+</tr>
+<tr>
+<td>SHIFT2 + a lane key</td>
+<td>the drum track's STEP</td>
+<td>that lane heard, nothing selected (the key alone selects it there)</td>
+</tr>
+<tr>
+<td>OCT- and OCT+ tapped together</td>
+<td>track pages</td>
+<td>the track &lt;-&gt; MASTER (back to the page you left)</td>
+</tr>
+<tr>
+<td>OCT- and OCT+ tapped together</td>
+<td>a synth track's STEP</td>
+<td><strong>FOLD</strong> the piano roll (see Steps)</td>
+</tr>
+<tr>
+<td>ENV, LFO, EDIT, FX, SCL, ARP tapped</td>
+<td>a track</td>
+<td>SOUND, that family's rows; again: its next row</td>
+</tr>
+<tr>
+<td>FX tapped</td>
+<td>the mixer's MASTER row</td>
+<td>the master FX page; again: its next page</td>
+</tr>
+<tr>
+<td>FX tapped</td>
+<td>the mixer's USB IN row</td>
+<td>its insert slots</td>
+</tr>
+<tr>
+<td>SEQ tapped</td>
+<td>anywhere</td>
+<td>STEP; on STEP: its next page (PATTERN, TOOLS [SEQTOOLS], GEN, GEN OUT [NOTEGEN or GEN_GRIDS])</td>
+</tr>
+<tr>
+<td>SEQ tapped twice (within 0.35 s)</td>
+<td>a synth track's STEP</td>
+<td>STEP ENTRY on or off, stopped or playing (toast <em>STEP ENTRY</em> / <em>STEP SEQ</em>); a single tap's change (above) is shown only after the 0.35 s window, a double tap shows none; off, REC armed: the keys play</td>
+</tr>
+<tr>
+<td>GLO tapped</td>
+<td>anywhere</td>
+<td>the one of GLOBAL / SYSTEM open last (GLOBAL after power-on); on GLOBAL: SYSTEM; on SYSTEM: GLOBAL</td>
+</tr>
+<tr>
+<td>HOME tapped</td>
+<td>a page</td>
+<td>back to the mixer, on its row</td>
+</tr>
+<tr>
+<td>HOME tapped</td>
+<td>the mixer</td>
+<td>SCOPE; HOME again: the mixer</td>
+</tr>
+<tr>
+<td>SAVE tapped</td>
+<td>where YES has nothing to do (the mixer, most pages)</td>
+<td>PROJECT</td>
+</tr>
+<tr>
+<td>SAVE held, let go</td>
+<td>PROJECT</td>
+<td>SONG, on the scene playing</td>
+</tr>
+<tr>
+<td>SEQ held, let go</td>
+<td>any page but STEP</td>
+<td>SONG</td>
+</tr>
+<tr>
+<td>SHIFT2 + SEQ</td>
+<td>anywhere</td>
+<td>SONG</td>
+</tr>
+</tbody>
+</table></div>
+</section>
+<section id="changing-values-and-sounds">
+<h2>Changing values and sounds</h2>
+<div class="table"><table>
+<thead>
+<tr>
+<th>Gesture</th>
+<th>Where</th>
+<th>Does</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>KNOB 1-4</td>
+<td>a page</td>
+<td>card 1-4; the turned card is the cursor and the help line names it</td>
+</tr>
+<tr>
+<td>SHIFT + a knob</td>
+<td>a page</td>
+<td>the value back to its default (the mixer's volume and return cards: their mute, see Mixing)</td>
+</tr>
+<tr>
+<td>SHIFT + the VOLUME pot</td>
+<td>any page</td>
+<td>the USB input's VOLUME (the computer's audio): half the pot's travel is its whole range, from where it was; the headphones' volume holds until the pot is back where it was [USB_AUDIO]</td>
+</tr>
+<tr>
+<td>SHIFT2 + the VOLUME pot, 15 %</td>
+<td>any page, Bluetooth audio on</td>
+<td>the output switched between Bluetooth and the FM-1's own, or the last device reconnected [BT_AUDIO]</td>
+</tr>
+<tr>
+<td>LFO + a knob</td>
+<td>any page</td>
+<td>the finer path: a value by one, PATTERN's LEN by one step, not in powers of two</td>
+</tr>
+<tr>
+<td>REC + a knob</td>
+<td>any page, no step held</td>
+<td>that value's motion and p-locks cleared on every step of the track (see Clearing)</td>
+</tr>
+<tr>
+<td>SAVE</td>
+<td>a card that is an action, an on / off or a GO</td>
+<td>does it (an action asks first)</td>
+</tr>
+<tr>
+<td>PRESETS</td>
+<td>a synth track</td>
+<td>its preset (asks &quot;Discard T1 edits?&quot; over edits)</td>
+</tr>
+<tr>
+<td>PRESETS</td>
+<td>DR, a lane on the kit</td>
+<td>the kit</td>
+</tr>
+<tr>
+<td>PRESETS</td>
+<td>a lane on its own source</td>
+<td>that lane's sound</td>
+</tr>
+<tr>
+<td>SHIFT + PRESETS</td>
+<td>a synth track</td>
+<td>the next / previous instrument (engine), its first sound</td>
+</tr>
+<tr>
+<td>SHIFT2 + PRESETS</td>
+<td>a synth track</td>
+<td>the preset list's filter, round: ALL, FACTORY, USER, FAVORITES, INIT (the popup's header names it)</td>
+</tr>
+<tr>
+<td>SHIFT + PRESETS</td>
+<td>a lane on its own source</td>
+<td>the next / previous kind (user, sampled, synth, X0X)</td>
+</tr>
+<tr>
+<td>SAVE + PRESETS</td>
+<td>a synth track</td>
+<td>the sound a favorite (right) or not (left) [FAVORITES]</td>
+</tr>
+<tr>
+<td>SHIFT2 + SELECT</td>
+<td>STEP, no step held</td>
+<td>the page's cards stay about 30 s after each turn instead of 1.5 s, until STEP is left (a generator tuned while it plays)</td>
+</tr>
+<tr>
+<td>SHIFT + ENV</td>
+<td>a synth track</td>
+<td>INIT the sound (asked over edits)</td>
+</tr>
+</tbody>
+</table></div>
+</section>
+<section id="playing">
+<h2>Playing</h2>
+<div class="table"><table>
+<thead>
+<tr>
+<th>Gesture</th>
+<th>Where</th>
+<th>Does</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>OCT- / OCT+ tapped</td>
+<td>a synth track</td>
+<td>the octave, -3 to +3</td>
+</tr>
+<tr>
+<td>a lane key</td>
+<td>the drum track</td>
+<td>picks the lane and plays it when stopped or recording; silent while playing</td>
+</tr>
+<tr>
+<td>a white key</td>
+<td>the drum track, any page</td>
+<td>a step of the selected lane (the 16 steps of the window), as on STEP</td>
+</tr>
+<tr>
+<td>the keys</td>
+<td>MASTER, SCOPE, GLOBAL, SYSTEM, PROJECT, SONG, the USB IN row</td>
+<td>silent, and the shifts do nothing with them (MASTER keeps the track's keys when you came with both OCT)</td>
+</tr>
+</tbody>
+</table></div>
+</section>
+<section id="transport-tempo-and-recording">
+<h2>Transport, tempo and recording</h2>
+<div class="table"><table>
+<thead>
+<tr>
+<th>Gesture</th>
+<th>Where</th>
+<th>Does</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>PLAY tapped</td>
+<td>anywhere</td>
+<td>start / stop (when let go)</td>
+</tr>
+<tr>
+<td>PLAY held</td>
+<td>anywhere</td>
+<td>the TEMPO page while held (BPM, NUDGE, SWING, SYNC; REC: MODE, LENGTH, START, CLICK; QUANT)</td>
+</tr>
+<tr>
+<td>PLAY + white keys, or PLAY + HOME</td>
+<td>anywhere</td>
+<td>tap tempo (two taps or more)</td>
+</tr>
+<tr>
+<td>PLAY + OCT- / OCT+ held</td>
+<td>TEMPO page</td>
+<td>nudge the clock 3.9 % slower / faster while held; on a followed clock (USB, TRS, Link, BLE) they move its offset (CLK OFS / BT OFS) 1 ms instead, saved</td>
+</tr>
+<tr>
+<td>SHIFT + PLAY</td>
+<td>anywhere</td>
+<td>stop, every voice off (ALL SOUND OFF)</td>
+</tr>
+<tr>
+<td>SEQ + PLAY</td>
+<td>anywhere</td>
+<td>the song from its start</td>
+</tr>
+<tr>
+<td>REC tapped</td>
+<td>stopped</td>
+<td>arm: the first note starts recording (with START = COUNT, PLAY gives a bar of clicks first) [REC_MODES]. On a synth track's STEP: STEP ENTRY (KNOB 1 the cursor, a key toggles its note there, KNOB 2 / 3 / 4 move, transpose, lengthen the step's notes); PLAY then arms the take, the first note starts it</td>
+</tr>
+<tr>
+<td>REC tapped</td>
+<td>playing</td>
+<td>record the selected track; again: REC OFF</td>
+</tr>
+<tr>
+<td>REC tapped</td>
+<td>a free take (empty project, MODE FREE)</td>
+<td>close the take at the next downbeat; PLAY drops it</td>
+</tr>
+<tr>
+<td>SEQ + REC tapped</td>
+<td>anywhere</td>
+<td>SONG REC on / off</td>
+</tr>
+</tbody>
+</table></div>
+</section>
+<section id="steps-step">
+<h2>Steps (STEP)</h2>
+<p>On STEP the white keys stay steps under the shifts: SHIFT and SHIFT2 with a step key never mute or select there. A lane key alone selects its lane on STEP (it plays it elsewhere), so SHIFT2 + it is inverted too: it plays the lane without selecting it. SHIFT + a lane key mutes it, as everywhere. To change the track on STEP, use ALGORITHM.</p>
+<div class="table"><table>
+<thead>
+<tr>
+<th>Gesture</th>
+<th>Where</th>
+<th>Does</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>a white key tapped</td>
+<td>STEP</td>
+<td>the step set with the pick, or cleared (a cleared synth step remembers its note); drums: a hit tapped goes off</td>
+</tr>
+<tr>
+<td>a black key held + a white key</td>
+<td>STEP (drums, every page)</td>
+<td>that lane's hit on the step: NORM, HARD, GHOST, NORM, the level in a popup</td>
+</tr>
+<tr>
+<td>SHIFT + an empty drum step</td>
+<td>STEP, drums</td>
+<td>a ghost hit</td>
+</tr>
+<tr>
+<td>SHIFT2 + an empty drum step</td>
+<td>STEP, drums</td>
+<td>a hard hit</td>
+</tr>
+<tr>
+<td>PRESETS</td>
+<td>no step held</td>
+<td>scroll the 16-step window (stops following)</td>
+</tr>
+<tr>
+<td>SHIFT2 + PRESETS</td>
+<td>no step held</td>
+<td>follow the playhead again</td>
+</tr>
+<tr>
+<td>SELECT</td>
+<td>no step held</td>
+<td>the next card page</td>
+</tr>
+<tr>
+<td>SELECT turned or SEQ tapped, the cards down</td>
+<td>STEP</td>
+<td>the cards back, the page kept (once up: SELECT the rows, SEQ the next page)</td>
+</tr>
+<tr>
+<td>KNOB 1, the cards down</td>
+<td>STEP</td>
+<td><strong>the note picker:</strong> the next / previous note, note by note: left to right, the lowest first in a chord (drums: hit of the selected lane), framed</td>
+</tr>
+<tr>
+<td>KNOB 2, a note picked</td>
+<td>STEP</td>
+<td>the note a step earlier / later (its locks and motion with it); SHIFT held: its nudge</td>
+</tr>
+<tr>
+<td>KNOB 3, a note picked</td>
+<td>STEP</td>
+<td>its pitch; drums: its lane (that lane selected)</td>
+</tr>
+<tr>
+<td>KNOB 4, a note picked</td>
+<td>STEP</td>
+<td>its length; drums: its level</td>
+</tr>
+<tr>
+<td>SAVE, a note picked</td>
+<td>STEP, the cards down</td>
+<td>the note's cards, as if its step were held; HOME: they go</td>
+</tr>
+<tr>
+<td>SAVE held alone, let go</td>
+<td>STEP, a note picked</td>
+<td>the note muted / on again: kept, dim, played as a rest (not the ACCENT lane)</td>
+</tr>
+<tr>
+<td>HOME held alone, let go</td>
+<td>STEP, a note picked</td>
+<td>the note deleted (HOME tapped: back, as ever)</td>
+</tr>
+<tr>
+<td>a step key held</td>
+<td>STEP</td>
+<td>the cards are the step's: synth NOTE, LEVEL, RATCHET, GLIDE (the note slides into the next step); drums LEVEL, RATCHET, TUNE, DECAY. Several held steps edit together</td>
+</tr>
+<tr>
+<td>step held + a knob</td>
+<td>STEP</td>
+<td>that value; SHIFT + the knob: back to NORMAL, x1, one step (on a p-lock card: that lock cleared)</td>
+</tr>
+<tr>
+<td>step held + PRESETS</td>
+<td>STEP</td>
+<td>move the step in time (its locks and motion go with it)</td>
+</tr>
+<tr>
+<td>step held + ALGORITHM</td>
+<td>synth</td>
+<td>the selected note a semitone up / down; folded: to the next row shown</td>
+</tr>
+<tr>
+<td>step held + ALGORITHM</td>
+<td>drums</td>
+<td>the hit to the lane above / below</td>
+</tr>
+<tr>
+<td>step held + SELECT</td>
+<td>STEP</td>
+<td>a chord's note to move, then the cards' pages (the step, its extras, its p-lock pages)</td>
+</tr>
+<tr>
+<td>step held + OCT- / OCT+</td>
+<td>synth</td>
+<td>its notes an octave down / up</td>
+</tr>
+<tr>
+<td>step held + SAVE</td>
+<td>STEP</td>
+<td>the fill condition, whatever card: NORMAL, FILL ONLY, NO FILL [FILLS]; without FILLS on a p-lock card: lock &lt;-&gt; held motion</td>
+</tr>
+<tr>
+<td>step held + SHIFT2 + SAVE</td>
+<td>STEP</td>
+<td>on a p-lock card: lock &lt;-&gt; held motion [FILLS]</td>
+</tr>
+<tr>
+<td>step held + ENV, LFO, FX, SCL, ARP (drums: EDIT too)</td>
+<td>STEP</td>
+<td>that page's cards as the step's p-locks; again: its next page [PLOCK]</td>
+</tr>
+<tr>
+<td>SEQ held</td>
+<td>STEP</td>
+<td>the fill view of the selected synth track or drum lane, header <em>FILLS T1</em> / <em>FILLS</em> + lane [FILLS]</td>
+</tr>
+<tr>
+<td>SEQ held + a step key</td>
+<td>STEP</td>
+<td>that track's or lane's fills: empty: a FILL ONLY note / hit; FILL ONLY: removed; a normal note: unchanged, the popup says so. One undo level each [FILLS]</td>
+</tr>
+<tr>
+<td>OCT- and OCT+ tapped together (let go within 400 ms)</td>
+<td>a synth track's STEP</td>
+<td>FOLD on / off: only the rows of the pattern's notes, or the scale's notes when a scale is set</td>
+</tr>
+<tr>
+<td>TOOLS: a knob, then SAVE</td>
+<td>STEP's TOOLS page</td>
+<td>the tool: REVERSE, RANDOM, COOK, DOUBLE, HALF, QNT 1, QNT 1/2, QNT 1/4 (asked) [SEQTOOLS]</td>
+</tr>
+</tbody>
+</table></div>
+</section>
+<section id="clearing-undo-and-redo">
+<h2>Clearing, undo and redo</h2>
+<p>Every clear of recorded material is on REC, and its ring is the confirmation: hold until it closes, let go before and nothing happens. From the smallest to the largest. Notes, their levels and their recorded lengths are removed only where the table says so.</p>
+<div class="table"><table>
+<thead>
+<tr>
+<th>Gesture</th>
+<th>Where</th>
+<th>Clears</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>step held + SHIFT + a knob</td>
+<td>STEP, a p-lock card</td>
+<td>that step's lock (and motion) of that parameter</td>
+</tr>
+<tr>
+<td>SHIFT + a step key</td>
+<td>a synth track's STEP, a set drum step</td>
+<td>that step's p-locks; the note or hit stays</td>
+</tr>
+<tr>
+<td>REC held + a knob turned</td>
+<td>any page (no step held)</td>
+<td>that parameter's motion and p-locks on every step of the track (a lane's value: that lane's). The turn stops the ring and undoes REC's press: the track is never cleared this way [AUTO]</td>
+</tr>
+<tr>
+<td>SHIFT + REC held (a ring fills)</td>
+<td>a drum lane picked</td>
+<td>that lane's motion and p-locks; its hits stay</td>
+</tr>
+<tr>
+<td>SHIFT + REC held (a ring fills)</td>
+<td>a track</td>
+<td>the track's motion, p-locks, nudges, fills and chance; the notes stay</td>
+</tr>
+<tr>
+<td>HOME tapped</td>
+<td>a step held</td>
+<td>the held steps, every lane (notes, hits and their events)</td>
+</tr>
+<tr>
+<td>EDIT + keys</td>
+<td>playing</td>
+<td>erase that note or lane as it plays (stopped: from every step)</td>
+</tr>
+<tr>
+<td>REC held (a ring fills: 0.7 s, then 1.3 s)</td>
+<td>a drum lane picked</td>
+<td>that lane: hits, locks, motion</td>
+</tr>
+<tr>
+<td>REC held (a ring fills)</td>
+<td>a track</td>
+<td>the whole track</td>
+</tr>
+<tr>
+<td>SHIFT + REC, YES</td>
+<td>a SONG scene row</td>
+<td>that scene</td>
+</tr>
+<tr>
+<td>HOME + a white key, YES</td>
+<td>the LFO layer, SONG's PATTERNS row</td>
+<td>that pattern slot; with the scenes up (black 10): that scene [PATTERNS]</td>
+</tr>
+<tr>
+<td>SAVE then HOME</td>
+<td>anywhere</td>
+<td><strong>undo</strong> (several levels on every track)</td>
+</tr>
+<tr>
+<td>HOME then SAVE</td>
+<td>anywhere</td>
+<td><strong>redo</strong></td>
+</tr>
+<tr>
+<td>SHIFT + SAVE</td>
+<td>SYSTEM &gt; INFO</td>
+<td>the DROPS, UNDERRUNS and MAX counters</td>
+</tr>
+</tbody>
+</table></div>
+</section>
+<section id="saving-patterns-scenes-and-the-song">
+<h2>Saving, patterns, scenes and the song</h2>
+<p>Patterns and scenes share one grammar in the LFO layer (and on SONG's PATTERNS row): a white key launches, SAVE + it stores, HOME + it clears.</p>
+<div class="table"><table>
+<thead>
+<tr>
+<th>Gesture</th>
+<th>Where</th>
+<th>Does</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>SAVE + ENV, LFO, EDIT, FX, SCL or ARP</td>
+<td>a synth track</td>
+<td>the sound as a user preset (NAME first)</td>
+</tr>
+<tr>
+<td>SAVE + one of them</td>
+<td>the drum track</td>
+<td>its lanes as a user kit</td>
+</tr>
+<tr>
+<td>SAVE + SEQ</td>
+<td>a track</td>
+<td>the working pattern into its slot (asked over a used one) [PATTERNS]</td>
+</tr>
+<tr>
+<td>HOME + SEQ</td>
+<td>a track</td>
+<td>RELOAD: the pattern's edits not saved dropped, its saved pattern plays again (asked; the patterns layer with ALL TRACKS: every track) [PATTERNS]</td>
+</tr>
+<tr>
+<td>LFO held + a white key</td>
+<td>anywhere</td>
+<td>launch the track's pattern n at the end of its pass; OCT- + the key: at the next bar; OCT+ + the key: now [PATTERNS]</td>
+</tr>
+<tr>
+<td>LFO held + SAVE + a white key</td>
+<td>anywhere</td>
+<td>store the working pattern into slot n: asked over a used one; an empty slot asks <em>CLONE T1 n?</em> (SAVE: clone the working pattern; HOME: <em>EMPTY T1 n?</em>, SAVE: start empty, HOME again: nothing) [PATTERNS]</td>
+</tr>
+<tr>
+<td>LFO held + black key 1-4 / 5 / 6 / 9</td>
+<td>anywhere</td>
+<td>pick the track / ALL TRACKS (the white keys, SAVE + n, HOME + n act on T1..DR; again: the selected track) / stop its pattern / duplicate it into a free slot [PATTERNS]</td>
+</tr>
+<tr>
+<td>LFO held + a black key 1-4 held + a white key</td>
+<td>anywhere</td>
+<td>store that track's working pattern into slot n (black 5 held: every track's), as SAVE + n [PATTERNS]</td>
+</tr>
+<tr>
+<td>a launch or stop over edits not stored</td>
+<td>the LFO layer, SONG's PATTERNS row</td>
+<td>the edits are kept with the outgoing pattern (its live copy, in flash): &quot;T1 T3 KEPT&quot;; it plays them when launched again [PATTERNS]</td>
+</tr>
+<tr>
+<td>LFO held + black key 10</td>
+<td>anywhere</td>
+<td><strong>the scenes</strong>: the white keys are scenes A-P until black 10 again or LFO is let go [PATTERNS]</td>
+</tr>
+<tr>
+<td>the scenes + a white key</td>
+<td>the LFO layer</td>
+<td>start that scene at the next bar (stopped: load it, asked over changed work); two or more in one hold while playing: a chain [QCHAIN]</td>
+</tr>
+<tr>
+<td>the scenes + SAVE + a white key</td>
+<td>the LFO layer</td>
+<td>the loop into that scene (asked over a used one)</td>
+</tr>
+<tr>
+<td>the scenes + HOME + a white key</td>
+<td>the LFO layer</td>
+<td>clear that scene (asked)</td>
+</tr>
+<tr>
+<td>LFO held + SEQ + a white key</td>
+<td>anywhere</td>
+<td>the four tracks' patterns stored as that scene (asked over a used one)</td>
+</tr>
+</tbody>
+</table></div>
+</section>
+<section id="the-layers-a-page-button-held">
+<h2>The layers (a page button held)</h2>
+<p>Hold the button: its map shows and the keys and knobs are the layer's. <strong>SHIFT2 + the button</strong> (or the button, then SHIFT2) locks the layer open; any button but PLAY, REC and the OCT buttons lets it go. ENV on FM6, ARP and LFO lock only with SHIFT2 pressed first (their OCT+ has a job). SAVE is no layer. Inside any layer PRESETS is still the sound and ALGORITHM the track (MASTER: the master's FILT, DUST, DUCK, COMP cards).</p>
+<div class="table"><table>
+<thead>
+<tr>
+<th>Layer</th>
+<th>Keys</th>
+<th>Knobs</th>
+<th>OCT buttons</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>FX</strong> (punch)</td>
+<td>the 16 white keys: 16 punch-in effects (latched with PUNCH_LATCH)</td>
+<td>FILTER, DUST, DUCK, the track's FILT</td>
+<td>OCT-: a latched effect off</td>
+</tr>
+<tr>
+<td><strong>EDIT</strong> (erase)</td>
+<td>erase that note / lane as it plays; drum SOUND page: picks that sound</td>
+<td>SHIFT (rotate), LENGTH (x2 / half), TRANSPOSE</td>
+<td></td>
+</tr>
+<tr>
+<td><strong>ARP</strong> (roll)</td>
+<td>note repeat at the tempo</td>
+<td>RATE</td>
+<td></td>
+</tr>
+<tr>
+<td><strong>SCL</strong> (key)</td>
+<td>the song's key (root)</td>
+<td>CHORD, SCALE, KEYS, TRANSPOSE</td>
+<td></td>
+</tr>
+<tr>
+<td><strong>GLO</strong> (mix)</td>
+<td>1-4 mute T1-DR (tap tempo: PLAY held); with FILLS 9 fill while held, 10 next bar a fill, black 1-4 FX bypass T1-DR (without FILLS: 9-12)</td>
+<td>LEVEL of T1, T2, T3, DR</td>
+<td></td>
+</tr>
+<tr>
+<td><strong>LFO</strong> (patterns, scenes) [PATTERNS]</td>
+<td>above, Saving</td>
+<td>the page under</td>
+<td>OCT+ + a key: launch now; OCT- + a key: at the next bar</td>
+</tr>
+<tr>
+<td><strong>ENV</strong> on an FM6 track (operators)</td>
+<td>black keys pick OP1-OP6, PIT, GLO, MONO, POLY; white keys play</td>
+<td>the page's four values</td>
+<td>previous / next page</td>
+</tr>
+</tbody>
+</table></div>
+</section>
+<section id="mixing-mutes">
+<h2>Mixing: mutes</h2>
+<p>There is one mute, the sequencer's: a muted track or lane plays no more steps, and what already sounds rings out. There is no solo.</p>
+<div class="table"><table>
+<thead>
+<tr>
+<th>Gesture</th>
+<th>Where</th>
+<th>Does</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>SHIFT + a track key / a lane key</td>
+<td>a page with keys, not STEP's white keys</td>
+<td>that track's / lane's mute on / off (the key plays nothing)</td>
+</tr>
+<tr>
+<td>SHIFT + the volume knob</td>
+<td>the mixer (a track's VOLUME, a lane's LEVEL, ACCENT, USB IN)</td>
+<td>that row's mute on / off</td>
+</tr>
+<tr>
+<td>SHIFT + a RET card's knob</td>
+<td>the mixer's MASTER row</td>
+<td>that return muted on / off</td>
+</tr>
+<tr>
+<td>GLO + keys 1-4</td>
+<td>anywhere</td>
+<td>mute T1-DR</td>
+</tr>
+<tr>
+<td>the volume knob turned</td>
+<td>a muted row</td>
+<td>unmuted, the value moves</td>
+</tr>
+</tbody>
+</table></div>
+</section>
+<section id="page-by-page">
+<h2>Page by page</h2>
+<p>What only one page has; everything above works there too.</p>
+<p><strong>PROJECT.</strong> KNOB 1 BANK, KNOB 2 LOAD / SAVE / DELETE, KNOB 3 ITEM, KNOB 4 NEW (PROJECT) or INIT (USER). The 16 white keys pick slot n and run the operation on it (asked). SAVE runs it on ITEM; SAVE held: SONG. OCT- / OCT+ tapped: the previous / next bank. SHIFT2 + KNOB 3 on USER: that preset a favorite [FAVORITES].</p>
+<p><strong>SONG</strong> (SAVE held on PROJECT, SEQ held, SHIFT2 + SEQ). A SCENE row: the knobs set each track's pattern (stopped), SAVE launches the scene, REC stores the loop into it, SHIFT + REC or SAVE held clears it (asked). The PATTERNS row has the LFO layer's keys: KNOB k is track k's next pattern, the white keys launch, SAVE + a key stores, HOME + a key clears, black 9 duplicates, black 10 the scenes. MODE: KNOB 1 SCENE: PLAY repeats the current scene; SONG: PLAY runs the parts; SONG REC, SAVE writes the chain. A PART row: SCENE, BARS, INSERT, DELETE (SAVE, asked).</p>
+<p><strong>NAME</strong> (before a save). The white keys type like a phone (AB, CD ... the same key within 0.8 s cycles); black keys: F# left, G# space, A# right, C# delete, D# ABC / 123. KNOB 1 the cursor, KNOB 2 the character; SHIFT + a knob clears the name. SAVE done, HOME deletes a character (at the start: cancel), PLAY stops.</p>
+<p><strong>GLOBAL and SYSTEM.</strong> KNOB k edits line k; SAVE is YES on the cursor line; PRESETS does nothing. SYSTEM &gt; INFO: KNOB 1 shows the CPU load NOW, MAX 5 S or MAX; SHIFT + SAVE clears the counters. BT MIDI and BT AUDIO: KNOB 2 moves the cursor in the devices list, SAVE connects to the row (or lets a connected device go), SAVE held forgets the row's remembered device (<a href="midi-usb.html#bluetooth-midi-and-bluetooth-audio">the MIDI and USB page</a>).</p>
+<p><strong>SCOPE</strong> (HOME on the mixer). ALGORITHM the source; the knobs LEVEL, PAN, FX, DRIVE of a track, or FILT, THRS, RATIO of MASTER; SAVE the track's FX on / dry.</p>
+<p><strong>The mixer.</strong> See Mixing. The drum track's lane keys play and pick their lane (not right after a knob turn); its white keys are steps.</p>
+</section>
+<section id="at-power-on">
+<h2>At power-on</h2>
+<p>OCT- + OCT+ held while switching on and let go soon: the panel teaching (the only way in: no SYSTEM row). Kept held for 3 s: the chip's own update mode (UBOOT). OCT- alone: the USB rescue. With the FM-1 running and stopped, OCT- + OCT+ held 5 s (a countdown shows from 2 s): update mode.</p>
+</section>

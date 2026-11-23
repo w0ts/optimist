@@ -62,11 +62,11 @@ FIRST_INSTALL = f"""<ol>
 <p>Your projects, presets, kits and samples live above the firmware: an install writes only the firmware area. Data that Optimist cannot read may not be kept, except SLOOP's: SLOOP 2.7 data is kept.</p>"""
 
 GUIDE = f"""<ul>
-<li><a href="{DOCS}guide/interface.md">The interface</a> and <a href="{DOCS}guide/shortcuts.md">every shortcut</a>: the controls, pages, settings and read-outs.</li>
-<li><a href="{DOCS}guide/sound.md">Sound</a>: the engines, voices, modulation and presets. <a href="{DOCS}guide/drums.md">Drums</a>: kits, drum sounds, your samples and kits.</li>
-<li><a href="{DOCS}guide/effects.md">Effects</a>: inserts, sends, returns, the master. <a href="{DOCS}guide/sequencer.md">Sequencer</a>: steps, locks, motion, patterns, the song.</li>
-<li><a href="{DOCS}guide/midi-usb.md">MIDI, Bluetooth, USB audio, the web editor</a>: connections and the editor.</li>
-<li><a href="{DOCS}guide/getting-back.md">Getting back</a>: to the official firmware, and what to do when the FM-1 does not start.</li>
+<li><a href="webapp/guide/interface.html">The interface</a> and <a href="webapp/guide/shortcuts.html">every shortcut</a>: the controls, pages, settings and read-outs.</li>
+<li><a href="webapp/guide/sound.html">Sound</a>: the engines, voices, modulation and presets. <a href="webapp/guide/drums.html">Drums</a>: kits, drum sounds, your samples and kits.</li>
+<li><a href="webapp/guide/effects.html">Effects</a>: inserts, sends, returns, the master. <a href="webapp/guide/sequencer.html">Sequencer</a>: steps, locks, motion, patterns, the song.</li>
+<li><a href="webapp/guide/midi-usb.html">MIDI, Bluetooth, USB audio, the web editor</a>: connections and the editor.</li>
+<li><a href="webapp/guide/getting-back.html">Getting back</a>: to the official firmware, and what to do when the FM-1 does not start.</li>
 <li><a href="{DOCS}BUILDER.md">The builder</a>: every builder item, its cost, the profiles.</li>
 </ul>"""
 

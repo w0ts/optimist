@@ -379,7 +379,7 @@ def emu_build(cfgfile=None, python=sys.executable):
 def site(pkg, version, out, cfgfile=None, emu=True, python=sys.executable):
     """the release's site into out: fm1-base's tools/make_site.py on a staging copy of the app's directory (fm1base/
     optimist-site, removed after) that has Optimist's inputs: the front page (APP/site/landing.md), the manual built from
-    docs/guide (tools/site_manual.py), the name, tagline and repo of fm1.toml; its emulator is APP/build/emu (built here
+    the site's guide (tools/site_manual.py), the name, tagline and repo of fm1.toml; its emulator is APP/build/emu (built here
     unless emu is False: a directory with app.wasm is there already). pkg: the release build's package (identity
     FM-1_709 (0.3 and before: FM-1_79) and the version's six digits: tools/build.py --release)"""
     import site_manual
