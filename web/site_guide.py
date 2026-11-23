@@ -59,7 +59,11 @@ def contents_body() -> str:
 
 
 def topic_body(topic: str) -> str:
-    return subnav(topic) + f"<h2 class=\"pagetitle\">{title_of(topic)}</h2>\n" + fragment(topic)
+    """the guide's row of links, then the topic: its title opens the first box (the intro's, or a box of its own)"""
+    body, title = fragment(topic), f"<h2>{title_of(topic)}</h2>\n"
+    if body.startswith("<section>\n"):
+        return subnav(topic) + "<section>\n" + title + body[len("<section>\n"):]
+    return subnav(topic) + "<section>\n" + title + "</section>\n" + body
 
 
 def pages() -> dict:

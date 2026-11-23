@@ -125,6 +125,6 @@ def about_body(badges):
         '<section>\n<h2>Reference</h2>\n',
         fold("The guide", GUIDE, 3), fold("Build it on your computer", BUILD_LOCAL, 3), '</section>\n',
         '<section>\n<h2 id="credits">Credits</h2>\n', CREDITS, '\n</section>\n',
-        '<section>\n<h2>Licence and contributing</h2>\n', LICENCE, '\n</section>\n',
-        '<footer class="site"><a href="', GH, '" target="_blank" rel="noopener">Source</a> · <a href="', GH, '/issues" target="_blank" rel="noopener">Issues</a>',
-        ' · <a href="privacy.html">Privacy policy</a> · <a href="LICENSING.md">About and licences</a></footer>\n'))
+        '<section>\n<h2>Licence and contributing</h2>\n', LICENCE,
+        '\n<p><a href="', GH, '" target="_blank" rel="noopener">Source</a> · <a href="', GH, '/issues" target="_blank" rel="noopener">Issues</a>',
+        ' · <a href="privacy.html">Privacy policy</a> · <a href="LICENSING.md">About and licences</a></p>\n</section>\n'))
