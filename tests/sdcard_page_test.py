@@ -35,7 +35,7 @@ for a in ("installer", "editor", "builder"):
 ok('href="webapp/sd-card/">SD card</a>' in make_site.landing_page(), "the About page's header has it too")
 ok("noindex" not in html, "listed: no noindex")
 main = html[html.index("<main>"):]
-warn = re.search(r'<p class="msg warn">(.*?)</p>', main, re.S)
+warn = re.search(r'<div class="wip" role="alert">(.*?)</div>', main, re.S)
 ok(warn is not None and main.index(warn.group(0)) < main.index("<h2>") and "work in progress" in warn.group(1).lower(),
    "a work-in-progress warning at the top, before the first heading")
 

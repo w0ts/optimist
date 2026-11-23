@@ -50,7 +50,7 @@ def step(title, body):
     return f"<li><b>{title}</b>{body}</li>\n"
 
 
-WIP = ("<b>Work in progress.</b> This board has not been built and tested yet, and this page is not finished: its parts, "
+WIP = ("This board has not been built and tested yet, and this page is not finished: its parts, "
        "values and steps may still change. Order it only if you are ready to debug it yourself.")
 
 WHAT = ("A small board that adds a microSD slot to the M-VAVE FM-1. <b>No soldering on the FM-1:</b> it plugs in between the "
@@ -147,7 +147,7 @@ def todo_photos(html):
 def sdcard_body():
     """the page's <main> content"""
     return "".join((
-        f'<section>\n<p class="msg warn">{WIP}</p>\n<h2>The SD card board</h2>\n<p class="lead">{WHAT}</p>\n'
+        f'<div class="wip" role="alert"><b>Work in progress</b>{WIP}</div>\n<section>\n<h2>The SD card board</h2>\n<p class="lead">{WHAT}</p>\n'
         f'<p style="display:flex;gap:1em;flex-wrap:wrap">{picture("board-top.webp", 260)}{picture("board-bottom.webp", 260)}</p>\n<h3>What it brings to Optimist</h3>\n{BRINGS}\n</section>\n',
         f'<section>\n<h2>What you need</h2>\n{NEED}\n<h3>The files</h3>\n{FILES}\n</section>\n',
         f'<section>\n<h2>Order it from JLCPCB</h2>\n<p>JLCPCB makes the board and solders every part on it.</p>\n{order_steps()}</section>\n',

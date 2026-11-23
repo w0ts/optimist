@@ -180,6 +180,9 @@ section .msg, .card .msg { background: var(--off); }
 .msg.warn { border-color: var(--warn); background: var(--warn-soft); } .msg.warn > b:first-child { color: var(--warn); }
 .msg.err { border-color: var(--err); background: var(--err-soft); } .msg.err > b:first-child { color: var(--err); }
 .msg:empty, #msg:empty { display: none; }
+/* .wip: the big "work in progress" warning at the top of a page that is not finished or not tested: <div class="wip" role="alert"><b>Work in progress</b>what is not done</div> */
+.wip { border: 2px solid var(--err); background: var(--err-soft); border-radius: var(--r); padding: 14px 16px; margin-bottom: 12px; font-size: 16px; overflow-wrap: anywhere; }
+.wip > b:first-child { display: block; font-size: 20px; color: var(--err); margin-bottom: 4px; }
 .banner { padding: 10px 16px; text-align: center; font-weight: 700; background: var(--accent); color: var(--on); position: sticky; top: 0; z-index: 9; }
 .banner.err { background: #c00; color: #fff; }
 
