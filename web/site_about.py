@@ -61,12 +61,12 @@ FIRST_INSTALL = f"""<ol>
 </ol>
 <p>Your projects, presets, kits and samples live above the firmware: an install writes only the firmware area. Data that Optimist cannot read may not be kept, except SLOOP's: SLOOP 2.7 data is kept.</p>"""
 
-GUIDE = f"""<ul>
-<li><a href="webapp/guide/interface.html">The interface</a> and <a href="webapp/guide/shortcuts.html">every shortcut</a>: the controls, pages, settings and read-outs.</li>
-<li><a href="webapp/guide/sound.html">Sound</a>: the engines, voices, modulation and presets. <a href="webapp/guide/drums.html">Drums</a>: kits, drum sounds, your samples and kits.</li>
-<li><a href="webapp/guide/effects.html">Effects</a>: inserts, sends, returns, the master. <a href="webapp/guide/sequencer.html">Sequencer</a>: steps, locks, motion, patterns, the song.</li>
-<li><a href="webapp/guide/midi-usb.html">MIDI, Bluetooth, USB audio, the web editor</a>: connections and the editor.</li>
-<li><a href="webapp/guide/getting-back.html">Getting back</a>: to the official firmware, and what to do when the FM-1 does not start.</li>
+MANUAL = f"""<ul>
+<li><a href="webapp/manual/interface.html">The interface</a> and <a href="webapp/manual/shortcuts.html">every shortcut</a>: the controls, pages, settings and read-outs.</li>
+<li><a href="webapp/manual/sound.html">Sound</a>: the engines, voices, modulation and presets. <a href="webapp/manual/drums.html">Drums</a>: kits, drum sounds, your samples and kits.</li>
+<li><a href="webapp/manual/effects.html">Effects</a>: inserts, sends, returns, the master. <a href="webapp/manual/sequencer.html">Sequencer</a>: steps, locks, motion, patterns, the song.</li>
+<li><a href="webapp/manual/midi-usb.html">MIDI, Bluetooth, USB audio, the web editor</a>: connections and the editor.</li>
+<li><a href="webapp/manual/getting-back.html">Getting back</a>: to the official firmware, and what to do when the FM-1 does not start.</li>
 <li><a href="{DOCS}BUILDER.md">The builder</a>: every builder item, its cost, the profiles.</li>
 </ul>"""
 
@@ -123,7 +123,7 @@ def about_body(badges):
         '<section>\n<h2>Your first install</h2>\n', FIRST_INSTALL, '\n</section>\n',
         f'<section>\n<h2>The app</h2>\n<p>{mirror}</p><p>{badges}</p>\n</section>\n',
         '<section>\n<h2>Reference</h2>\n',
-        fold("The guide", GUIDE, 3), fold("Build it on your computer", BUILD_LOCAL, 3), '</section>\n',
+        fold("The manual", MANUAL, 3), fold("Build it on your computer", BUILD_LOCAL, 3), '</section>\n',
         '<section>\n<h2 id="credits">Credits</h2>\n', CREDITS, '\n</section>\n',
         '<section>\n<h2>Licence and contributing</h2>\n', LICENCE,
         '\n<p><a href="', GH, '" target="_blank" rel="noopener">Source</a> · <a href="', GH, '/issues" target="_blank" rel="noopener">Issues</a>',

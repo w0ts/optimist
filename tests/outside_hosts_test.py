@@ -2,7 +2,7 @@
 # SPDX-License-Identifier: GPL-3.0-only
 """No page Optimist ships, and nothing in the Mirror app, asks an outside host for a font, script, style, image or data,
 except the listed ONLINE-ONLY features (the user, 2026-10-29: "bundle the font everywhere", "it should work offline").
-Checked: web/ (the editor, installer, simulator, builder, the site generators), tools/site_manual.py, the app's bundled pages
+Checked: web/ (the editor, installer, simulator, builder, the site generators), tools/site_release_manual.py, the app's bundled pages
 (ios/OptimistMirror/Resources) and every URL literal in the app's Swift (ios/OptimistMirror/Sources).
 Links the user clicks (<a href>) are not loads and are not checked. Every ALLOW entry says which feature needs the network and
 what happens offline; a new outside host fails this test until it is listed (or, better, bundled).
@@ -12,7 +12,7 @@ import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-HTML_JS = [ROOT / "web", ROOT / "tools" / "site_manual.py", ROOT / "ios" / "OptimistMirror" / "Resources"]
+HTML_JS = [ROOT / "web", ROOT / "tools" / "site_release_manual.py", ROOT / "ios" / "OptimistMirror" / "Resources"]
 SWIFT = ROOT / "ios" / "OptimistMirror" / "Sources"
 EXT = {".html", ".htm", ".css", ".js", ".mjs", ".svg", ".py"}
 SKIP = ("/node_modules/", "/e2e_", "/test_")        # (tests of the pages: they name hosts to refuse or to fake)
@@ -46,8 +46,8 @@ ALLOW = [
     ("web/site_sdcard.py", "https://github.com/", "SD card page: the repository, m-bootloader, m-card (links the user clicks, not loads)"),
     ("web/site_sdcard.py", "https://www.aliexpress.com/", "SD card page: where to buy the FFC cable (a link)"),
     ("web/site_sdcard.py", "https://cart.jlcpcb.com/", "SD card page: JLCPCB's quote page (a link)"),
-    ("tools/site_manual.py", "https://w0ts.github.io/optimist/webapp/guide/", "the release manual's links to the guide on the site (links)"),
-    ("web/installer/installer.js", "https://w0ts.github.io/optimist/webapp/guide/", "installer: the guide's Getting back page (a link)"),
+    ("tools/site_release_manual.py", "https://w0ts.github.io/optimist/webapp/manual/", "the release manual's links to the manual on the site (links)"),
+    ("web/installer/installer.js", "https://w0ts.github.io/optimist/webapp/manual/", "installer: the manual's Getting back page (a link)"),
     ("web/install_route.js", "https://github.com/", "installer: M-Flasher's release page and the install paths doc, links the user clicks (the page loads nothing)"),
     # the installer's cloud builds (the user's own build, by key)
     ("web/installer/installer.js", "https://api.github.com/", "installer: cloud builds"),

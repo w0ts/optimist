@@ -379,10 +379,10 @@ def emu_build(cfgfile=None, python=sys.executable):
 def site(pkg, version, out, cfgfile=None, emu=True, python=sys.executable):
     """the release's site into out: fm1-base's tools/make_site.py on a staging copy of the app's directory (fm1base/
     optimist-site, removed after) that has Optimist's inputs: the front page (APP/site/landing.md), the manual built from
-    the site's guide (tools/site_manual.py), the name, tagline and repo of fm1.toml; its emulator is APP/build/emu (built here
+    the site's manual (tools/site_release_manual.py), the name, tagline and repo of fm1.toml; its emulator is APP/build/emu (built here
     unless emu is False: a directory with app.wasm is there already). pkg: the release build's package (identity
     FM-1_709 (0.3 and before: FM-1_79) and the version's six digits: tools/build.py --release)"""
-    import site_manual
+    import site_release_manual
     ready()
     if emu:
         emu_build(cfgfile, python)
@@ -393,7 +393,7 @@ def site(pkg, version, out, cfgfile=None, emu=True, python=sys.executable):
     try:
         shutil.copytree(APP, stage, ignore=shutil.ignore_patterns("build", "__pycache__", "tests", "profiles"))
         (stage / "docs").mkdir(exist_ok=True)
-        (stage / "docs" / "MANUAL.md").write_text(site_manual.build(), encoding="utf-8")
+        (stage / "docs" / "MANUAL.md").write_text(site_release_manual.build(), encoding="utf-8")
         (stage / "build").mkdir()
         shutil.copytree(APP / "build" / "emu", stage / "build" / "emu")
         if (APP / "web" / "words").is_dir():

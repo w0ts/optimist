@@ -257,8 +257,8 @@ ok(/<title>w0ts \/ Optimist<\/title>/.test(landing) && landing.includes('<a href
   && landing.includes('<a href="./" aria-current="page">About</a>') && landing.includes("common.css")
   && ["webapp/installer/", "webapp/builder/", "webapp/editor/#sim", "privacy.html"].every((h) => landing.includes(`href="${h}"`)) && /apps\.apple\.com/.test(landing)
   && !/class="card"><h3>(Installer|Builder|Simulator|Editor)</.test(landing) && !/class="grid cards"/.test(landing) && !/<a class="button"/.test(landing)
-  && ["The web tools", "What is in it", "The flavours", "Your first install", "The app", "Credits", "Licence and contributing"].every((t) => landing.includes(`>${t}</h2>`)) && /<details class="sec"><summary><h3>The guide<\/h3>/.test(landing),
-  "About page: w0ts / Optimist title bar on the shared style, About first and current, no redirect, no entry cards for the apps (the tabs link to them), the sections (features, flavours, first install, the app, credits, licence) with the guide and local build as folds");
+  && ["The web tools", "What is in it", "The flavours", "Your first install", "The app", "Credits", "Licence and contributing"].every((t) => landing.includes(`>${t}</h2>`)) && /<details class="sec"><summary><h3>The manual<\/h3>/.test(landing),
+  "About page: w0ts / Optimist title bar on the shared style, About first and current, no redirect, no entry cards for the apps (the tabs link to them), the sections (features, flavours, first install, the app, credits, licence) with the manual and local build as folds");
 ok(creditUrls.length >= 15 && creditUrls.every((u) => pageCredits.includes(`href="${u}"`)) && ["isod89", "Hügelton", "Kerem Kilic", "Charles Vestal", "bonszaimusic", "GPL-3.0-only"].every((w) => landing.includes(w) && readme.includes(w))
   && ["Four tracks", "Many synth engines", "SD card mode", "JANK mode", "Back up", "synths-2", "drum machine", "mots-config"].every((w) => landing.includes(w))
   && readme.includes("> ## [→ w0ts.github.io/optimist](https://w0ts.github.io/optimist/)") && !readme.includes("## Your first install"),

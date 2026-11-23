@@ -8,8 +8,8 @@ A modular firmware for the M-VAVE FM-1, built in the browser from the parts you 
 built on [SLOOP](https://github.com/isod89/sloop-fm1), Felucca, Melodee, X0X and other FM-1 projects (see
 [Credits](#credits)).
 
-The user guide is on the site ([w0ts.github.io/optimist/webapp/guide](https://w0ts.github.io/optimist/webapp/guide/));
-its text is `web/guide/*.html`, made into pages by `web/site_guide.py`. The builder reference is
+The user manual is on the site ([w0ts.github.io/optimist/webapp/manual](https://w0ts.github.io/optimist/webapp/manual/));
+its text is `web/manual/*.html`, made into pages by `web/site_manual.py`. The builder reference is
 [docs/BUILDER.md](docs/BUILDER.md).
 
 ## Build it on your computer

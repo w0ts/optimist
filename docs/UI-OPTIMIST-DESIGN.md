@@ -2,7 +2,7 @@
 
 The Optimist UI is the only user interface of the firmware (SLOOP's UI was removed on 2026-10-19). This page is the reference for how it is built and why: the grammar, the screens, the rules that cut across them, and where each lives in the code. Old design history, build logs and size tables are in git (`git log -- docs/UI-OPTIMIST-DESIGN.md`).
 
-Two other pages carry the user's view and are not repeated here: the site's guide: [Shortcuts](https://w0ts.github.io/optimist/webapp/guide/shortcuts.html) lists every gesture, [Interface](https://w0ts.github.io/optimist/webapp/guide/interface.html) explains the controls and pages. Where this page and the code differ, the code wins: report it.
+Two other pages carry the user's view and are not repeated here: the site's manual: [Shortcuts](https://w0ts.github.io/optimist/webapp/manual/shortcuts.html) lists every gesture, [Interface](https://w0ts.github.io/optimist/webapp/manual/interface.html) explains the controls and pages. Where this page and the code differ, the code wins: report it.
 
 The look and the first screens come from Felucca 1.0 (Leo Kuroshita, GPL-3.0-only); NAME is ported from its `ui_name.c`, the step conditions and the sequence tools from Felucca 1.5.6 (credits: LICENSING.md).
 
@@ -581,7 +581,7 @@ Not on a held step's cards or the layers' cards. Not counted: an ANALOG 2 part's
 | recording (a take, or the free take) | on each beat | full |
 | count-in | a pulse on each beat of the bar | |
 
-REC's own LED shows the take as before (blinking while armed). Legend: the guide's Interface page (web/guide/interface.html).
+REC's own LED shows the take as before (blinking while armed). Legend: the manual's Interface page (web/manual/interface.html).
 
 ## 12. The help line
 

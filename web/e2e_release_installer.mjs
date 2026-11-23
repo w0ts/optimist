@@ -39,7 +39,7 @@ ok(existsSync(join(SITE, "firmware", "optimist-0.3.fwsc")) && existsSync(join(SI
   "the site has the release's package and m-bootloader");
 ok(/<title>Optimist · a modular firmware for the M-VAVE FM-1/.test(read("index.html")) && read("index.html").includes("w0ts/optimist"),
   "the front page: Optimist's name, tagline and source");
-ok(/<h2[^>]*id="s7"/.test(read("manual/index.html")) && read("manual/index.html").includes("The sequencer"), "the manual: Optimist's guide, seven sections");
+ok(/<h2[^>]*id="s7"/.test(read("manual/index.html")) && read("manual/index.html").includes("The sequencer"), "the manual: Optimist's manual, seven sections");
 ok(existsSync(join(SITE, "emu", "app.wasm")), "the browser emulator is there");
 const html = read("install/index.html");
 ok(html.includes("Optimist") && !html.includes("{{") && html.includes(`"product":"${PRODUCT}"`) || html.includes(`"product": "${PRODUCT}"`),

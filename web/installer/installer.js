@@ -20,7 +20,7 @@
 //                    else the builder's last finished build, localStorage MY_BUILD)
 //     onNavigate,    (where, detail) => void, where one of "build" "backup" "editor" "about", or "sim" with { build }
 //                    (a cloud build's "try it"), "build" with { cloud: stem } (its configuration): the host opens it (its tab, the
-//                    About box); without it those are plain links (links below). The rescue guide is always a link.
+//                    About box); without it those are plain links (links below). The rescue manual is always a link.
 //     links,         { build, backup, editor, about, docs }: the hrefs of those (defaults: the site's relative paths)
 //     heading,       false: no title block (the standalone page's header holds the title); default: the "Install Optimist" title
 //     midi,          (options) => Promise<MIDIAccess>: default navigator.requestMIDIAccess (tests pass a mock)
@@ -136,7 +136,7 @@ export const TEXT = {
   banksNote: "Optimist used the flash where V15 keeps its four voice banks. This writes M-VAVE's banks back (a few seconds); voices you stored in V15 since are replaced.",
   banksDoing: "Writing the official voice banks… ", banksDone: "The official voice banks are back.",
   untested: "These rescue paths have not been tried on a real FM-1 yet.",
-  docs: "The full rescue guide", source: "Source", about: "About and licences", builtFrom: "built from ",
+  docs: "The full rescue manual", source: "Source", about: "About and licences", builtFrom: "built from ",
   /* after the install, a build with Wi-Fi (ed_wifi.c, 112 WIFI): its network, sent once; the password is never kept */
   wifiTitle: "Wi-Fi", wifiWhy: "This build has Wi-Fi. Enter your network: the FM-1 joins it at every start.",
   wifiSsid: "Network name", wifiPass: "Password", wifiShow: "Show", wifiJoin: "Join",
@@ -367,7 +367,7 @@ export function mountInstaller(container, opts = {}) {
                                                        development build of main is not offered: the user, 2026-10-25) */
   const version = opts.version || "";
   const source = opts.source || "";
-  const links = { ...DEFAULT_LINKS, docs: "https://w0ts.github.io/optimist/webapp/guide/getting-back.html", ...(opts.links || {}) };
+  const links = { ...DEFAULT_LINKS, docs: "https://w0ts.github.io/optimist/webapp/manual/getting-back.html", ...(opts.links || {}) };
   const nav = (typeof navigator !== "undefined" && navigator) || {};
   const midiOf = opts.midi || (typeof nav.requestMIDIAccess === "function" ? (o) => nav.requestMIDIAccess(o) : null);
   const secure = typeof isSecureContext === "undefined" || isSecureContext;

@@ -37,7 +37,7 @@ Usage:
   web/make_site.py --release-site X.Y OUT_DIR PKG              only the release's own site, OUT_DIR (fm1-base's make_site on
                                                                the app: install page with m-bootloader, manual, emulator; the
                                                                front page, name, tagline and repo are fm1base/optimist's, the
-                                                               manual links the site's guide); PKG: the release build's package
+                                                               manual links the site's manual); PKG: the release build's package
   --release-pkg PKG                                            with --local or --flavours: also that, in OUT_DIR/release/
 Each package names its own identity (Optimist FM-1_7xx, Felucca / SLOOP FM-1_9xx), read here from its bytes; once
 installed, the device reports the same name.
@@ -208,7 +208,7 @@ def shared_header(app, title=None, root=False):
     base = "webapp/" if root else "../"          # (the site's front page sits beside webapp/, the apps' pages inside it)
     items = [("./" if root else "../../", "about", "About")] + [(f"{base}{a}/", a, t) for a, t in APPS]
     items.insert(3, (f"{base}editor/#sim", "simulator", "Simulator"))   # (a tab of the editor's page, no page of its own: web/sim/)
-    items.append((f"{base}guide/", "guide", "Guide"))                # (the user guide: web/site_guide.py, web/guide/*.html)
+    items.append((f"{base}manual/", "manual", "Manual"))                # (the user manual: web/site_manual.py, web/manual/*.html)
     items.append((f"{base}sd-card/", "sd-card", "SD card"))          # (the SD board: web/site_sdcard.py, a work in progress)
     links = '<span class="sep" role="separator" aria-orientation="vertical"></span>'.join(
         f'<a href="{href}"' + (' aria-current="page"' if a == app else "") + f">{(EDITOR_ICON + ' ' if a == 'editor' else '')}{t}</a>"
@@ -471,24 +471,24 @@ def sdcard_site(out):
     return site_sdcard.todo_photos(html)
 
 
-def guide_page(title, body):
-    """a page of the user guide (webapp/guide/, web/site_guide.py): the shared header (its Guide tab current) and style"""
-    import site_guide
+def manual_page(title, body):
+    """a page of the user manual (webapp/manual/, web/site_manual.py): the shared header (its Manual tab current) and style"""
+    import site_manual
     head = "".join(('<!doctype html>\n<html lang="en">\n<head>\n<meta charset="utf-8">\n<meta name="viewport" content="initial-scale=1, width=device-width">\n',
-                    f"<title>w0ts / Optimist guide / {html_escape(title)}</title>\n",
-                    '<meta name="description" content="The Optimist guide: how to use Optimist on the M-VAVE FM-1.">\n',
+                    f"<title>w0ts / Optimist manual / {html_escape(title)}</title>\n",
+                    '<meta name="description" content="The Optimist manual: how to use Optimist on the M-VAVE FM-1.">\n',
                     '<link rel="icon" href="../../icon.svg" type="image/svg+xml"><link rel="icon" href="../../favicon.ico" sizes="32x32">\n',
-                    f'<link rel="stylesheet" href="{COMMON_CSS}">\n<style>{shared_css()}\n{site_guide.STYLE}</style>\n{SWITCHER}\n</head>\n'))
-    return head + f'<body>\n{shared_header("guide", "Optimist guide")}\n<main>\n{body}</main>\n</body>\n</html>\n'
+                    f'<link rel="stylesheet" href="{COMMON_CSS}">\n<style>{shared_css()}\n{site_manual.STYLE}</style>\n{SWITCHER}\n</head>\n'))
+    return head + f'<body>\n{shared_header("manual", "Optimist manual")}\n<main>\n{body}</main>\n</body>\n</html>\n'
 
 
-def guide_site(out):
-    """webapp/guide/: the contents page and one page a topic"""
-    import site_guide
-    page = out / "webapp" / "guide"
+def manual_site(out):
+    """webapp/manual/: the contents page and one page a topic"""
+    import site_manual
+    page = out / "webapp" / "manual"
     page.mkdir(parents=True, exist_ok=True)
-    for name, (title, body) in site_guide.pages().items():
-        (page / name).write_text(guide_page(title, body), encoding="utf-8")
+    for name, (title, body) in site_manual.pages().items():
+        (page / name).write_text(manual_page(title, body), encoding="utf-8")
 
 
 def main(version, out, flavours=None, releases=None, sims=None):
@@ -585,7 +585,7 @@ def main(version, out, flavours=None, releases=None, sims=None):
     landing = landing_page()
     (out / "index.html").write_text(landing, encoding="utf-8")
     todo = sdcard_site(out)
-    guide_site(out)
+    manual_site(out)
     if todo:
         print(f"site: webapp/sd-card: {len(todo)} photo(s) still to come: " + "; ".join(todo))
     privacy = (HERE.parent / "ios" / "OptimistMirror" / "privacy.html").read_text(encoding="utf-8")   # (the app's policy URL)

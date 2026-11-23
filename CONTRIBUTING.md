@@ -35,7 +35,7 @@ recipes below walk through them. `tests/examples_test.c` is their test.
 | `tools/builder/` | the builder: `registry.py` (every item), `core.py` (its rules), `costs.json` (measured sizes) |
 | `tests/` | host tests: C programs built from the firmware's own sources (`hostsim.c`), run by `tests/run_tests.sh` |
 | `web/` | the site: the editor (`editor.html`), the web builder (`builder/`, its data generated), the simulator |
-| `docs/` | `BUILDER.md` (every builder item), the design notes (the user guide is the site's: `web/guide/*.html`, `web/site_guide.py`); `BUILDING.md` is at the root |
+| `docs/` | `BUILDER.md` (every builder item), the design notes (the user manual is the site's: `web/manual/*.html`, `web/site_manual.py`); `BUILDING.md` is at the root |
 | `config/profiles/` | the shipped build profiles (the maintainer's: see "Pull requests") |
 
 ## Set up, build, test, try
