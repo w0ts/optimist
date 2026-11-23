@@ -279,8 +279,8 @@ import zipfile
 import build as BUILD
 # release identities (BUILDING.md "Package identity"): X.Y -> FM-1_7(X+2)Y, clear of the 7XX numbers others use
 check("release identity: 0.1 -> FM-1_721, 1.0 -> FM-1_730, 4.9 -> FM-1_769, with a suffix as without",
-      [BUILD.release_product(r) for r in ("0.1", "1.0", "4.9", "0.1-rc1")] ==
-      ["FM-1_721", "FM-1_730", "FM-1_769", "FM-1_721"])
+      [BUILD.release_product(r) for r in ("0.1", "1.0", "4.9", "0.1-rc1", "0.4.1")] ==
+      ["FM-1_721", "FM-1_730", "FM-1_769", "FM-1_721", "FM-1_724"])
 _bad = []
 for r in ("5.0", "0.10", "1", "x.y"):
     try:

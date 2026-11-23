@@ -82,7 +82,7 @@ fails with "Get Pages site failed", the first step is missing).
 
 ### Cut a release
 
-1. Set `VERSION` (X.Y, one digit each: it is the package identity, `FM-1_7(X+2)Y`) and commit it.
+1. Set `VERSION` (X.Y or X.Y.Z, a patch release is 0.4.1: the release on fm1-base names itself `FM-1_709` + XXYYZZ, 0.4.1 is `FM-1_709000401`; the classic build's `FM-1_7(X+2)Y` has no room for a patch number, so 0.4.1 takes 0.4's) and commit it. The version is also in `firmware/src/core/model.c`, `splash.c`'s comment, `tests/scrn_table.json`, `tests/ui_optimist_glwalk.h` and `web/editor.html` (the About golden and the editor's copy): `git show 831b2854` is the 0.4 bump.
 2. Tag that commit `v<VERSION>` (a suffix after a dash is allowed, `v0.2-rc1`) and push the tag: `release.yml` builds every
    published profile (`# publish: yes`) in `config/profiles/` as a release build (`optimist-<version>-<profile>.fwsc`) and creates a **draft** release
    with them and `SHA256SUMS.txt`. A tag that does not match `VERSION` fails at once.
