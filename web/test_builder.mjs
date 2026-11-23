@@ -246,8 +246,8 @@ const siteCss = JSON.parse(execFileSync(process.env.PYTHON || "python3", ["-c", 
 ok(siteCss.includes("--accent: #da92cc") && !/data:font/.test(siteCss) && /https:\/\/w0ts\.github\.io\/site-style\/common\.css/.test(readFileSync(join(HERE, "installer", "index.html"), "utf8") + readFileSync(join(HERE, "builder", "index.html"), "utf8")),
   "style: the site's CSS is the accent only, no font data; the pages load common.css by URL");
 
-/* the site's About page (its front page): the README's content as sections on the shared style and header, About first in the tabs, no redirect;
-   written once in web/site_about.py and kept in step with README.md here (every link of the README's Credits, its features, flavours and steps) */
+/* the site's About page (its front page): the user text, as sections on the shared style and header, About first in the tabs, no redirect;
+   written once in web/site_about.py. The README is for developers: it keeps the Credits, and every credit link of it is on the page too */
 const landing = execFileSync(process.env.PYTHON || "python3", ["-c", "import sys; sys.path.insert(0, 'web'); import make_site; print(make_site.landing_page())"], { cwd: join(HERE, ".."), encoding: "utf-8" });
 const readme = readFileSync(join(HERE, "..", "README.md"), "utf8");
 const readmeCredits = readme.slice(readme.indexOf("## Credits"), readme.indexOf("## Licence and contributing"));
@@ -260,8 +260,9 @@ ok(/<title>w0ts \/ Optimist<\/title>/.test(landing) && landing.includes('<a href
   && ["The web tools", "What is in it", "The flavours", "Your first install", "The app", "Credits", "Licence and contributing"].every((t) => landing.includes(`>${t}</h2>`)) && /<details class="sec"><summary><h3>The guide<\/h3>/.test(landing),
   "About page: w0ts / Optimist title bar on the shared style, About first and current, no redirect, no entry cards for the apps (the tabs link to them), the sections (features, flavours, first install, the app, credits, licence) with the guide and local build as folds");
 ok(creditUrls.length >= 15 && creditUrls.every((u) => pageCredits.includes(`href="${u}"`)) && ["isod89", "Hügelton", "Kerem Kilic", "Charles Vestal", "bonszaimusic", "GPL-3.0-only"].every((w) => landing.includes(w) && readme.includes(w))
-  && ["Four tracks", "Many synth engines", "SD card mode", "JANK mode", "Back up", "synths-2", "drum machine", "mots-config"].every((w) => landing.includes(w) && readme.includes(w)),
-  `About page and README agree: all ${creditUrls.length} credit links of the README are on the page, and its features, flavours and install steps are named in both`);
+  && ["Four tracks", "Many synth engines", "SD card mode", "JANK mode", "Back up", "synths-2", "drum machine", "mots-config"].every((w) => landing.includes(w))
+  && readme.includes("> ## [→ w0ts.github.io/optimist](https://w0ts.github.io/optimist/)") && !readme.includes("## Your first install"),
+  `About page and README agree: all ${creditUrls.length} credit links of the README are on the page; the features, flavours and install steps are on the page, and the README points to the site and keeps no user section`);
 
 /* the title bar's text stays selectable (the owner, 2026-11-21): no rule of a page's style turns user-select off on the page chrome
    (html, body, main, header, .titlebar, h1, nav, .site), and nothing over the h1 takes the pointer (the live selection is e2e_installer.mjs) */

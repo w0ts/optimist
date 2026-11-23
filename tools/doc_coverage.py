@@ -13,7 +13,7 @@ Sources, read from the tree (nothing is typed in twice):
     words a document has to carry before it counts as explained.
 
 A document is a *user* document when it is the builder reference (docs/BUILDER.md), the guides
-(docs/guide/*.md) or the README. A term found only in docs/UI-OPTIMIST-DESIGN.md is `design only`: written down for
+(docs/guide/*.md) or the site's About page (web/site_about.py; the README is for developers). A term found only in docs/UI-OPTIMIST-DESIGN.md is `design only`: written down for
 the developers, not yet explained for a user. Status: ok, design only, MISSING (exit status 1).
 """
 import re
@@ -21,7 +21,7 @@ import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-USER_DOCS = ["docs/BUILDER.md", "README.md"] + sorted(
+USER_DOCS = ["docs/BUILDER.md", "web/site_about.py"] + sorted(
     str(p.relative_to(ROOT)) for p in (ROOT / "docs" / "guide").glob("*.md"))
 DESIGN_DOCS = ["docs/UI-OPTIMIST-DESIGN.md"]
 

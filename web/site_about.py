@@ -1,9 +1,10 @@
 # SPDX-License-Identifier: GPL-3.0-only
-"""The site's About page (the front page, https://w0ts.github.io/optimist/): the README's content as web sections.
+"""The site's About page (the front page, https://w0ts.github.io/optimist/): the user text, as web sections.
 
-The text is written here once, as a template, and kept in step with README.md by a test (web/test_builder.mjs: every link of
-the README's Credits is on this page, and the README's features, flavours and install steps are named in it). The page
-claims only what README.md and the docs it points to say; the long reference blocks are folds (details.sec)."""
+The user text lives here, not in README.md: the README is for developers (build, credits, licence) and points to this page.
+A test (web/test_builder.mjs) checks every link of the README's Credits is on this page and the features, flavours and
+install steps are named here. The page claims only what the docs it points to say; the long reference blocks are folds
+(details.sec)."""
 
 GH = "https://github.com/w0ts/optimist"
 DOCS = GH + "/blob/main/docs/"
