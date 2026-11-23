@@ -8,7 +8,7 @@
 <p>A new project (power-on, PROJECT &gt; NEW) starts with T1 on ANALOG ACID 303, T2 on FM6 GLASS EP (the KEYS voice pack) and T3 on DIGITAL GLASS PAD. A build without the engine or the pack plays a fallback instead: T2 DIGITAL RHODES without FM6 or its KEYS pack, T1 the first engine built, T3 the lead of earlier versions (SAMPLE LOFI FLUTE, or ANALOG G-FUNK LD where the FLUTE set is left out).</p>
 <p>A synth track plays one engine at a time. PRESETS on a synth track loads another sound of the track's engine; SHIFT (OCT- held) + PRESETS (or the ENGINE card) steps the engine. Every engine is a builder item (<code>ENG_*</code>). A build without an engine plays a track that uses it on a stand-in engine and shows MISSING: DIGITAL stands in for FM6, PHASE for CZ and VPS, SAMPLE for GRAIN and SLICE, LOFI for SID, ANALOG for the others (BUILDER.md names each stand-in).</p>
 <p><strong>EDIT</strong> (tapped) opens the track's sound. Its first row, SOUND, has the ENGINE, PRESET, INIT and SAVE AS cards. Then <strong>MAIN</strong>: the four values that matter most for the engine (CUT and RES first where it has a filter; FM6 has LPF, RES and HPF). MAIN is there only when the engine has three pages of its own or more (ANALOG, for example). With one or two, EDIT opens on the first of them. Then the engine's own values on <strong>EDIT 1</strong> and <strong>EDIT 2</strong>, four cards each, with the page titles the engine gives them (ANALOG shows OSC and FLT, for example).</p>
-<div class="table"><table>
+<div class="table-wrap"><table>
 <thead>
 <tr>
 <th>Engine</th>
@@ -312,7 +312,7 @@ voices. Our own presets; not affiliated with Yamaha.</li>
 <div class="card" id="env-1-mod-four-depth-knobs-made-for-each-engine">
 <h3>ENV 1 MOD: four depth knobs made for each engine</h3>
 <p><strong>ENV 1 MOD</strong> (shown as <em>ENV mod</em>) has no destination pickers: its four knobs are fixed for the engine, each a depth from -64 to 63 (0: nothing), named after what it moves. FLT, SHP and PIT move the voice's filter, shape and pitch (PIT: up to about 31.5 semitones at full); the others move one of the engine's EDIT values for each voice as ENV runs. An engine whose EDIT values already shape its own envelope (ACID, CZ, FM6, PHASE's DCW) shows those values here too: turning them is turning the EDIT value.</p>
-<div class="table"><table>
+<div class="table-wrap"><table>
 <thead>
 <tr>
 <th>Engine</th>

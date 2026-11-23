@@ -35,14 +35,13 @@ PHOTO_TODO = "PHOTO-TODO"                          # (a placeholder's class: the
 def picture(name, width=None):
     """one of PICTURES, lazy, scaled to the column"""
     w = f' width="{width}"' if width else ""
-    frame = "border:1px solid #d8d8d8;" if name.startswith("jlc-") else ""     # (a screenshot reads as one)
-    return (f'<img src="{IMG}{name}" alt="{PICTURES[name]}"{w} loading="lazy" '
-            f'style="max-width:100%;height:auto;border-radius:6px;display:block;margin:.6em 0;{frame}">')
+    shot = ' class="shot"' if name.startswith("jlc-") else ""     # (a screenshot reads as one: framed, common.css img.shot)
+    return f'<img src="{IMG}{name}" alt="{PICTURES[name]}"{w}{shot} loading="lazy">'     # (sized and rounded by common.css)
 
 
 def photo_todo(what):
     """a photo still to come: a marked box with what it will show"""
-    return (f'<div class="msg {PHOTO_TODO}" style="border:2px dashed currentColor;padding:1.2em;margin:.6em 0;opacity:.7">'
+    return (f'<div class="msg {PHOTO_TODO}">'
             f'Photo to come: {what}</div>')
 
 
@@ -148,7 +147,7 @@ def sdcard_body():
     """the page's <main> content"""
     return "".join((
         f'<div class="wip" role="alert"><b>Work in progress</b>{WIP}</div>\n<section>\n<h2>The SD card board</h2>\n<p class="lead">{WHAT}</p>\n'
-        f'<p style="display:flex;gap:1em;flex-wrap:wrap">{picture("board-top.webp", 260)}{picture("board-bottom.webp", 260)}</p>\n<h3>What it brings to Optimist</h3>\n{BRINGS}\n</section>\n',
+        f'<p class="pics">{picture("board-top.webp", 260)}{picture("board-bottom.webp", 260)}</p>\n<h3>What it brings to Optimist</h3>\n{BRINGS}\n</section>\n',
         f'<section>\n<h2>What you need</h2>\n{NEED}\n<h3>The files</h3>\n{FILES}\n</section>\n',
         f'<section>\n<h2>Order it from JLCPCB</h2>\n<p>JLCPCB makes the board and solders every part on it.</p>\n{order_steps()}</section>\n',
         f'<section>\n<h2>Print the tray</h2>\n{TRAY}\n</section>\n',

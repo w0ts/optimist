@@ -113,12 +113,12 @@ def about_body(badges):
                   ("Builder", "start from a flavour or a configuration you saved, choose the engines, drum kits, effects and features with a live flash and RAM budget, and press <i>Build</i> (no GitHub account needed). The page follows the build, then offers <i>Flash it</i> and <i>Try it in the simulator</i>."),
                   ("Simulator", "the firmware running in your browser, with the FM-1's panel and its keyboard shortcuts: try a build before you install it. It can copy your FM-1's memory in, and write it back."),
                   ("Editor", "the <b>Backup</b> of your whole FM-1 in one file, the projects and presets librarian, and the FM-1's screen mirrored. A build with live editing (<code>ED_LIVE</code>, not in the four flavours) adds every sound, drum, effect and setting as knobs, the drum grid and the samples (with CHOP).")))
-    shots = "".join(f'<img src="assets/screens/{f}" alt="{a}" width="260" style="max-width:100%;height:auto" loading="lazy">' for f, a in zip(SCREENS, SCREEN_ALTS))
+    shots = "".join(f'<img src="assets/screens/{f}" alt="{a}" width="260" loading="lazy">' for f, a in zip(SCREENS, SCREEN_ALTS))
     mirror = ("The app: the FM-1's screen and panel on your iPhone, iPad or Mac, over USB or Bluetooth, and firmware installs.")
     return "".join((
         f'<section>\n<h2>What Optimist is</h2>\n<p class="lead">{WHAT}</p>\n<p class="msg warn">{WARNING}</p>\n</section>\n',
         '<section>\n<h2>The web tools</h2>\n<p>', TOOLS, '</p>\n', apps, '\n</section>\n',
-        f'<section>\n<h2>What is in it</h2>\n{FEATURES}\n<p class="shots">{shots}</p>\n</section>\n',
+        f'<section>\n<h2>What is in it</h2>\n{FEATURES}\n<p class="pics">{shots}</p>\n</section>\n',
         '<section>\n<h2>The flavours</h2>\n', FLAVOURS, '\n</section>\n',
         '<section>\n<h2>Your first install</h2>\n', FIRST_INSTALL, '\n</section>\n',
         f'<section>\n<h2>The app</h2>\n<p>{mirror}</p><p>{badges}</p>\n</section>\n',

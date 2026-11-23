@@ -23,10 +23,7 @@ TOPICS = (
     ("getting-back", "Getting back", "to the official firmware, and what to do when the FM-1 does not start"),
 )
 
-STYLE = """main > section h2 { margin-top: 0; }
-main ul, main ol { margin: 8px 0; padding-left: 22px; } main li { margin: 4px 0; }
-.table { overflow-x: auto; margin: 8px 0; } .table table { min-width: 480px; }
-nav.guide { display: flex; flex-wrap: wrap; gap: 6px 14px; font-size: 14px; margin: 0 0 var(--sp-3); }
+STYLE = """nav.guide { display: flex; flex-wrap: wrap; gap: 6px 14px; font-size: 14px; margin: 0 0 var(--sp-3); }
 nav.guide a { color: var(--accent-text); text-decoration: none; } nav.guide a:hover { text-decoration: underline; }
 nav.guide a[aria-current="page"] { color: var(--ink); font-weight: 600; text-decoration: underline; text-underline-offset: 3px; }
 """
