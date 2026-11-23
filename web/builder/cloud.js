@@ -86,7 +86,7 @@ export function mountCloud({ S, $, el, toast, opts }) {
     box.hidden = !w;
     if (!w) { box.replaceChildren(); return; }
     const at = w.stage === "ready" ? 2 : w.stage === "building" || w.stage === "done" ? 1 : 0, bad = FAILED.includes(w.stage);
-    const steps = el("ol", { class: "steps" }, STEPS.map(([, t], i) => el("li", { "data-st": bad && i === at ? "fail" : i < at || w.stage === "ready" ? "done" : i === at ? "on" : "wait", text: t })));
+    const steps = el("ol", { class: "steps phases" }, STEPS.map(([, t], i) => el("li", { "data-st": bad && i === at ? "fail" : i < at || w.stage === "ready" ? "done" : i === at ? "on" : "wait", text: t })));
     const gh = w.url ? link(w.url, "on GitHub") : null, log = w.run ? link(w.run, "the log") : null;
     const say = {
       queued: ["Sent: GitHub starts it in a moment. ", gh],
@@ -96,8 +96,8 @@ export function mountCloud({ S, $, el, toast, opts }) {
         el("button", { type: "button", class: "primary", text: "Flash it", onclick: () => go("install", w.id) }), " ",
         b && b.sim ? el("button", { type: "button", text: "Try it in the simulator", onclick: () => go("sim", w.id) }) : el("span", { class: "dim", text: "(no simulator for this build) " }),
         " ", gh],
-      refused: ["Refused: ", gh, el("pre", { class: "why", text: w.reason || "" })],
-      failed: ["The build failed: ", log || gh, el("pre", { class: "why", text: w.reason || "" })],
+      refused: ["Refused: ", gh, el("pre", { class: "why log", text: w.reason || "" })],
+      failed: ["The build failed: ", log || gh, el("pre", { class: "why log", text: w.reason || "" })],
       error: ["The build could not run (not your configuration): ", log || gh],
       lost: ["This build is no longer followed here: ", gh],
     }[w.stage || "queued"] || [];

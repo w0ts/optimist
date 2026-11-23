@@ -18,7 +18,7 @@
 .oi-steps { margin: 0; padding: 0; display: grid; gap: var(--sp-4); }
 .oi-step .card-head { justify-content: flex-start; }
 .oi-h { display: flex; align-items: center; gap: var(--sp-2); }
-.oi-row { display: flex; flex-wrap: wrap; align-items: center; gap: var(--sp-2) var(--sp-3); margin: 0 0 var(--sp-3); }
+.oi-row { margin: 0 0 var(--sp-3); }   /* (a .row of common.css: the flex row; here only the space under it) */
 .oi-row:last-child { margin-bottom: 0; }
 .oi-row > p { margin: 0; }
 
@@ -44,10 +44,7 @@
 .oi-relpick .oi-desc { flex-basis: 100%; }
 .oi-own .card-body > p { margin: 0 0 var(--sp-2); }
 .oi-radio { margin: 3px 0 0; width: 16px; height: 16px; accent-color: var(--accent); cursor: pointer; }
-.oi-file { max-width: 100%; font: inherit; color: var(--dim); }
-.oi-file::file-selector-button { font: inherit; color: var(--ink); background: var(--off); border: 0; border-radius: var(--r); padding: 4px 12px;
-                                 margin-right: var(--sp-2); cursor: pointer; }
-.oi-file::file-selector-button:hover { background: var(--line); }
+.oi-file { max-width: 100%; }   /* (its button is common.css's input[type=file]; kept inside the choice's narrow column on a phone) */
 .oi-pkg { overflow-wrap: anywhere; }
 /* the release the flavours below come from (a picker when the site has several) */
 .oi-relrow { display: flex; flex-wrap: wrap; align-items: baseline; gap: var(--sp-2); padding: var(--sp-2) var(--sp-3); background: var(--panel); }
@@ -68,17 +65,9 @@
 .oi-cmeta { font-variant-numeric: tabular-nums; }
 .oi-cacts { margin-left: auto; display: flex; gap: var(--sp-2); align-items: baseline; }
 
-/* 3 Install: the button, the four phases, the bar, the result */
+/* 3 Install: the button, the four phases (common.css ol.phases), the bar (common.css progress), the result */
 .oi-go { width: 100%; margin: 0 0 var(--sp-3); }
 .oi .oi-go:disabled { background: var(--off); border-color: var(--off); color: var(--dim); }   /* (plainly off: nothing to install yet, or writing) */
-.oi-phases { list-style: none; margin: 0 0 var(--sp-2); padding: 0; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: var(--sp-2); counter-reset: oi-ph; }
-.oi-phases li { counter-increment: oi-ph; color: var(--dim); padding-top: var(--sp-1); border-top: 3px solid var(--line); min-width: 0; overflow-wrap: anywhere; }
-.oi-phases li::before { content: counter(oi-ph) " "; color: var(--dim); }
-.oi-phases li[data-st="on"] { color: var(--ink); border-top-color: var(--accent); }
-.oi-phases li[data-st="done"] { color: var(--ink); border-top-color: var(--accent-text); }
-.oi-phases li[data-st="done"]::before { content: "✓ "; color: var(--accent-text); }
-.oi-phases li[data-st="fail"] { color: var(--err); border-top-color: var(--err); }
-.oi-phases li[data-st="fail"]::before { content: "✗ "; color: var(--err); }
 .oi-bar { margin: 0 0 var(--sp-2); }
 .oi-status { min-height: 20px; font-variant-numeric: tabular-nums; }
 .oi-err, .oi-ok { margin: 0 0 var(--sp-3); align-items: center; flex-wrap: wrap; }
@@ -100,8 +89,6 @@
 .oi-bootopt label { display: block; }
 .oi-how { margin: 0 0 var(--sp-2); font-size: var(--fs-1); }
 .oi-logbox { margin-top: var(--sp-3); }
-.oi-log { margin: 0; max-height: 180px; overflow: auto; white-space: pre-wrap; overflow-wrap: anywhere; color: var(--dim); font-family: var(--font-mono); font-size: var(--fs-1); }
-.oi-log:empty::before { content: "—"; }
 
 /* When something goes wrong: folded under the cards */
 .oi-rescuebox { border: 1px solid var(--line); padding: var(--sp-2) var(--sp-3); background: var(--panel); }
@@ -122,9 +109,6 @@
 .oi-ask::backdrop { background: color-mix(in srgb, var(--bg) 70%, transparent); }
 .oi-ask .oi-row { margin-top: var(--sp-3); }
 
-@media (max-width: 520px) {
-  .oi-phases { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  .oi-row > button { flex: 1 1 auto; }
-}
+@media (max-width: 520px) { .oi-row > button { flex: 1 1 auto; } }
 @media (pointer: coarse) { .oi-radio { width: 22px; height: 22px; } }
 .oi-step { --c: var(--line); }   /* (the card head's underline: neutral, no track colour) */

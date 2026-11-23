@@ -397,7 +397,7 @@ export function mountInstaller(container, opts = {}) {
   el.pick = h("div.oi-ports.oi-pick", { hidden: true }, el.pickList);
   el.ports = h("div.oi-ports", { hidden: true }, h("p.dim", {}, TEXT.portsHead), el.portsList, el.portsMsg);
   /* (the FM-1 found, under the Install button: the Mirror app's footer) */
-  const connectBox = h("div.oi-conn", {}, el.browser, h("div.oi-row", {}, el.found, el.find), el.pick, h("p.dim.oi-how", {}, TEXT.connectHow), el.help, el.ports);
+  const connectBox = h("div.oi-conn", {}, el.browser, h("div.oi-row.row", {}, el.found, el.find), el.pick, h("p.dim.oi-how", {}, TEXT.connectHow), el.help, el.ports);
 
   /* ---- 2 Choose */
   /* a release: its version, then its flavour (two menus in one row, as the Mirror app); st.choice is the package's index */
@@ -442,13 +442,13 @@ export function mountInstaller(container, opts = {}) {
   el.bootRow = h("div.oi-bootrow", {}, el.bootLine, el.bootOpt);
   el.soft = h("button.quiet.sm.oi-softkey", { type: "button", hidden: true, onclick: () => sendSoftKey() }, TEXT.softKey);
   el.go = h("button.big.oi-go", { type: "button", disabled: true, onclick: () => install() }, TEXT.install);
-  el.phases = h("ol.oi-phases", {}, TEXT.phases.map((t) => h("li", { "data-st": "wait" }, t)));
+  el.phases = h("ol.oi-phases.phases", {}, TEXT.phases.map((t) => h("li", { "data-st": "wait" }, t)));
   el.bar = h("progress.oi-bar", { max: "100", value: "0", "aria-label": TEXT.s3 });
   el.status = h("p.oi-status", { role: "status", "aria-live": "polite" });
   el.err = h("p.msg.err.oi-err", { role: "alert", hidden: true });
   el.dropMsg = h("p.oi-dropmsg", {}, TEXT.dropped);
   el.dropCancel = h("button.quiet.oi-dropcancel", { type: "button", onclick: () => { st.dropCancel = true; el.dropCancel.disabled = true; } }, TEXT.dropCancel);
-  el.drop = h("div.msg.warn.oi-drop", { role: "alert", hidden: true }, el.dropMsg, h("div.oi-row", {}, el.dropCancel));
+  el.drop = h("div.msg.warn.oi-drop", { role: "alert", hidden: true }, el.dropMsg, h("div.oi-row.row", {}, el.dropCancel));
   el.ok = h("div.msg.ok.oi-ok", { hidden: true });
   /* Wi-Fi after the install: shown only when the installed build answers 112 WIFI; the password stays in the field until sent */
   el.wfName = h("input.oi-wfname", { type: "text", autocomplete: "off", autocapitalize: "off", spellcheck: "false", "aria-label": TEXT.wifiSsid, placeholder: TEXT.wifiSsid, maxlength: 32 });
@@ -457,8 +457,8 @@ export function mountInstaller(container, opts = {}) {
   el.wfGo = h("button.quiet.sm.oi-wfgo", { type: "button", onclick: () => wifiJoin() }, TEXT.wifiJoin);
   el.wfMsg = h("p.oi-wfmsg", { role: "status" });
   el.wifi = h("div.msg.oi-wifi", { hidden: true }, h("strong", {}, TEXT.wifiTitle), h("p.dim", {}, TEXT.wifiWhy),
-    h("div.oi-row", {}, el.wfName, el.wfPass, h("label", { for: "oi-wfshow" }, el.wfShow, " ", TEXT.wifiShow), el.wfGo), el.wfMsg);
-  el.log = h("pre.oi-log");
+    h("div.oi-row.row", {}, el.wfName, el.wfPass, h("label", { for: "oi-wfshow" }, el.wfShow, " ", TEXT.wifiShow), el.wfGo), el.wfMsg);
+  el.log = h("pre.oi-log.log");
   el.stockWarn = h("p.msg.warn", { hidden: true }, TEXT.stockNote);
   /* Install: what to write (an official release's version and flavour, your build, a .fwsc file), then the button, its
      progress and the FM-1 found, together in one card (the Mirror app's Firmware tab, the user 2026-10-25) */
@@ -726,7 +726,7 @@ export function mountInstaller(container, opts = {}) {
         h("h3", { id: "oi-ask-h" }, TEXT.askTitle),
         h("p", {}, stock ? TEXT.askBodyStock : TEXT.askBody),
         warn.line ? h("p.msg.warn.oi-layout", {}, warn.line) : null,
-        h("div.oi-row", {},
+        h("div.oi-row.row", {},
           h("button", { type: "button", onclick: () => close("go") }, TEXT.askGo),
           h("button.quiet", { type: "button", onclick: () => close("backup") }, TEXT.askBackup),
           h("button.quiet", { type: "button", onclick: () => close("cancel") }, TEXT.askCancel)));
