@@ -950,9 +950,9 @@ def main():
 def release_product(release):
     """--release X.Y[-suffix] -> its identity FM-1_7(X+2)Y: 0.1 -> FM-1_721 .. 4.9 -> FM-1_769 (BUILDING.md
     "Package identity": 701, 710, 711, 777 are other firmwares'); SystemExit for anything else"""
-    m = re.fullmatch(r"(\d)\.(\d)(-[A-Za-z0-9]+)?", release)     # one digit each: the identity has room for two
+    m = re.fullmatch(r"(\d)\.(\d)(\.\d)?(-[A-Za-z0-9]+)?", release)     # one digit each: the identity has room for two (a patch release X.Y.Z has the identity of X.Y)
     if not m or int(m[1]) > 4:
-        raise SystemExit(f"--release {release}: use X.Y or X.Y-suffix, one digit each, X at most 4 "
+        raise SystemExit(f"--release {release}: use X.Y, X.Y.Z or a -suffix, one digit each, X at most 4 "
                          "(the identity block FM-1_720 .. FM-1_769)")
     return f"FM-1_7{int(m[1]) + 2}{m[2]}"
 
