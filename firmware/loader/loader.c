@@ -73,7 +73,7 @@ static void ldr_record_clear(void)
 {
     fm1_updata_parm_clear();                        /* CRC 0: the SPL ignores it on a warm reset */
 }
-static int ldr_flash_known(void) { return fl_jedec_ram() == 0x856014u; }   /* as the app (project.c) */
+static int ldr_flash_known(void) { return FL_JEDEC_OK(fl_jedec_ram()); }   /* as the app (project.c) */
 
 /* A progress bar so the panel is not dark while the app area is rewritten. No panel init or reset: the ST7789
  * keeps its picture (the app's UPDATE screen) over the core reset, only the pins and the backlight (PA2) fall

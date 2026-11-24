@@ -28,6 +28,7 @@ typedef struct { uint32_t sfc_con, spi_con; } fl_saved_t;
 
 RAMINL void fl_inval(uint32_t off, uint32_t len) { (void)off; (void)len; }
 
+#define FL_JEDEC_OK(id) ((id) == 0x856014u || (id) == 0xB36014u)   /* (hal/fm1_flash.h's) */
 static RAMFN uint32_t fl_jedec_ram(void) { return 0x856014u; }   /* P25Q80H, as the FM-1's */
 static RAMFN uint32_t fl_status_ram(void) { return 0; }
 
