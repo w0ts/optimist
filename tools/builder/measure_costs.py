@@ -159,6 +159,7 @@ WITH = {("REV_ROOM", 0): {"REV_PLATE": 1},
 # Wi-Fi needs BLE's radio driver and the console (core.validate): measured beside them, less their own deltas (2026-10-28)
 WITH[("WIFI_LINK", 1)] = {"BLE": 1, "USB_CONSOLE": 1}
 WITH[("WIFI_AP", 1)] = {"BLE": 1, "USB_CONSOLE": 1}   # (and its parent WIFI_LINK, whose delta is taken off too)
+WITH[("USB_NET", 1)] = {"BLE": 1, "USB_CONSOLE": 1}   # (the USB network: under WIFI_LINK too; the classic refuses it itself)
 # an item the firmware switches off without the automation store (configure.py NEEDS_AUTO; DRUM_ACCENT was one, 0 B on
 # the defaults, +148 B of flash with the store, until it was retired 2026-10-20): measured with MOTION on, and counted only where the store is built
 for _k in C.NEEDS_AUTO:
