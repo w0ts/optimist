@@ -18,7 +18,7 @@
  * not in a 2.4 export), bits 27..28 2ND CORE (FELUCCA_DUAL, system/dual_mode.h: 0 AUTO, 1 OFF; a record without them
  * reads AUTO, the default), bit 29 MIDI OUT's keys not sent (MOUT_SEQ, with bit 14; 0 with bit 14 = BOTH, 2.4's SEQ; with bit 14 clear: OFF, MOUT_OFF, 2026-10-29; not in a
  * 2.4 export), bit 30 SYNC BLE (SYNC_BLE, past bits 11..12's four: those then read AUTO, so a build before it follows AUTO;
- * not in a 2.4 export), bit 31 free (SYNC LINK is the record's sync_sel, project.c persist_ext_load: 11..12 hold AUTO for it, so a build without Link or from before follows AUTO); a build without a switch keeps its bit as read */
+ * not in a 2.4 export), bit 31 USB NETWORK (the release's SYSTEM > USB NETWORK, ui/opt_unet.h, 2026-11-25; 1 = ON, so a record without it reads OFF; it held SYNC LINK for 2.5 hours on 2026-10-29, in no release) (SYNC LINK is the record's sync_sel, project.c persist_ext_load: 11..12 hold AUTO for it, so a build without Link or from before follows AUTO); a build without a switch keeps its bit as read */
 #ifndef SETTINGS_BLE_ON_BIT
 #define SETTINGS_BLE_ON_BIT 24u                    /* BLUETOOTH ON (FELUCCA_BLE): the one place to change it */
 #endif
@@ -49,6 +49,9 @@ static uint32_t bp23_word(void)
 #if FELUCCA_DUAL
     w = dual_mode_out(w, dual_mode);                                   /* 2ND CORE (system/dual_mode.h) */
 #endif
+#ifdef OPT_HAS_UNET
+    w = (w & ~(1u << 31)) | (uint32_t)(unet_keep != 0u) << 31;         /* USB NETWORK (the release's ui/opt_unet.h) */
+#endif
     return w;
 }
 static void bp23_from_word(uint32_t w)
@@ -73,6 +76,9 @@ static void bp23_from_word(uint32_t w)
 #endif
 #if FELUCCA_DUAL
     dual_mode = DUALM_AUTO;                           /* (the Optimist UI has no 2ND CORE line: always on, a stored OFF from before is dropped) */
+#endif
+#ifdef OPT_HAS_UNET
+    unet_keep = (uint8_t)((w >> 31) & 1u);            /* (a word without the bit: OFF; ui/opt_unet.h unet_boot applies it) */
 #endif
     sync_boot = (uint8_t)((w >> 30) & 1u && GP[G_SYNC].max >= SYNC_BLE ? SYNC_BLE : ((w >> 11) & 3u) ^ SYNC_AUTO);   /* (no BLE: AUTO) */
     song.g[G_SYNC] = sync_boot;

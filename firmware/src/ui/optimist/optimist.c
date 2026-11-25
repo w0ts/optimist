@@ -52,6 +52,12 @@
 #else
 #define USBH_UI 0
 #endif
+#if defined(FELUCCA_USB_NET) && FELUCCA_USB_NET && defined(OPT_HAS_UNET)   /* (the release: fm1-base's USB network, the
+                                         * trial's ui/opt_unet.h defines OPT_HAS_UNET; Optimist's own firmware has none) */
+#define UNET_UI 1                       /* SYSTEM > USB: NETWORK (where it shares endpoints), STATE (op_project.c, unet_*) */
+#else
+#define UNET_UI 0
+#endif
 #include "../colors.c"                  /* the colour language (engine, kit kind; the web editor's too) */
 #ifndef OPT_SPEAK
 #define OPT_SPEAK 0                                     /* the screen in words for a screen reader (op_speak.c; ui/opt_ui.c sets it) */

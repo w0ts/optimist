@@ -433,6 +433,7 @@ enum { SI_NONE, SI_TUNE, SI_RECQ, SI_PUNCH, SI_OUT, SI_SYNC, SI_CH1, SI_CH2,
        SI_BTSTAT,                                       /* SYSTEM > BT STATS: the Bluetooth audio stream's counters (SYS_DEBUG) */
        SI_TOP,                                          /* SYSTEM > TOP: what takes the CPU and the RAM (SYS_TOP: op_top.c) */
        SI_SELCH,                                        /* GLOBAL > CHANNELS: SEL CH, the channel that plays the selected track */
+       SI_UNET, SI_UNST,                                /* SYSTEM > USB (USB_NET, the release): NETWORK OFF / ON, STATE */
        SI_UAS0 };                                       /* SI_UAS0 + s: USB AUDIO's line of source s (ua_tap.h UAS_*), last */
 /* a core's load number (% of the audio budget) in its colour: green under 60, amber 60..85, red over 85 (the predictive guard's
  * ceiling, system/cpuguard.c CG_CEIL = 85 %: above it the guard sheds quality / voices); INFO's bars and ticks the same. */
@@ -529,10 +530,12 @@ static const struct { const char *name; uint8_t it[4]; } SYS[] = {
 #if WIFI_UI
     {"WI-FI", {SI_WFMODE, SI_WFNET, SI_WFSIG, SI_WFST}},   /* the same pattern as the Bluetooth pages (the user, 2026-10-27: "it should be very similar") */
 #endif
-#if USBH_UI
-    {"USB", {SI_UHMODE, SI_UHDEV, SI_NONE, SI_NONE}},   /* the port as a MIDI host or the computer's device (USB_HOST: the trial's
+#if USBH_UI || UNET_UI
+    {"USB", {USBH_UI ? SI_UHMODE : SI_UNET, USBH_UI ? SI_UHDEV : SI_UNST, SI_IF(USBH_UI && UNET_UI, SI_UNET),
+             SI_IF(USBH_UI && UNET_UI, SI_UNST)}},       /* the port as a MIDI host or the computer's device (USB_HOST: the trial's
                                                          * ui/opt_usbh.h on fm1-base's): with the connections, after WI-FI (the
-                                                         * user, 2026-11-09; after METERS 2026-11-03 .. 11-09) */
+                                                         * user, 2026-11-09; after METERS 2026-11-03 .. 11-09); the network
+                                                         * adapter's rows after them (USB_NET: ui/opt_unet.h, 2026-11-25) */
 #endif
 #if FELUCCA_SD_UI
     {"SD CARD", {SI_SDCARD, SI_SDINDEX, SI_SDCLOCK, SI_IF(FELUCCA_SD_STREAM, SI_SDRING)}},   /* (the card's state, the sample index again, the clock the
@@ -877,6 +880,26 @@ static void sys_it_cell(uint32_t it, cell_t *c)     /* the cell of setting it */
         cell_val(c, usbh_device(&ok));
         c->big = str_len(c->val) <= 9u;
         c->col = ok ? C_OK : str_eq(c->val, "NO MIDI") || str_eq(c->val, "LOW SPEED") ? C_WARN : 0;
+        break;
+    }
+#endif
+#if UNET_UI
+    case SI_UNET:                                       /* the network adapter on the computer: a choice only where it takes the
+                                                         * USB audio output's or the console's place, else always there */
+        c->label = "NETWORK";
+        cell_val(c, unet_on() ? "ON" : "OFF");
+        if (!unet_shared())
+            c->kind = CK_RO;
+        c->big = 1;
+        c->col = 0;
+        break;
+    case SI_UNST: {                                     /* OFF, WAITING, the FM-1's address on the cable, WI-FI (another mode) */
+        uint32_t ok;
+        c->kind = CK_RO;
+        c->label = "STATE";
+        cell_val(c, unet_state(&ok));
+        c->big = str_len(c->val) <= 9u;
+        c->col = ok ? C_OK : str_eq(c->val, "WI-FI") ? C_WARN : 0;
         break;
     }
 #endif
@@ -1642,6 +1665,14 @@ static void sys_set(uint32_t it, int32_t s)
         usbh_set((uint32_t)sys_step((int32_t)usbh_mode(), s, 1));
         return;
 #endif
+#if UNET_UI
+    case SI_UNET:                                       /* OFF / ON, YES round; kept in the settings word (bit 31, settings_word.c):
+                                                         * the FM-1 leaves USB and comes back with the other function */
+        if (!unet_shared())
+            return;
+        unet_set((uint32_t)sys_step((int32_t)unet_on(), s, 1));
+        break;
+#endif
     case SI_KCOL:                                       /* (kept in the settings word: settings_word.c) */
         knob_colors = (uint8_t)sys_step(knob_colors, s, 1);
         ui.redraw = 1;                                   /* (every band's colours move: the bands again over themselves, no black fill) */
@@ -1710,6 +1741,14 @@ static int sys_factory(uint32_t it)
 #if USBH_UI
     case SI_UHMODE:
         usbh_set(0);                                    /* (DEVICE: the computer again) */
+        return 1;
+#endif
+#if UNET_UI
+    case SI_UNET:
+        if (unet_shared() && unet_keep) {
+            unet_set(0);                                /* (OFF: the USB audio output or the console again) */
+            sys_dirty = 1;                              /* (kept: settings word bit 31) */
+        }
         return 1;
 #endif
     case SI_HPBASS:
@@ -1830,6 +1869,12 @@ static int sys_yes(uint32_t r, uint32_t k, uint32_t ok)
 #endif
 #if USBH_UI
     if (it == SI_UHMODE) {                              /* MODE: DEVICE / HOST round */
+        sys_set(it, 0);
+        return 1;
+    }
+#endif
+#if UNET_UI
+    if (it == SI_UNET && unet_shared()) {               /* NETWORK: OFF / ON round */
         sys_set(it, 0);
         return 1;
     }

@@ -480,6 +480,9 @@ def validate(cfg):
     if built(cfg, "USB_HOST") and CLASSIC_HOOK():
         err.append(Issue("the USB MIDI host is the release's (fm1-base's USB host): Optimist's own firmware has none "
                          "(USB_HOST off, or build the release)", ["USB_HOST"]))
+    if built(cfg, "USB_NET") and CLASSIC_HOOK():
+        err.append(Issue("the USB network is the release's (fm1-base's): Optimist's own firmware has none (USB_NET off, "
+                         "or build the release)", ["USB_NET"]))
     if cfg["USB_AUDIO"]:
         warn.append(Issue("USB audio: EXPERIMENTAL, its audio quality on the FM-1 not checked yet (+12 KB pool)",
                           ["USB_AUDIO"]))
