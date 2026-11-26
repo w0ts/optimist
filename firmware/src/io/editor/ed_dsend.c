@@ -1,6 +1,6 @@
 /* SPDX-License-Identifier: GPL-3.0-only */
 /* Editor protocol, version 2 of the drum lane and user kit commands: the lanes with their sends (included by
- * ed_drums.c; web/EDITOR_PROTOCOL.md "Drum lanes and user kits"). Each v2 form is one an older firmware does
+ * ed_drums.c; site/EDITOR_PROTOCOL.md "Drum lanes and user kits"). Each v2 form is one an older firmware does
  * not answer (36: no reply to the lone version byte; 37, 39: lane / slot >= 16, no reply; 40: rc 1), so an
  * editor asks 36 v2 first and keeps to version 1 without a reply. Sends per lane, 3 bytes: REV, DLY, CHO (0..31;
  * REV is signed: -1 was TRK, the drum track's REV, until 2026-10: never sent now, read as 4, a lane as it is).

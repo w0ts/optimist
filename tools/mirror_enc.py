@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: GPL-3.0-only
-"""The screen mirrored: the device's encoder in Python (firmware/src/io/editor/ed_mirror_enc.h; web/EDITOR_PROTOCOL.md "The screen
+"""The screen mirrored: the device's encoder in Python (firmware/src/io/editor/ed_mirror_enc.h; site/EDITOR_PROTOCOL.md "The screen
 mirrored"), plain frames (ops 0..2), byte for byte the firmware's: runs, bitmaps, the pixels above and, asked for (aa=True,
 opti_miraa_1), the AA token. tests/mirror_aa_test.py checks it against the firmware's own stream; tools/fm1_mirror.py decodes.
   Encoder(aa).fill(x, y, w, h, colour) / .blit(x, y, w, h, pixels) -> the frames (F0 .. F7 each) as bytes; pixels RGB565, row

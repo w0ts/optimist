@@ -1,5 +1,5 @@
 /* SPDX-License-Identifier: GPL-3.0-only */
-/* Editor protocol v14: a step in the context of a track and a drum lane (included by editor.c; web/EDITOR_PROTOCOL.md "Step lanes"). INFO tag 0x62.
+/* Editor protocol v14: a step in the context of a track and a drum lane (included by editor.c; site/EDITOR_PROTOCOL.md "Step lanes"). INFO tag 0x62.
  * The Optimist UI's held step, for the editor: the lane's level and ratchet, the step's extras (chance, condition, nudge, fill) as the one automation
  * store keeps them (seq/auto.c), and the device's own list of lockable values for the track and lane with the locks and hold events on the step. The
  * list is the Optimist UI's lock pages (op_step.c lock_pg_ok / hp_locks / lock_param, with the track and the lane set as the held step has them), or,

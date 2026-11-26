@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-only
-// A project as a file (.fm1proj; the web editor's web/sim/bk.js packProject / editor.html pjfPack write and read the same bytes):
+// A project as a file (.fm1proj; the web editor's site/sim/bk.js packProject / editor.html pjfPack write and read the same bytes):
 // "FM1P", format version u8 (1), slot u8 (0-based, where it came from), the firmware family (4 ASCII: BK_LIST's magic, "FUNB"),
 // the name (12 ASCII, 0-padded), the stream's length u32 LE, the stream (the PJnn object as the device gives it), the CRC-32 of
 // all of it before, u32 LE.

@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: GPL-3.0-only */
 /* editor.c: the commands 86..107 (v10..v14) whose op only reads. A write asks for ui.force (the screen cleared to black and drawn
  * again); a read changes nothing, and the editor reads often (UNDO, SOLO, the FX popups, the Device screens): with ui.force for
- * them the panel flashed while the editor was open. The numbers are the protocol's (web/EDITOR_PROTOCOL.md); bit n of a mask:
+ * them the panel flashed while the editor was open. The numbers are the protocol's (site/EDITOR_PROTOCOL.md); bit n of a mask:
  * op n reads. Included by editor.c and tests/editor_v14.h. */
 static int ed_reads(uint32_t cmd, const uint8_t *a, uint32_t na)
 {

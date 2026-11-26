@@ -4,7 +4,7 @@ These files are fm1-base's own web pages, copied unchanged (MPL-2.0, their heade
 `LICENSE-MPL-2.0`). The rest of this app is GPL-3.0-only: the two licences stay apart, file by file.
 
 Origin: the fork's branch `up-fm1base` (upstream fm-1-base main 02f422c7 merged into our line), commit `59d0559`, the `web/` folder
-(2026-11-02; `fm1ports.js` is ours with a Bluetooth-port exclusion, see `web/fm1base/README.md`):
+(2026-11-02; `fm1ports.js` is ours with a Bluetooth-port exclusion, see `site/fm1base/README.md`):
 
 | Here | fm1-base | last commit touching it |
 | --- | --- | --- |

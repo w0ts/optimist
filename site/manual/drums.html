@@ -1,0 +1,214 @@
+<!-- SPDX-License-Identifier: GPL-3.0-only -->
+<!-- Drums: lanes, kits, your samples and kits: a page of the user manual (site/site_manual.py wraps it). -->
+<section>
+<p>The drum track (DR) has <strong>10 lanes</strong>. Each lane plays one instrument, and each has its own sound values, inserts, LFOs and sends. The <strong>black keys</strong> F#3 to D#5 are the 10 lanes: a lane key plays the lane and picks it. The 16 white keys are the steps of the picked lane. F#5, the last upper key, is the ACCENT lane (<a href="sequencer.html#the-drum-accent-lane">the sequencer</a>). Gestures: <a href="shortcuts.html">the Shortcuts page</a>.</p>
+<p>A lane plays any of 18 instruments, set with INSTR on the drum track's SOUND row (card 3): KICK, KICK 2, SNARE, CLAP, CLOSED HAT, OPEN HAT, PEDAL HAT, RIM, SNARE 2, LOW TOM, HI TOM, CRASH, RIDE, SHAKER, CONGA, COWBELL, MID TOM, CLAVE. A new project's lanes are KICK, SNARE, CLAP, CLOSED HAT, OPEN HAT, LOW TOM, HI TOM, RIM, CRASH, RIDE. The lane is named after its instrument. The closed and pedal hats choke the open one.</p>
+<p>Every hit has one of four levels, <strong>GHOST</strong>, <strong>SOFT</strong>, <strong>NORM</strong> and <strong>HARD</strong>, and can repeat x1 to x4 inside its step (a ratchet). MIDI notes on the drum channel (10 by default) play the lane whose instrument that General MIDI note is, else a lane of the same family (kick, snare and clap, hats, toms, cymbals, percussion). The steps, levels, chance, locks and the ACCENT lane are in <a href="sequencer.html">the sequencer</a>.</p>
+</section>
+<section id="the-kits">
+<h2>The kits</h2>
+<p>Up to 37 kits, then the X0X kits and KAWA and PLAITS below (the builder can leave kits out), picked with <strong>PRESETS</strong> on DR (or in the web editor). They set what the lanes play. 1 to 5 are a sampled acoustic kit (CC0 studio recordings) and four treatments of it; they share one sample set, so they are one builder choice (<code>DRUM_SAMPLED</code>). 6 to 37 are synthesised and cost almost no memory: each sound is a tuned body with a pitch drop, a second partial, a click, filtered noise and drive, and every kit is level-matched.</p>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>#</th>
+<th>Kit</th>
+<th>#</th>
+<th>Kit</th>
+<th>#</th>
+<th>Kit</th>
+<th>#</th>
+<th>Kit</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>1</td>
+<td>ACOUSTIC</td>
+<td>11</td>
+<td>TRAP</td>
+<td>21</td>
+<td>DISCO</td>
+<td>31</td>
+<td>CHIP</td>
+</tr>
+<tr>
+<td>2</td>
+<td>DEEP</td>
+<td>12</td>
+<td>DRILL</td>
+<td>22</td>
+<td>GARAGE</td>
+<td>32</td>
+<td>ARCADE</td>
+</tr>
+<tr>
+<td>3</td>
+<td>TIGHT</td>
+<td>13</td>
+<td>BOOMBAP</td>
+<td>23</td>
+<td>JUNGLE</td>
+<td>33</td>
+<td>GLITCH</td>
+</tr>
+<tr>
+<td>4</td>
+<td>BRIGHT</td>
+<td>14</td>
+<td>LO-FI</td>
+<td>24</td>
+<td>DUBSTEP</td>
+<td>34</td>
+<td>INDUSTR</td>
+</tr>
+<tr>
+<td>5</td>
+<td>DUST</td>
+<td>15</td>
+<td>PHONK</td>
+<td>25</td>
+<td>DEMBOW</td>
+<td>35</td>
+<td>HYPER</td>
+</tr>
+<tr>
+<td>6</td>
+<td>808</td>
+<td>16</td>
+<td>HOUSE</td>
+<td>26</td>
+<td>AMAPIANO</td>
+<td>36</td>
+<td>AMBIENT</td>
+</tr>
+<tr>
+<td>7</td>
+<td>909</td>
+<td>17</td>
+<td>D.HOUSE</td>
+<td>27</td>
+<td>AFRO</td>
+<td>37</td>
+<td>JAZZ</td>
+</tr>
+<tr>
+<td>8</td>
+<td>606</td>
+<td>18</td>
+<td>TECHNO</td>
+<td>28</td>
+<td>LATIN</td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td>9</td>
+<td>80S</td>
+<td>19</td>
+<td>MINIMAL</td>
+<td>29</td>
+<td>TRIBAL</td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td>10</td>
+<td>VINTAGE</td>
+<td>20</td>
+<td>ELECTRO</td>
+<td>30</td>
+<td>SYNTHWV</td>
+<td></td>
+<td></td>
+</tr>
+</tbody>
+</table></div>
+<p>The kit is saved with the project and its song sections.</p>
+<div class="card" id="x0x-909-and-x0x-808">
+<h3>X0X 909 and X0X 808</h3>
+<p>Two circuit-modelled kits from X0X by Charles Vestal, builder items <code>DRUM_X0X909</code> and <code>DRUM_X0X808</code>. They come after JAZZ, each followed by style kits with the same voices: X9 TECH, X9 HOUSE, X9 UKG, X9 ACID; X8 TRAP, X8 BOOM, X8 ELEC, X8 MIAMI.</p>
+<ul>
+<li><strong>909:</strong> the kick, snares, clap, rim and toms are models; the hats, crash and ride play ER-99's 909 samples (their quality is a builder choice, <code>X909_CYM</code>: 8-bit, 6-bit or none). Shaker, conga and cowbell play the synthesised 909's.</li>
+<li><strong>808:</strong> every sound is the 808's own.</li>
+<li><strong>Any lane of any kit</strong> can play one of their voices: SRC lists them after the kits (X9 BD ... X8 CY).</li>
+</ul>
+<p>A build without them plays the synthesised 909 / 808 instead and says MISSING; the project keeps the kit.</p>
+</div>
+<div class="card" id="kawa-and-plaits">
+<h3>KAWA and PLAITS</h3>
+<p>Two more synthesised kits after the X0X ones, each a builder item of its own: three drum synths in all (the 32 kits, KAWA, PLAITS), independent of each other, so a build can have KAWA or PLAITS without the 32 kits:</p>
+<ul>
+<li><strong>KAWA</strong> (<code>DS_KAWA</code>), after Kawa Tracker's kit engine: a kick with an FM beater, a rumble that swells in, a flammed snare, a brush, a clap with its hands, tight-cluster hats, a wide crash, a ride's bell, ring-modulated toms, rim and cowbell, a shaker that swells in, and a guiro on the CLAVE lane.</li>
+<li><strong>PLAITS</strong> (<code>DS_PLAITS</code>): two kicks and two snares from Mutable Instruments Plaits' synthetic bass drum and snare drum; the other lanes are the 909's. EDIT moves them as the other sounds: TUNE, DECAY, CUT + (the kick's TONE, the snare's FM), CLICK (the kick's FM), SNAP (the snare's snap).</li>
+</ul>
+<p>Any lane of another kit can play their sounds (SRC lists them after the X0X styles). A build without one plays the 808 (KAWA) or the 909 (PLAITS) for it and says MISSING; the project keeps the kit. A build without the 32 kits lists only the kits it has, starts on the first of them, and plays that kit (a sampled one first, else an X0X kit, else KAWA or PLAITS) for any kit it lacks.</p>
+</div>
+</section>
+<section id="edit-a-lanes-sound">
+<h2>Edit a lane's sound</h2>
+<p>Select a lane (its black key, or ALGORITHM), then tap EDIT. Each lane has its own values, as <strong>offsets from the kit</strong> (0 is the kit as it is, so another kit stays musical). They apply from the next hit.</p>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>Page</th>
+<th>Values</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>SOUND</strong> row (&quot;Lane&quot;)</td>
+<td>SRC (the sound's source: the kit, USR1 to USR3 or SD (a card sample) in SD card builds, another kit's sound or an X0X voice), ACCENT (the drum track's accent amount), INSTR (the lane's instrument), KIT (the drum track's kit)</td>
+</tr>
+<tr>
+<td><strong>Body</strong> (the firmware's SOUND)</td>
+<td>TUNE (+-24 st), DECAY, SNAP (noise &lt;-&gt; tone), CLICK (the attack)</td>
+</tr>
+<tr>
+<td><strong>Tone</strong> (SOUND 2)</td>
+<td>BEND (the pitch drop), CUT, DRIVE, LEVEL (-24 to +6 dB)</td>
+</tr>
+<tr>
+<td><strong>SOURCE</strong></td>
+<td>HIT, START, LEN of a sample, on a lane that plays one</td>
+</tr>
+<tr>
+<td><strong>KIT</strong></td>
+<td>SLOT (your kits 1 to 16), SAVE, ERASE, RESET (this sound back to the kit's, dry: no sends, no inserts)</td>
+</tr>
+<tr>
+<td><strong>ENV, LFO, LFO 2, ENV2</strong></td>
+<td>the lane's envelope (CLICK, DECAY, BEND, LEVEL) and its LFOs and second envelope, per hit</td>
+</tr>
+<tr>
+<td><strong>INSERTS</strong> (FX)</td>
+<td>the lane's two insert slots (<a href="effects.html">effects</a>)</td>
+</tr>
+</tbody>
+</table></div>
+<p>On a synthesised sound with no tone (closed hat, shaker, clap), TUNE moves its filter and its noise high-pass, as a resampled sample would sound (<code>DS_NTUNE</code>). A sampled sound has TUNE, DECAY, CUT and LEVEL only. The edits, sends, sources and samples are saved with the project and its sections. A lane's own REV, DLY, CHO levels and PAN are on its FX page SENDS. Built-in sounds and kits are dry: every send 0, no insert on. On DR itself the SENDS page (&quot;Kit sends&quot;) scales every lane's own sends; the drum bus has none of its own.</p>
+</section>
+<section id="your-samples">
+<h2>Your samples</h2>
+<p>Three slots, <strong>USR1</strong>, <strong>USR2</strong> (about 7.4 s each) and <strong>USR3</strong> (about 5.9 s; less with snapshots, which take its end), load from the web editor's <strong>Samples</strong> tab (in a build with live editing, <code>ED_LIVE</code>; a backup restore also writes them):</p>
+<ul>
+<li><strong>Files:</strong> up to 16 WAV per slot; the note each plays at its own pitch is in its name (<code>KEYS_C4.wav</code>).</li>
+<li><strong>CHOP:</strong> cut one recording (WAV, MP3, AIFF...) into up to 16 chops, by tapping while it plays, by its hits, on a grid or in equal parts, then send them to a slot.</li>
+</ul>
+<p>A synth track plays a slot with the SAMPLE engine (<strong>SET</strong> USR1 to USR3); a drum lane plays one with SRC. In a build with <code>PATTERNS</code>, USR1's flash holds the projects' log and the slot takes no sample.</p>
+</section>
+<section id="card-samples-by-type-sd-card-builds">
+<h2>Card samples by type (SD card builds)</h2>
+<p><code>tools/sd_sort_samples.py</code> sorts your sample folders by type, into short folders: Kick, 808, Snare, Clp, Rim, HH, OH, Tom, Crash, Ride, Shkr, Conga, Bell, Clave, Perc, then Basses, Synth, Keys, Pad, Chord, Wavetable, Vocal, Fx, Loops, Found. Each file is 16-bit mono 44.1 kHz. Your originals are never changed.</p>
+<ul>
+<li><code>python3 tools/sd_sort_samples.py sort SRC... --out LIB</code> sorts and converts the folders. Run it again and it converts only the new files. <code>LIB/sort-report.csv</code> lists each file's type.</li>
+<li><code>make sdcard SAMPLES=LIB</code> copies the new and changed samples to the card's <code>Optimist/Samples/</code>, along with everything else <code>make sdcard</code> writes. It deletes nothing of yours, and it remembers LIB, so later runs of <code>make sdcard</code> copy it again (<code>NO_SAMPLES=1</code> skips it). A type folder can't be named like a factory sample folder (Bass, Piano and so on), because <code>make sdcard</code> mirrors those.</li>
+<li><code>make dn2-samples LIB=LIB SRC=DIR</code> is the same for a Digitone II running dn2mk2. It makes DIR from the library (1,900 samples, shortened, named like <code>BD909 01</code>), then syncs DIR with the DN2's +Drive library: it reads what the DN2 has, then deletes, sends again and sends to match, only in DIR's folders. It remembers LIB and DIR, so later runs of <code>make dn2-samples</code> need nothing typed; <code>DRY=1</code> shows the plan.</li>
+</ul>
+<p>On the FM-1, pick a drum lane and open PROJECT &gt; SAMPLES. The list opens on the lane's type folder: KICK opens Kick, CLOSED HAT opens HH, KICK 2 opens 808 (or Kick if the card has no 808 folder). HOME goes up to Samples. The top F# steps PREVIEW through OFF, ON and LANE; LANE needs a lane picked. In LANE, the sample ITEM stops on, or the key you press, becomes the lane's sample. While the pattern plays you hear it in the pattern; while stopped it plays on its own. Turn ITEM through the folder until a sound fits, pick the next lane, and save the kit (KIT &gt; SAVE).</p>
+<p>Or from the lane itself: on the Lane row (EDIT, then SELECT back to the first row), turn <strong>SRC</strong> one step past KIT to <strong>SD</strong>. Turn it again and the knob scrolls through the card's samples: a list opens on the folder of the lane's sample, else on its type folder, and stops at its ends. The sample you stop on is the lane's: you hear it alone while stopped, in the pattern while playing. A key picks its sample on the list's page. SAVE on a folder goes into it, and HOME goes up. SAVE on a sample puts the knob back on the source, so the next turn goes back to KIT or on to the kits. The list closes by itself a moment after the last turn. SRC shows the sample's name.</p>
+</section>
+<section id="your-own-kits">
+<h2>Your own kits</h2>
+<p>Build a kit lane by lane (a kit's sound, edited or not, another kit's sound, your samples), then KIT &gt; <strong>SLOT</strong> and <strong>SAVE</strong> (twice), or SAVE + a page button on DR: it is stored as <strong>KIT n</strong>, one of 16 in the FM-1. Your kits come after the built-in ones in PRESETS. The editor exports a kit with its samples as one file and imports it on another FM-1.</p>
+</section>

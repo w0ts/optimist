@@ -1,6 +1,6 @@
 /* SPDX-License-Identifier: GPL-3.0-only */
 /* Editor protocol v9: only what changed, for every track (included by editor.c; tests/editor_sync_test.c;
- * web/EDITOR_PROTOCOL.md "Live sync"). The only live sync: on while WATCH is on (the v2..v4 pushes are gone).
+ * site/EDITOR_PROTOCOL.md "Live sync"). The only live sync: on while WATCH is on (the v2..v4 pushes are gone).
  * RELOAD (24) stays the "re-read everything" signal.
  *
  *   59 PARAMS (push)  n x (where, id (2 x 7 bit), v14): where 0..NTRK-1 a track's P_*, 127 a global G_*

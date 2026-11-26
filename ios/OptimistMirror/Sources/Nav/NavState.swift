@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-only
-// What 109 NAV says (firmware io/editor/ed_mirror.c ed_nav, ui/optimist/op_nav.c; web/EDITOR_PROTOCOL.md "The touch
+// What 109 NAV says (firmware io/editor/ed_mirror.c ed_nav, ui/optimist/op_nav.c; site/EDITOR_PROTOCOL.md "The touch
 // navigation"): the screen, the page button whose family SOUND shows, the rows as SELECT walks them, the cursor row, the
 // track ALGORITHM is on; and the mixer rows' names (MASTER, T1..T3, DR, the lanes, ACCENT). The favourites, kept on this device.
 import CoreGraphics

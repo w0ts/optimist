@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-only
-// The editor protocol's wire format (web/EDITOR_PROTOCOL.md, web/editor.html "wire-section:begin"): frames, 7-bit values, CRC-32,
+// The editor protocol's wire format (site/EDITOR_PROTOCOL.md, site/editor.html "wire-section:begin"): frames, 7-bit values, CRC-32,
 // the replies the app reads. Pure functions, no CoreMIDI: the tests run them against a fake device.
 import Foundation
 
@@ -393,7 +393,7 @@ struct PatList: Equatable {
         if a[0] == 0 && a.count >= 14 + 64 + 64 {
             o.len = (0..<4).map { k in a[(14 + 16 * k)..<(30 + 16 * k)].map { Int($0) } }
             o.scenes = (0..<16).map { s in a[(78 + 4 * s)..<(82 + 4 * s)].map { Int($0) } }
-            if a.count >= 142 + 12 {                          // (3 bytes a track after the scenes: web/editor.html parse[PAT_LIST])
+            if a.count >= 142 + 12 {                          // (3 bytes a track after the scenes: site/editor.html parse[PAT_LIST])
                 var live: [Int] = []
                 for k in 0..<4 {
                     let lo = Int(a[142 + 3 * k]), mid = Int(a[143 + 3 * k]), hi = Int(a[144 + 3 * k])

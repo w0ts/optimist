@@ -135,7 +135,7 @@ def boot_token(text: str | None) -> str | None:
 
 def boot_of_info(reply: bytes) -> str | None:
     """the word of INFO's tag 0x68 in the editor's INFO reply (F0 7D 46 4C 01 .. F7), None without: the tag's id, its
-    length, then its text (web/EDITOR_PROTOCOL.md; the reply's other bytes are 7-bit too, so the text is looked for
+    length, then its text (site/EDITOR_PROTOCOL.md; the reply's other bytes are 7-bit too, so the text is looked for
     with its id and a length that matches it)"""
     for m in INFO_TAG.finditer(bytes(reply or b"")):
         if m[1][0] == len(m[2]):

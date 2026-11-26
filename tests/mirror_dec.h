@@ -1,5 +1,5 @@
 /* SPDX-License-Identifier: GPL-3.0-only */
-/* The screen mirrored: the client's side (io/editor/ed_mirror_enc.h; web/EDITOR_PROTOCOL.md "The screen mirrored"), the model of
+/* The screen mirrored: the client's side (io/editor/ed_mirror_enc.h; site/EDITOR_PROTOCOL.md "The screen mirrored"), the model of
  * ios/OptimistMirror's MirrorDecoder.swift. md_frame takes one SysEx frame (F0 .. F7) and applies it to md_fb (RGB565, 240 x 240).
  * Included by tests/mirror_test.c and tests/ui_optimist_test.c (MIRROR_CHECK). */
 #ifndef MIRROR_DEC_H

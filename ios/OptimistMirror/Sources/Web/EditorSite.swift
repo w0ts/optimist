@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-only
-// The web editor, bundled (the user, 2026-10-29: "bundle the editor"): web/editor.html and what it loads sit in the app
+// The web editor, bundled (the user, 2026-10-29: "bundle the editor"): site/editor.html and what it loads sit in the app
 // (OptimistEditor/, copied in by tools/sync_ios_editor.py as a build phase) and are served by the URL scheme optimistedit://app/.
 // WKWebView has no Web MIDI and loads no ES module from file://, so a scheme handler it is (as for Fm1BaseSite). The Web tab works
 // with no network; only the Install / Build / Simulator parts the editor imports on demand (not bundled) need the site.

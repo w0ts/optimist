@@ -46,11 +46,11 @@ snapshot, autosaves at once. Messages: `SNAP 2 SAVED`, `SNAP 2 CLEARED`, `SNAPSH
 
 ## Editor
 
-Snapshots tab (`web/editor.html`): list, Save, Load, Clear, Rename, Export to a `.optimist-snap` file, Import. Commands
-54..57 (`web/EDITOR_PROTOCOL.md` "Snapshots"); the full backup carries the area as object `SNAP` (kind 6).
+Snapshots tab (`site/editor.html`): list, Save, Load, Clear, Rename, Export to a `.optimist-snap` file, Import. Commands
+54..57 (`site/EDITOR_PROTOCOL.md` "Snapshots"); the full backup carries the area as object `SNAP` (kind 6).
 
 ## Tests
 
 `tests/snap_store_test.c` (the area on a simulated NOR, a cut at every program and erase of a save and a clear),
-`tests/snapshots_test.c` (save, change, power cycle, load; BEFORE LOAD; missing engine; 16 sections on 4), `web/test_web.mjs`,
+`tests/snapshots_test.c` (save, change, power cycle, load; BEFORE LOAD; missing engine; 16 sections on 4), `site/test_web.mjs`,
 and `tests/emu_snapshots_e2e.sh` (emulator checkout needed; not in `tools/optimist.py test`).

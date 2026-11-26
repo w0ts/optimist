@@ -151,7 +151,7 @@ def generate(gen=GEN, env=None):
             [tools / "gen_samples.py", gen / "felucca_samples.h"],
             [tools / "gen_drumkits.py", gen / "felucca_drumkits.h"],
             [tools / "gen_x0x_drums.py", gen / "x0x_drum_samples.h"],
-            [tools / "gen_param_help.py", gen / "felucca_param_help.h"],   # (+ web/editor.html's copy)
+            [tools / "gen_param_help.py", gen / "felucca_param_help.h"],   # (+ site/editor.html's copy)
             [tools / "gen_wavetables.py", gen / "felucca_wavetables.h"],   # (the WAVE engine: Clipper's, 8 tables)
             [tools / "gen_bank_order.py", gen / "felucca_bank.h"],          # (the engines and factory presets by name)
             [tools / "lzb.py", gen / "lzb_vectors.h"]]                     # (tests/lzb_test.c: the boot stream's decoder)
@@ -877,18 +877,18 @@ NOTICE_FILES = ("LICENSE", "LICENSING.md") + tuple(sorted("LICENSES/" + p.name f
 
 
 def ui_sidecar(fwsc):
-    """FIRMWARE-ui.zip next to the package: the web editor as this tree has it (index.html = web/editor.html, its
+    """FIRMWARE-ui.zip next to the package: the web editor as this tree has it (index.html = site/editor.html, its
     font and licence) and SOURCE.txt (the commit, whether the tree had changes, the configuration's hash): the
     emulator's fm1-ui serves it beside the firmware (as rust-emulator/scripts/make-ui-sidecar.sh did by hand)"""
     out = fwsc.with_name(fwsc.stem + "-ui.zip")
-    web = SRC / "web"
+    web = SRC / "site"
     commit = srcgit.commit(SRC) or "unknown"
-    dirty = srcgit.modified(SRC, "web", "firmware")
+    dirty = srcgit.modified(SRC, "site", "firmware")
     cfg = (GEN / "felucca_config.h").read_text() if (GEN / "felucca_config.h").exists() else ""
     m = re.search(r'FELUCCA_CFG_NAME "([^"]*)"', cfg)
     h = re.search(r"FELUCCA_CFG_HASH (\d+)u", cfg)
     source = (f"Web editor for {fwsc.name}\nfrom {SRC} at {commit}{' (with uncommitted changes)' if dirty else ''}, "
-              f"web/editor.html (GPL-3.0-only)\nbuild configuration: {m.group(1) if m else 'default'}"
+              f"site/editor.html (GPL-3.0-only)\nbuild configuration: {m.group(1) if m else 'default'}"
               f"{' hash %08x' % int(h.group(1)) if h else ''}\n")
     with zipfile.ZipFile(out, "w", zipfile.ZIP_DEFLATED) as z:
         def add(name, data):
@@ -1016,7 +1016,7 @@ def release_name(release=None):
     if release:
         return f"optimist-{release}.fwsc"
     commit = srcgit.commit(SRC, short=True) or "unknown"
-    changed = srcgit.modified(SRC, "firmware", "tools", "web")
+    changed = srcgit.modified(SRC, "firmware", "tools", "site")
     return f"optimist-{OPTIMIST_VERSION}-dev-{commit}{'-modified' if changed else ''}.fwsc"
 
 

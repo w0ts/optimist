@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: GPL-3.0-only
-"""The FM-1's screen as a PNG, over USB-MIDI (the screen mirrored: web/EDITOR_PROTOCOL.md "The screen mirrored", cmd 106;
+"""The FM-1's screen as a PNG, over USB-MIDI (the screen mirrored: site/EDITOR_PROTOCOL.md "The screen mirrored", cmd 106;
 after fm1-base's tools/fm1_mirror.py).
   fm1_mirror.py shot OUT.png [--state]     the screen now (and, with --state, what the panel holds and lights)
   fm1_mirror.py decode FRAMES.sysex OUT.png   frames saved before (tests/mirror_test.c MIRROR_FIXTURE): no device
@@ -279,7 +279,7 @@ INFO = 1
 
 def takes_aa(info: list[int] | None) -> bool:
     """INFO's names (tags 66, 67: space-separated, each list ending in a space, ed_opti.h) list opti_miraa_1: 106's second
-    byte, the AA token (web/EDITOR_PROTOCOL.md). Never sent to a firmware without it (over Bluetooth it drops the request)"""
+    byte, the AA token (site/EDITOR_PROTOCOL.md). Never sent to a firmware without it (over Bluetooth it drops the request)"""
     b = bytes(info or [])
     k = b.find(b"opti_miraa_1 ")
     return k >= 0 and (k == 0 or not (0x21 <= b[k - 1] <= 0x7E))

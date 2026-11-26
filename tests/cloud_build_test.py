@@ -2,7 +2,7 @@
 # SPDX-License-Identifier: GPL-3.0-only
 """Cloud builds (tools/cloud_build.py, .github/workflows/cloud-build.yml): the issue form's body is read and refused as
 it should be, a real profile goes request -> cloud-key --strict --json -> verdict as the workflow runs it, the asset
-names are the web builder's (web/builder/logic.js assetStem), and the issue URL the builder opens stays short enough.
+names are the web builder's (site/builder/logic.js assetStem), and the issue URL the builder opens stays short enough.
 
   python3 tests/cloud_build_test.py                     (run by tests/run_tests.sh)
 """
@@ -65,7 +65,7 @@ except ValueError:
 check("a name in a comment: no Markdown, no mention", CB.safe_name("@all [x](http://e) <b>") == "all xhttpe b")
 
 names = ["My Synth!", "", "../..", "x" * 80, "ACID--303 ", "ümlaut drums", "-a-"]
-js = ("import * as L from './web/builder/logic.js'; const n = JSON.parse(process.argv[1]); "
+js = ("import * as L from './site/builder/logic.js'; const n = JSON.parse(process.argv[1]); "
       f"console.log(JSON.stringify(n.map((x) => L.assetStem(x, '{KEY}'))));")
 try:
     out = subprocess.run(["node", "--input-type=module", "-e", js, json.dumps(names)], cwd=ROOT, capture_output=True,
@@ -314,7 +314,7 @@ with tempfile.TemporaryDirectory() as t:
 # ---- the URL the builder opens: GitHub refuses very long ones (about 8 KB); a dump of every key stays under
 cfg, _ = K.parse("")
 text = K.dump(cfg, "a long configuration name", full=True)
-url_js = ("import * as L from './web/builder/logic.js'; const [t] = JSON.parse(process.argv[1]); "
+url_js = ("import * as L from './site/builder/logic.js'; const [t] = JSON.parse(process.argv[1]); "
           f"console.log(L.cloudIssueUrl('w0ts/optimist', '{SHA}', t, 'a long configuration name'));")
 try:
     url = subprocess.run(["node", "--input-type=module", "-e", url_js, json.dumps([text])], cwd=ROOT, capture_output=True,

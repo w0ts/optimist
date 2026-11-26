@@ -24,7 +24,7 @@ erased, once to write it) and polls USB every 0.5 ms, one 64-byte packet per pol
    byte for byte. A cut-off install resumes the same way: what was written is skipped.
 4. `0xF0000000` "success", as before.
 
-Hosts: `tools/fm1_install.py` (`fast_hello`, `sector_table`, `answer`), `web/fm1ota_optimist.js` (`OptimistUpdater.write`,
+Hosts: `tools/fm1_install.py` (`fast_hello`, `sector_table`, `answer`), `site/fm1ota_optimist.js` (`OptimistUpdater.write`,
 `serveFast`), the app's `FlashProtocol` / `FlashUpdater`. No pause before an answer in the fast install; 50 ms instead of
 2 s after the upgrade command. While it waits for an answer the loader empties EP1 as soon as a packet is there.
 
@@ -35,7 +35,7 @@ word, today's protocol (with the faster EP1 polling). Step 1 is unchanged everyw
 
 A resumed or repeated fast install spends its first second or so in the loader comparing the sectors already on the FM-1
 with the table, with no read request; the hosts' bar used to sit at 0 % and jump at the first read. Now (`CheckBar` in
-`tools/fm1_install.py`, `OptCheckBar` in `web/fm1ota_optimist.js`, `FlashCheckBar` in the app), from the upgrade command:
+`tools/fm1_install.py`, `OptCheckBar` in `site/fm1ota_optimist.js`, `FlashCheckBar` in the app), from the upgrade command:
 
 - "checking what is already on the FM-1" (CLI) / "Checking what is already on the FM-1…" (web, app).
 - The loader may say how far it is: `cmd 0x32 [checked LE16, total LE16]`, framed as every loader frame
@@ -104,13 +104,13 @@ wait, then a look every second): the running firmware that still answers before 
 waits: 0.3 s after opening a port in the CLI (CoreMIDI may drop a message sent just after opening, `MidoLink`) and the fast
 hello's 0.5 s (an older loader never answers it: that silence is how it is told apart).
 
-Tests: `tests/install_test.py` (`dropped`, `progress`, `loader_poll`), `web/test_web.mjs` (`dropped`, `checkBar`,
-`loaderPoll`), `web/e2e_installer.mjs`, `FlashTests.swift` (`testDrop*`, `testCheckFrameAndBar`,
+Tests: `tests/install_test.py` (`dropped`, `progress`, `loader_poll`), `site/test_web.mjs` (`dropped`, `checkBar`,
+`loaderPoll`), `site/e2e_installer.mjs`, `FlashTests.swift` (`testDrop*`, `testCheckFrameAndBar`,
 `testBarMovesWhileTheLoaderChecks`, `testTheLoaderIsLookedForAtOnce`), `tests/install_replay_test.py` against the real loader
 code: dropped twice and resumed by itself, a loader that kept its fast session (the FM-1's case), cancelled.
 
 Tests: `tests/ldr_test.c` and `fm1base/tests/ldr_test.c` built with `-DOTA_FAST_CHUNK` / `-DLDR_FAST_CHUNK` (the table,
 changed sectors only, resume, damaged package, the vectors), `tests/install_replay_test.py` (fm1_install.py against the
-real loader code on a pipe: old loader, old host, fast, cut off and resumed), `tests/install_test.py`, `web/test_web.mjs`,
+real loader code on a pipe: old loader, old host, fast, cut off and resumed), `tests/install_test.py`, `site/test_web.mjs`,
 `FlashTests.swift`. One vector is shared by all of them: the hello `f0003245190000400000203807f7`, and the table of
 `((i * 31) ^ (i >> 8)) & 0xFF` over 8 KiB, `6204a25f925f5cc59b283583`.

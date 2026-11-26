@@ -3,7 +3,7 @@
 """Copies the web editor and what its page loads from beside itself into a folder: the iOS / macOS Mirror app's bundled editor
 (OptimistEditor/ in the app bundle, served by the app's optimistedit: scheme, Sources/Web/EditorSite.swift). Xcode runs it as
 a build phase (ios/OptimistMirror/project.yml), so the app always holds the editor of the commit it is built from.
-The list is what web/make_site.py puts beside webapp/editor/index.html for the pages the app shows: the editor itself, the shared
+The list is what site/make_site.py puts beside webapp/editor/index.html for the pages the app shows: the editor itself, the shared
 style (the editor fetches it for its look) with its font, the icon font and the notices. NOT bundled (the user, 2026-10-29): the
 Install, Build and Simulator tabs' modules (installer/, builder/, sim/) and the Simulator's firmware builds; the app has the
 Flash tab and the web builder / Simulator as online pages.
@@ -15,12 +15,12 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 # (source relative to the repository, path in DEST_DIR)
 FILES = [
-    ("web/editor.html", "index.html"),
-    ("web/style/optimist.css", "style/optimist.css"),
-    ("web/style/common.css", "style/common.css"),
-    ("web/fukiai.ttf", "fukiai.ttf"),
-    ("web/FUKIAI-LICENSE.txt", "FUKIAI-LICENSE.txt"),
-    ("web/TERMINUS-LICENSE.txt", "TERMINUS-LICENSE.txt"),
+    ("site/editor.html", "index.html"),
+    ("site/style/optimist.css", "style/optimist.css"),
+    ("site/style/common.css", "style/common.css"),
+    ("site/fukiai.ttf", "fukiai.ttf"),
+    ("site/FUKIAI-LICENSE.txt", "FUKIAI-LICENSE.txt"),
+    ("site/TERMINUS-LICENSE.txt", "TERMINUS-LICENSE.txt"),
     ("assets/logo/icon.svg", "icon.svg"),
 ]
 

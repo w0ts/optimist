@@ -260,23 +260,23 @@ def write_install_meta(pkg, cfgfile):
 
 
 def ui_sidecar(pkg, cfgfile):
-    """PACKAGE-ui.zip beside the package: the web editor as this tree has it (web/editor.html and its fonts and notices:
+    """PACKAGE-ui.zip beside the package: the web editor as this tree has it (site/editor.html and its fonts and notices:
     the app answers its SysEx, fm1base/optimist/ui/opt_editor.h) and SOURCE.txt (commit, whether the tree had changes, the
     configuration's name and hash: tools/flash.py reads it): what Optimist's own build leaves too (tools/build.py)"""
     import configure
     pkg = Path(pkg)
-    web = ROOT / "web"
+    web = ROOT / "site"
 
     def git(*a):
         r = subprocess.run(["git", "-C", str(ROOT), *a], capture_output=True, text=True)
         return r.stdout.strip() if r.returncode == 0 else ""
     import srcgit
-    commit, dirty = srcgit.commit(ROOT) or "unknown", srcgit.modified(ROOT, "web", "firmware", "fm1base")
+    commit, dirty = srcgit.commit(ROOT) or "unknown", srcgit.modified(ROOT, "site", "firmware", "fm1base")
     base_commit = os.environ.get("OPTIMIST_FM1BASE_COMMIT", "").strip()[:7] or (   # (the submodule's own commit: only when
         git("-C", str(DIR), "rev-parse", "--short", "HEAD") if srcgit.is_toplevel(DIR) else "")   # DIR is a repository)
     cfg, name = configure.parse(Path(cfgfile).read_text())
     source = (f"Web editor for {pkg.name} (the release: Optimist on fm1-base {base_commit or '?'})\n"
-              f"from {ROOT} at {commit}{' (with uncommitted changes)' if dirty else ''}, web/editor.html (GPL-3.0-only)\n"
+              f"from {ROOT} at {commit}{' (with uncommitted changes)' if dirty else ''}, site/editor.html (GPL-3.0-only)\n"
               f"build configuration: {name or 'default'} hash {configure.cfg_hash(cfg):08x}\n")
     notices = ("LICENSE", "LICENSING.md") + tuple(sorted("LICENSES/" + p.name for p in (ROOT / "LICENSES").glob("*.txt")))
     out = pkg.with_name(pkg.stem + "-ui.zip")

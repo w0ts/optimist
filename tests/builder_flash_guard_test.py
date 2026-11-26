@@ -41,7 +41,7 @@ def sidecar(pkg, commit, name="mots", h="1901b25c", dirty=False):
     """the -ui.zip SOURCE.txt tools/build.py writes beside a package"""
     with zipfile.ZipFile(pkg.with_name(pkg.stem + "-ui.zip"), "w") as z:
         z.writestr("SOURCE.txt", f"Web editor for felucca.fwsc\nfrom /x/optimist at {commit}"
-                                 f"{' (with uncommitted changes)' if dirty else ''}, web/editor.html (GPL-3.0-only)\n"
+                                 f"{' (with uncommitted changes)' if dirty else ''}, site/editor.html (GPL-3.0-only)\n"
                                  f"build configuration: {name} hash {h}\n")
 
 

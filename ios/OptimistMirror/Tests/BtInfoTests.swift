@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-only
 // INFO over Bluetooth: the replies an FM-1 sent there (Fixtures/bt_info_frames.json, recorded 2026-10-31 on fm1-next 56a99f36 with
 // BT_PROJ), whole and damaged; the link takes the whole ones only (MirrorLink.takeInfo) and asks INFO beside the mirror's request
-// a few times before it gives up (BtAsk). The web editor reads the same fixture (web/test_web.mjs, btInfoOk).
+// a few times before it gives up (BtAsk). The web editor reads the same fixture (site/test_web.mjs, btInfoOk).
 import XCTest
 @testable import OptimistMirror
 

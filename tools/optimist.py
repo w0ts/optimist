@@ -166,7 +166,7 @@ def cmd_package(a):
     cfg, name = load_config(a)
     say_flavour()
     # (a release package is named by its profile's id, optimist-0.1-drum-machines: the site matches releases' files
-    # to the published profiles by it, web/make_site.py releases_of; a development package by its name, as before)
+    # to the published profiles by it, site/make_site.py releases_of; a development package by its name, as before)
     stem = f"optimist-{a.release}-{a.profile}" if a.release and a.profile else None
     # (a build with SDCARD: its SD card zip beside the package, configure.py sd_card_zip; docs/SD-CARD-DESIGN.md 9)
     return C.package(cfg, name, Path(a.out).expanduser(), stem=stem, echo=True, summary=a.summary, release=a.release)
@@ -465,11 +465,11 @@ def web_sim(a):
 
 
 def cmd_web(a):
-    """Build the local site (web/make_site.py --local: no firmware bundled; the installer offers cloud builds and a .fwsc
+    """Build the local site (site/make_site.py --local: no firmware bundled; the installer offers cloud builds and a .fwsc
     of yours; the Simulator tab the local simulator, web_sim) and serve it on 127.0.0.1 until Ctrl-C."""
     import functools
     import http.server
-    sys.path.insert(0, str(ROOT / "web"))
+    sys.path.insert(0, str(ROOT / "site"))
     import make_site
     taken = web_port_taken(a.port)                      # (before the site is built: never rewrite a running one's files)
     if taken:

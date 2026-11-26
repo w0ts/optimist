@@ -1,6 +1,6 @@
 /* SPDX-License-Identifier: GPL-3.0-only
  * Editor protocol: the CZ collection (nbank.c; FELUCCA_NATIVE_BANKS with CZ; included by editor.c;
- * web/EDITOR_PROTOCOL.md "CZ collection"). After Melodee 0.12's command 78 (keremimo/melodee editor_native.c,
+ * site/EDITOR_PROTOCOL.md "CZ collection"). After Melodee 0.12's command 78 (keremimo/melodee editor_native.c,
  * Kerem Kilic, GPL-3.0-only): a tone travels as Casio's 144 bytes, two nibbles each, low first.
  *   66 CZ_BANK  0, slot                 -> 0, slot, rc, then (rc 0) 288 nibbles      rc 1: empty, or no such slot
  *               1, slot [, 288 nibbles] -> 1, slot, rc: written; no nibbles: erased  rc 1 arguments, 2 flash, 3 playing

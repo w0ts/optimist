@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: GPL-3.0-only
-"""The CLI builder's answers for the web builder's tests (web/test_builder.mjs, web/e2e_builder.mjs): the same
+"""The CLI builder's answers for the web builder's tests (site/test_builder.mjs, site/e2e_builder.mjs): the same
 questions the page asks tools/builder/web_api.py, answered here by configure.py and room.py as the CLI and the menu
 run them (the estimate only: no real build's sizes, as on the page), without web_api.
 

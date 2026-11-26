@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-only
 // One project moved from a device to another (editor command 110 PJ_OP, firmware/src/io/editor/ed_proj.c, and the
-// backup's PJ01..PJ16 stream), through the page's own code (web/sim/bk.js moveProject: the Simulator tab's "Get a
+// backup's PJ01..PJ16 stream), through the page's own code (site/sim/bk.js moveProject: the Simulator tab's "Get a
 // project from the FM-1" / "Send the project to the FM-1"), between two instances of the simulator's firmware: the
 // project saved and named, moved into a project that held another (cleared first: the copy is byte for byte, a record
 // the new stream lacks is gone), named and
@@ -8,7 +8,7 @@
 // A build with PATTERNS (the synth profile; no live editing needed):
 //   python3 tools/sim.py build --wasm --config config/profiles/mots-config.config --out build/sim/sim-pj.wasm && node tests/sim_projects_test.mjs build/sim/sim-pj.wasm
 import { readFileSync } from "node:fs";
-import * as BK from "../web/sim/bk.js";
+import * as BK from "../site/sim/bk.js";
 
 const WASM = process.argv[2] || new URL("../build/sim/sim-pj.wasm", import.meta.url).pathname;
 const module = new WebAssembly.Module(readFileSync(WASM));

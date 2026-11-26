@@ -3,7 +3,7 @@
 """The MEMORY steps (docs/SD-MODE-DESIGN.md section 9) say the same everywhere: tools/flash_layout.py's STEPS is the one
 table; firmware/hal/fm1_steps.h is generated from it (checked byte for byte), the other copies are checked against it:
 the builder's (registry.py LAYOUT_STEPS, the classic limits, fits()), the installers' size lists (fm1_route.py,
-fm1_install.py, web/install_route.js, the iOS app's InstallRoute.swift), app.ld's normal XIP length; and the switch
+fm1_install.py, site/install_route.js, the iOS app's InstallRoute.swift), app.ld's normal XIP length; and the switch
 rule against the matrix written out (9.3), every pair.
   python3 tests/flash_layout_test.py"""
 import re
@@ -165,11 +165,11 @@ def _hex_list(text, pattern):
     return tuple(int(x, 16) for x in re.findall(r"0x([0-9A-Fa-f]+)", m.group(1))) if m else None
 
 
-js = (ROOT / "web" / "install_route.js").read_text()
+js = (ROOT / "site" / "install_route.js").read_text()
 swift = (ROOT / "ios" / "OptimistMirror" / "Sources" / "Flash" / "InstallRoute.swift").read_text()
-check("web/install_route.js OWN_SLOTS is the table's", _hex_list(js, r"export const OWN_SLOTS = \[([^\]]*)\]") == own)
+check("site/install_route.js OWN_SLOTS is the table's", _hex_list(js, r"export const OWN_SLOTS = \[([^\]]*)\]") == own)
 _ends_js = re.search(r"export const LAYOUT_ENDS = (\[.*?\]\]);", js)
-check("web/install_route.js LAYOUT_ENDS is the table's: every known end, its step, slots and name",
+check("site/install_route.js LAYOUT_ENDS is the table's: every known end, its step, slots and name",
       _ends_js is not None and [[int(e, 16), int(k), int(s), n] for e, k, s, n in
                                 re.findall(r'\[0x([0-9A-Fa-f]+), (\d+), (\d+), "([^"]+)"\]', _ends_js.group(1))]
       == [[e, k, L.STEPS[k].slots, L.STEPS[k].name] for e, (k, _) in L.known_ends().items()])

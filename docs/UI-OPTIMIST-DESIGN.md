@@ -538,7 +538,7 @@ Ids: stored track values (`mot_sid`, build-independent); the ACCENT amount `AUTO
 
 `auto_step(t, idx)` applies a step's events in list order in one scan: hold events set the value and leave it; step-only events save the base and let go at the next step without one. On the same parameter the step's event wins on its step; the base a lock returns to is what a hold left. A fill-skipped step skips its step-only events, not its hold events. Every lockable value is recordable and the other way round (`auto_param`); excluded: voice allocation, MUTE, FX OFF, LEN DIV SWING, the LFO DEST slots, values with no stored id. A micro-timing index of nudges (`auto_nudge`) is rebuilt when the list changes, never per sample. At most 24 locks apply at once.
 
-Storage: with the section log a store is written in the new forms (the extras record's `AUTO_ENC_TAG` form, a pattern record V2 for a track with automation); the old MOTN / stepx forms are only read. Four-slot builds (no log) still write the MOTN record (64 hold events). Undo copies the track's list. SLOOP 2.4 import turns its nudges, 24 locks and fills into events (a lock clamped to int8 says so); its export rebuilds nudges, fills and the first 24 step-only events and reports the rest lost (*MOTION NOT IN 2.4*, drum lane values, drum LFO, conditions). The web editor reads and writes the list with AUTO_GET / AUTO_SET (web/EDITOR_PROTOCOL.md).
+Storage: with the section log a store is written in the new forms (the extras record's `AUTO_ENC_TAG` form, a pattern record V2 for a track with automation); the old MOTN / stepx forms are only read. Four-slot builds (no log) still write the MOTN record (64 hold events). Undo copies the track's list. SLOOP 2.4 import turns its nudges, 24 locks and fills into events (a lock clamped to int8 says so); its export rebuilds nudges, fills and the first 24 step-only events and reports the rest lost (*MOTION NOT IN 2.4*, drum lane values, drum LFO, conditions). The web editor reads and writes the list with AUTO_GET / AUTO_SET (site/EDITOR_PROTOCOL.md).
 
 ## 8. Sequencer features
 
@@ -581,7 +581,7 @@ Not on a held step's cards or the layers' cards. Not counted: an ANALOG 2 part's
 | recording (a take, or the free take) | on each beat | full |
 | count-in | a pulse on each beat of the bar | |
 
-REC's own LED shows the take as before (blinking while armed). Legend: the manual's Interface page (web/manual/interface.html).
+REC's own LED shows the take as before (blinking while armed). Legend: the manual's Interface page (site/manual/interface.html).
 
 ## 12. The help line
 
@@ -597,7 +597,7 @@ The host suite is `tests/ui_optimist_test.c` plus the `tests/ui_optimist_*.h` it
 
 ## 15. Open limits
 
-- The web editor's SOLO / MUTE command (104, `web/EDITOR_PROTOCOL.md`) still offers a solo this UI does not have.
+- The web editor's SOLO / MUTE command (104, `site/EDITOR_PROTOCOL.md`) still offers a solo this UI does not have.
 - A lane's own LFO / LFO 2 / ENV2 values are not recordable or lockable.
 - A muted key does not sound as a preview (it is silent).
 - FM6's algorithm picture overlaps its digits on deep stacks in SOUND's band; the layer's full panel draws them clean.

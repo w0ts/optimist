@@ -69,7 +69,7 @@ A profile is a saved configuration. Shipped ones are in `config/profiles` (`make
 
 | Profile (`# name:`) | What it builds (its values) |
 |---|---|
-| `mots-config` (mots-config) | **the default**: `build`, `package`, `flash`, `config` and `make` use it without a profile, the menu opens with it the first time, and it is the Pages site's flavour (`web/flavours.json`). ANALOG 2 (with its four filter models), DIGITAL, PHASE, LOFI, DRONE, VPS, PLAITS, STRINGS, PROPHET, CS80, PHYS, ACID, JUNO, CZ, NOISE; FM6 (five voice packs); the drum synth with the X0X 909 and 808; the sequencer with grids, Euclid and LFO generators, motion, conditions; USB audio, Bluetooth MIDI (BLE, bonding), Bluetooth audio, Wi-Fi link, the web editor's screen mirror, live save |
+| `mots-config` (mots-config) | **the default**: `build`, `package`, `flash`, `config` and `make` use it without a profile, the menu opens with it the first time, and it is the Pages site's flavour (`site/flavours.json`). ANALOG 2 (with its four filter models), DIGITAL, PHASE, LOFI, DRONE, VPS, PLAITS, STRINGS, PROPHET, CS80, PHYS, ACID, JUNO, CZ, NOISE; FM6 (five voice packs); the drum synth with the X0X 909 and 808; the sequencer with grids, Euclid and LFO generators, motion, conditions; USB audio, Bluetooth MIDI (BLE, bonding), Bluetooth audio, Wi-Fi link, the web editor's screen mirror, live save |
 | `synths` | ANALOG 2 (with its four filter models), DIGITAL, PHASE, FM6 (five voice packs), PLAITS, STRINGS, PROPHET, PHYS, ACID, JUNO; the drum synth with the KAWA and PLAITS kits, the X0X 909 and 808, the user kits; Bluetooth audio; the web editor's backup, restore and screen mirror |
 | `synths-2` | LOFI, VOICE, WHEEL, DRONE, VPS, TERRAIN, WSEQ, VECTOR, WAVE, SID, PROPHET; the drum synth alone (no user kits); Bluetooth audio; the web editor's backup, restore and screen mirror |
 | `drum-machines` (drum machine) | SAMPLE, GRAIN; the drum synth with the KAWA and PLAITS kits, the X0X 909 and 808, the sampled kits, your samples and kits; USB audio, Bluetooth MIDI (BLE devices at FULL), Bluetooth audio; the web editor's backup, restore and screen mirror |
@@ -462,7 +462,7 @@ outside the project's payload, so a PRJ1..PRJ4 / AUTO backup does not hold it.
   texts packed with a byte-pair code and unpacked on the stack when drawn (`firmware/src/ui/ph_blob.c`).
   `tests/param_help_pack_test.c` checks every line unpacks to the table's text.
 - The firmware reports what it is: `INFO` adds each slot's engine UID, `BUILD` (cmd 49) the configuration's name, hash and
-  one bit per registry item (`web/EDITOR_PROTOCOL.md`).
+  one bit per registry item (`site/EDITOR_PROTOCOL.md`).
 
 ## Arena column
 
@@ -485,7 +485,7 @@ only what `costs.json` lacks and the base again when it moved; `--missing --chec
 something lacks. `tests/builder_test.py` and CI's `host-tests` job run that check, so an unmeasured item cannot land. It
 does not notice an item whose code changed after it was measured: re-measure it with `--only KEY`. `make costs-all [JOBS=n]` measures everything again
 (about 440 builds at 20 s or less; on a fast Linux host with `tools/farm_size.sh` for single builds). Commit `costs.json`
-and `web/builder/data/` together (`tools/export_builder_web.py`).
+and `site/builder/data/` together (`tools/export_builder_web.py`).
 
 The estimate is **anchored**. The plain sum (base + deltas + pairs + groups + computed terms) drifts the further a
 configuration is from the defaults, because the firmware is one LTO unit compiled for size. So `configure.py budget`

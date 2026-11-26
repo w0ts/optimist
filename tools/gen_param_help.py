@@ -3,8 +3,8 @@
 """The one-line parameter help (builder item PARAM_HELP): tools/param_help.json -> the firmware's header and the
 web editor's copy (run by tools/build.py).
 
-  gen_param_help.py OUT.h            the header, and web/editor.html's block brought up to date
-  gen_param_help.py --check          exit 1 when web/editor.html's block differs from the table (tests)
+  gen_param_help.py OUT.h            the header, and site/editor.html's block brought up to date
+  gen_param_help.py --check          exit 1 when site/editor.html's block differs from the table (tests)
   gen_param_help.py --stats          sizes: the strings as they are and packed
   gen_param_help.py --all OUT.h      every group without its condition, and PH_PLAIN, every line as it reads (for
                                      tests/param_help_pack_test.c)
@@ -25,7 +25,7 @@ The header: one const string in flash (PH_BLOB), the groups one after the other,
 build carries the lines of the features it has: kind byte, context, NUL, then label NUL text NUL ..., an empty
 label ends the group; kind 0 ends the table; each text packed (CODES, PH_PAIR below). ui/ph_blob.c looks a line up as
 (kind, context, label) -> offset and unpacks it (ph_text).
-The editor's copy (web/editor.html, between the PARAM_HELP markers): every line, whatever a build has (the editor
+The editor's copy (site/editor.html, between the PARAM_HELP markers): every line, whatever a build has (the editor
 talks to any firmware): PARAM_HELP = {page: {CTX: {LABEL: TEXT}}, eng: {...}, fm6: {...}}.
 """
 import json
@@ -36,7 +36,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 TABLE = ROOT / "tools" / "param_help.json"
-EDITOR = ROOT / "web" / "editor.html"
+EDITOR = ROOT / "site" / "editor.html"
 FONT = ROOT / "assets" / "fonts" / "ter-u16n.bdf"
 WIDTH_PX = 232                     # the top bar from x 4 to 236 (ui_draw.c draw_head), the live screens' header too
 KINDS = {"page": 1, "eng": 2, "fm6": 3, "op": 4}
@@ -318,7 +318,7 @@ def editor_block(table):
 
 
 def editor_sync(table, write=True, path=EDITOR):
-    """-> True when web/editor.html holds the table's block (written when write and it did not)"""
+    """-> True when site/editor.html holds the table's block (written when write and it did not)"""
     html = path.read_text(encoding="utf-8")
     pat = re.compile(re.escape(BEGIN) + r".*?" + re.escape(END), re.S)
     if not pat.search(html):
@@ -352,7 +352,7 @@ def main(argv):
         return 1
     if argv[:1] == ["--check"]:
         if not editor_sync(table, write=False):
-            print("gen_param_help: web/editor.html's PARAM_HELP block is out of date (python3 tools/gen_param_help.py "
+            print("gen_param_help: site/editor.html's PARAM_HELP block is out of date (python3 tools/gen_param_help.py "
                   "build/gen/felucca_param_help.h)", file=sys.stderr)
             return 1
         return 0
@@ -378,7 +378,7 @@ def main(argv):
         return 0
     wrote = not editor_sync(table)
     print(f"param help: {sum(len(entries(g)) for g in table['groups'])} lines, {blob_bytes(table)} B at most plain"
-          + (" (web/editor.html updated)" if wrote else ""))
+          + (" (site/editor.html updated)" if wrote else ""))
     return 0
 
 

@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-only
-// The editor features' protocol and files: the wire format, the web editor's files (written by web/editor.html itself: Fixtures/web_*,
+// The editor features' protocol and files: the wire format, the web editor's files (written by site/editor.html itself: Fixtures/web_*,
 // made by make_fixtures.mjs) read and written byte for byte, and the operations against a fake FM-1.
 import XCTest
 @testable import OptimistMirror
@@ -41,7 +41,7 @@ final class WireTests: XCTestCase {
         XCTAssertTrue(Wire.replyMatches(Cmd.bkList.rawValue, [4, 0], [4]))
     }
 
-    // the same INFO replies web/test_web.mjs parses
+    // the same INFO replies site/test_web.mjs parses
     func testInfoLiteAndLibrarian() throws {
         let enc = { (s: String) in Array(s.utf8) + [0] }
         let lite = try DeviceInfo.parse(enc("FELUCCA 0.1") + [0, 0, 0, 0, 0, 64, 0, 0, 0, 7, 0x64, 1, 1])
@@ -386,7 +386,7 @@ final class OpsTests: XCTestCase {
     }
 
     /// issue 142: a write keeps the slot's edits as its live pattern ("*"), SAVE makes them the saved one, RELOAD drops them;
-    /// the same labels and wording as the web editor (web/test_web.mjs "patterns: SAVE (op 4)...")
+    /// the same labels and wording as the web editor (site/test_web.mjs "patterns: SAVE (op 4)...")
     func testPatternsLiveSaveReload() async throws {
         let d = fake()
         let a = Array((0..<12).map { UInt8($0 + 1) }), b = Array((0..<8).map { UInt8($0 + 40) })
@@ -462,7 +462,7 @@ final class OpsTests: XCTestCase {
     }
 }
 
-/// the .fm1proj file: the web editor's bytes (web/sim/bk.js packProject) read and written byte for byte, and the MEMORY layout's caps
+/// the .fm1proj file: the web editor's bytes (site/sim/bk.js packProject) read and written byte for byte, and the MEMORY layout's caps
 final class ProjectFileTests: XCTestCase {
     static let web = "464d3150010146554e4253494d20534f4e4700000000060000001102000506fa10303109"
 

@@ -158,7 +158,7 @@ t_ble_emu() { python3 tests/ble_emu_test.py; }
 t_ble_central() { python3 tests/ble_emu_central_test.py; }
 t_ble_boot() { python3 tests/ble_emu_boot_test.py; }
 t_builder() { python3 tests/builder_test.py; r=$?; python3 tests/builder_core_test.py || r=1; python3 tests/engine_order_test.py || r=1; return $r; }
-t_web() { node web/test_web.mjs; r=$?; node web/test_builder.mjs || r=1; python3 tests/cloud_build_test.py || r=1; python3 tests/outside_hosts_test.py || r=1; return $r; }
+t_web() { node site/test_web.mjs; r=$?; node site/test_builder.mjs || r=1; python3 tests/cloud_build_test.py || r=1; python3 tests/outside_hosts_test.py || r=1; return $r; }
 # the simulator (docs/WEB.md): the default configuration's firmware as WebAssembly, run under node
 t_sim() {
     local py; py="$(python3 -c 'import sys; sys.path.insert(0, "tools"); import deps; print(deps.venv_python())')" || return 1
@@ -1057,8 +1057,8 @@ job; ( jobin
 # the knobs' help lines (FELUCCA_PARAM_HELP, tools/param_help.json; the Optimist UI's coverage: tests/ui_optimist_test.c):
 # the table valid, the editor's copy of it up to date, every line unpacks
 job; ( jobin
-    run "help lines: tools/param_help.json valid, web/editor.html's copy up to date" python3 tools/gen_param_help.py --check
-    run "FXP table: tests/fxp_table.json, web/editor.html's mock copy up to date" python3 tools/gen_fxp_table.py --check
+    run "help lines: tools/param_help.json valid, site/editor.html's copy up to date" python3 tools/gen_param_help.py --check
+    run "FXP table: tests/fxp_table.json, site/editor.html's mock copy up to date" python3 tools/gen_fxp_table.py --check
 ) >"$U.out" 2>&1 & jobbg
 job; ( jobin
     mkdir -p "$OUT/phpack"

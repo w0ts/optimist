@@ -2,10 +2,10 @@
 # SPDX-License-Identifier: GPL-3.0-only
 # Copyright (C) 2026 Leo Kuroshita (@kurogedelic), Hügelton Instruments
 """tools/fm1_install.py against a simulated FM-1 (no hardware, no mido).
-The fake device is the one in web/test_web.mjs: identity on the handshake,
+The fake device is the one in site/test_web.mjs: identity on the handshake,
 then "device asks, host answers" reads of the logical image. Run from the repo root:
   python3 tests/install_test.py
-Also checks logical_image/product_of against web/fm1base/fm1pkg.js (needs node and
+Also checks logical_image/product_of against site/fm1base/fm1pkg.js (needs node and
 build/felucca.fwsc, skipped otherwise)."""
 import io
 import os
@@ -439,7 +439,7 @@ def errors():
     dev = FakeFM1(image)
     rc, out, err = cli([pkgfile("damaged.fwsc", package(damage=True)), "--yes"], dev)
     ok(rc == 2 and "damaged package" in err and dev.sent == [], "damaged package (a file's CRC) -> exit 2, no MIDI")
-    stock = ROOT / "web" / "stock" / "FM-1_015.fwsc"   # (M-VAVE's V15: its USR entry fails package_damage's CRC)
+    stock = ROOT / "site" / "stock" / "FM-1_015.fwsc"   # (M-VAVE's V15: its USR entry fails package_damage's CRC)
     if stock.is_file():
         product, _ = I.load_package(str(stock), False)
         ok(product == "FM-1_015", "M-VAVE's V15 (by its sha256) loads: no loader marker, its USR CRC as M-VAVE made it")
@@ -660,11 +660,11 @@ def against_js():
         return
     js = ("import { logicalImage, productOf } from %r; import { readFileSync } from 'node:fs';"
           "const p = readFileSync(process.argv[1]); process.stderr.write(productOf(p));"
-          "process.stdout.write(logicalImage(p));") % str(ROOT / "web/fm1base/fm1pkg.js")
+          "process.stdout.write(logicalImage(p));") % str(ROOT / "site/fm1base/fm1pkg.js")
     r = subprocess.run(["node", "--input-type=module", "-e", js, str(clean)], capture_output=True, check=True)
     raw = clean.read_bytes()
     ok(I.logical_image(raw) == r.stdout and I.product_of(raw) == r.stderr.decode(),
-       f"logical_image / product_of == web/fm1base/fm1pkg.js ({clean.name}, {I.product_of(raw)})")
+       f"logical_image / product_of == site/fm1base/fm1pkg.js ({clean.name}, {I.product_of(raw)})")
     ok(I.LOADER_MARK in raw, f"{clean.name} carries the Felucca loader marker")
 
 

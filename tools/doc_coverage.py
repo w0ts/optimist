@@ -13,7 +13,7 @@ Sources, read from the tree (nothing is typed in twice):
     words a document has to carry before it counts as explained.
 
 A document is a *user* document when it is the builder reference (docs/BUILDER.md), the manual
-(web/manual/*.html, the site's manual) or the site's About page (web/site_about.py; the README is for developers). A term found only in docs/UI-OPTIMIST-DESIGN.md is `design only`: written down for
+(site/manual/*.html, the site's manual) or the site's About page (site/site_about.py; the README is for developers). A term found only in docs/UI-OPTIMIST-DESIGN.md is `design only`: written down for
 the developers, not yet explained for a user. Status: ok, design only, MISSING (exit status 1).
 """
 import html
@@ -22,8 +22,8 @@ import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-USER_DOCS = ["docs/BUILDER.md", "web/site_about.py"] + sorted(
-    str(p.relative_to(ROOT)) for p in (ROOT / "web" / "manual").glob("*.html"))
+USER_DOCS = ["docs/BUILDER.md", "site/site_about.py"] + sorted(
+    str(p.relative_to(ROOT)) for p in (ROOT / "site" / "manual").glob("*.html"))
 DESIGN_DOCS = ["docs/UI-OPTIMIST-DESIGN.md"]
 
 # (area, name, [regexes that must all match in ONE document]); the regexes are case-sensitive unless they start (?i)
@@ -177,7 +177,7 @@ def build_rows():
 def table(rows):
     out = ["# Documentation coverage", "",
            "A row is **ok** when a user "
-           "document (docs/BUILDER.md, web/manual/*.html, web/site_about.py) carries the words that explain it, "
+           "document (docs/BUILDER.md, site/manual/*.html, site/site_about.py) carries the words that explain it, "
            "**design only** when only docs/UI-OPTIMIST-DESIGN.md does, **MISSING** when nothing does. The sources "
            "and the words each concept needs are in the tool.", "",
            "| Area | Item | Documented in | Status |", "|---|---|---|---|"]

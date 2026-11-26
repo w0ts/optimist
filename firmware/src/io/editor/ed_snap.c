@@ -1,5 +1,5 @@
 /* SPDX-License-Identifier: GPL-3.0-only */
-/* Editor protocol: snapshots (commands 54..57; snapshots.c, snap_store.c; web/EDITOR_PROTOCOL.md "Snapshots").
+/* Editor protocol: snapshots (commands 54..57; snapshots.c, snap_store.c; site/EDITOR_PROTOCOL.md "Snapshots").
  * Included by editor.c with FELUCCA_SNAPSHOTS. A firmware without them does not answer 54.
  *   54 SN_LIST   1 (version)          -> 1, slots this build shows, slots in the format (9: 0..7 and BEFORE LOAD),
  *                                        area sectors, free sectors, payload a sector (2 x 7), the longest stream

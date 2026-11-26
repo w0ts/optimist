@@ -6,8 +6,8 @@ of the app: a title, a contents list, numbered sections), pointing to Optimist's
 
   site_release_manual.py OUT.md
 
-Optimist's manual lives on the site (https://w0ts.github.io/optimist/webapp/manual/, written from web/manual/*.html by
-web/site_manual.py): this release manual has a numbered section per page of it, its title and what it covers, with the link to it.
+Optimist's manual lives on the site (https://w0ts.github.io/optimist/webapp/manual/, written from site/manual/*.html by
+site/site_manual.py): this release manual has a numbered section per page of it, its title and what it covers, with the link to it.
 tools/fm1base.py site puts the result in the app's directory for the release site's build; it is not kept in fm1-base's
 tree (the site's manual is the one source)."""
 import sys
@@ -21,7 +21,7 @@ INTRO = ("Optimist is a modular firmware for the M-VAVE FM-1. Its manual is on t
 
 
 def build() -> str:
-    sys.path.insert(0, str(ROOT / "web"))      # (web/ is not a package: site_manual is imported from its folder)
+    sys.path.insert(0, str(ROOT / "site"))      # (site/ is not a package: site_manual is imported from its folder)
     import site_manual
     topics = [(site_manual.title_of(t), what, f"{MANUAL_URL}{t}.html") for t, _, what in site_manual.TOPICS]
     contents = [f"{i + 1}. {title}" for i, (title, _, _) in enumerate(topics)]

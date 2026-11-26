@@ -1,6 +1,6 @@
 /* SPDX-License-Identifier: GPL-3.0-only */
 /* Editor protocol: a track's automation (seq/auto.h: locks, motion, nudges, fills, chance; included by editor.c with
- * FELUCCA_AUTO; web/EDITOR_PROTOCOL.md "The automation store"). v11: one pair, AUTO_GET / AUTO_SET, reads and
+ * FELUCCA_AUTO; site/EDITOR_PROTOCOL.md "The automation store"). v11: one pair, AUTO_GET / AUTO_SET, reads and
  * writes the list as it is. Writes take the IRQ off. (The older step extras' commands 72..77, SLOOP 2.4's 37..42, are gone
  * since 2026-10-19: the web editor reads and writes the list.)
  *   92 AUTO_GET  track [, first]          -> track, n (the list's events, 2 x 7 bit), the PLAY bit, first, count, then

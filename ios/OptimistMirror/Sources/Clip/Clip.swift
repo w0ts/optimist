@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-only
-// A synth track's clip as notes (111 CLIP, firmware io/editor/ed_clip.c; web/EDITOR_PROTOCOL.md "The clip"). The FM-1 keeps
+// A synth track's clip as notes (111 CLIP, firmware io/editor/ed_clip.c; site/EDITOR_PROTOCOL.md "The clip"). The FM-1 keeps
 // steps, up to 4 notes each; a note longer than its step goes on through TIE steps (every note sounding) or a carry step that
 // names it (SF_CARRY, one note of a chord alone), its own end in 1/128 of a step (0: the step's GATE). Read as seq.c note_span
 // reads them; written back as the recorder writes them. Pure functions: the tests run them.

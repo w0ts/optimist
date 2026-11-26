@@ -1,5 +1,5 @@
 /* SPDX-License-Identifier: GPL-3.0-only */
-/* Editor protocol v13: the Optimist UI's screens as rows of cards (ui/optimist/op_screens.c screen_t; included by editor.c; web/EDITOR_PROTOCOL.md
+/* Editor protocol v13: the Optimist UI's screens as rows of cards (ui/optimist/op_screens.c screen_t; included by editor.c; site/EDITOR_PROTOCOL.md
  * "The device's screens"; builder item ED_SCREENS). SCRN hands GLOBAL and SYSTEM out as lines; this does it for
  * every other screen the device draws as rows of four cards: SOUND (any track's pages, a drum lane's), MASTER, PROJECT (slots, snapshots, user
  * presets, TOOLS), STEPS, SONG, TEMPO. The device builds each card in its own screen's functions (rows, name, cell, turn, yes: the table

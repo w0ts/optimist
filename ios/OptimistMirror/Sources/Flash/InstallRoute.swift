@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-only
-// The Firmware tab's half of tools/fm1_route.py and web/install_route.js (docs/INSTALL-PATHS.md): what runs, what the
+// The Firmware tab's half of tools/fm1_route.py and site/install_route.js (docs/INSTALL-PATHS.md): what runs, what the
 // package is, whether the running firmware's update loader takes it, and the builder's BOOTLOADER with its KEEP-only
 // override. The app cannot reach the chip's download mode (a USB mass-storage device: no raw USB on iOS; on the Mac the
 // disk driver holds it and only root takes it, which a sandboxed app cannot), so where the route is download mode it says
@@ -27,7 +27,7 @@ enum InstallRoute {
         var wantsMboot = false    // download mode only for the build's m-bootloader: the update keeping the bootloader is as good
     }
 
-    // the running Optimist's word on its bootloader (tools/fm1_route.py boot_of_info, web/install_route.js bootOfInfo): the
+    // the running Optimist's word on its bootloader (tools/fm1_route.py boot_of_info, site/install_route.js bootOfInfo): the
     // editor's INFO, tag 0x68 "boot=mboot", "boot=stock" or "boot=unknown" (firmware/src/system/bootid.h)
     static let edInfo: [UInt8] = [0xF0, 0x7D, 0x46, 0x4C, 0x01, 0xF7]
 

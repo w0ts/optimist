@@ -600,7 +600,7 @@ def version():
     v = (ROOT / "VERSION").read_text().strip()
     import srcgit                      # (tools/srcgit.py: OPTIMIST_COMMIT, else git only when ROOT is the repository itself)
     commit = srcgit.commit(ROOT, short=True) or "unknown"
-    changed = srcgit.modified(ROOT, "firmware", "tools", "web")
+    changed = srcgit.modified(ROOT, "firmware", "tools", "site")
     return f"{v}-dev-{commit}{'-modified' if changed else ''}"
 
 

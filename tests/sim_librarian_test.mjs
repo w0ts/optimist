@@ -1,13 +1,13 @@
 // SPDX-License-Identifier: GPL-3.0-only
 // The web editor's librarian end to end (builder LIBRARIAN with ED_LIVE off, firmware/src/io/editor/ed_lite.c): the
-// simulator's firmware answers the editor's own request builders and parsers (web/editor.html PROTO): INFO, the
+// simulator's firmware answers the editor's own request builders and parsers (site/editor.html PROTO): INFO, the
 // sections, the user presets, the user kits, the patterns, a section's file moved onto another section, kept across a
 // restart. A build with live editing off (the synth profile):
 //   python3 tools/sim.py build --wasm --config CONFIG --out build/sim/sim-lib.wasm && node tests/sim_librarian_test.mjs build/sim/sim-lib.wasm
 import { readFileSync } from "node:fs";
 import vm from "node:vm";
 
-const HTML = new URL("../web/editor.html", import.meta.url).pathname;
+const HTML = new URL("../site/editor.html", import.meta.url).pathname;
 const WASM = process.argv[2] || new URL("../build/sim/sim-lib.wasm", import.meta.url).pathname;
 const html = readFileSync(HTML, "utf8");
 const proto = html.slice(html.indexOf("/*wire-section:begin*/"), html.indexOf("/*wire-section:end*/"));

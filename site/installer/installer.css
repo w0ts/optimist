@@ -1,0 +1,114 @@
+/* SPDX-License-Identifier: GPL-3.0-only
+   The installer's layout (site/installer/installer.js), scoped to .oi. Colours, type and spacing only from the shared
+   tokens of site/style/optimist.css (docs/WEB-STYLE.md): no colour of its own, so it takes the editor's look wherever it is
+   mounted, light or dark. The cards are the shared .card, numbered in neutral grey; the accent (the Install button, the
+   radios, the phase in progress) and an OK ("found", "done") are the pages' one colour, the blue. */
+
+.oi { max-width: none; margin: 0; }   /* (the host sets the width: the pages' 1100 px column, the editor tab's main) */
+.oi [hidden] { display: none !important; }   /* (a hidden message stays gone whatever its display) */
+.oi p { margin: 0 0 var(--sp-3); }
+.oi p:last-child { margin-bottom: 0; }
+.oi a { color: var(--ink); text-decoration: underline; text-underline-offset: 2px; }
+.oi a:hover { color: var(--accent-text); }
+
+.oi-intro { margin: 0 0 var(--sp-4); }
+.oi-what { color: var(--ink); }
+
+/* the cards, one column: Build your own, Install, then When something goes wrong (folded) */
+.oi-steps { margin: 0; padding: 0; display: grid; gap: var(--sp-4); }
+.oi-step .card-head { justify-content: flex-start; }
+.oi-h { display: flex; align-items: center; gap: var(--sp-2); }
+.oi-row { margin: 0 0 var(--sp-3); }   /* (a .row of common.css: the flex row; here only the space under it) */
+.oi-row:last-child { margin-bottom: 0; }
+.oi-row > p { margin: 0; }
+
+/* what the page says: plain, coloured only when it is a result */
+[data-kind="ok"].oi-found, [data-kind="ok"].oi-pkg, [data-kind="ok"].oi-stockmsg { color: var(--accent-text); }
+[data-kind="err"].oi-found, [data-kind="err"].oi-pkg, [data-kind="err"].oi-stockmsg { color: var(--err); }
+.oi-help { margin: 0; padding-left: 1.2em; color: var(--ink); }
+.oi-help li { margin: 0 0 var(--sp-1); }
+.oi-browser { margin: 0 0 var(--sp-3); }
+
+/* Install: a list of choices, the title, the identity, a line of description */
+.oi-choices { margin: 0 0 var(--sp-3); padding: 0; min-width: 0; display: grid; gap: 1px; background: var(--line); border: 1px solid var(--line); }
+.oi-choice { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: var(--sp-1) var(--sp-3); align-items: start; padding: var(--sp-2) var(--sp-3); background: var(--panel); }
+.oi-choice:has(.oi-radio:checked) { background: var(--off); box-shadow: inset 3px 0 0 var(--ink); }
+.oi-choice label { cursor: pointer; display: flex; flex-wrap: wrap; align-items: baseline; gap: var(--sp-1) var(--sp-2); min-width: 0; }
+.oi-choice label b { font-weight: 400; color: var(--ink); }
+.oi-desc { flex-basis: 100%; }
+.oi-choice > .oi-file { grid-column: 2; }
+.oi-choice > .oi-desc { grid-column: 2; }   /* (a row's detail under its title: Your build's name and id) */
+.oi-relpick { grid-column: 2; display: flex; flex-wrap: wrap; gap: var(--sp-2) var(--sp-3); align-items: end; min-width: 0; }
+.oi-relpick label { min-width: 0; flex: 1 1 220px; }
+.oi-relpick select { width: 100%; max-width: 100%; }
+.oi-relpick .oi-desc { flex-basis: 100%; }
+.oi-own .card-body > p { margin: 0 0 var(--sp-2); }
+.oi-radio { margin: 3px 0 0; width: 16px; height: 16px; accent-color: var(--accent); cursor: pointer; }
+.oi-file { max-width: 100%; }   /* (its button is common.css's input[type=file]; kept inside the choice's narrow column on a phone) */
+.oi-pkg { overflow-wrap: anywhere; }
+/* the release the flavours below come from (a picker when the site has several) */
+.oi-relrow { display: flex; flex-wrap: wrap; align-items: baseline; gap: var(--sp-2); padding: var(--sp-2) var(--sp-3); background: var(--panel); }
+.oi-rel { width: auto; max-width: 100%; }
+/* the cloud builds: a search, then one row a build (pick, id, date, configuration link) */
+.oi-cloud { grid-column: 2; display: grid; gap: var(--sp-2); min-width: 0; }
+.oi-csearch { font: inherit; font-family: var(--font-mono); color: var(--ink); background: var(--off); border: 1px solid var(--line);
+              border-radius: var(--r); padding: 4px 8px; max-width: 100%; width: 28ch; }
+.oi-cmsg:empty { display: none; }
+.oi-cmsg { margin: 0; }
+.oi-clist { list-style: none; margin: 0; padding: 0; display: grid; gap: 1px; max-height: 18rem; overflow: auto; }
+.oi-cbuild { display: flex; flex-wrap: wrap; align-items: baseline; gap: var(--sp-1) var(--sp-3); padding: var(--sp-1) var(--sp-2); background: var(--off); }
+.oi-cbuild[data-on] { box-shadow: inset 3px 0 0 var(--accent); }
+.oi-cpick { font: inherit; color: var(--ink); background: none; border: 0; padding: 0; cursor: pointer; text-align: left; }
+.oi-cpick b { font-weight: 400; }
+.oi-cpick:hover b, .oi-cpick[aria-pressed="true"] b { text-decoration: underline; }
+.oi-cid { font-family: var(--font-mono); color: var(--dim); user-select: all; }
+.oi-cmeta { font-variant-numeric: tabular-nums; }
+.oi-cacts { margin-left: auto; display: flex; gap: var(--sp-2); align-items: baseline; }
+
+/* 3 Install: the button, the four phases (common.css ol.phases), the bar (common.css progress), the result */
+.oi-go { width: 100%; margin: 0 0 var(--sp-3); }
+.oi .oi-go:disabled { background: var(--off); border-color: var(--off); color: var(--dim); }   /* (plainly off: nothing to install yet, or writing) */
+.oi-bar { margin: 0 0 var(--sp-2); }
+.oi-status { min-height: 20px; font-variant-numeric: tabular-nums; }
+.oi-err, .oi-ok { margin: 0 0 var(--sp-3); align-items: center; flex-wrap: wrap; }
+.oi-keep { margin: 0 0 var(--sp-3); font-size: var(--fs-1); }
+/* Wi-Fi after the install: the network name and password, then what the FM-1 says */
+.oi-wifi { display: block; margin: 0 0 var(--sp-3); }
+.oi-wifi > p { margin: var(--sp-1) 0 var(--sp-2); }
+.oi-wifi input { flex: 1 1 160px; min-width: 0; }
+.oi-wfmsg { min-height: 20px; margin: var(--sp-2) 0 0; }
+.oi-wfmsg[data-kind="ok"] { color: var(--accent-text); }
+.oi-wfmsg[data-kind="err"] { color: var(--err); }
+/* the FM-1 found, under the button */
+.oi-conn { margin-top: var(--sp-3); padding-top: var(--sp-3); border-top: 1px solid var(--line); }
+.oi-conn .oi-row { margin-bottom: var(--sp-1); }
+.oi-portlist { list-style: none; margin: var(--sp-1) 0; padding: 0; }
+.oi-portlist li { display: flex; align-items: center; justify-content: space-between; gap: var(--sp-2); margin: 0 0 var(--sp-1); }
+.oi-portmsg:empty { display: none; }
+.oi-bootopt { margin: var(--sp-2) 0; }
+.oi-bootopt label { display: block; }
+.oi-how { margin: 0 0 var(--sp-2); font-size: var(--fs-1); }
+.oi-logbox { margin-top: var(--sp-3); }
+
+/* When something goes wrong: folded under the cards */
+.oi-rescuebox { border: 1px solid var(--line); padding: var(--sp-2) var(--sp-3); background: var(--panel); }
+.oi-rescue { margin: 0 0 var(--sp-3); }
+.oi-rescue dt { color: var(--ink); text-transform: uppercase; margin: var(--sp-3) 0 var(--sp-1); }
+.oi-rescue dt:first-child { margin-top: 0; }
+.oi-rescue dd { margin: 0; color: var(--ink); }
+.oi-stockfield { margin: var(--sp-2) 0 var(--sp-1); }
+
+/* the package's version, identity and checksum, small; the links */
+.oi-foot { margin-top: var(--sp-5); padding-top: var(--sp-3); border-top: 1px solid var(--line); font-size: var(--fs-1); }
+.oi-foot p { margin: 0 0 var(--sp-1); }
+.oi-meta:empty { display: none; }
+.oi-sha { font-family: var(--font-mono); font-size: var(--fs-1); overflow-wrap: anywhere; word-break: break-all; }
+
+/* the question before an install */
+.oi-ask { margin: auto; }
+.oi-ask::backdrop { background: color-mix(in srgb, var(--bg) 70%, transparent); }
+.oi-ask .oi-row { margin-top: var(--sp-3); }
+
+@media (max-width: 520px) { .oi-row > button { flex: 1 1 auto; } }
+@media (pointer: coarse) { .oi-radio { width: 22px; height: 22px; } }
+.oi-step { --c: var(--line); }   /* (the card head's underline: neutral, no track colour) */

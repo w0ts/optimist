@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: GPL-3.0-only */
-/* Editor protocol: the projects themselves (command 110; FELUCCA_PATTERNS, docs/PROJECTS-DESIGN.md; web/EDITOR_PROTOCOL.md
+/* Editor protocol: the projects themselves (command 110; FELUCCA_PATTERNS, docs/PROJECTS-DESIGN.md; site/EDITOR_PROTOCOL.md
  * "Projects"). With the backup's PJ01..PJ16 streams (ed_backup.c) a client moves one project from a device to another:
- * the simulator's "Get a project" / "Send the project" (web/sim/sim.js; the user, 2026-10-24: "load a project from the
+ * the simulator's "Get a project" / "Send the project" (site/sim/sim.js; the user, 2026-10-24: "load a project from the
  * fm1, and be able to have the current project of the emulator in project of the fm1 (entering the name also)").
  * Included after ed_backup.c by editor.c and ed_lite.c (the UI's prj_load_go / prj_save_go are in the build by then).
  *   110 PJ_OP  0                 -> 0, 0, rc, open project, used (3 x 7 bit: bit p = project p holds something),

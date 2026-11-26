@@ -1,6 +1,6 @@
 /* SPDX-License-Identifier: GPL-3.0-only */
 /* Editor protocol: what the performance macros make of the values (FELUCCA_MACROS; included by editor.c;
- * web/EDITOR_PROTOCOL.md "Macros"). The editor sees the authored values (a macro only moves them inside the audio
+ * site/EDITOR_PROTOCOL.md "Macros"). The editor sees the authored values (a macro only moves them inside the audio
  * ISR, macro.c); this says what plays, from the same rows and arithmetic the ISR uses (mac_effective*), so the editor
  * has no table of its own to keep in step.
  *   65 MACRO  track  -> track, COLOR MOTION SPACE ENERGY (4 x v14, each -64..63, 0 = home), n, then n x one of:

@@ -18,7 +18,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "tools"))
-sys.path.insert(0, str(ROOT / "web"))
+sys.path.insert(0, str(ROOT / "site"))
 import emu
 import optimist
 import toolchain as TC
@@ -343,7 +343,7 @@ with tempfile.TemporaryDirectory() as d:
             for prof in ("mots-config", "no-such-profile", "user-default"):   # (published; none at all; left off)
                 shutil.copy(fwsc, rel / tag / f"optimist-{tag[1:]}-{prof}.fwsc")
         check("release sims: pages.yml builds each package of the latest release (its tag's commit), none of the older ones",
-              ms.release_sims(rel) == [("v0.2", REL_SHA, "mots-config"), ("v0.2", REL_SHA, "no-such-profile")])   # (web/flavours.json's default first)
+              ms.release_sims(rel) == [("v0.2", REL_SHA, "mots-config"), ("v0.2", REL_SHA, "no-such-profile")])   # (site/flavours.json's default first)
         (rel / "v0.2" / "optimist-sim-mots-config.wasm").write_bytes(b"\0asm")   # (what pages.yml builds from the tag)
         rs = ms.releases_of(rel, man)
         ms.main("9.9-test", Path(d) / "site3", ms.flavours_of(man), rs)
@@ -370,7 +370,7 @@ with tempfile.TemporaryDirectory() as d:
               and rsim["../../firmware/r/v0.2/optimist-0.2-no-such-profile.fwsc"] is None
               and rsim["../../firmware/r/v0.1/optimist-0.1-mots-config.fwsc"] is None)
         check("the site carries every Simulator module next to the editor (bk.js missing broke the tab)",
-              all((Path(d) / "site3/webapp/editor/sim" / f.name).is_file() for f in (ROOT / "web/sim").iterdir() if f.suffix in (".js", ".css")))
+              all((Path(d) / "site3/webapp/editor/sim" / f.name).is_file() for f in (ROOT / "site/sim").iterdir() if f.suffix in (".js", ".css")))
         (Path(d) / "x.wasm").write_bytes(b"\0asm")
         ms.main("dev", Path(d) / "site4", sims=[{"id": "local", "title": "Local build: synth", "sim": Path(d) / "x.wasm"}])
         sj4 = json.loads((Path(d) / "site4/webapp/installer/site.json").read_text(encoding="utf-8"))

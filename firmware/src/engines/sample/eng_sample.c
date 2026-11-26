@@ -32,7 +32,7 @@ AINL uint32_t pow2_q16(int32_t d16)
     return oct >= 16u ? r << (oct - 16u) : r >> (16u - oct);
 }
 
-/* ---- user sample slots (loaded from the web editor into flash, see web/EDITOR_PROTOCOL.md)
+/* ---- user sample slots (loaded from the web editor into flash, see site/EDITOR_PROTOCOL.md)
  * 3 slots of 80 KiB at flash 0xA0000.. (Felucca data region), read through the plain XIP
  * window. Slot = header (magic, count, name, data length, CRC32) + up to 16 zones in the
  * smp_zone_t layout (off relative to the slot's data at +512) + IMA ADPCM data. */

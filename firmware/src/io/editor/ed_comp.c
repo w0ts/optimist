@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: GPL-3.0-only
  * Copyright (C) 2026 w0ts */
 /* The backup's objects and the user sample slots as files of fm1-base's companion services (FELUCCA_ED_COMPANION: Optimist
- * as an fm1-base app, the trial; fm1-base's docs/COMPANION.md, web/EDITOR_PROTOCOL.md "fm1-base's companion services"), in place of the
+ * as an fm1-base app, the trial; fm1-base's docs/COMPANION.md, site/EDITOR_PROTOCOL.md "fm1-base's companion services"), in place of the
  * editor's cmds 43..48 and 11..15: the same objects, read and written through the same paths, the platform speaking the
  * protocol (list, read by offset, a write checked whole by its CRC-32 before it counts). Included by ed_backup.c in place
  * of its command handler; the app's hooks (app_file_*) call ed_cp_* (the trial's ui/opt_editor.h).

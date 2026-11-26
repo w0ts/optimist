@@ -1,5 +1,5 @@
 /* SPDX-License-Identifier: GPL-3.0-only */
-/* Editor protocol v13: STEP's TOOLS, GEN and GEN OUT pages (ui/optimist/op_tools.c; included by editor.c; web/EDITOR_PROTOCOL.md
+/* Editor protocol v13: STEP's TOOLS, GEN and GEN OUT pages (ui/optimist/op_tools.c; included by editor.c; site/EDITOR_PROTOCOL.md
  * "Sequence tools"; builds with ED_SEQ and FELUCCA_SEQTOOLS or the generators, FELUCCA_GENS). REVERSE, RANDOM, COOK and LENGTH (x2, 1/2) act on the selected
  * track's pattern (a drum track: the whole kit, or one lane), each one undo level, through the device's own function (tl_run: the UI's YES
  * calls the same one), so the steps and their events move exactly as on the device. EUCLID is the note generator (HITS spread over STEPS,

@@ -1,5 +1,5 @@
 /* SPDX-License-Identifier: GPL-3.0-only */
-/* BK_LIST v3 as the web editor reads it (web/editor.html bkListAll): page after page, first = the objects so far, until
+/* BK_LIST v3 as the web editor reads it (site/editor.html bkListAll): page after page, first = the objects so far, until
  * all n are in. Included by the host tests that drive ed_backup.c (after it; they have ed_out, ed_n, ed_backup).
  * bk_list_find: the object tag -> its index (and length, CRC, kind, flags; each may be NULL), -1 none or a page wrong. */
 static int bk_list_find(const char *tag, uint32_t *len, uint32_t *crc, uint32_t *kind, uint32_t *flags)

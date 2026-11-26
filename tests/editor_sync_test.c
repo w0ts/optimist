@@ -105,7 +105,7 @@ static uint8_t pl_filt;
 
 static int fails;
 
-/* v13 FXP: the device's own parameter tables as JSON, for the web editor's mock (web/editor.html FXP_TABLE, tools/gen_fxp_table.py):
+/* v13 FXP: the device's own parameter tables as JSON, for the web editor's mock (site/editor.html FXP_TABLE, tools/gen_fxp_table.py):
  * per kind of owner (track, master, usb, return, lane) and type it may hold, the parameters (label, fmt, min, max, def, unit,
  * names). tests/fxp_table.json is the golden: this test fails when the firmware's tables moved (FXP_WRITE=1 rewrites it) */
 #if FELUCCA_ED_FXP && FELUCCA_ED_DLAN
@@ -559,7 +559,7 @@ int main(void)
         nb = f ? (long)fread(b, 1, 1u << 20, f) : -1;
         if (f)
             fclose(f);
-        check(nb == na && !memcmp(a, b, (size_t)na), "v13 FXP: the parameter tables equal tests/fxp_table.json (FXP_WRITE=1 rewrites it; web/editor.html's mock follows: tools/gen_fxp_table.py)");
+        check(nb == na && !memcmp(a, b, (size_t)na), "v13 FXP: the parameter tables equal tests/fxp_table.json (FXP_WRITE=1 rewrites it; site/editor.html's mock follows: tools/gen_fxp_table.py)");
         free(a), free(b);
 #endif
     }

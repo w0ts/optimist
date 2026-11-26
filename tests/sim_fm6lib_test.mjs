@@ -3,12 +3,12 @@
 // stored in a user slot (UP_STORE: UP_FM6 keeps the voice beside the record, upreset.c OBJ_UPFM6), copied to the
 // library (UP_GET) and back into another slot (UP_PUT); loaded, it must play the voice, not INIT VOICE's sine. And a
 // DX7 voice from a .syx file goes straight into a slot the same way. The editor's own request builders and parsers
-// (web/editor.html PROTO: bank.get, bank.put, dx7Message) against the simulator's firmware. A build with UP_FM6:
+// (site/editor.html PROTO: bank.get, bank.put, dx7Message) against the simulator's firmware. A build with UP_FM6:
 //   python3 tools/sim.py build --wasm --config CONFIG --out build/sim/sim-fm6.wasm && node tests/sim_fm6lib_test.mjs build/sim/sim-fm6.wasm
 import { readFileSync } from "node:fs";
 import vm from "node:vm";
 
-const HTML = new URL("../web/editor.html", import.meta.url).pathname;
+const HTML = new URL("../site/editor.html", import.meta.url).pathname;
 const WASM = process.argv[2] || new URL("../build/sim/sim-fm6.wasm", import.meta.url).pathname;
 const html = readFileSync(HTML, "utf8");
 const proto = html.slice(html.indexOf("/*wire-section:begin*/"), html.indexOf("/*wire-section:end*/"));

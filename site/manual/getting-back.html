@@ -1,0 +1,21 @@
+<!-- SPDX-License-Identifier: GPL-3.0-only -->
+<!-- Getting back: a page of the user manual (site/site_manual.py wraps it). -->
+<section>
+<ul>
+<li><strong>To the official firmware:</strong> in <a href="https://w0ts.github.io/optimist/webapp/editor/#install">Install</a>, step 4, take
+the copy of M-VAVE's FM-1 V15 the site keeps (or your own <code>FM-1.fwsc</code> from <a href="https://www.m-vave.com/download">m-vave.com</a>,
+unchanged) and install it. Or use M-VAVE's own updater, M-UPGRADE. The official firmware does not read Optimist's data: back it up first.</li>
+<li><strong>The FM-1 does not start Optimist:</strong> hold <strong>OCT−</strong> alone while switching on (<em>OPTIMIST USB RESCUE</em>), then install again.
+After two start-ups that crash, the FM-1 goes there by itself.</li>
+<li><strong>Switching between Optimist's own firmware and the release, or from any firmware:</strong> the installer picks the way
+itself (the running firmware's updater, else the chip's download mode through M-Flasher, a full backup first):
+<a href="https://github.com/w0ts/optimist/blob/main/docs/INSTALL-PATHS.md">docs/INSTALL-PATHS.md</a>. No detour through V15.</li>
+<li><strong>Nothing starts at all:</strong> hold <strong>OCT− + OCT+</strong> while switching on and keep them held for <strong>3 s</strong>: the chip's own update mode
+(UBOOT; the screen stays dark). Then M-UPGRADE, or <a href="https://github.com/w0ts/optimist/blob/main/tools/fm1_rescue.py"><code>tools/fm1_rescue.py</code></a> from Optimist's repository (macOS; from X0X: it
+backs up the whole flash first and writes only the firmware area), or
+<a href="https://github.com/kurogedelic/FM-1-transporter">FM-1-transporter</a>. With the RP2040 dongle of
+<a href="https://github.com/w0ts/optimist/blob/main/tools/dongle/README.md">tools/dongle/</a> (the transporter on a Seeed XIAO RP2040 or a Raspberry Pi Pico, three wires
+on the USB port) <code>tools/fm1_rescue.py --dongle</code> needs neither the key combo nor a cable swap: the dongle keys the chip
+when the FM-1 is switched on and is its USB host.</li>
+</ul>
+</section>

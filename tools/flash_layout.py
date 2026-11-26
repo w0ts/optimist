@@ -7,7 +7,7 @@ slot ends and where it keeps what it moves. Everything else takes it from here:
                              (ota.c step 1)
   tools/build.py             app.ld's XIP length, the build's flash limit; tools/fm1pkg_make.py the package's flash.bin
   tools/fm1_layouts.py, fm1_rescue.py, fm1_route.py, fm1_install.py   the installers' sizes and clears
-  web/install_route.js, ios/OptimistMirror/Sources/Flash/InstallRoute.swift, tools/builder/registry.py LAYOUT_STEPS
+  site/install_route.js, ios/OptimistMirror/Sources/Flash/InstallRoute.swift, tools/builder/registry.py LAYOUT_STEPS
                              copies, checked against this table by tests/flash_layout_test.py (the web page and the
                              iOS app cannot import it)
 

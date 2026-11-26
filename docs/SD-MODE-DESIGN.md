@@ -499,7 +499,7 @@ slots the flash keeps rather than by how many projects. Every number is from the
 gone (`far_probe.c`, the console's `far`, `.text_far`, `far_off`, `FAR_RESERVE`): LAYOUT 1's code limit is its
 whole slot, 831,420 B. One table, `tools/flash_layout.py` `STEPS`, generates `firmware/hal/fm1_steps.h` (checked
 byte for byte by `tests/flash_layout_test.py`); the other copies (`registry.py` `LAYOUT_STEPS`, the installers' size
-lists in `fm1_route.py` / `fm1_install.py` (imported), `web/install_route.js` and `InstallRoute.swift` (checked)) come
+lists in `fm1_route.py` / `fm1_install.py` (imported), `site/install_route.js` and `InstallRoute.swift` (checked)) come
 from it. S0 is LAYOUT 3, MEMORY 4 "no user samples" (3 stays free for S1); S1 and S0-20 are not built. The release
 waits (9.4, last rows): `gen_optimist.py` has `S0_APP_END` and refuses LAYOUT 3, the builder marks it NOT_BUILT for
 the release, and fm1-base's side is a proposed branch, `pr/app-end-table` in the PR clone (felucca-bsp's
@@ -672,7 +672,7 @@ One table drives everything: the steps' (end, R, release end) live in `tools/fla
 | `tools/fm1_rescue.py:69-70`, `:207`, `:373` | `APP_END`, `CLEAR_END`, `load_package`, the switch | sizes and clears from the table (it calls `switch_clear` already) |
 | `tools/fm1_layouts.py:24-27`, `:48-77`, `:116-124` | `LAYOUTS`, `layout_of`, `installed_end`, `_clear_range` | the steps' rows (own and base), the known ends from the table, `_clear_range` = the 9.3 rule |
 | `tools/fm1_route.py:21`, `:107-109`, `:134-136` | `OWN_SLOTS`, the package kind, `loader_takes` | the list of ends |
-| `web/install_route.js:12`, `:43-44`, `:60` | `OWN_SLOTS` | the same list (generated from `flash_layout.py`, as `mflasher.json` is from `mflasher.py`, so the three cannot drift) |
+| `site/install_route.js:12`, `:43-44`, `:60` | `OWN_SLOTS` | the same list (generated from `flash_layout.py`, as `mflasher.json` is from `mflasher.py`, so the three cannot drift) |
 | `ios/OptimistMirror/Sources/Flash/InstallRoute.swift:12`, `:56-57`, `:71` | `ownSlots` | the same list; an App Store resubmit |
 | `tools/fm1_anyflash.py`, `tools/mflasher.py` | the download-mode plan | nothing of their own: `fm1_anyflash.py` plans through `fm1_layouts.plan` (its `dry_run`'s "up to 0xDA000" line, `:319`, stays true); `mflasher.py` holds no layout |
 | `tools/builder/registry.py:1141-1148`, `:1177-1188` | `MEMORY_CHOICES`, `MEMORY`'s notice, `LAYOUT`'s choices and text | MEMORY 3 "one sample slot", 4 "no user samples" (0-2 unchanged: MEMORY is derived, never stored, `core.py:106-116`), listed in size order; LAYOUT choices 2, 3; the notice per step |
@@ -931,7 +931,7 @@ step's own count, so an old `.config` without it reads as before: 16, L1 1):
 
 One line, plain words, naming what that switch erases, and where to back up. Template:
 **"This firmware has another memory layout: installing it erases {the projects / user samples USR2 / USR3 and the
-snapshots}. Back up first: web editor > Backup."** Backups: the web editor's Backup tab (`web/editor.html` `#p-backup`,
+snapshots}. Back up first: web editor > Backup."** Backups: the web editor's Backup tab (`site/editor.html` `#p-backup`,
 `ed_backup.c`: the projects as PJ01..PJ16, as many as the build's `PROJ_SLOTS`, presets, kits, the user sample slots,
 the snapshots) and a full flash image (`python tools/fm1_anyflash.py backup`). After the switch the user restores; a
 build with fewer PROJECTS takes only PJ01..PJnn (the rest stays in the file) and may say MEM FULL on big projects.

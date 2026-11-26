@@ -2,7 +2,7 @@
 // What the web editor's Projects, Library and Backup tabs ask of the FM-1, as functions over a Transport (MirrorLink in the app,
 // a fake device in the tests): INFO, PROJECT, BK_LIST / READ / BEGIN / DATA / COMMIT / END, SMP_BEGIN / WRITE / END (a
 // sample slot), PAT_LIST / OP / READ / WRITE, UP_LIST / GET / PUT / STORE / LOAD / ERASE. The same order, timeouts and
-// retries as web/editor.html (bkReadAll, bkRestore, bkWriteObj, bkCheckAll, smpSend, patReadAll, patWriteAll, bank).
+// retries as site/editor.html (bkReadAll, bkRestore, bkWriteObj, bkCheckAll, smpSend, patReadAll, patWriteAll, bank).
 import Foundation
 
 protocol Transport: AnyObject {

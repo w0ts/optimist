@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-only
-// Where the packages come from: the site's list (GitHub Pages, webapp/installer/site.json, web/make_site.py: each release's
+// Where the packages come from: the site's list (GitHub Pages, webapp/installer/site.json, site/make_site.py: each release's
 // packages; its development build of main is not offered) and one's own cloud build, by its key (the cloud-builds branch's index.json,
-// read at the branch's commit as web/installer/installer.js loadCloud does). Read as untrusted: a download must match the
+// read at the branch's commit as site/installer/installer.js loadCloud does). Read as untrusted: a download must match the
 // list's SHA-256.
 import Foundation
 
@@ -9,7 +9,7 @@ struct FlashEntry: Identifiable, Equatable, Hashable {
     let id: String
     let group: String             // "Optimist v0.1 · 2026-10-18", "Cloud build"
     let title: String             // the flavour
-    let flavour: String           // its web/flavours.json id ("default"); "" for a cloud build
+    let flavour: String           // its site/flavours.json id ("default"); "" for a cloud build
     let url: URL
     let product: String?          // the site names it; a cloud build does not
     let sha256: String
@@ -20,7 +20,7 @@ struct FlashEntry: Identifiable, Equatable, Hashable {
 enum FlashCatalog {
     static let repo = "w0ts/optimist"
     static let site = URL(string: "https://w0ts.github.io/optimist/webapp/installer/site.json")!
-    /// the web builder's page for this app (web/builder/app.html: no site header or menu; the app adds its look), started on
+    /// the web builder's page for this app (site/builder/app.html: no site header or menu; the app adds its look), started on
     /// a flavour; its Build in the cloud goes through the relay, which opens the issue
     static let builder = URL(string: "https://w0ts.github.io/optimist/webapp/builder/app.html")!
     static func builder(flavour: String) -> URL {

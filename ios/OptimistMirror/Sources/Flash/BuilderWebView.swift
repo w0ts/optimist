@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-only
-// The web builder inside the app (the user, 2026-10-25): its page for the app (web/builder/app.html: no site header or menu)
+// The web builder inside the app (the user, 2026-10-25): its page for the app (site/builder/app.html: no site header or menu)
 // in a WKWebView, started on a flavour, with the app's look put in as a style sheet (look). Its rules are the web's own
 // (tools/builder in Pyodide), and its Build in the cloud goes through the relay as from a browser: the page is w0ts.github.io's,
 // so the relay's Origin and Turnstile checks hold (Cloudflare: Turnstile in a native app = a WebView). The page posts its
@@ -14,7 +14,7 @@ struct BuilderWebView: UIViewRepresentable {
 
     static let handler = "optimist"
 
-    /// The app's look over the site's style (web/style/optimist.css's tokens): iOS's dark grouped colours, its font and
+    /// The app's look over the site's style (site/style/optimist.css's tokens): iOS's dark grouped colours, its font and
     /// sizes, rounded controls
     static let look = """
     :root { color-scheme: light dark;

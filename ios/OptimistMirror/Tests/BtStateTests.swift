@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-only
 // The words and decisions for a Bluetooth connection the device cannot make (BluetoothState.swift): each state, each platform,
-// and the 5 s no-FM-1 hint. The web editor says the same no-FM-1 sentence (web/test_web.mjs checks it).
+// and the 5 s no-FM-1 hint. The web editor says the same no-FM-1 sentence (site/test_web.mjs checks it).
 import XCTest
 @testable import OptimistMirror
 

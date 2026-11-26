@@ -35,7 +35,7 @@ submodule with cargo instead. The installers also take `M_FLASHER=/path/to/m-fla
 `m-flasher` on the PATH. Why the release rather than a build: it is the build its author tested on each system
 (macOS's root helper, Windows' SCSI pass-through, Linux's udev rule come with it), and it needs no Rust toolchain.
 
-**The bundled m-bootloader.** `web/fm1base/m-bootloader/fm1-uboot-2.4.boot` and `.fwsc` are the files of his v2.4 release, unchanged:
+**The bundled m-bootloader.** `site/fm1base/m-bootloader/fm1-uboot-2.4.boot` and `.fwsc` are the files of his v2.4 release, unchanged:
 `tools/mflasher.py` pins their SHA-256 and the test checks them against it. M-Flasher 0.9.2 bundles the same version, but
 the installers pass it `--file` with this one.
 
@@ -152,7 +152,7 @@ touching the other two.
 Over USB-MIDI an installer cannot read the flash, so before 2026-10-31 it could not tell whether m-bootloader was on the
 FM-1, and planned download mode (M-Flasher) for every build that says m-bootloader. A running Optimist now reads its own
 boot area and says which bootloader is there: the editor's `INFO` (cmd 1) ends with the tag 0x68, `boot=mboot`,
-`boot=stock` or `boot=unknown` (web/EDITOR_PROTOCOL.md; `firmware/src/system/bootid.h`: 32 bytes, read with the flash
+`boot=stock` or `boot=unknown` (site/EDITOR_PROTOCOL.md; `firmware/src/system/bootid.h`: 32 bytes, read with the flash
 driver's own read, never through XIP). `python tools/fm1_install.py --info` prints it at the end of its line
 (`FM-1_7900  [running]  port: FM1-1A2B  boot=mboot`); the install, `make flash`, the builder's `f`, the web installer and
 the Mirror app's Firmware tab ask it of Optimist's identities only (FM-1_700, 720..769, 000, 79..), and never write.
@@ -392,7 +392,7 @@ editor (Backup). Each step says how to come back if it goes wrong.
    - Expect: switching off and on boots the firmware as before; REC held while switching on: download mode
      (`m-flasher find` shows it); PLAY held: m-bootloader's menu.
    - Then one install with the build's m-bootloader: the installer says "found: kept" and writes the firmware only.
-   - Recover: `python tools/fm1_anyflash.py bootloader --stock web/stock/FM-1_015.fwsc` puts M-VAVE's bootloader back
+   - Recover: `python tools/fm1_anyflash.py bootloader --stock site/stock/FM-1_015.fwsc` puts M-VAVE's bootloader back
      (the boot area only); or restore the backup made before it. If neither firmware nor bootloader starts, the USB_KEY
      dongle (m-bootloader SPEC 4.3) reaches download mode whatever the flash holds.
 5. **The MEMORY steps** (2026-10-30, branch `fm1-next-memsteps`; docs/SD-MODE-DESIGN.md section 9). The packages, the

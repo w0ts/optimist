@@ -1,6 +1,6 @@
 /* SPDX-License-Identifier: GPL-3.0-only */
 /* Which bootloader the FM-1's boot area holds, for the installers (INFO tag 0x68 "boot=mboot|stock|unknown",
- * web/EDITOR_PROTOCOL.md; docs/INSTALL-PATHS.md "Asking the firmware"). Read only, 32 bytes, as stored (no XIP):
+ * site/EDITOR_PROTOCOL.md; docs/INSTALL-PATHS.md "Asking the firmware"). Read only, 32 bytes, as stored (no XIP):
  *   0xA0  the boot file's 16-byte container header, ENC 0xFFFF from its own start: M-VAVE's bootloader (byte-identical
  *         in the stock FM-1 and SMK-37 images, Felucca's, SLOOP's and Baud Girl's: m-bootloader SPEC 5.3) has the
  *         plain header 01 00 20 38 00 20 C0 01 10 00 00 00 A2 81 F5 BC (its payload's length and CRC 0x81A2 in it)

@@ -7,7 +7,7 @@
 The firmware is the device's own single compilation unit (firmware/src/felucca.c), with firmware/sim/hal/ in front of
 firmware/hal/: the headers that touch the chip are replaced by host versions (time is simulated, the flash is a RAM
 image, the screen a 240x240 buffer, the keys and knobs set from outside, USB MIDI a pair of queues). firmware/sim/sim.c
-is the platform: what the browser (web/sim/) or a host test calls. What cannot run there is switched off whatever the
+is the platform: what the browser (site/sim/) or a host test calls. What cannot run there is switched off whatever the
 configuration says (SIM_FORCE): the second core, Bluetooth, the cache RAM, the key scan's DMA, USB audio / serial.
 --wasm (emcc, Emscripten): build/sim/sim.wasm, a standalone module with no imports (tests/sim_test.mjs). Without it, an
 attempt at a host executable with $CC (the sources carry ELF section names: macOS's cc refuses them). docs/WEB.md.

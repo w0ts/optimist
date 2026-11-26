@@ -1,0 +1,205 @@
+<!-- SPDX-License-Identifier: GPL-3.0-only -->
+<!-- The sequencer, step by step: a page of the user manual (site/site_manual.py wraps it). -->
+<section>
+<p>How to write, edit and shape a pattern: the STEP page, p-locks, motion recording, chance, conditions, nudge, fills, the GEN note generator, the TOOLS, the arpeggiator, scales and chords, patterns and scenes, the song, snapshots, undo, mute, the performance macros and the drum ACCENT lane. Every gesture is also in <a href="shortcuts.html">the Shortcuts page</a>.</p>
+<p>Many features are builder items; a build without the item has no such page (<a href="https://github.com/w0ts/optimist/blob/main/docs/BUILDER.md">BUILDER.md</a> names them). SHIFT is OCT- held, SHIFT2 is OCT+ held; OCT- and OCT+ change the octave when they are let go, and only if nothing else was used while they were held.</p>
+</section>
+<section id="steps-and-the-step-page">
+<h2>Steps and the STEP page</h2>
+<p>Each of the four tracks (T1 T2 T3 synths, DR the drum track) has a pattern of up to 64 steps. A synth step holds a note or a chord (up to 4 notes), a level, a ratchet, a length (ties) and a glide (it slides into the next step). A drum step holds, per drum lane, a hit with a level and a ratchet. The 16 white keys are the 16 steps of the window shown (steps 1-16, 17-32, 33-48, 49-64, up to the track's length). The window follows the playhead while playing; PRESETS scrolls it and stops the following, SHIFT2 + PRESETS follows again.</p>
+<p><strong>The PATTERN page</strong> (STEP with no step held) has four values:</p>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>Value</th>
+<th>What it does</th>
+<th>Default</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>LEN</td>
+<td>steps in the loop, 1 to 64. Each track loops on its own length, so polymeters stay in phase</td>
+<td>16</td>
+</tr>
+<tr>
+<td>DIV</td>
+<td>step size, any note value of the tempo (see Note values below)</td>
+<td>1/16</td>
+</tr>
+<tr>
+<td>SWING</td>
+<td>MPC swing of the track, shown as 50 to 75 %. It adds to the global swing. Not on the triplets</td>
+<td>0</td>
+</tr>
+<tr>
+<td>GATE</td>
+<td>how long each note sounds inside its step</td>
+<td>64 (of 1 to 127)</td>
+</tr>
+</tbody>
+</table></div>
+<p>STEP has more pages after PATTERN: TOOLS (builder item <code>SEQTOOLS</code>), GEN and GEN OUT (<code>NOTEGEN</code> or <code>GEN_GRIDS</code>), each only in a firmware built with it. SELECT or SEQ tapped moves on.</p>
+<p><strong>Entering steps.</strong></p>
+<ul>
+<li>SEQ held + a step key edits the fills (see Fills below); with REC on, a synth track's keys play (stopped: STEP ENTRY) instead.</li>
+<li>An empty step: tap its key and it is set (drums: on the picked lane; synths: with the note or chord played last). A set step: tap it and it is cleared. A press held past the hold time (350 ms), or one during which a knob was turned, edits the step and leaves it as it was.</li>
+<li>On the drum track a tapped hit goes off, whatever its level. Hold a lane's black key and press a step to cycle that lane's hit there: NORM, HARD, GHOST, NORM; a popup says the level (the held step's LEVEL card shows it too). On an empty drum step, SHIFT + the key sets a ghost hit and SHIFT2 + the key a hard hit. <strong>SHIFT2 + a key on a set step cycles its level and mute</strong> (all its notes on a synth track, the selected lane's hit on the drum track): NORM, HARD, GHOST, MUTED, NORM. A popup names each state (for example <em>T1 STEP 5 HARD</em>), the step is shaded by its level, and a muted step stays in place, grey, its key dim, played as a rest. Each press is one undo level and the step's note becomes the picked one.</li>
+<li>A held step shows its cards: drums LEVEL (ghost, soft, norm, hard), RATCHET (x1 to x4), TUNE and DECAY of the lane; synths NOTE, LEVEL, RATCHET and GLIDE. GLIDE ON makes the step slide into the next one: the note is held over and glides to the next note (in the track's GLIDE time, or about 50 ms with GLIDE at 0), as a 303 slide. A note's length is the note picker's KNOB 4 (below). The note held is the selected one when it is let go. On a chord, all its notes are selected first; SELECT then picks the lowest alone, the one above, and so on, and ALGORITHM, PRESETS and the cards act on what is selected. PRESETS moves the selected notes alone, each keeping its whole length; at the first or last step they stay. Several held steps are edited together. SELECT pages through the step, its extras (CHANCE, NUDGE, FILL, COND) and the sound pages as p-locks.</li>
+<li><strong>While a step is held,</strong> PRESETS moves it left / right (its locks, motion and extras go with it) and ALGORITHM moves it up / down: a synth note a semitone, a drum hit to the lane above or below. OCT- / OCT+ move a synth step's notes an octave. A held synth step of several notes: SELECT picks the note ALGORITHM moves. HOME tapped clears the held step.</li>
+<li><strong>The cards stay longer.</strong> The page's cards (PATTERN, TOOLS, GEN...) go about 1.5 s after the last turn or page change; SELECT turned or SEQ tapped brings them back. SHIFT2 + SELECT turned keeps them about 30 s after each turn instead, so a generator can be tuned while it plays, until you leave STEP. A held step's cards always go about 1.5 s after it is let go.</li>
+<li><strong>The note picker.</strong> With no step held and the cards down, KNOB 1 picks the next or previous note, one note at a time: left to right; a chord first all together, then its lowest, the one above and so on (a note held on from the step before is not picked there; drums: hit of the picked lane). KNOB 2 moves it in time, it alone, its whole length (SHIFT held: its nudge), KNOB 3 its pitch (drums: its lane), KNOB 4 its length (drums: its level). SAVE opens its cards; SAVE held, let go: the note is muted (kept, played as a rest); HOME held, let go: the note is deleted and nothing is picked. KNOB 1 turned left past the first note picks no note (<em>NO NOTE</em>); right again picks the first note. The note you last entered or edited (a step key, a held step, a recorded note, a move) is the picked one, and KNOB 1 goes on from it.</li>
+<li><strong>Moving never breaks another note.</strong> In time (KNOB 2, PRESETS) a note jumps past a note of its own pitch to the first place it fits; in pitch (KNOB 3, ALGORITHM, NOTE, OCT on a held step) it jumps past every pitch already sounding in its time. If nothing fits it stays and says <em>NO ROOM</em>.</li>
+<li><strong>SAVE with no note picked</strong> (pattern builds): tapped, it stores the pattern into the slot it came from (<em>STORED T1 5</em>, no question); held, the white keys light the used slots; SAVE + white key n stores into slot n (asked over a used slot). SAVE then HOME is still undo.</li>
+<li><strong>REC on while playing, the keys play</strong> on a synth track's STEP: they sound, set the note the next steps take, and record as REC does; the keys light the keyboard. Stopped with REC armed, STEP is in STEP ENTRY (below). REC off, the keys are the steps. (Holding SEQ for this is gone.) The drum track's white keys stay steps; with REC on its black keys play their lane and record the hit at the playhead (and pick the lane), with REC off they only pick it.</li>
+<li><strong>STEP ENTRY</strong> (a synth track's STEP, stopped, REC armed). A cursor step, framed, replaces the playhead; the notes starting on it are selected. KNOB 1 moves the cursor (the window follows; the step's notes sound briefly). KNOB 2 moves all the notes starting on the cursor step (the cursor follows them), KNOB 3 changes their pitch as the note picker does, KNOB 4 their length, and new notes then take that length (on an empty step KNOB 4 only sets it). A key (white or black) toggles its note on the cursor step: not there, it is added (heard, at the keys' velocity, SHIFT2 + SELECT); there, it is removed (silent). Several keys together make a chord, undone in one step. The keys enter what they play: with a scale and SCL KEYS on WHITE the white keys walk the scale and the black keys enter nothing; on SNAP every key is rounded into the scale; chord mode enters the key's chord. <strong>PLAY</strong> arms the take without starting the transport: the keys play again, and the first note starts the recording (PLAY again starts it at once). REC off, the keys are the steps again. <strong>A double tap on SEQ</strong> switches STEP ENTRY on or off at any time, also while playing (a short toast, <em>STEP ENTRY</em> / <em>STEP SEQ</em>; on a synth track's STEP a single tap shows its cards change (the cards back, or the next row) only once 0.35 s has passed with no second tap; a double tap shows no cards). Playing in STEP ENTRY, the cursor is its own (KNOB 1) and the window stays on it while the playhead runs; a key adds or removes its note on the cursor step, the note is heard once and plays on the next pass, with one undo level as any edit; PLAY is the transport's (it does not arm). It ends on leaving STEP; with a take recording (REC while playing) the keys record as before. The toggle's words are a toast over the cards. Playing, moving the cursor previews nothing (stopped, it plays the step's notes). KNOB 2 moves notes onto a step that holds other pitches: they join it (a chord moves whole and joins too, up to four notes a step, else <em>STEP FULL</em> and nothing moves; the same pitch there is passed over). KNOB 4 lengthens a note through notes of other pitches (one detent stops where it touches the next note, the next goes through); only the same pitch stops it.</li>
+<li><strong>FOLD.</strong> On a synth track's STEP, OCT- and OCT+ tapped together quickly: the piano roll shows only the rows of the notes the pattern plays, or the scale's notes when a scale is set.</li>
+<li>A step that carries a p-lock or recorded motion (not a nudge, chance, fill or condition) is drawn in the automation colour. On the drum track a lock of one lane marks that lane's step only.</li>
+<li><strong>REC held</strong> (the ring) clears recorded material: on a picked drum lane only that lane (<em>Clear SNARE</em>), else the track. Undoable.</li>
+<li><strong>The drum track.</strong> The 10 lane keys (the black keys F#3 to D#5; F#5 is the ACCENT lane, below) play and pick the lane. The grid shows the steps of the picked lane. See <a href="drums.html">the Drums page</a>.</li>
+</ul>
+</section>
+<section id="p-locks-parameter-locks">
+<h2>P-locks (parameter locks)</h2>
+<p>A <strong>p-lock</strong> gives one step its own value of a sound parameter. The value holds for that step and the parameter goes back to the track's value at the next step without a lock. Builder item <code>PLOCK</code>.</p>
+<ul>
+<li><strong>Record:</strong> hold a step, then press a page button (ENV, LFO, FX, SCL or ARP; drums also EDIT): that page's cells become the step's events. A turn writes a lock; a cell that holds one shows a padlock mark. Press the same button again for the family's next page, or SELECT through the step, its extras and then the sound pages. A held step with no note takes the lock on the rest; no note is made.</li>
+<li><strong>Clear:</strong> one value: SHIFT + its knob on the step's card. All p-locks of a step: <strong>SHIFT + the step key</strong> (the notes, nudge, fill, chance and motion stay). A value on every step of the track: <strong>REC held + its knob</strong>. All locks, nudges, fills and motion of the track: <strong>SHIFT + REC held</strong> until the ring closes. A drum lane only: pick it first.</li>
+<li><strong>Lock or hold:</strong> with a lock cell selected, SHIFT2 (OCT+ held) + SAVE turns the lock into a hold event at that step (motion: the value goes on until the next event of that value); again turns it back into a step-only lock. With fills built SAVE alone on a held step is always the fill condition, whatever card is selected (the lock stays as it was); without fills SAVE alone does the lock &lt;-&gt; hold switch. With fills built OCT- / OCT+ on a held step move its notes an octave when let go (not when SAVE was pressed meanwhile).</li>
+<li><strong>What can be locked:</strong> every sound value, the ARP and SCL pages' values, the insert amounts and the engine's EDIT values. On the drum track the picked lane's TUNE, DECAY, SNAP, CLICK, BEND, CUT, DRIVE and LEVEL (the lane must have a hit on that step: otherwise &quot;NO HIT ON THIS STEP&quot;, and removing the hit removes its locks) and the ACCENT amount.</li>
+<li><strong>What cannot be locked:</strong> the LFO and ENV destination slots (DEST A / B), VOICE, ALLOC, PRIO, GLMODE and VOICES, MUTE, the FX bypass, the INSERTS S1 and S2 types, the drum lanes' SENDS, and the pattern's LEN, DIV and SWING. A lockable value is also recordable as motion and the other way round.</li>
+<li><strong>The base value:</strong> the first time a lock or a motion event changes a value, Optimist remembers the value it found; PLAY, STOP, step 0 of a pass, a load, a pattern switch and an engine change put it back. A knob turned while not recording sets the new base.</li>
+<li><strong>Limit:</strong> a pattern's events (locks, motion, nudges, fills, chance and conditions) share one list of 128. A muted track's locks do not apply.</li>
+</ul>
+</section>
+<section id="motion-recording">
+<h2>Motion recording</h2>
+<p><strong>Motion recording</strong> (builder item <code>MOTION</code>): while a track records (REC pressed while playing), turning a knob of a sound value records it on the step that is playing. When the step comes round again the value is set again, and it holds until the next event of that value. Each pass starts from the sound as it was and STOP puts it back. Record by REC and a knob on any page of the track's sound; the macros record too. A recording pass is undone with the pass. Motion is saved with the project and with each song section.</p>
+</section>
+<section id="chance-and-conditions">
+<h2>Chance and conditions</h2>
+<p><strong>Chance.</strong> A step plays with a probability: 0 to 100 % in 5 % steps, default 100 %. When a step does not play it is a rest (its ratchets too). A tie is not rolled. Builder item <code>CHANCE</code>. Hold a step, SELECT to the extras page, the CHANCE card.</p>
+<p><strong>Conditions.</strong> A step <strong>condition</strong> a:b plays the step only on loop a of every b passes of its own track: 1:2, 2:2, 1:3, 2:3, 3:3, 1:4, 2:4, 3:4, 4:4 (builder item <code>COND</code>). Each track counts the passes through its length; the count restarts on PLAY, on a song section and when a launched pattern takes over. Held step, extras page, the COND card (<code>-</code> is none). The order on a step: the condition first, then FILL, then the chance. A step that fails any of them plays nothing and applies no lock.</p>
+</section>
+<section id="nudge-micro-timing-and-fills">
+<h2>Nudge, micro timing and fills</h2>
+<ul>
+<li><strong>Nudge / micro timing</strong> (<code>MICRO</code>): a step plays up to half a step early (-32) or just under half late (+31), in 1/64 of a step; its ratchets move with it. Held step, extras page, the NUDGE card; SHIFT + its knob clears it.</li>
+<li><strong>Fills</strong> (<code>FILLS</code>): a step set to FILL ONLY plays only during a fill; NO FILL stays silent during one. Held step, SAVE cycles normal, FILL ONLY, NO FILL whatever card is selected, a lock cell too (or the FILL card in the extras). <strong>SEQ held on STEP is the fill view</strong> of the selected synth track or drum lane (the header says <em>FILLS T1</em>, or <em>FILLS</em> and the lane): its FILL ONLY steps are drawn hatched and framed white, its NO FILL steps hollow and struck through, the normal ones dim and grey. With SEQ held, a step key edits that track's or lane's fills only: an empty step gets a note or hit marked FILL ONLY; a FILL ONLY step is removed; a normal note is left alone (the popup says <em>NORMAL NOTE</em>). NO FILL is set with SAVE on a held step. Each editing press is one undo level and a popup names the result. On the drum track the condition belongs to the lane's hit, so two lanes of one step can differ (the ACCENT lane has none; a muted hit takes the condition in the mute's place). The old SEQ + a drum step, which cleared the step, is gone (HOME with the step held clears it). Play a fill with the GLO layer: key 9 is a fill while held, key 10 makes the next bar a fill (again cancels it). With fills built the FX bypass is on the GLO layer's black keys 1-4.</li>
+</ul>
+</section>
+<section id="the-note-generator-gen">
+<h2>The note generator: GEN</h2>
+<p>STEP's pages GEN and GEN OUT (builder items <code>NOTEGEN</code>: EUCLID, RANDOM, PULSE, and <code>GEN_GRIDS</code>: GRIDS, either one alone; apart from the TOOLS page's <code>SEQTOOLS</code>) hold a note generator for the selected track (a drum track: the picked lane). It plays over the pattern and writes nothing into it until you say so.</p>
+<ul>
+<li><strong>GEN</strong> has TYPE (only with more than one type built) and three values. EUCLID spreads HITS as evenly as possible over STEPS, turned by ROT (defaults 4, 16, 0; STEPS at most LEN). RANDOM has DENSITY, SEED and ACCENT. PULSE has EVERY, OFFSET and RATCHET. GRIDS (builder item <code>GEN_GRIDS</code>) is the drum map of Mutable Instruments Grids: X and Y (0..127) move over a map of 25 drum patterns and DENS sets how many steps play; the strongest play HARD. On a lane it plays the Grids part of the lane's sound (kicks BD, snares, claps and rims SD, the rest HH; the ACCENT lane where any part is HARD); T1 T2 T3 play BD SD HH. Another TYPE starts at its default values; SHIFT + a knob gives a value its default. A turn is heard at the next step.</li>
+<li><strong>GRIDS on the whole kit</strong> (<code>GEN_GRIDS</code>): on DR itself (ALGORITHM on DR, no lane picked) the GEN page becomes two pages, <strong>GRIDS</strong> (X, Y, CHAOS) and <strong>DENSITY</strong> (BD, SD, HH), and GEN OUT turns the kit's GRIDS on. It plays Grids' three parts on three lanes: BD on the first KICK lane, SD on the first SNARE lane (else the first snare, clap or rim), HH on the CLOSED HAT lane (else the first hat), and the ACCENT lane where a part plays HARD. The other lanes are left alone, and a lane with its own generator keeps it. CHAOS is Grids' random push, a new draw each bar (16 steps), so WRITE keeps the bar playing then. The six values belong to the drum track: they are saved with the project, and turning them while recording records them as motion (a held step's locks do not reach them yet). One bar of 16ths, repeated through LEN.</li>
+<li><strong>Grids' Euclidean mode</strong> (builder item <code>GRIDS_EUCLID</code>): GRIDS gets a fourth card, <strong>OUT</strong> (DRUMS or EUCL). In EUCL the three parts play Euclidean rhythms instead of the drum map, as Grids does in its Euclidean mode: the cards read BD LEN, SD LEN and HH LEN, each part's cycle of 1 to 32 steps (X, Y and CHAOS turned), and DENSITY's BD, SD and HH show how many of those steps hit, spread as evenly as they go (Grids' own table). Each part runs on through the passes on its own length, so a 5-step kick against a 16-step LEN shifts every pass. There is no accent in this mode, as on Grids. OUT is saved with the project.</li>
+<li><strong>The kit's LFOs</strong> (builder item <code>GRIDS_LFO</code>, with the drum editor): on DR itself (no lane picked) the LFO button opens two LFOs of the drum track, <strong>LFO</strong> and <strong>LFO 2</strong>, that move the kit's GRIDS. Each has RATE (free, or a note value of the tempo), WAVE, PHS (where it starts at PLAY) and FADE, and on its DEST page two destinations among X, Y, CHAOS, BD, SD and HH with an amount each. GRIDS plays the moved values step by step, so an LFO on X walks the drum map, one on BD breathes the kick in and out, and in EUCL they move the lengths and fills. The values you set stay as they are, and the LFOs are saved with the project.</li>
+<li><strong>Grids' velocity</strong> (builder item <code>GRIDS_VEL</code>): DENSITY gets a fourth card, <strong>VEL</strong> (ON by default). With VEL on, every hit of the kit's GRIDS plays at the dynamic of its level on the drum map: the main beats HARD or NORM, the in-between ones SOFT or as ghosts, into the drum sounds and MIDI out. The drum steps keep four dynamics, so STEP draws them as such and WRITE keeps them. VEL OFF plays as before, Grids' accent only: HARD where the level is over 192, the other hits NORM (or the step's own level where the lane already has a hit). It works in DRUMS mode; EUCL has no levels.</li>
+<li><strong>GEN OUT</strong> has GEN (ON / OFF, heard at once), MODE and WRITE. MODE: REPLACE (the generator's hits are the steps), ADD (the pattern's steps and the hits) or MASK (the pattern's steps only where the generator hits). A generated hit on a synth track plays the pattern's note there, else the track's ROOT; on a drum lane the pattern's level and ratchet, else NORM.</li>
+<li><strong>Off:</strong> GEN OFF and the pattern is exactly as you left it; there is nothing to keep or restore.</li>
+<li><strong>WRITE</strong> (asked) keeps what plays: it writes the generated steps into the pattern as ordinary steps and turns GEN OFF. One undo (SAVE then HOME) restores the pattern and GEN ON again.</li>
+<li>The generators are saved with the project.</li>
+</ul>
+</section>
+<section id="tools">
+<h2>TOOLS</h2>
+<p>Page TOOLS of STEP: the TOOL card picks the tool, the ON card says what it works on (the track, or the picked lane). A turn arms the card and YES (SAVE) does it, asked first, with a toast. Each is one undo level. The scope is what ALGORITHM selected: a synth track, the whole kit (DR), or one picked lane.</p>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>Tool</th>
+<th>What it does</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>REVERSE</td>
+<td>mirrors the steps inside LEN. A note moves whole, with its ties</td>
+</tr>
+<tr>
+<td>RANDOM</td>
+<td>synth track: new notes on the same rhythm (a walk through the track's scale; on CHR the minor pentatonic of the root). Drums: a beat, or the picked lane drawn at random</td>
+</tr>
+<tr>
+<td>COOK</td>
+<td>a few changes: some notes a scale step or octave, a level NORM or HARD, a chance of 50 or 75 %; drums: some hits moved, added or taken. &quot;NOTHING TO COOK&quot; on an empty pattern</td>
+</tr>
+<tr>
+<td>DOUBLE, HALF</td>
+<td>the pattern copied after itself (at most 64 steps, &quot;PATTERN FULL&quot; or &quot;64 STEPS: NO ROOM&quot; if not), or LEN halved (the steps past the new LEN are kept)</td>
+</tr>
+<tr>
+<td>QNT 1, QNT 1/2, QNT 1/4</td>
+<td>QUANTIZE: the nudged starts (REC QUANT OFF, or NUDGE on the STEP page) move to the nearest whole, half or quarter step; QNT 1 puts every note back on the grid. The lengths stay. A nudge belongs to the step, so on DR it is the whole kit even with a lane picked. &quot;ON THE GRID ALREADY&quot; when nothing is nudged</td>
+</tr>
+</tbody>
+</table></div>
+<p>Every tool works on steps 1 to LEN. The events of a step (locks, motion, chance, conditions, nudges, fills) move with it. The EDIT layer's SHIFT and LENGTH x2 move and copy the events too.</p>
+</section>
+<section id="the-arpeggiator">
+<h2>The arpeggiator</h2>
+<p>ARP held is a layer: hold a key for note repeat, locked to the tempo and swing, with KNOB RATE. ARP tapped opens its pages. With ARP on, the track's own steps go through the arp too. While recording, only what the keys play through the arp is recorded. The drum track has no arp. Two pages of the track:</p>
+<ul>
+<li><strong>ARP:</strong> MODE (OFF, UP, DN, UPDN, RND, ORD, BASS: every first note the lowest held, every second one of the others in turn, in the order played), RATE (any note value of the tempo; default 1/16), OCT (1 to 4), GATE (1 to 198 % of the step; past 100 % the note goes on under the next one).</li>
+<li><strong>ARP 2:</strong> SWG (swing), PROB (probability of a note), HOLD (on / off: keep the notes after the keys are let go) and ORD (NOTE or PLAY order).</li>
+</ul>
+<p>The ARP values are p-locks and motion, like the sound values. A recorded roll is written as ratchets.</p>
+</section>
+<section id="scale-and-chords">
+<h2>Scale and chords</h2>
+<p>The SCL page (and the layer: hold SCL, press a key to set the key of the song) holds ROOT, SCALE (16 scales: CHR MAJ MIN DOR MIX PEN MPEN HARM PHRY LYD LOC MEL BLUES WHOLE DIMHW DIMWH), QNT (OFF, SNAP, WHITE, ALL, and SEQ when <code>QNT_SEQ</code> is built: sequenced notes follow the scale) and CHORD (OFF, TRIAD, 7TH, 9TH, SUS4, POWER). <strong>SCL 2</strong> has TRN (transpose, -24 to +24 semitones), and with <code>CHORDPLUS</code> STRUM (-60 to +60 ms a note) and VLEAD (each chord voiced nearest the last). With a chord on, the white keys walk the scale and one finger plays the chord, recorded as a chord. These values are p-locks and motion too. With <code>CHORDPLUS</code> the black keys change the chord while held: F# major &lt;-&gt; minor, G# the 7th, A# sus4, C# the 9th, D# an inversion; tapped twice quickly one stays on for the track (lit full); tapped once more it goes off when the key is let go.</p>
+</section>
+<section id="patterns-and-scenes">
+<h2>Patterns and scenes</h2>
+<p>Builder item <code>PATTERNS</code>: each track keeps up to 16 stored patterns, and a <strong>scene</strong> names a pattern per track. <strong>LFO held</strong> is the patterns layer:</p>
+<ul>
+<li>A white key n launches the selected track's pattern n at the end of its pass (OCT- + the key: at the next bar; OCT+ + the key: now). SAVE + n stores the working pattern into slot n (asked over a used one). A slot with no pattern yet asks <em>CLONE T1 n?</em> first: SAVE copies the working pattern there (the default), HOME turns the question into <em>EMPTY T1 n?</em> (SAVE starts an empty pattern the track plays, HOME again creates nothing). HOME + n clears slot n (asked). A black key 1-4 held + a white key n stores that track's working pattern in slot n (black 5 held: every track's), as SAVE + n. Every pattern keeps its own edits: a launch, a stop, a scene or the song moving on keeps the outgoing pattern's edits (the toast says &quot;T1 KEPT&quot;), and that pattern plays them when it comes back, even after a power cycle. The grid marks a slot that keeps edits not saved. SAVE + SEQ saves them; HOME + SEQ (RELOAD, asked) drops them and plays the saved pattern again (on the patterns layer with ALL TRACKS: every track). PROJECT SAVE saves every pattern's edits with the project; loading another project with edits not saved asks to save first.</li>
+<li>Black keys 1-4 pick the track, 5 is ALL TRACKS (the white keys launch, SAVE + n stores and HOME + n clears on every track; tap it again for the selected track), 6 stops the pattern, 9 duplicates the working pattern into the first free slot (&quot;NO FREE PATTERN&quot; if none).</li>
+<li>Black key 10 turns the white keys into scenes A-P (until black 10 again or LFO is let go): the same verbs launch, store and clear a scene. SEQ + n stores the four tracks' patterns as scene n.</li>
+<li>On the patterns screen there are no cards: the grid fills the screen, its columns numbered 1..16 on two lines. KNOB 1 is T1, KNOB 2 T2, KNOB 3 T3, KNOB 4 DR (each row names its knob under its tag, in the knob's colour with KNOB COLORS on); a turn selects that track and cues its next or previous stored pattern. Under the grid is a preview of the pattern you touched last (cued, launched, stored or cleared; otherwise the track's playing one): its name, then its first 16 steps in four groups of four, brighter for harder hits, the drums a row a lane. An empty slot says EMPTY. The preview reads the stored pattern without loading it.</li>
+<li>SAVE + SEQ stores the working pattern into the slot it came from; HOME + SEQ reloads it (its edits dropped). The SONG screen has a PATTERNS row with the same keys.</li>
+</ul>
+</section>
+<section id="sections-and-the-song">
+<h2>Sections and the song</h2>
+<p>Sections A to P (16; a build may have 8 or 4) hold the four tracks: sounds, patterns, kit. In the LFO layer's scene keys: a white key starts the scene at the next bar (stopped: loads it, asked over changed work), SAVE + n stores the loop into it, HOME + n clears it (asked). Two taps or more of scene keys in one hold while playing queue a quick chain (<code>QCHAIN</code>, up to 8, not saved). SEQ + PLAY plays the song from its start, SEQ + REC tapped records the song as you play the sections.</p>
+<p><strong>SONG</strong> is SAVE held on PROJECT, SEQ held (not on STEP) or SHIFT2 + SEQ. It has the scenes (a table, a column each: the pattern each track plays in it; the white keys 1-16 launch them, SELECT only moves the cursor, SAVE stores the loop, sound and mix into the current scene, REC tapped does nothing here, REC held (the ring, as REC's clear on a track) or SAVE held asks to clear the cursor's scene, a scene queued to launch has its column's border blinking, a pattern number that does not exist yet flashes red while a cell rests on it (before CLONE / EMPTY is asked), a green play triangle on the line under the table, in the current scene's column, marks it and turns while the transport runs), the PATTERNS row, MODE (SCENE: PLAY repeats the current scene; SONG: PLAY runs the parts), SONG REC, SAVE writes the chain and the chain's parts (SCENE, BARS, INSERT, DELETE). On the scenes table (scenes A to H as columns, T1 T2 T3 DR and BARS as rows) SELECT or ALGORITHM move the cursor from scene to scene, and the four knobs edit down the cursor's column: KNOB 1 the pattern of T1, KNOB 2 of T2, KNOB 3 of T3, KNOB 4 of DR (those four cells are outlined); PRESETS sets the scene's BARS. The sections are stored compressed in one log; PROJECT &gt; MEMORY shows how full it is.</p>
+</section>
+<section id="snapshots">
+<h2>Snapshots</h2>
+<p>A <strong>snapshot</strong> keeps the working project, every section and the song in one slot (builder item <code>SNAPSHOTS</code>: 2, 4 or 8 slots, plus B: BEFORE LOAD, the state before your last load). It is the SNAPSHOT row of PROJECT: pick LOAD, SAVE or DELETE and the slot. Only when the sequencer is stopped and quiet. Samples, user presets, kits and the FM6 bank are not copied.</p>
+</section>
+<section id="undo-and-redo">
+<h2>Undo and redo</h2>
+<p>Every step key pressed, every tool, every recording pass, erase, clear and held-layer edit opens one <strong>undo</strong> level, many levels deep, on every track including the drums. SAVE then HOME is undo; HOME then SAVE is <strong>redo</strong>. Loading a project or playing a section clears the history. How many levels depends on the memory the build leaves free.</p>
+</section>
+<section id="mute">
+<h2>Mute</h2>
+<p>There is one mute, the sequencer's, and no solo. A muted track or lane plays no more steps, for the internal sound and for MIDI out; notes already sounding end by their gates, a muted track's locks do not apply, and keys played live still sound. Toggle it with SHIFT + a key (the first four white keys are T1 T2 T3 DR; the black keys F#3 to D#5 the 10 lanes; F#5 the ACCENT lane), SHIFT + the volume knob on the mixer, or the GLO layer's keys 1-4. The mixer strikes a muted track through. It is saved with the project. It never touches a track's volume or its sound mute. While SHIFT is held the keys of the tracks and lanes light when a note is playing on them. The last three white keys (E F G, not on STEP, where they are steps) mute the INPUT of returns A B C: no send reaches the return, its bus and tail run on; the RET cards' SHIFT mutes a return's output. These are saved with the project too.</p>
+</section>
+<section id="performance-macros-color-motion-space-energy">
+<h2>Performance macros: COLOR, MOTION, SPACE, ENERGY</h2>
+<p>Four knobs (builder items <code>MACROS</code> and <code>ENERGY</code>), each from -100 % to +100 %; at 0 % nothing moves. They are the last page of the MASTER FX screen, MACRO, named COLOR, MOTN, SPACE and ENRGY.</p>
+<ul>
+<li><strong>COLOR:</strong> right, the tracks brighter (each engine's cutoff, index or tone value) and the delay's filter higher; left, darker.</li>
+<li><strong>MOTION:</strong> right, the LFO depths and rate up and a touch of chorus depth; left, the motion fades to 0.</li>
+<li><strong>SPACE:</strong> right, the chorus, delay and reverb sends up, a bigger reverb, more delay feedback, tracks spread; left, the sends fade, pans close, a smaller reverb.</li>
+<li><strong>ENERGY:</strong> right, brightness a little up, DIST on tracks 1-3, drum level up; with <code>ENERGY</code> the drum track is also thickened in five bands (left: thinned), the pattern itself never changed.</li>
+</ul>
+<p>They sit on top of your own values: every page still shows your values and a macro back at 0 brings the sound back exactly. They are saved with the project and each song section, and recorded as motion when a track records.</p>
+</section>
+<section id="the-drum-accent-lane">
+<h2>The drum ACCENT lane</h2>
+<p>An extra step lane on the drum track, 909-style, always there in a firmware with the automation store (motion, locks, chance or conditions: the lane is stored as their events). It has no sound; its steps raise every hit of that step by the drum track's ACCENT amount (default 27, 0 to 127). It behaves like any lane: steps, levels, ratchets, chance and conditions, TOOLS and GEN, patterns, sections and snapshots. The last upper key (F#5) picks it; STEP shows an &quot;AC&quot; row; the amount is card 2 of the drum track's SOUND row (&quot;Lane&quot;), locks on a step with an accent hit there and records as motion; ALGORITHM walks on past the last lane to the ACCENT row of the mixer. Mute it with SHIFT + its key. A default project (power-on with nothing stored, TOOLS &gt; NEW) starts with the lane four on the floor: a NORM accent on every beat, through the whole pattern, and no hit anywhere; the project still counts as empty, so the first take sets the tempo and the click plays as before. Off in the build: the lane is kept and edited but not heard.</p>
+</section>
+<section id="note-values">
+<h2>Note values</h2>
+<p>Every duration that follows the tempo draws from one list, longest first: 4BAR, 3BAR, 2BAR, 1BARD, 1BAR, 1/2D, 1T, 1/2, 1/4D, 2T, 1/4,
+1/8D, 4T, 1/8, 1/16D, 8T, 1/16, 1/32D, 16T, 1/32, 32T, 1/64. T is a triplet (two thirds of the value), D dotted (one and a half
+times it): 8T is a triplet eighth, 1/8D a dotted eighth, 1BARD a bar and a half. It is the list of the ARP's RATE, the track's DIV,
+the delay's TIME, a synced LFO's RATE (turned below its slowest free value), the SLICER's and the GATER's RATE and ROLL. Only the
+straight values of a beat or less swing. A delay longer than its line plays at half, or a quarter, of the value, still on the beat.
+Projects, presets and backups saved before 2026-10-22 keep their stored numbers, which now name other values: set the values again.</p>
+</section>

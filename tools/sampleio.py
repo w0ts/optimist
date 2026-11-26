@@ -1,9 +1,9 @@
 # SPDX-License-Identifier: GPL-3.0-only
 # Copyright (C) 2026 Leo Kuroshita (@kurogedelic), Hügelton Instruments
 """Sample helpers shared by gen_samples.py (built-in sets), fm1_sample_upload.py
-(user slots) and tests/pitch.py. The web editor (web/editor.html) has a JS port of
+(user slots) and tests/pitch.py. The web editor (site/editor.html) has a JS port of
 read_any_wav / resample / ima_encode / user_slot that must give the same bytes
-(web/test_web.mjs checks it).
+(site/test_web.mjs checks it).
 
 The float arithmetic here is part of the generated output: keep the order of
 operations (and Python's sum() where it is used) when touching these functions.
@@ -249,7 +249,7 @@ def key_split(roots):
             for j, r in enumerate(roots)]
 
 
-# ---- user sample slots (firmware/src/engines/sample/eng_sample.c, web/EDITOR_PROTOCOL.md)
+# ---- user sample slots (firmware/src/engines/sample/eng_sample.c, site/EDITOR_PROTOCOL.md)
 SLOT_SIZE, SLOT_DATA_OFF, SLOT_RATE, SLOT_ZONES = 0x14000, 512, 22050, 16
 SLOT_HDR_LEN = 32 + SLOT_ZONES * 28
 SLOT_MAX_DATA = SLOT_SIZE - SLOT_DATA_OFF

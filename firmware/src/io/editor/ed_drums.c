@@ -1,5 +1,5 @@
 /* SPDX-License-Identifier: GPL-3.0-only */
-/* Editor protocol: the drum lanes and the user kits (included by editor.c; web/EDITOR_PROTOCOL.md "Drum
+/* Editor protocol: the drum lanes and the user kits (included by editor.c; site/EDITOR_PROTOCOL.md "Drum
  * lanes and user kits"). A build without a switch does not answer its commands (no reply = absent).
  *   36 DRUM_LANES  [pack7 lanes (204 B)]            -> pack7 lanes (the working project's drum_edit.c dl)
  *   37 DRUM_LANE   lane [, pack7 (8 offsets, src, ref[3])] -> lane, pack7 of the same 12 bytes

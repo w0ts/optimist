@@ -1,6 +1,6 @@
 /* SPDX-License-Identifier: GPL-3.0-only */
 /* Editor protocol: a synth track's clip read and written note by note (command 111; builder item ED_MIRROR, live editing or
- * not; included by editor.c and ed_lite.c after ed_steps.c; web/EDITOR_PROTOCOL.md "The clip"). The app's piano roll (the
+ * not; included by editor.c and ed_lite.c after ed_steps.c; site/EDITOR_PROTOCOL.md "The clip"). The app's piano roll (the
  * user, 2026-10-24: "editing of the clip, by touch. Add note, remove note, move note. Stretch note ... by pulling the data
  * from the clip"; "I would do it for synths only"). The steps go as STEP_GET / TRACK_STEP give them, all 15 bytes (ed_steps.c):
  * a note longer than its step is a TIE or a carry step after it (seq.c note_span), the client writes them as the recorder does.

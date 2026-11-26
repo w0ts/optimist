@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: GPL-3.0-only
-"""The site's SD card page (web/site_sdcard.py, make_site.py sdcard_page / sdcard_site): written with the shared header and
+"""The site's SD card page (site/site_sdcard.py, make_site.py sdcard_page / sdcard_site): written with the shared header and
 a tab of its own (SD card) and a work-in-progress warning at the top; every picture it shows is in assets/sd-card/ and
 every one there is shown; it links the order files and the tray (the files exist in hardware/); make_site writes the page
 and its pictures, and names the photos still to come. Run from the repo root:
@@ -12,7 +12,7 @@ import tempfile
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-sys.path.insert(0, str(ROOT / "web"))       # (web/ is not a package)
+sys.path.insert(0, str(ROOT / "site"))       # (site/ is not a package)
 make_site = importlib.import_module("make_site")
 site_sdcard = importlib.import_module("site_sdcard")
 

@@ -2,7 +2,7 @@
 // What to tell the user when a Bluetooth connection is started and cannot work (the user, 2026-11-01: "the apps should detect
 // when we try to connect over BT and BT is off and let the user know"). Pure: the device's Bluetooth state (CoreBluetooth's
 // CBManagerState, mapped by BluetoothWatch) and the platform in, a decision and the words out; unit-tested (BtStateTests).
-// The web editor says the same no-FM-1 sentence (web/editor.html, nodevicebt): keep the two aligned.
+// The web editor says the same no-FM-1 sentence (site/editor.html, nodevicebt): keep the two aligned.
 import Foundation
 
 /// CBManagerState, without CoreBluetooth (so the tests need no radio)

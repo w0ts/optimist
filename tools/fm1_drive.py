@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: GPL-3.0-only
-"""Drive an FM-1's panel over USB-MIDI and look at its screen (108 PANEL and 106 MIRROR, web/EDITOR_PROTOCOL.md): buttons,
+"""Drive an FM-1's panel over USB-MIDI and look at its screen (108 PANEL and 106 MIRROR, site/EDITOR_PROTOCOL.md): buttons,
 note keys, knobs and MASTER pressed as a finger would, the screen as a PNG between them. For tests run from the Mac.
   fm1_drive.py ports                                  the FM-1s on USB (their port names: FM1-XXXX)
   fm1_drive.py [--port NAME] run "STEP; STEP; ..."    the steps in order, in one mirror session

@@ -2,7 +2,7 @@
 
 All Optimist web pages (installer, builder, simulator and the editor's Install, Build and Simulator tabs) use the one
 style of the three sites (Optimist, jank and DN2 wishes): [common.css](https://w0ts.github.io/site-style/common.css),
-kept in https://github.com/w0ts/site-style. A site sets only its accent; Optimist's is in `web/style/optimist.css`:
+kept in https://github.com/w0ts/site-style. A site sets only its accent; Optimist's is in `site/style/optimist.css`:
 
     :root { --accent: #da92cc; --accent-text-l: #b13c9a; --accent-text-d: #da92cc; }
 
@@ -16,9 +16,9 @@ kept in https://github.com/w0ts/site-style. A site sets only its accent; Optimis
   edge line up with the content. Modules take their width from the host (no `max-width` of their own).
 - The App Store badges are Apple's vector badges cropped to the logo and words and tinted with `currentColor`
   (`make_site.BADGE_TINT`: `"grey"` or `"accent"`).
-- The pages load common.css by URL (`web/make_site.py` links it and inlines `optimist.css`). Two exceptions that must work
-  offline use the vendored copy `web/style/common.css`: the Mirror app's builder page (inlined) and the editor, whose Install /
-  Build / Simulator panels load it scoped to `.o-host` with CSS nesting (`appStyle()` in `web/editor.html`). Refresh the copy
+- The pages load common.css by URL (`site/make_site.py` links it and inlines `optimist.css`). Two exceptions that must work
+  offline use the vendored copy `site/style/common.css`: the Mirror app's builder page (inlined) and the editor, whose Install /
+  Build / Simulator panels load it scoped to `.o-host` with CSS nesting (`appStyle()` in `site/editor.html`). Refresh the copy
   from the site-style repo when common.css changes.
-- Layout of one module stays in its own CSS (`web/installer/installer.css`, `web/builder/builder.css`, `web/sim/sim.css`),
+- Layout of one module stays in its own CSS (`site/installer/installer.css`, `site/builder/builder.css`, `site/sim/sim.css`),
   using only the shared tokens (`--bg --panel --ink --dim --line --off --accent --accent-text --err --warn --on`).

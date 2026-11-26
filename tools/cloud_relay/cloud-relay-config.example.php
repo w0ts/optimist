@@ -10,7 +10,7 @@ return [
   // the pages allowed to call the relay (the browser's Origin header)
   'origins' => ['https://w0ts.github.io'],
   // Cloudflare Turnstile (dash.cloudflare.com > Turnstile, free): the widget's secret key; its site key goes in
-  // web/builder/logic.js TURNSTILE_SITEKEY. The hostnames the widget may be solved on:
+  // site/builder/logic.js TURNSTILE_SITEKEY. The hostnames the widget may be solved on:
   'turnstile_secret' => '0x...',
   'turnstile_hostnames' => ['w0ts.github.io'],
   // flooding, per address (sha256(salt . IP)): every request counts (per_ip_per_hour); a build still queued blocks the

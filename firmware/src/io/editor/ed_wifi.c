@@ -1,6 +1,6 @@
 /* SPDX-License-Identifier: GPL-3.0-only */
 /* Editor protocol: the Wi-Fi networks (command 112; FELUCCA_WIFI with FELUCCA_BLE; docs/WIFI-UI-DESIGN.md "From the computer";
- * web/EDITOR_PROTOCOL.md "Wi-Fi"). The web editor shows the saved networks and the connection, adds one (SSID and password
+ * site/EDITOR_PROTOCOL.md "Wi-Fi"). The web editor shows the saved networks and the connection, adds one (SSID and password
  * typed on the computer), forgets one, sets the mode. INFO tag 0x67 lists opti_wifi_1.
  * Included by felucca.c AFTER console.c (wifi/wifi_conn.c's wc, wl, wc_request .. are defined there); editor.c only lists
  * ed_wifi in its table of commands (ED_WIFI_FN, ed_opti.h declares it).

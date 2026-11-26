@@ -36,7 +36,7 @@ document reads "the open project".
 | the log | `storage/sections/sec_log.c`: records never span a sector, one spare sector for compaction; its area and format 2: `docs/PROJECTS-DESIGN.md` section 2 |
 | the sequencer side | `seq/seq.c` (`TRK_IDX`, `pat_switch`, the `PAT_*` and `PW_*` constants), `track_t.org` in `core/core.h` |
 | device keys | `ui/optimist/op_layers.c` (`pat_layer_key`, `pat_knob`), `op_song.c` (SONG), `op_keys.c` (lights), `op_laydraw.c` (the 4 x 16 grid) |
-| editor commands 79..84 | `io/editor/ed_pat.c`, `web/editor.html`, `web/EDITOR_PROTOCOL.md` "Patterns and scenes" |
+| editor commands 79..84 | `io/editor/ed_pat.c`, `site/editor.html`, `site/EDITOR_PROTOCOL.md` "Patterns and scenes" |
 | snapshots and backup | `snapshots.c` (log records, kind `SNR_LOG`; the live patterns kind `SNR_LIVE` 18), `ed_backup.c` (objects `PTN1`..`PTN6`; each project's live patterns `PL01`..`PL16`) |
 | live patterns (issue 142) | `pat.c` (`pat_leave`, `pat_get` / `pat_get_saved`, `pat_swap_isr`, `pat_left_service`, `pat_reload`, `pat_promote_all`), `sec_log.c` (the live scope, `slg_live_ok`, `slg_live_sweep`): section 9 |
 | missing patterns | `storage/miss.c`: `MISSING: PAT T2 5` |
@@ -84,7 +84,7 @@ with every track changed. MEM FULL appears when that reserve would not be left.
 
 ## 4. Device (Optimist UI)
 
-The keys are in the site's manual, `web/manual/shortcuts.html` ("Saving, patterns, scenes and the song"); the code is `op_layers.c`
+The keys are in the site's manual, `site/manual/shortcuts.html` ("Saving, patterns, scenes and the song"); the code is `op_layers.c`
 `pat_layer_key`. **LFO held** is the patterns layer, the same keys as SONG's PATTERNS row: white n launches (OCT- held:
 the next bar, OCT+ held: now), SAVE + n stores, HOME + n clears (the user, 2026-10-20: HOME clears, as elsewhere); black
 1..4 pick the track, 5 picks ALL TRACKS (the white keys, SAVE + n and HOME + n then act on every track), 6 stops it, 9 duplicates, 10 shows the scenes; SEQ held + n stores scene n; a black key 1..5 held + white n stores that track's (5: every track's) working pattern in slot n. A launch or stop keeps the outgoing pattern's edits (section 9; *LOSE EDITS?* of 2026-10-31 is gone), the toast says *T1 T3 KEPT*. **HOME + SEQ is RELOAD** (asked: *RELOAD T1?*; the pattern page with ALL TRACKS: *RELOAD ALL?*). Black 7 and 8 do nothing
@@ -105,7 +105,7 @@ pattern as it plays; track + 4: the saved one), 84 PAT_WRITE (chunks of 256 B in
 `pat_decode`: the slot's live pattern (issue 142 decision 4; the slot a track plays takes it, at its end while playing),
 track + 4 the saved one (`pat_write`); stopped: the log, playing: the pending arena). 85 is free. No protocol version
 bump: an older firmware sends no live bits and the editors offer no SAVE / RELOAD. The Mirror app's Projects tab shows the
-same marks and offers Save / Reload with the same question. Details: `web/EDITOR_PROTOCOL.md`.
+same marks and offers Save / Reload with the same question. Details: `site/EDITOR_PROTOCOL.md`.
 
 ## 6. Numbers that matter
 
@@ -125,8 +125,8 @@ song mode; the live patterns while playing, the ISR's exchange timed), `tests/pa
 live writes, SAVE / RELOAD), `tests/patlive_test.c` (the live patterns stopped, projects, PROJECT SAVE, stale records,
 MEM FULL, a power cut at every program), `tests/sec_log_test.c` (the live scope) and `tests/sec_log_compat_test.c` (main
 64c1d915's log keeps live records), `tests/sec_codec_test.c` (ids 24..87, codec B), `tests/snapshots_test.c projects`
-(PL01, a snapshot's live patterns), `tests/ui_optimist_patlive.h` (RELOAD, the project LOAD question), `web/test_web.mjs`
-`editorPatterns`, the Mirror app's `testPatternsLiveSaveReload`, `web/e2e_daw.mjs`.
+(PL01, a snapshot's live patterns), `tests/ui_optimist_patlive.h` (RELOAD, the project LOAD question), `site/test_web.mjs`
+`editorPatterns`, the Mirror app's `testPatternsLiveSaveReload`, `site/e2e_daw.mjs`.
 
 ## 8. Open limits
 

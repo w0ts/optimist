@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-only
-// The preset library's files, as the web editor writes and reads them (web/editor.html libraryFile / readLibraryFile / cleanPatch /
+// The preset library's files, as the web editor writes and reads them (site/editor.html libraryFile / readLibraryFile / cleanPatch /
 // remapParams / paramKeys): "felucca-library" version 1 (kind library, bank or patch) and the "felucca-patch" file of the
 // editor's Save to file. The app keeps its library as one such file, so what it exports is what it holds.
 import Foundation

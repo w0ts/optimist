@@ -1,6 +1,6 @@
 /* SPDX-License-Identifier: GPL-3.0-only
  * Copyright (C) 2026 Leo Kuroshita (@kurogedelic), Hügelton Instruments */
-/* Editor protocol: SysEx for the web editor (web/EDITOR_PROTOCOL.md: the frames, every command, which builder item
+/* Editor protocol: SysEx for the web editor (site/EDITOR_PROTOCOL.md: the frames, every command, which builder item
  * answers it). The core here: INFO (1), BUILD (49), PING (25), WATCH and RELOAD (24); the live sync is ed_sync9.c (the
  * PARAMS 59, STEPS 60, LANE 61, TRACKS 62, SONG 63 pushes while watched); each other command set is its own ed_*.c.
  *   F0 7D 46 4C cmd args.. F7     (7D = non-commercial ID, "FL")

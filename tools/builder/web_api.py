@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: GPL-3.0-only
-"""The web builder's calls (web/builder/, in Pyodide): the core's rules (core.py) with the menu's views of them, JSON in,
+"""The web builder's calls (site/builder/, in Pyodide): the core's rules (core.py) with the menu's views of them, JSON in,
 JSON out. Pure like the core: no file, git or subprocess; the page hands in costs.json and the needs_auto list it
 was exported with (tools/export_builder_web.py).
 

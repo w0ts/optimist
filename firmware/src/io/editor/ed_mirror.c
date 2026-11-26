@@ -1,5 +1,5 @@
 /* SPDX-License-Identifier: GPL-3.0-only */
-/* Editor protocol: the screen mirrored (builder item ED_MIRROR; included by editor.c; web/EDITOR_PROTOCOL.md "The screen mirrored";
+/* Editor protocol: the screen mirrored (builder item ED_MIRROR; included by editor.c; site/EDITOR_PROTOCOL.md "The screen mirrored";
  * the encoder ed_mirror_enc.h; the client ios/OptimistMirror). While a client asks, every write to the panel also goes out, so a phone
  * shows the panel as it is drawn. No frame buffer on the device. Two links, the one the last request came on:
  *   USB        the bytes go into usb.c's SysEx ring three at a time as they are encoded (a USB-MIDI packet each); the main loop waits

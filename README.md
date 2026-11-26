@@ -9,7 +9,7 @@ built on [SLOOP](https://github.com/isod89/sloop-fm1), Felucca, Melodee, X0X and
 [Credits](#credits)).
 
 The user manual is on the site ([w0ts.github.io/optimist/webapp/manual](https://w0ts.github.io/optimist/webapp/manual/));
-its text is `web/manual/*.html`, made into pages by `web/site_manual.py`. The builder reference is
+its text is `site/manual/*.html`, made into pages by `site/site_manual.py`. The builder reference is
 [docs/BUILDER.md](docs/BUILDER.md).
 
 ## Build it on your computer

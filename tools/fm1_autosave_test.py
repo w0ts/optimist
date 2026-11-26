@@ -6,7 +6,7 @@
 
 A cut is the console's `reboot cut` (fm1-base optimist/ui/opt_console.h): a restart with nothing saved first, as a power
 cut leaves the flash (it does not cut in the middle of a flash write). A part's ATTACK (track 1, P_ATK) is changed over
-the editor's TRACK_PARAM (web/EDITOR_PROTOCOL.md, cmd 31), then:
+the editor's TRACK_PARAM (site/EDITOR_PROTOCOL.md, cmd 31), then:
   0.         a plain reboot first: each case then starts from a power-on, whose first autosave AUTOSAVE_MIN_GAP (60 s
              between two saves) does not hold back; the cuts are power-ons too
   1. saved   the change left AUTOSAVE_SETTLE (10 s, storage/autosave.c) and more, then the cut: after the restart the
@@ -26,7 +26,7 @@ _SPEC = importlib.util.spec_from_file_location("fm1_console", Path(__file__).res
 con = importlib.util.module_from_spec(_SPEC)
 _SPEC.loader.exec_module(con)
 
-ED_HDR = (0x7D, 0x46, 0x4C)                   # the editor's SysEx (web/EDITOR_PROTOCOL.md)
+ED_HDR = (0x7D, 0x46, 0x4C)                   # the editor's SysEx (site/EDITOR_PROTOCOL.md)
 TRACK_PARAM = 31
 P_ATK = 1                                     # firmware/src/core/core.h: P_LEVEL, P_ATK, ...
 TRACK = 0

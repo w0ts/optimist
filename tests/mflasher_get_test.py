@@ -9,7 +9,7 @@ callables stand in for github.com).
 - the builder's fetch: SHA-256 good (installed in its pinned place), bad (nothing written), offline (a clear message,
   nothing written), a missing binary inside;
 - the "ask once" flow: found = no question; declined = nothing; accepted = fetched; --yes downloads nothing; one question per run;
-- the web installer's link per user agent (web/install_route.js, node) and the page's wiring (make_site.py);
+- the web installer's link per user agent (site/install_route.js, node) and the page's wiring (make_site.py);
 - the Mirror app's link (the Swift side is Tests/FlashTests.swift; here its data and build phase);
 - one source of truth: the web's site.json and the app's mflasher.json are tools/mflasher.py's data, and no other
   tracked file carries a pinned SHA-256."""
@@ -316,11 +316,11 @@ def web_links():
           "const [cases, data] = JSON.parse(process.argv[1]);"
           "process.stdout.write(JSON.stringify(Object.entries(cases).map(([k, [nav, high]]) => { const p = detectPlatform(nav, high); "
           "const v = mflasherFor(data, p); return [k, p.os, p.arch, v.mobile, v.files.map(f => f.name), v.files.map(f => f.url), "
-          "v.files.map(f => f.sha256), v.page]; })));") % str(ROOT / "web" / "install_route.js")
+          "v.files.map(f => f.sha256), v.page]; })));") % str(ROOT / "site" / "install_route.js")
     cases = {k: [v[0], v[1]] for k, v in UAS.items()}
     r = subprocess.run([node, "--input-type=module", "-e", js, json.dumps([cases, MF.site_data()])], capture_output=True, text=True)
     if r.returncode:
-        ok(False, f"web/install_route.js runs ({r.stderr.strip()[:300]})")
+        ok(False, f"site/install_route.js runs ({r.stderr.strip()[:300]})")
         return
     by = {row[0]: row for row in json.loads(r.stdout)}
     for k, (_, _, os_, arch, tails) in UAS.items():
@@ -330,7 +330,7 @@ def web_links():
         right = right and all(u == MF.RELEASE + n for u, n in zip(urls, names))
         right = right and all(s == next(f["sha256"] for f in MF.RELEASE_FILES if f["name"] == n) for s, n in zip(shas, names))
         ok(right, f"web link: {k}: {got_os} {got_arch or '?'} -> {[n[:34] for n in names] or 'a computer is needed'}")
-    page = (ROOT / "web" / "installer" / "installer.js").read_text(encoding="utf-8")
+    page = (ROOT / "site" / "installer" / "installer.js").read_text(encoding="utf-8")
     ok("mflasherFor(opts.mflasher" in page and "TEXT.mfSha" in page and "mflasherLinks(mf)" in page,
        "the installer page shows the links with their SHA-256 when a switch needs download mode")
     ok("fetch(" not in page[page.index("async function mflasherLinks"):page.index("async function sendSoftKey")],
@@ -338,7 +338,7 @@ def web_links():
 
 
 def site_data():
-    sys.path.insert(0, str(ROOT / "web"))
+    sys.path.insert(0, str(ROOT / "site"))
     import make_site
     ok(make_site.mflasher_release() == MF.site_data(), "make_site.py puts tools/mflasher.py's data in site.json (web installer)")
     out = TMP / "site"
@@ -367,7 +367,7 @@ def app_and_source():
     stray = []
     for f in tracked:
         p = ROOT / f
-        if not f or f in skip or f.startswith(("fm1base/", "third_party/", "web/fm1base/")) or not p.is_file() or p.stat().st_size > 2_000_000:
+        if not f or f in skip or f.startswith(("fm1base/", "third_party/", "site/fm1base/")) or not p.is_file() or p.stat().st_size > 2_000_000:
             continue
         try:
             text = p.read_text(encoding="utf-8")

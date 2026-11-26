@@ -213,7 +213,7 @@
       "files": [
         "firmware/src/engines/noise/eng_noise.c (MIT, the original's header and copyright kept)",
         "LICENSES/MIT-Felucca-Engines.txt (the repository's LICENSE)",
-        "hooks: registry.h ENGINE_LIST (UID 15, fallback ANALOG; UID 14 stays JUNO's), engines.c, backports.h, voice.c voice_start (a retrigger keeps the filter and colour poles), model.c BANK (4 presets), macro.c MAC_BRIGHT, op_effval.c EFFV_DEST, tools/colors.json, web/editor.html engine list, tools/param_help.json",
+        "hooks: registry.h ENGINE_LIST (UID 15, fallback ANALOG; UID 14 stays JUNO's), engines.c, backports.h, voice.c voice_start (a retrigger keeps the filter and colour poles), model.c BANK (4 presets), macro.c MAC_BRIGHT, op_effval.c EFFV_DEST, tools/colors.json, site/editor.html engine list, tools/param_help.json",
         "tests/noise_test.c, tests/golden_noise.txt"
       ],
       "cost": {
@@ -246,7 +246,7 @@
       "files": [
         "firmware/src/engines/cz/eng_cz.c (engine, 8 tones of our own + INIT, the EDIT values)",
         "firmware/src/engines/cz/cz_native.c (Melodee's, adapted: per-part tone and envelope points, EDIT overrides)",
-        "hooks: registry.h ENGINE_LIST (UID 13, fallback PHASE), engines.c, backports.h, ui.c BANK, tools/colors.json, web/editor.html engine list",
+        "hooks: registry.h ENGINE_LIST (UID 13, fallback PHASE), engines.c, backports.h, ui.c BANK, tools/colors.json, site/editor.html engine list",
         "tests/cz_test.c, tests/golden_cz.txt"
       ],
       "cost": {
@@ -280,7 +280,7 @@
         "firmware/src/engines/juno/eng_juno.c (engine, 8 patches of our own, the EDIT values, the VCA curve, the HPF on the part)",
         "firmware/src/engines/juno/juno_dsp.h (fm-106's DCO, ladder, HPF and cutoff DAC routine)",
         "firmware/src/engines/juno/juno_tables.h (fm-106's tables, generated, unchanged)",
-        "hooks: registry.h ENGINE_LIST (UID 14, fallback ANALOG), engines.c, backports.h, model.c BANK, tools/colors.json, web/editor.html engine list",
+        "hooks: registry.h ENGINE_LIST (UID 14, fallback ANALOG), engines.c, backports.h, model.c BANK, tools/colors.json, site/editor.html engine list",
         "tests/juno_test.c, tests/golden_juno.txt"
       ],
       "cost": {
@@ -439,7 +439,7 @@
         "firmware/src/storage/sections/sec_log.c SLG_KEPT, firmware/src/storage/sections/sections.c sec_migrate / sec_boot / project_load",
         "firmware/src/storage/snapshots/snap_store.c SN_KEPT, firmware/src/engines/fm6/fm6_store.c fm6_bank_save, firmware/src/storage/drum_store.c proj_put",
         "firmware/src/storage/upreset.c UP_NP_SL24, firmware/src/storage/project.c persist_boot / settings_save",
-        "firmware/src/ui/sloop/ui_draw.c graph_slots, firmware/src/io/editor/editor.c ED_PROJECT, web/editor.html renderSlots"
+        "firmware/src/ui/sloop/ui_draw.c graph_slots, firmware/src/io/editor/editor.c ED_PROJECT, site/editor.html renderSlots"
       ],
       "cost": {
         "flash": 708,
@@ -503,7 +503,7 @@
         "firmware/src/seq/seq.c trk_grid",
         "firmware/src/core/params.c N_SDIV, SDIV_ORDER",
         "firmware/src/ui/sloop/ui_layers.c SEQ layer KNOB 2",
-        "web/editor.html DIV_SPB, rollGrid"
+        "site/editor.html DIV_SPB, rollGrid"
       ],
       "cost": {
         "flash": 172,
@@ -713,7 +713,7 @@
       "files": [
         "firmware/src/seq/gen.c GT_GRIDS",
         "firmware/src/seq/grids_map.h (tools/gen_grids_map.py)",
-        "web/editor.html GEN_TYPES"
+        "site/editor.html GEN_TYPES"
       ],
       "storage": "the GEN_TLV slot (type 3)",
       "limits": "a lane's or a track's GRIDS: three values (X Y DENS), no CHAOS (the kit's has it); 16ths only (the odd 32nds dropped)",
@@ -853,7 +853,7 @@
       "theirs": "SLOOP 2.3 (after Felucca 1.0): the exact official FM-1.fwsc (SHA-256), a backup checkbox, a resumed return checked once the FM-1 is back (FM-1_015)",
       "ours": "after Felucca 1.0.1: the same SHA-256 pin, a resumed return only with the official loader (OFFICIAL_LOADER)",
       "verdict": "kept ours, took the identity check after a resumed return (web/fm1ota.js resume(..., product))",
-      "evidence": "web/test_web.mjs: a resumed return reports done only when the FM-1 comes back as FM-1_015; another identity is 'mismatch'"
+      "evidence": "site/test_web.mjs: a resumed return reports done only when the FM-1 comes back as FM-1_015; another identity is 'mismatch'"
     },
     {
       "what": "Knob reading",

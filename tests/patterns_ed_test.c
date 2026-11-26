@@ -1,5 +1,5 @@
 /* SPDX-License-Identifier: GPL-3.0-only */
-/* Editor commands 83 PAT_READ / 84 PAT_WRITE (firmware/src/io/editor/ed_pat.c; web/EDITOR_PROTOCOL.md) on the real storage
+/* Editor commands 83 PAT_READ / 84 PAT_WRITE (firmware/src/io/editor/ed_pat.c; site/EDITOR_PROTOCOL.md) on the real storage
  * and sections (FELUCCA_PATTERNS=1, a simulated NOR): a stored pattern read in chunks of 256 bytes comes back byte for
  * byte; a record written in chunks (pack7, in order) is checked as the stage would decode it, then stored (stopped:
  * the log; playing: the arena) and plays; a chunk out of order, a record of another track's kind, one too long, a

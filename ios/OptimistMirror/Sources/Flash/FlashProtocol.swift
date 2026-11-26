@@ -81,7 +81,7 @@ enum FlashProtocol {
         return Request(flags: u[6], address: addr, length: Int(u[11]) | Int(u[12]) << 8 | Int(u[13]) << 16)
     }
 
-    // MARK: - the fast install (docs/INSTALL-SPEED.md, as tools/fm1_install.py and web/fm1ota_optimist.js)
+    // MARK: - the fast install (docs/INSTALL-SPEED.md, as tools/fm1_install.py and site/fm1ota_optimist.js)
     // Before step 2's upgrade command the app says it can serve 4 KiB reads and the per-sector table (cmd 0x31 [1, 4096 LE]);
     // a loader that can answers the same frame, then asks only the sectors that differ, 4 KiB at a time, after the table at
     // `table` + flash.bin's offset (per 4 KiB sector: CRC16 XMODEM, CRC-32 zlib, little-endian). An older loader says

@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-only
 // A fake FM-1 for the protocol tests: answers the editor commands the app sends (INFO, PROJECT, BK_*, SMP_*, PAT_*, UP_*, DESC)
-// the way web/EDITOR_PROTOCOL.md says, byte for byte, so the app's functions run against real frames.
+// the way site/EDITOR_PROTOCOL.md says, byte for byte, so the app's functions run against real frames.
 import Foundation
 @testable import OptimistMirror
 

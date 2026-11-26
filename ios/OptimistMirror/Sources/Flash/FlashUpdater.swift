@@ -23,7 +23,7 @@ enum FlashStep: Equatable {
 }
 
 /// The bar while a fast loader checks the sectors already on the FM-1, in percent of the image, never going back
-/// (tools/fm1_install.py CheckBar, web/fm1ota_optimist.js OptCheckBar): its 0x32 frames, else an estimate by time at
+/// (tools/fm1_install.py CheckBar, site/fm1ota_optimist.js OptCheckBar): its 0x32 frames, else an estimate by time at
 /// `sectorCheck` per sector, slower than the loader on purpose (a bitwise CRC16 and CRC-32 over a sector read from flash:
 /// ~7 ms on the FM-1, as a resumed install took ~1 s for ~147 sectors, 2026-11-01, not measured per sector), so it stays
 /// behind it; report(pct) until the first read request (the write's own progress after).
@@ -64,7 +64,7 @@ struct FlashCheckBar {
 
 /// The cable dropped mid-install (the user, 2026-11-01: "There should be a user warning 'connection dropped, verify cable and
 /// enter to resume'", then "the flasher should automatically resume", and "DO NOT POWER OFF until the flashing is
-/// finished"): the sentences, and what the FM-1 found again means (tools/fm1_install.py resume_plan, web/install_route.js
+/// finished"): the sentences, and what the FM-1 found again means (tools/fm1_install.py resume_plan, site/install_route.js
 /// resumePlan).
 enum FlashResume {
     static let dropped = "Connection dropped. Check the cable: the install continues by itself when the FM-1 is back. Do not power off the FM-1."
@@ -86,7 +86,7 @@ enum FlashResume {
     }
 }
 
-/// Which FM-1 a MIDI port belongs to (web/install_route.js fm1Key, tools/fm1_install.py fm1_devices): its "FM1-XXXX" (all its ports
+/// Which FM-1 a MIDI port belongs to (site/install_route.js fm1Key, tools/fm1_install.py fm1_devices): its "FM1-XXXX" (all its ports
 /// share it), else the port's name. Bluetooth ports (the same FM-1 seen twice) and generic names ("USB-MIDI", "composite") are none.
 enum FlashDevices {
     static func key(_ name: String) -> String? {

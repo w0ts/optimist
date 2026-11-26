@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-only
 // The screen mirrored: the FM-1's panel writes (cmd 106 pushes, firmware/src/io/editor/ed_mirror_enc.h) applied to a
-// 240 x 240 RGB565 frame buffer. The same decoder as tests/mirror_dec.h (web/EDITOR_PROTOCOL.md "The screen mirrored").
+// 240 x 240 RGB565 frame buffer. The same decoder as tests/mirror_dec.h (site/EDITOR_PROTOCOL.md "The screen mirrored").
 
 struct MirrorDecoder {
     static let side = 240

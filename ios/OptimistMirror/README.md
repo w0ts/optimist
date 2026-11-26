@@ -7,7 +7,7 @@ Mac version is Mac Catalyst.
 ## The firmware
 
 Build it with the builder item `ED_MIRROR` (System, under the web editor; off by default, with or without live editing).
-The protocol is in `web/EDITOR_PROTOCOL.md`: cmd 106 (the screen), 108 PANEL (buttons and knobs), 109 NAV (the touch
+The protocol is in `site/EDITOR_PROTOCOL.md`: cmd 106 (the screen), 108 PANEL (buttons and knobs), 109 NAV (the touch
 navigation), 111 CLIP (the clip).
 
 ## Build and run
@@ -71,4 +71,4 @@ Optimist firmware answers INFO first and is treated exactly as before. For such 
 
 `Tests/CompanionTests.swift` replays a transcript the fm1-base host simulator recorded (`Tests/Fixtures/companion_transcript.txt`).
 
-The Web tabs run the web editor from the app itself: `tools/sync_ios_editor.py` (a build phase, see `project.yml`) copies `web/editor.html`, the shared style, the fonts and the notices into the bundle's `OptimistEditor/`, and `Sources/Web/EditorSite.swift` serves them as `optimistedit://app/`. No copy is committed. The Install, Build and Simulator modules are not bundled (the Flash tab, the web builder and the Simulator need the internet); the editor's saved settings and libraries live under this scheme's own storage, not the site's.
+The Web tabs run the web editor from the app itself: `tools/sync_ios_editor.py` (a build phase, see `project.yml`) copies `site/editor.html`, the shared style, the fonts and the notices into the bundle's `OptimistEditor/`, and `Sources/Web/EditorSite.swift` serves them as `optimistedit://app/`. No copy is committed. The Install, Build and Simulator modules are not bundled (the Flash tab, the web builder and the Simulator need the internet); the editor's saved settings and libraries live under this scheme's own storage, not the site's.

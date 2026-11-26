@@ -77,7 +77,7 @@ final class FlashModel: ObservableObject {
             + (["mboot": ". The FM-1 has m-bootloader already (it says so).", "stock": ". The FM-1 has M-VAVE's bootloader (it says so)."][bootWord ?? ""] ?? "")
     }
 
-    /// the way for the package onto the FM-1 that answered (tools/fm1_route.py, web/install_route.js)
+    /// the way for the package onto the FM-1 that answered (tools/fm1_route.py, site/install_route.js)
     func route(for pkg: FlashPackage, running: String, port: String, boot: String? = nil) -> InstallRoute.Route {
         let info = InstallRoute.packageKind(product: pkg.product, sha256: pkg.sha256, flashLen: InstallRoute.flashLen(pkg.image))
         let choice = InstallRoute.bootloaderChoice(pkg.bootloader, install: installMboot).0

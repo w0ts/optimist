@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-only
-// The bundled web editor (Sources/Web/EditorSite.swift): the app's OptimistEditor/ folder holds web/editor.html and what it
+// The bundled web editor (Sources/Web/EditorSite.swift): the app's OptimistEditor/ folder holds site/editor.html and what it
 // loads (tools/sync_ios_editor.py as a build phase), and the editor starts from it with no network.
 import XCTest
 import WebKit
@@ -35,9 +35,9 @@ final class EditorSiteTests: XCTestCase {
     }
 
     func testBundledCopyIsTheEditorOfThisCommit() throws {
-        // (the build phase copies web/editor.html; the repository's own copy is read from the source tree when it is reachable)
+        // (the build phase copies site/editor.html; the repository's own copy is read from the source tree when it is reachable)
         let src = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
-            .deletingLastPathComponent().appendingPathComponent("web/editor.html")
+            .deletingLastPathComponent().appendingPathComponent("site/editor.html")
         guard let original = try? Data(contentsOf: src) else { throw XCTSkip("the source tree is not reachable from here") }
         XCTAssertEqual(try XCTUnwrap(EditorSchemeHandler().response("/")).0, original)
     }

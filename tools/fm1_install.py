@@ -43,7 +43,7 @@ HS_QUERY = bytes([0xF0, 0x00, 0x32, 0x45, 0x00, 0x00, 0x00, 0x40, 0x7F, 0xF7])
 HS_FULL = bytes([0xF0, 0x00, 0x32, 0x45, 0x08, 0x00, 0x00, 0x40, 0x00, 0x7E, 0x01, 0xF7])
 UPGRADE = bytes([0xF0, 0x22, 0x24, 0x35, 0x7F, 0xF7])
 MIDI_STOP = bytes([0xFC])      # real-time STOP: the running firmware stops its transport before an update (harmless if it already does)
-ED_INFO = bytes([0xF0, 0x7D, 0x46, 0x4C, 0x01, 0xF7])   # the editor's INFO (web/EDITOR_PROTOCOL.md): its tag 0x68 says which
+ED_INFO = bytes([0xF0, 0x7D, 0x46, 0x4C, 0x01, 0xF7])   # the editor's INFO (site/EDITOR_PROTOCOL.md): its tag 0x68 says which
                                                         # bootloader the FM-1 has (an Optimist since 2026-10-31)
 ASKS_BOOT = re.compile(r"FM-1_(7(00|[2-6]\d)|000|(79|709)\d{2,})")   # (Optimist's identities, its release's: only these are asked)
 FINISH_CHECK, FINISH_WRITE = 0xE0000000, 0xF0000000
@@ -57,7 +57,7 @@ CHECK_CMD = 0x32       # the fast loader, while it checks the sectors against th
 TABLE = 0xD0000000
 BLOCKS, BLK, KEEP = 20, 0x30, 0x2F
 LOADER_MARK = b"FELUCCA-LOADER-1"
-# M-VAVE's V15 (web/stock/FM-1_015.fwsc), known by its whole hash: its USR entry fails the per-file CRC as
+# M-VAVE's V15 (site/stock/FM-1_015.fwsc), known by its whole hash: its USR entry fails the per-file CRC as
 # package_damage computes it (fm1_rescue.py the same)
 STOCK_SHA256 = "db1642b2b6fa5c2cccb11ffd13878068bb28601678d3644049f99dc40e7edb8a"
 # the app slots Optimist's own updater takes (firmware/src/system/ota.c step 1: every MEMORY step's, tools/flash_layout.py)
@@ -764,7 +764,7 @@ def platform_warning(running, product, image):
     else:
         return None
     return (f"the FM-1 runs Optimist's own firmware ({running.text}), which may refuse this package ({why}). "
-            "The way over: M-VAVE's V15 first (fm1base/tools/fm1_install.py web/stock/FM-1_015.fwsc), then this package")
+            "The way over: M-VAVE's V15 first (fm1base/tools/fm1_install.py site/stock/FM-1_015.fwsc), then this package")
 
 
 FM1_TOKEN = re.compile(r"FM1-[0-9A-F]{4}", re.I)

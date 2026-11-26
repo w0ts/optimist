@@ -1,5 +1,5 @@
 /* SPDX-License-Identifier: GPL-3.0-only */
-/* INFO's tag 0x66: what this build answers, by name and version ("opti_backup_4 opti_mirror_2 ..."; web/EDITOR_PROTOCOL.md
+/* INFO's tag 0x66: what this build answers, by name and version ("opti_backup_4 opti_mirror_2 ..."; site/EDITOR_PROTOCOL.md
  * "INFO"). Every firmware of the Felucca family answers INFO with the same "FL" header, but each numbers its other commands
  * its own way (SLOOP's backup is 34..36, ours 43..48; 78 is Melodee's CZ), so a client sends nothing
  * else before it has read these names: a feature is offered only when its name and a version the client reads are listed.

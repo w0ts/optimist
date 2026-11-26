@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-only
 // FM-1 .fwsc packages: the package identity and the image the device reads during an update (web/fm1pkg.js productOf,
-// logicalImage), and the check the web installer makes before an install (web/installer/installer.js checkPackage): an
+// logicalImage), and the check the web installer makes before an install (site/installer/installer.js checkPackage): an
 // Optimist, SLOOP or Felucca package with our update loader. The return to the official V15 stays in the web installer.
 import CryptoKit
 import Foundation

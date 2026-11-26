@@ -22,7 +22,7 @@ function relay_body(string $commit, string $config): string {
     . rtrim($config) . "\n```\n\n### Sent by\n\nthe web builder (no GitHub account)\n";
 }
 
-/** the firmware's characters (web/builder/logic.js firmwareName), 16 at most */
+/** the firmware's characters (site/builder/logic.js firmwareName), 16 at most */
 function firmware_name($name): string {
   return substr(preg_replace('/[^A-Za-z0-9 +._-]/', '', is_string($name) ? $name : ''), 0, 16);
 }

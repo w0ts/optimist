@@ -200,7 +200,7 @@ final class FlashTests: XCTestCase {
     // MARK: - the fast install (docs/INSTALL-SPEED.md)
 
     func testFastWordAndTableMatchTheOtherHosts() {
-        // tools/fm1_install.py FAST_HELLO / sector_table, web/fm1ota_optimist.js, the loaders' tests: the same vectors
+        // tools/fm1_install.py FAST_HELLO / sector_table, site/fm1ota_optimist.js, the loaders' tests: the same vectors
         XCTAssertEqual(FlashProtocol.fastHello, [0xF0, 0x00, 0x32, 0x45, 0x19, 0x00, 0x00, 0x40, 0x00, 0x00, 0x20, 0x38, 0x07, 0xF7])
         let v = (0..<8192).map { UInt8(truncatingIfNeeded: ($0 &* 31) ^ ($0 >> 8)) }
         XCTAssertEqual(FlashProtocol.sectorTable(v, offset: 0, count: 2), [98, 4, 162, 95, 146, 95, 92, 197, 155, 40, 53, 131])
@@ -250,7 +250,7 @@ final class FlashTests: XCTestCase {
             XCTFail("\(error)")
         }
     }
-    // MARK: - the cable dropped mid-install (2026-11-01; tools/fm1_install.py install_resumable, web/fm1ota_optimist.js resumable)
+    // MARK: - the cable dropped mid-install (2026-11-01; tools/fm1_install.py install_resumable, site/fm1ota_optimist.js resumable)
 
     private final class Drops { var said = 0; var looks = 0 }
 
@@ -477,7 +477,7 @@ final class FlashTests: XCTestCase {
         XCTAssertNil(InstallRoute.flashLen([1, 2, 3]))
     }
 
-    /// the running Optimist's word on its bootloader (INFO tag 0x68), as tools/fm1_route.py and web/install_route.js read it
+    /// the running Optimist's word on its bootloader (INFO tag 0x68), as tools/fm1_route.py and site/install_route.js read it
     func testBootWordAndTheRoute() {
         let head: [UInt8] = [0xF0, 0x7D, 0x46, 0x4C, 1] + Array("FELUCCA 0.2".utf8) + [0x66, 2, 0x61, 0x62]
         for w in ["mboot", "stock", "unknown"] {
@@ -512,7 +512,7 @@ final class FlashTests: XCTestCase {
         XCTAssertEqual(InstallRoute.bootloader(config: "ENG_FM6=1\n"), "keep")
     }
 
-    /// Which FM-1 (tools/fm1_install.py fm1_devices, web/install_route.js fm1Devices): one key per unit; Bluetooth and generic names none.
+    /// Which FM-1 (tools/fm1_install.py fm1_devices, site/install_route.js fm1Devices): one key per unit; Bluetooth and generic names none.
     func testFlashDeviceKeys() {
         XCTAssertEqual(FlashDevices.keys(["FM1-A1B2", "FM1-A1B2 MIDI 2", "FM1-C3D4"]), ["FM1-A1B2", "FM1-C3D4"])
         XCTAssertEqual(FlashDevices.keys(["fm1-a1b2", "FM1-A1B2 Port 2", "Bluetooth FM1-A1B2", "FM1-A1B2 Bluetooth"]), ["FM1-A1B2"])

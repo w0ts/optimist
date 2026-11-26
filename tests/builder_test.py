@@ -1224,7 +1224,7 @@ check("canvas: CANVAS_STRIP 0 / 1 (under its default 2, a bigger canvas) cost th
       _cv and _cv[0]["pool"] == 44640 and _cv[1]["pool"] == 14880 and _cv[3]["pool"] == -7200
       and K.sram_parts_text({"ram": 1, "pool": 2, "ramtext": 3}) == "ram 1 + pool 2 + ram code 3 B")
 _ar_x = subprocess.run([sys.executable, str(ROOT / "tools" / "export_builder_web.py"), "--check"], capture_output=True, text=True)
-check("web builder data export: web/builder/data is what the builder has now (export_builder_web.py --check)",
+check("web builder data export: site/builder/data is what the builder has now (export_builder_web.py --check)",
       _ar_x.returncode == 0)
 if _ar_x.returncode:
     print("  " + (_ar_x.stdout + _ar_x.stderr).strip()[-600:])

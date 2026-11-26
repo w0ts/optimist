@@ -42,7 +42,7 @@ typedef struct {
     uint32_t count, rsv2;
 } sn_info_t;
 _Static_assert(sizeof(sn_info_t) == 48u, "the stream's info: 48 bytes");
-/* results (the editor's rc too: web/EDITOR_PROTOCOL.md) */
+/* results (the editor's rc too: site/EDITOR_PROTOCOL.md) */
 enum { SNE_OK, SNE_ARGS, SNE_FULL, SNE_PLAYING, SNE_NOFLASH, SNE_FLASH, SNE_BAD, SNE_BUSY, SNE_EMPTY, SNE_RING,
        SNE_FORMAT, SNE_USR3, SNE_CRC, SNE_ORDER };
 /* what a load left out (sn_note): sections past this build's (FELUCCA_SECTIONS 4: E..P), a song naming them, a

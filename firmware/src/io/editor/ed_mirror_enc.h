@@ -1,5 +1,5 @@
 /* SPDX-License-Identifier: GPL-3.0-only */
-/* Editor protocol: the screen mirrored, its encoder (ed_mirror.c; web/EDITOR_PROTOCOL.md "The screen mirrored"; builder item
+/* Editor protocol: the screen mirrored, its encoder (ed_mirror.c; site/EDITOR_PROTOCOL.md "The screen mirrored"; builder item
  * ED_MIRROR). Every write to the panel (display/lcd.c lcd_fill, lcd_blit) goes out as it is drawn, so a client that applies them in
  * order holds the panel's pixels: no frame buffer on the device, nothing drawn twice. Included by ed_mirror.c and tests/mirror_test.c,
  * which supply the wire: mir_wire(b) one byte of the frame (F0 .. F7; 0: the link is gone, stop) and mir_wire_end() after F7.

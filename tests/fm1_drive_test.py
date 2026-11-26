@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: GPL-3.0-only
-"""tools/fm1_drive.py without a device: its steps parsed to the 108 PANEL ids of web/EDITOR_PROTOCOL.md, large turns cut
+"""tools/fm1_drive.py without a device: its steps parsed to the 108 PANEL ids of site/EDITOR_PROTOCOL.md, large turns cut
 into requests of at most 63 detents, the FM-1s' ports picked by name (a second FM-1 by --port).
   python3 tests/fm1_drive_test.py"""
 import importlib.util

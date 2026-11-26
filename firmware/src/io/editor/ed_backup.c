@@ -1,6 +1,6 @@
 /* SPDX-License-Identifier: GPL-3.0-only */
 /* Editor protocol: backup and restore of everything the FM-1 keeps in flash, object by object (included by
- * editor.c; FELUCCA_FLASH; web/EDITOR_PROTOCOL.md "Backup and restore"). One registry, BK_OBJS: each stored
+ * editor.c; FELUCCA_FLASH; site/EDITOR_PROTOCOL.md "Backup and restore"). One registry, BK_OBJS: each stored
  * area is an object with a 4-letter tag, a kind and the build switch it belongs to. A new area (the section
  * log of FELUCCA_SECTIONS, say) is one more line; a kind other than these two needs its read and its write.
  *   BK_ST   a storage.c object (A/B sector pair: projects, autosave, user presets, settings, the kit bank, the

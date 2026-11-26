@@ -1,14 +1,14 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: GPL-3.0-only
-"""Export the firmware builder for the web builder page (web/builder/, docs/WEB.md): the page runs the same
+"""Export the firmware builder for the web builder page (site/builder/, docs/WEB.md): the page runs the same
 Python rules (tools/builder/core.py) in the browser with Pyodide, so it needs their source and the data the CLI
 reads from the disk.
 
-  python3 tools/export_builder_web.py            write web/builder/data/ (commit it with a change of the builder)
-  python3 tools/export_builder_web.py --check    exit 1 when web/builder/data/ is not what the builder has now
-  python3 tools/export_builder_web.py --out DIR  write the files into DIR instead (web/make_site.py)
+  python3 tools/export_builder_web.py            write site/builder/data/ (commit it with a change of the builder)
+  python3 tools/export_builder_web.py --check    exit 1 when site/builder/data/ is not what the builder has now
+  python3 tools/export_builder_web.py --out DIR  write the files into DIR instead (site/make_site.py)
 
-web/builder/data/:
+site/builder/data/:
   python.json    the Python files the page loads into Pyodide (core.py, registry.py, backports.py with
                  tools/backports.json, room.py, web_api.py) and needs_auto (configure._needs_auto, read from the
                  firmware headers: the browser has no firmware/)
@@ -16,7 +16,7 @@ web/builder/data/:
                  page to list before Python has started, and the drift check
   costs.json     tools/builder/costs.json, as it is
   profiles.json  the shipped profiles (config/profiles/*.config of this checkout, as text) and the flavours
-                 (web/flavours.json, without the package globs)
+                 (site/flavours.json, without the package globs)
 """
 import json
 import os
@@ -33,7 +33,7 @@ sys.path.insert(0, str(BUILDER))
 import configure as C  # noqa: E402  (tools/builder: the registry with the backports, needs_auto from the headers)
 import web_api  # noqa: E402
 
-OUT = ROOT / "web" / "builder" / "data"
+OUT = ROOT / "site" / "builder" / "data"
 PY_FILES = ("tools/builder/core.py", "tools/builder/registry.py", "tools/builder/backports.py",
             "tools/builder/room.py", "tools/builder/web_api.py", "tools/backports.json")
 
@@ -52,14 +52,14 @@ def profiles():
 
 
 def flavours():
-    """web/flavours.json's entries for the page (a preset each: its profile; "default": true marks the one the page opens
+    """site/flavours.json's entries for the page (a preset each: its profile; "default": true marks the one the page opens
     with, else the first), without the package glob"""
-    data = json.loads((ROOT / "web" / "flavours.json").read_text(encoding="utf-8"))
+    data = json.loads((ROOT / "site" / "flavours.json").read_text(encoding="utf-8"))
     return [{k: f[k] for k in ("id", "title", "description", "profile", "default") if k in f} for f in data["flavours"]]
 
 
 def files():
-    """-> {name: text} what web/builder/data/ holds"""
+    """-> {name: text} what site/builder/data/ holds"""
     web_api.init(C.load_costs(), C.NEEDS_AUTO)
     py = {"needs_auto": list(C.NEEDS_AUTO),
           "files": {f: (ROOT / f).read_text(encoding="utf-8") for f in PY_FILES}}
@@ -90,9 +90,9 @@ def main(argv):
     if argv[:1] == ["--check"]:
         bad = check()
         if bad:
-            print(f"web/builder/data is stale ({', '.join(bad)}): run python3 tools/export_builder_web.py and commit it")
+            print(f"site/builder/data is stale ({', '.join(bad)}): run python3 tools/export_builder_web.py and commit it")
             return 1
-        print("web/builder/data: up to date")
+        print("site/builder/data: up to date")
         return 0
     if argv[:1] == ["--out"] and len(argv) == 2:
         print(f"builder data: {write(argv[1])}")

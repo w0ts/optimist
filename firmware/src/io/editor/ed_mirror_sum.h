@@ -1,5 +1,5 @@
 /* SPDX-License-Identifier: GPL-3.0-only */
-/* Editor protocol: the screen mirrored, its self-check (2026-11-01; ed_mirror.c, web/EDITOR_PROTOCOL.md "The screen mirrored",
+/* Editor protocol: the screen mirrored, its self-check (2026-11-01; ed_mirror.c, site/EDITOR_PROTOCOL.md "The screen mirrored",
  * INFO "opti_mirsum_1"). Included by ed_mirror.c and tests/ui_optimist_test.c, after ed_mirror_enc.h.
  * The user saw lines missing after a full screen refresh over Bluetooth: a lost frame's rows that the repaint never drew again
  * stayed wrong on the client for good. So the FM-1 now tells the client, about once a second, what its picture must be, band by

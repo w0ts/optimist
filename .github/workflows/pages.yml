@@ -1,8 +1,8 @@
 # SPDX-License-Identifier: GPL-3.0-only
-# The static web site on GitHub Pages: the web installer and the web editor, made by web/make_site.py (no server).
+# The static web site on GitHub Pages: the web installer and the web editor, made by site/make_site.py (no server).
 # The installer offers the published releases, each with its published flavours (firmware/r/<tag>/, downloaded from the
 # releases here: a page cannot fetch a release file itself, GitHub sends it with no CORS header), and this commit's
-# development build of each flavour in web/flavours.json (firmware/optimist-<version>-<id>.fwsc), all fetched by a
+# development build of each flavour in site/flavours.json (firmware/optimist-<version>-<id>.fwsc), all fetched by a
 # relative URL and checked against the SHA-256 written into the page. The latest release's simulators are built from its
 # tag's own source (firmware/r/<tag>/*.wasm), and site.json names it ("latest": tag, commit): the builder and the
 # Simulator tab start from that release, main stays a choice. A release published redeploys the site. The
@@ -67,17 +67,17 @@ jobs:
           key: llvm-${{ hashFiles('tools/toolchain.py') }}
       - name: Setup (toolchain, SDK files, Python packages)
         run: python tools/optimist.py setup --yes --no-emu
-      - name: Package the profile of each flavour in web/flavours.json
+      - name: Package the profile of each flavour in site/flavours.json
         run: |
-          for profile in $(python3 web/make_site.py --profiles); do
+          for profile in $(python3 site/make_site.py --profiles); do
             python tools/optimist.py package --profile "$profile" --out dist
           done
       - uses: mymindstorm/setup-emsdk@4528d102f7230f0e7b276855c01ea1159be0e984 # v16
         with:
           version: 6.0.12                      # (the Simulator tab: tools/sim.py --wasm; docs/WEB.md)
-      - name: The simulator of each flavour (web/flavours.json "sim")
+      - name: The simulator of each flavour (site/flavours.json "sim")
         run: |
-          for profile in $(python3 web/make_site.py --profiles); do
+          for profile in $(python3 site/make_site.py --profiles); do
             python tools/sim.py build --wasm --config "config/profiles/$profile.config" --out "dist/optimist-sim-$profile.wasm"
           done
       - name: The published releases' packages (no draft, no pre-release; the cloud builds are one)
@@ -98,7 +98,7 @@ jobs:
       - name: The latest release's simulators, built from its tag's own source (the Simulator tab starts on them)
         # (the tag's config/profiles and tools/sim.py are that release's; one checkout of the tag beside this one)
         run: |
-          python3 web/make_site.py --release-sims releases | while read -r tag sha profile; do
+          python3 site/make_site.py --release-sims releases | while read -r tag sha profile; do
             src="worktrees/release-$tag"
             if [ ! -d "$src" ]; then
               git fetch --no-tags --depth 1 origin "+refs/tags/$tag:refs/tags/$tag" < /dev/null
@@ -114,13 +114,13 @@ jobs:
         env:
           OPTIMIST_SOURCE_REF: ${{ github.ref_type == 'tag' && github.ref_name || '' }}   # the page's Source link: the tag
         run: |
-          python3 web/make_site.py --flavours web/flavours.json "$(tr -d '[:space:]' < VERSION)" site --releases releases
-          touch site/.nojekyll
+          python3 site/make_site.py --flavours site/flavours.json "$(tr -d '[:space:]' < VERSION)" build/site --releases releases
+          touch build/site/.nojekyll
       - uses: actions/configure-pages@45bfe0192ca1faeb007ade9deae92b16b8254a0d # v6.0.0
       - uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9 # v5.0.0
         with:
           include-hidden-files: true             # (v4+ drops dotfiles by default; the site has .nojekyll)
-          path: site
+          path: build/site   # (not site/: that is the source folder)
           retention-days: 1
 
   deploy:

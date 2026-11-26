@@ -34,8 +34,8 @@ recipes below walk through them. `tests/examples_test.c` is their test.
 | `tools/optimist.py` | the entry point: setup, build, package, test, emulator, web site |
 | `tools/builder/` | the builder: `registry.py` (every item), `core.py` (its rules), `costs.json` (measured sizes) |
 | `tests/` | host tests: C programs built from the firmware's own sources (`hostsim.c`), run by `tests/run_tests.sh` |
-| `web/` | the site: the editor (`editor.html`), the web builder (`builder/`, its data generated), the simulator |
-| `docs/` | `BUILDER.md` (every builder item), the design notes (the user manual is the site's: `web/manual/*.html`, `web/site_manual.py`); `BUILDING.md` is at the root |
+| `site/` | the site: the editor (`editor.html`), the web builder (`builder/`, its data generated), the simulator |
+| `docs/` | `BUILDER.md` (every builder item), the design notes (the user manual is the site's: `site/manual/*.html`, `site/site_manual.py`); `BUILDING.md` is at the root |
 | `config/profiles/` | the shipped build profiles (the maintainer's: see "Pull requests") |
 
 ## Set up, build, test, try
@@ -100,7 +100,7 @@ An insert type runs on a block of samples in a track's insert slot (INSERTS > S1
 | `firmware/src/seq/auto.c` | its motion / lock id in `MOT_TAIL2` |
 | `tools/param_help.json` | its help line in each context its knob shows: `FX`, `INSERTS`, `INSERT` |
 | `tools/doc_coverage.py` | `FXT_EXGN_ID` in `FX_NAMES` (the type must be named in a user document) |
-| `web/test_web.mjs`, `web/editor.html` | the test pins the `FXT_*` enum; a real type also gets its name in the editor's `FXT_NAMES` (the example's id holds a name too, so the types after it keep their place; the editor lists only the types a build has) |
+| `site/test_web.mjs`, `site/editor.html` | the test pins the `FXT_*` enum; a real type also gets its name in the editor's `FXT_NAMES` (the example's id holds a name too, so the types after it keep their place; the editor lists only the types a build has) |
 
 The rules: integers only; no divide by a variable in the audio path (`tools/div_audit.py`, or a line in
 `tools/div_audit.txt` saying why the divisor is never 0); at amount 0 and at rest, the block comes out bit for bit;
@@ -121,7 +121,7 @@ presets, its `engine_t`. Then register it:
 | `firmware/src/core/model.c` | each preset in `BANK`, the PRESETS list, by kind (`tests/preset_cover_test.c` checks) |
 | `firmware/src/core/env1_cards.h` | `E1C_<NAME>`: the four ENV 1 MOD cards |
 | `firmware/src/core/macro.c`, `firmware/src/ui/optimist/op_effval.c` | the engine's entry in `MAC_BRIGHT` and `EFFV_DEST` (which EDIT value is its cutoff, its shape) |
-| `firmware/src/ui/colors.c`, `tools/colors.json` | its colour (a real engine: in `colors.json`, and `COLORS` in `web/editor.html`, which a test holds equal) |
+| `firmware/src/ui/colors.c`, `tools/colors.json` | its colour (a real engine: in `colors.json`, and `COLORS` in `site/editor.html`, which a test holds equal) |
 | `firmware/src/ui/optimist/op_names.c` | its 4-letter form in `NM_CELL` when the name is longer |
 | `tools/param_help.json` | an `"eng"` group: a help line for every EDIT value |
 | `tools/builder/cpu_costs.py`, `tests/cpu_baseline.txt` | its CPU cost, through `tests/regress.c` (a real engine; SQUARE is left out: the guard counts it as an ANALOG voice) |
@@ -150,13 +150,13 @@ OUT pages, the stored form and WRITE are the framework's (`seq/gen.c`); a genera
 | `tools/builder/registry.py` | `_add(key, flag, label, group, bit, default=0, desc=..., parent=..., tested=..., experimental=..., symbols=...)`: the next free bit, never a retired one; `desc` is the menu's text, at least 40 characters; `symbols` are functions that must be gone from the image when the item is off (`tools/builder/verify.py`); a port of someone's code gets `provenance=` and a `notice` |
 | `tools/builder/core.py` | a rule, if the item needs or excludes another (`validate`) |
 | `docs/BUILDER.md` | the item's row, its `desc` word for word (`tests/builder_test.py` compares) |
-| `web/builder/data/` | regenerated: `python3 tools/export_builder_web.py` |
+| `site/builder/data/` | regenerated: `python3 tools/export_builder_web.py` |
 | `tools/size_fns.py` | the new source in one list: `AUDIO_FILES` for what the sound reaches, `SIZE_FILES` for main-loop code (`--check`) |
 | `tests/run_tests.sh` | the test's unit, with its switches |
 
 Before a pull request: `python3 tests/builder_test.py`, `python3 tools/doc_coverage.py`, `python3 tools/size_fns.py
 --check`, `python3 tools/div_audit.py`, `python3 tools/gen_param_help.py --check` (the last one fails until
-`python3 tools/build.py --host-headers` has brought `web/editor.html`'s copy of the help lines up to date), then the
+`python3 tools/build.py --host-headers` has brought `site/editor.html`'s copy of the help lines up to date), then the
 whole of `python3 tools/optimist.py test`.
 
 ## Costs and fitting
@@ -172,7 +172,7 @@ measurement build per item value, read by the builder's budget, the menu and the
 A new item fails both until it is measured. Adding any item also changes the configuration hash of every build (the
 hash covers every item's value), so the measured check configurations, keyed by that hash, are measured again too.
 `make costs` (`measure_costs.py --missing`) does exactly what is missing; it needs a working build (about 10 s a
-build on an arm64 Mac) and then `costs.json` and `web/builder/data/` are committed together. If you cannot run it, say
+build on an arm64 Mac) and then `costs.json` and `site/builder/data/` are committed together. If you cannot run it, say
 so in the pull request: a maintainer measures on the build farm (`make costs-all` re-measures everything, ~440 builds)
 and the two checks above stay red until then. Write the cost you measured yourself in the item's `desc` only from a
 real build (`build --measure` with and without it). The examples, measured on the default profile at 35cd9415

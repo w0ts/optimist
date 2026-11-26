@@ -49,7 +49,7 @@ tools/builder/venv/bin/python tools/fm1_rescue.py FM-1.fwsc --dongle            
 tools/builder/venv/bin/python tools/fm1_rescue.py FM-1.fwsc --dongle --write    # then write
 ```
 
-No `sudo`: the Mac never owns the FM-1's USB. `FM-1.fwsc` defaults to the stock V15 kept in `web/stock/`; any
+No `sudo`: the Mac never owns the FM-1's USB. `FM-1.fwsc` defaults to the stock V15 kept in `site/stock/`; any
 other known-good package takes `--confirm-package <sha256 prefix>` as without the dongle (`tools/fm1_rescue.py --help`).
 
 What happens: the tool finds the dongle, and unless the FM-1 is already in update mode it tells the dongle to

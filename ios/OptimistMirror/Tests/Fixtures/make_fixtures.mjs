@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-only
-// The files the app's tests read, written by the web editor's own functions (web/editor.html, the PROTO section), and the
+// The files the app's tests read, written by the web editor's own functions (site/editor.html, the PROTO section), and the
 // check that the web editor reads what the app wrote. Run from the repo root:
 //   node ios/OptimistMirror/Tests/Fixtures/make_fixtures.mjs write          (regenerates Tests/Fixtures/web_*)
 //   node ios/OptimistMirror/Tests/Fixtures/make_fixtures.mjs read <folder>  (reads the app's files in <folder> with the web functions)
@@ -9,7 +9,7 @@ import { fileURLToPath } from "node:url";
 import vm from "node:vm";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
-const html = readFileSync(join(HERE, "../../../../web/editor.html"), "utf8");
+const html = readFileSync(join(HERE, "../../../../site/editor.html"), "utf8");
 const proto = html.slice(html.indexOf("/*wire-section:begin*/"), html.indexOf("/*wire-section:end*/"));
 const E = vm.runInNewContext(proto + `;({ backupFile, readBackupFile, libraryFile, readLibraryFile, bkPlan, crc32, BK, LBR_FORMAT: "optimist-pattern" })`,
   { setTimeout, clearTimeout, setInterval, clearInterval, console, TextEncoder, TextDecoder });

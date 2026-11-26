@@ -106,7 +106,7 @@ def slug(name):
 
 
 def asset_stem(name, key):
-    """the release assets of a build: <stem>.fwsc and <stem>-ui.zip; the key's first 16 digits name it (web/builder/
+    """the release assets of a build: <stem>.fwsc and <stem>-ui.zip; the key's first 16 digits name it (site/builder/
     logic.js assetStem says the same)"""
     if not KEY.fullmatch(key or ""):
         raise ValueError(f"a cloud key: 64 lower-case hex digits, got {key!r}")

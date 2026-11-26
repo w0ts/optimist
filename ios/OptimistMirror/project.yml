@@ -45,7 +45,7 @@ targets:
             LSHandlerRank: Owner
             LSItemContentTypes: [com.w0ts.optimist.fwsc]
     preBuildScripts:
-      # the web editor and what it loads, from web/ into the bundle's OptimistEditor/ (tools/sync_ios_editor.py): no copy is committed
+      # the web editor and what it loads, from site/ into the bundle's OptimistEditor/ (tools/sync_ios_editor.py): no copy is committed
       - name: Bundle the web editor
         script: python3 "$SRCROOT/../../tools/sync_ios_editor.py" "$TARGET_BUILD_DIR/$UNLOCALIZED_RESOURCES_FOLDER_PATH/OptimistEditor"
         basedOnDependencyAnalysis: false
@@ -55,7 +55,7 @@ targets:
         basedOnDependencyAnalysis: false
     settings:
       base:
-        ENABLE_USER_SCRIPT_SANDBOXING: NO   # (the script reads ../../web, outside this project's folder)
+        ENABLE_USER_SCRIPT_SANDBOXING: NO   # (the script reads ../../site, outside this project's folder)
         PRODUCT_BUNDLE_IDENTIFIER: com.w0ts.optimist.mirror
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
         TARGETED_DEVICE_FAMILY: "1,2,6"

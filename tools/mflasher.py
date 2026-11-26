@@ -39,7 +39,7 @@ REPO = "jvitkauskas/m-flasher"
 PAGE = f"https://github.com/{REPO}/releases/tag/v{VERSION}"
 # the release's files (GitHub's digests, 2026-11-07): the ONE place the version, names, sizes and SHA-256 are written.
 # The web installer and the Mirror app get site_data() of it, generated at build time (tools/sync_mflasher.py,
-# web/make_site.py); tests/mflasher_get_test.py checks that they agree. os: macos / windows / linux; arch: any (one
+# site/make_site.py); tests/mflasher_get_test.py checks that they agree. os: macos / windows / linux; arch: any (one
 # build for the OS) or x86_64 / aarch64; kind: how it installs (dmg, zip, tar.gz run from a folder; deb, rpm are packages)
 RELEASE_FILES = (
     {"name": f"M-Flasher-{VERSION}-macos.dmg", "os": "macos", "arch": "any", "kind": "dmg", "size": 7418305,
@@ -71,7 +71,7 @@ ASSETS = {(SYSTEMS[f["os"]], f["arch"]): (f["name"], f["sha256"], INSIDE[f["kind
 MBOOT_RELEASE = {"version": "3.0", "commit": "cd3eecfba1e15511576d94877f7abb7780cced60",
                  "fm1-uboot.boot": "ea52dcec2658904c26fb3c9204dfa9437f094fbce341e0184af583954151e02d",
                  "fm1-uboot.fwsc": "33fb857c691830f78039f58578d3eee10828138a646906601e20f7c87bc0656e"}
-MBOOT_DIR = ROOT / "web" / "fm1base" / "m-bootloader"
+MBOOT_DIR = ROOT / "site" / "fm1base" / "m-bootloader"
 MBOOT_BOOT = MBOOT_DIR / f"fm1-uboot-{MBOOT_RELEASE['version']}.boot"
 MBOOT_COPIES = {MBOOT_BOOT: "fm1-uboot.boot",
                 MBOOT_DIR / f"fm1-uboot-{MBOOT_RELEASE['version']}.fwsc": "fm1-uboot.fwsc"}
@@ -143,7 +143,7 @@ def notes(system: str | None = None) -> list:
 
 
 def site_data() -> dict:
-    """the pinned release as the web installer and the Mirror app read it (tools/sync_mflasher.py, web/make_site.py)"""
+    """the pinned release as the web installer and the Mirror app read it (tools/sync_mflasher.py, site/make_site.py)"""
     return {"version": VERSION, "tag": f"v{VERSION}", "repo": REPO, "page": PAGE, "license": "MIT",
             "author": "Julius Vitkauskas",
             "files": [dict(f, url=RELEASE + f["name"]) for f in RELEASE_FILES]}

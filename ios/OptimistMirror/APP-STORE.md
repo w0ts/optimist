@@ -4,7 +4,7 @@ What App Review will look at, and what is done. The app is free.
 
 ## Done
 
-- **Privacy policy:** https://w0ts.github.io/optimist/privacy.html (source: `privacy.html` here, published by `web/make_site.py`; the app collects nothing).
+- **Privacy policy:** https://w0ts.github.io/optimist/privacy.html (source: `privacy.html` here, published by `site/make_site.py`; the app collects nothing).
 - **Name:** "Optimist Mirror" (not "FM-1 ...": a name led by another company's product, M-VAVE's FM-1, can be flagged).
 - **Icon:** the FM-1 Emulator's lilac panel (`Resources/Assets.xcassets/AppIcon.appiconset`).
 - **Bluetooth permission text:** in `project.yml` (`NSBluetoothAlwaysUsageDescription`).

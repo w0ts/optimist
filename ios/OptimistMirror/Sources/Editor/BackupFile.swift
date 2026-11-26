@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-only
-// The .optimist-backup file, byte for byte as the web editor writes it (web/editor.html backupFile / readBackupFile, and
-// web/EDITOR_PROTOCOL.md "The backup file"): "OPTBKUP" 0x01, u32 LE header length, the JSON header, the objects' bytes, u32 LE
+// The .optimist-backup file, byte for byte as the web editor writes it (site/editor.html backupFile / readBackupFile, and
+// site/EDITOR_PROTOCOL.md "The backup file"): "OPTBKUP" 0x01, u32 LE header length, the JSON header, the objects' bytes, u32 LE
 // CRC-32 of everything before it. A section's file is the same format with its one object.
 import Foundation
 

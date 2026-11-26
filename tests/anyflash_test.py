@@ -91,10 +91,10 @@ def detection():
              ("ota-FM-1_700", ""): R.LOADER, (None, ""): R.NONE}
     bad = {k: R.running_kind(*k) for k, v in cases.items() if R.running_kind(*k) != v}
     ok(not bad, f"running firmware by identity and port: {len(cases)} cases" + (f" {bad}" if bad else ""))
-    v15 = (ROOT / "web" / "stock" / "FM-1_015.fwsc").read_bytes()
+    v15 = (ROOT / "site" / "stock" / "FM-1_015.fwsc").read_bytes()
     info = R.package_kind(v15, FI.flash_size(FI.logical_image(v15)))
-    ok(info.kind == R.P_V15 and info.flash_len == 0x93000, "package: M-VAVE's V15 by its SHA-256 (web/stock)")
-    mb = (ROOT / "web" / "fm1base" / "m-bootloader" / "fm1-uboot-3.0.fwsc").read_bytes()
+    ok(info.kind == R.P_V15 and info.flash_len == 0x93000, "package: M-VAVE's V15 by its SHA-256 (site/stock)")
+    mb = (ROOT / "site" / "fm1base" / "m-bootloader" / "fm1-uboot-3.0.fwsc").read_bytes()
     info = R.package_kind(mb, FI.flash_size(FI.logical_image(mb)))
     ok(info.kind == R.P_MBOOT and info.flash_len is None, "package: m-bootloader's installer FM-1_099 (no flash.bin)")
     kinds = {}
@@ -188,8 +188,8 @@ def sidecar():
     ok(C.cfg_hash(cfg) == C.cfg_hash(C.defaults()), "BOOTLOADER changes no image hash")
     ok("BOOTLOADER=0" in C.dump(cfg) and C.parse(C.dump(cfg), warn=lambda _m: None)[0]["BOOTLOADER"] == 0,
        ".config: BOOTLOADER=0 (not the default) dumped and parsed back")
-    web = json.loads((ROOT / "web" / "builder" / "data" / "registry.json").read_text()) \
-        if (ROOT / "web" / "builder" / "data" / "registry.json").exists() else None
+    web = json.loads((ROOT / "site" / "builder" / "data" / "registry.json").read_text()) \
+        if (ROOT / "site" / "builder" / "data" / "registry.json").exists() else None
     if web is not None:
         ok(any(i["key"] == "BOOTLOADER" and i["no_image"] for i in web["registry"]["items"]), "the web builder's registry has BOOTLOADER")
     src = (ROOT / "tools" / "build.py").read_text() + (ROOT / "tools" / "fm1base.py").read_text()
@@ -538,11 +538,11 @@ def settings():
 
 
 def js_route():
-    """web/install_route.js chooses as fm1_route.py does, for every pair of the matrix, both BOOTLOADER values and each
+    """site/install_route.js chooses as fm1_route.py does, for every pair of the matrix, both BOOTLOADER values and each
     word of the firmware on its bootloader (none, m-bootloader there, M-VAVE's there)"""
     node = shutil.which("node")
     if not node:
-        print("web/install_route.js against fm1_route.py: skipped (no node)")
+        print("site/install_route.js against fm1_route.py: skipped (no node)")
         return
     import subprocess
     cases = [(r, k, b, m) for r in R.MATRIX_RUNNING + (R.LOADER, R.OTHER) for k in R.MATRIX_PACKAGES for b in (R.KEEP, R.MBOOT)
@@ -554,18 +554,18 @@ def js_route():
           "flashLen: p.flash_len, ownLoader: p.own_loader }, b, r === 'stock' ? 'FM-1_016' : '', m).method; });"
           "const ids = JSON.parse(process.argv[2]).map(([i, port]) => runningKind(i, port));"
           "const boots = [[null, false], ['keep', true], ['m-bootloader', false], ['m-bootloader', true], ['keep', false]].map(([v, k]) => bootloaderChoice(v, k).choice);"
-          "process.stdout.write(JSON.stringify([out, ids, boots, bootloaderFromConfig('X=1\\nBOOTLOADER=1\\n')]));") % str(ROOT / "web" / "install_route.js")
+          "process.stdout.write(JSON.stringify([out, ids, boots, bootloaderFromConfig('X=1\\nBOOTLOADER=1\\n')]));") % str(ROOT / "site" / "install_route.js")
     ids = [("FM-1_015", ""), ("FM-1_906", "SLOOP"), ("FM-1_700", ""), ("FM-1_7900", ""), ("FM-1_000", ""), ("ota-FM-1_700", ""),
            ("FM1_OFFICIAL_OPEN", ""), ("FM-1_045", ""), (None, ""), ("FM-1_501", "")]
     r = subprocess.run([node, "--input-type=module", "-e", js, json.dumps([cases, pkgs]), json.dumps(ids)],
                        capture_output=True, text=True)
     if r.returncode:
-        ok(False, f"web/install_route.js runs ({r.stderr.strip()[:200]})")
+        ok(False, f"site/install_route.js runs ({r.stderr.strip()[:200]})")
         return
     out, kinds, boots, cfg = json.loads(r.stdout)
     want = [R.choose(rk, R.sample_package(k), b, m, "FM-1_016" if rk == R.STOCK else "").method for rk, k, b, m in cases]
     diff = [c for c, a, b in zip(cases, out, want) if a != b]
-    ok(not diff, f"web/install_route.js chooses as fm1_route.py: {len(cases)} cases" + (f" {diff[:5]}" if diff else ""))
+    ok(not diff, f"site/install_route.js chooses as fm1_route.py: {len(cases)} cases" + (f" {diff[:5]}" if diff else ""))
     ok(kinds == [R.running_kind(i, p) for i, p in ids], "... and names the running firmware the same")
     ok(boots == ["keep", "m-bootloader", "keep", "m-bootloader", "keep"] and cfg == "m-bootloader", "... and takes BOOTLOADER the same (--install-mboot only)")
 
@@ -656,7 +656,7 @@ def mflasher():
     ok(MF.asset("Darwin", "arm64")[0].endswith("macos.dmg") and MF.asset("Linux", "amd64")[0].endswith("x86_64.tar.gz")
        and MF.asset("Windows", "AMD64")[2] == "M-Flasher.exe" and MF.asset("FreeBSD", "x86_64") is None,
        "the pinned release per system")
-    ok(not MF.check_mboot_copies(), "web/fm1base/m-bootloader and M-Flasher's bundled build are the pinned m-bootloader files")
+    ok(not MF.check_mboot_copies(), "site/fm1base/m-bootloader and M-Flasher's bundled build are the pinned m-bootloader files")
     home = TMP / "mfhome"
     shutil.rmtree(home, ignore_errors=True)
     os.environ["M_FLASHER_HOME"] = str(home)
@@ -687,8 +687,8 @@ def boot_word():
     text = (ROOT / "firmware" / "src" / "system" / "bootid.h").read_text()
     const = {n: bytes(int(x, 16) for x in _re.findall(r"0x([0-9a-f]{2})", body))
              for n, body in _re.findall(r"(BOOTID_\w+)\[16\] = \{([^}]*)\}", text)}
-    _, _, v15 = AF.load(ROOT / "web" / "stock" / "FM-1_015.fwsc")
-    boot = (ROOT / "web" / "fm1base" / "m-bootloader" / "fm1-uboot-3.0.boot").read_bytes()
+    _, _, v15 = AF.load(ROOT / "site" / "stock" / "FM-1_015.fwsc")
+    boot = (ROOT / "site" / "fm1base" / "m-bootloader" / "fm1-uboot-3.0.boot").read_bytes()
     ok(const["BOOTID_STOCK_HEAD"] == v15[0xA0:0xB0], "bootid.h: the stock head is V15's flash.bin at 0xA0, as stored")
     ok(const["BOOTID_MBOOT_TAG"] == enc_ffff(boot[16:16 + 0x50])[0x40:0x50] and boot[0x50:0x58] == b"AC79BLID",
        "bootid.h: m-bootloader's tag is its container's payload +0x40 ciphered from the payload's start")

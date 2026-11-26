@@ -125,7 +125,7 @@ static void check(const char *what, int ok)
     fails += !ok;
 }
 
-/* ---- the editor's side, as web/editor.html does it */
+/* ---- the editor's side, as site/editor.html does it */
 typedef struct { char tag[5]; uint32_t kind, flags, len, crc; uint8_t *data; } obj_t;
 static obj_t objs[128];
 static uint32_t nobj, pages;

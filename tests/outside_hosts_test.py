@@ -2,7 +2,7 @@
 # SPDX-License-Identifier: GPL-3.0-only
 """No page Optimist ships, and nothing in the Mirror app, asks an outside host for a font, script, style, image or data,
 except the listed ONLINE-ONLY features (the user, 2026-10-29: "bundle the font everywhere", "it should work offline").
-Checked: web/ (the editor, installer, simulator, builder, the site generators), tools/site_release_manual.py, the app's bundled pages
+Checked: site/ (the editor, installer, simulator, builder, the site generators), tools/site_release_manual.py, the app's bundled pages
 (ios/OptimistMirror/Resources) and every URL literal in the app's Swift (ios/OptimistMirror/Sources).
 Links the user clicks (<a href>) are not loads and are not checked. Every ALLOW entry says which feature needs the network and
 what happens offline; a new outside host fails this test until it is listed (or, better, bundled).
@@ -12,7 +12,7 @@ import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-HTML_JS = [ROOT / "web", ROOT / "tools" / "site_release_manual.py", ROOT / "ios" / "OptimistMirror" / "Resources"]
+HTML_JS = [ROOT / "site", ROOT / "tools" / "site_release_manual.py", ROOT / "ios" / "OptimistMirror" / "Resources"]
 SWIFT = ROOT / "ios" / "OptimistMirror" / "Sources"
 EXT = {".html", ".htm", ".css", ".js", ".mjs", ".svg", ".py"}
 SKIP = ("/node_modules/", "/e2e_", "/test_")        # (tests of the pages: they name hosts to refuse or to fake)
@@ -21,37 +21,37 @@ SKIP = ("/node_modules/", "/e2e_", "/test_")        # (tests of the pages: they 
 ALLOW = [
     # the web builder: Pyodide (Python in the page) from a CDN, the cloud build through the relay and GitHub. Offline: the page
     # does not start / says the network is missing. The Mirror app shows it as a remote page (webapp/builder/app.html).
-    ("web/builder/logic.js", "https://cdn.jsdelivr.net/pyodide/", "builder: Pyodide"),
-    ("web/builder/logic.js", "cdn.jsdelivr.net", "builder: Pyodide (the constant)"),
-    ("web/builder/logic.js", "challenges.cloudflare.com", "builder: Turnstile (the constant)"),
-    ("web/builder/logic.js", "https://challenges.cloudflare.com/turnstile/", "builder: Build in the cloud (Turnstile)"),
-    ("web/builder/logic.js", "https://motscousus.com/optimist/cloud-build.php", "builder: Build in the cloud (relay)"),
-    ("web/builder/logic.js", "https://raw.githubusercontent.com/", "builder: cloud build results"),
-    ("web/builder/logic.js", "https://github.com/", "builder: opens the issue (a link)"),
-    ("web/make_site.py", "https://apps.apple.com/", "the menu bar's App Store badges (a link; the images are inlined)"),
-    ("web/builder/builder.js", "https://raw.githubusercontent.com/", "builder: cloud build results"),
-    ("web/builder/builder.js", "cdn.jsdelivr.net", "builder: its own caption about Pyodide (text)"),
-    ("web/builder/cloud.js", "https://api.github.com/", "builder: cloud build index"),
-    ("web/builder/cloud.js", "https://raw.githubusercontent.com/", "builder: cloud build index"),
-    ("web/installer/installer.js", "https://github.com/", "installer: links the user clicks (the project, a build's issue), not loads"),
-    ("web/installer/installer.js", "https://www.m-vave.com/download", "installer: the vendor's download page (a link)"),
-    ("web/builder/builder.js", "https://github.com/", "builder: a link the user clicks"),
-    ("web/make_site.py", "https://github.com/", "the site's repository link (a link)"),
-    ("web/make_site.py", "==https://w0ts.github.io/", "the site's link to the owner's page, W0TS (a link; the shared style next to it is NOT listed: it is a load)"),
-    ("web/make_site.py", "https://w0ts.github.io/site-style/", "the site's shared style (site-style/common.css, loaded by URL); the site pages are online, offline they lose only their style"),
-    ("web/make_site.py", "https://w0ts.github.io/site-style/switcher.js", "the w0ts project switcher after the title (site-style/switcher.js and the list it reads, w0ts.github.io/projects.json); offline the caret is not there, nothing else changes"),
-    ("web/installer/index.html", "https://w0ts.github.io/site-style/", "the site's shared style (site-style/common.css, loaded by URL); the site pages are online, offline they lose only their style"),
-    ("web/builder/index.html", "https://w0ts.github.io/site-style/", "the site's shared style (site-style/common.css, loaded by URL); the site pages are online, offline they lose only their style"),
-    ("web/site_about.py", "https://github.com/", "About: the project, the credits' and the tools' repositories (links the user clicks, not loads)"),
-    ("web/site_sdcard.py", "https://github.com/", "SD card page: the repository, m-bootloader, m-card (links the user clicks, not loads)"),
-    ("web/site_sdcard.py", "https://www.aliexpress.com/", "SD card page: where to buy the FFC cable (a link)"),
-    ("web/site_sdcard.py", "https://cart.jlcpcb.com/", "SD card page: JLCPCB's quote page (a link)"),
+    ("site/builder/logic.js", "https://cdn.jsdelivr.net/pyodide/", "builder: Pyodide"),
+    ("site/builder/logic.js", "cdn.jsdelivr.net", "builder: Pyodide (the constant)"),
+    ("site/builder/logic.js", "challenges.cloudflare.com", "builder: Turnstile (the constant)"),
+    ("site/builder/logic.js", "https://challenges.cloudflare.com/turnstile/", "builder: Build in the cloud (Turnstile)"),
+    ("site/builder/logic.js", "https://motscousus.com/optimist/cloud-build.php", "builder: Build in the cloud (relay)"),
+    ("site/builder/logic.js", "https://raw.githubusercontent.com/", "builder: cloud build results"),
+    ("site/builder/logic.js", "https://github.com/", "builder: opens the issue (a link)"),
+    ("site/make_site.py", "https://apps.apple.com/", "the menu bar's App Store badges (a link; the images are inlined)"),
+    ("site/builder/builder.js", "https://raw.githubusercontent.com/", "builder: cloud build results"),
+    ("site/builder/builder.js", "cdn.jsdelivr.net", "builder: its own caption about Pyodide (text)"),
+    ("site/builder/cloud.js", "https://api.github.com/", "builder: cloud build index"),
+    ("site/builder/cloud.js", "https://raw.githubusercontent.com/", "builder: cloud build index"),
+    ("site/installer/installer.js", "https://github.com/", "installer: links the user clicks (the project, a build's issue), not loads"),
+    ("site/installer/installer.js", "https://www.m-vave.com/download", "installer: the vendor's download page (a link)"),
+    ("site/builder/builder.js", "https://github.com/", "builder: a link the user clicks"),
+    ("site/make_site.py", "https://github.com/", "the site's repository link (a link)"),
+    ("site/make_site.py", "==https://w0ts.github.io/", "the site's link to the owner's page, W0TS (a link; the shared style next to it is NOT listed: it is a load)"),
+    ("site/make_site.py", "https://w0ts.github.io/site-style/", "the site's shared style (site-style/common.css, loaded by URL); the site pages are online, offline they lose only their style"),
+    ("site/make_site.py", "https://w0ts.github.io/site-style/switcher.js", "the w0ts project switcher after the title (site-style/switcher.js and the list it reads, w0ts.github.io/projects.json); offline the caret is not there, nothing else changes"),
+    ("site/installer/index.html", "https://w0ts.github.io/site-style/", "the site's shared style (site-style/common.css, loaded by URL); the site pages are online, offline they lose only their style"),
+    ("site/builder/index.html", "https://w0ts.github.io/site-style/", "the site's shared style (site-style/common.css, loaded by URL); the site pages are online, offline they lose only their style"),
+    ("site/site_about.py", "https://github.com/", "About: the project, the credits' and the tools' repositories (links the user clicks, not loads)"),
+    ("site/site_sdcard.py", "https://github.com/", "SD card page: the repository, m-bootloader, m-card (links the user clicks, not loads)"),
+    ("site/site_sdcard.py", "https://www.aliexpress.com/", "SD card page: where to buy the FFC cable (a link)"),
+    ("site/site_sdcard.py", "https://cart.jlcpcb.com/", "SD card page: JLCPCB's quote page (a link)"),
     ("tools/site_release_manual.py", "https://w0ts.github.io/optimist/webapp/manual/", "the release manual's links to the manual on the site (links)"),
-    ("web/installer/installer.js", "https://w0ts.github.io/optimist/webapp/manual/", "installer: the manual's Getting back page (a link)"),
-    ("web/install_route.js", "https://github.com/", "installer: M-Flasher's release page and the install paths doc, links the user clicks (the page loads nothing)"),
+    ("site/installer/installer.js", "https://w0ts.github.io/optimist/webapp/manual/", "installer: the manual's Getting back page (a link)"),
+    ("site/install_route.js", "https://github.com/", "installer: M-Flasher's release page and the install paths doc, links the user clicks (the page loads nothing)"),
     # the installer's cloud builds (the user's own build, by key)
-    ("web/installer/installer.js", "https://api.github.com/", "installer: cloud builds"),
-    ("web/installer/installer.js", "https://raw.githubusercontent.com/", "installer: cloud builds"),
+    ("site/installer/installer.js", "https://api.github.com/", "installer: cloud builds"),
+    ("site/installer/installer.js", "https://raw.githubusercontent.com/", "installer: cloud builds"),
 ]
 SWIFT_ALLOW = [
     ("Flash/FlashCatalog.swift", "https://w0ts.github.io/optimist/webapp/installer/site.json", "Flash tab: the firmware list; offline: 'no connection'"),
@@ -120,8 +120,8 @@ def selftest():
         assert not page_loads("x.html", t), f"false alarm: {t}"
     assert swift_urls('static let a = URL(string: "https://e.example/x")!\n// "https://commented.example"') == [(1, "https://e.example/x")]
     exact = [("a.py", "==https://e.example/", "a link to the root")]       # (an entry that starts with == allows that URL only)
-    assert allowed(exact, "web/a.py", "https://e.example/") and not allowed(exact, "web/a.py", "https://e.example/style.css")
-    assert allowed([("a.py", "https://e.example/", "a prefix")], "web/a.py", "https://e.example/style.css")
+    assert allowed(exact, "site/a.py", "https://e.example/") and not allowed(exact, "site/a.py", "https://e.example/style.css")
+    assert allowed([("a.py", "https://e.example/", "a prefix")], "site/a.py", "https://e.example/style.css")
 
 
 def scan():
@@ -143,7 +143,7 @@ def scan():
 
 
 def fonts_present():
-    """the bundled pages' fonts.css and the files it names are in the app's resources (and in web/fm1base's source)"""
+    """the bundled pages' fonts.css and the files it names are in the app's resources (and in site/fm1base's source)"""
     bad = []
     res = ROOT / "ios" / "OptimistMirror" / "Resources" / "Fm1Base"
     for page in sorted(res.glob("*/index.html")):
@@ -158,8 +158,8 @@ def fonts_present():
 
 
 def bundled_editor():
-    """the app's bundled editor (tools/sync_ios_editor.py: web/editor.html + what it loads): every file it copies exists, is one
-    this test scans (web/ or the logo), and every local file the page's own tags load is among them"""
+    """the app's bundled editor (tools/sync_ios_editor.py: site/editor.html + what it loads): every file it copies exists, is one
+    this test scans (site/ or the logo), and every local file the page's own tags load is among them"""
     sys.path.insert(0, str(ROOT / "tools"))
     import sync_ios_editor as s
     bad = []
@@ -167,18 +167,18 @@ def bundled_editor():
     for src, dst in s.FILES:
         if not (ROOT / src).is_file():
             bad.append(f"tools/sync_ios_editor.py: {src} does not exist")
-        elif not src.startswith(("web/", "assets/logo/")):
-            bad.append(f"tools/sync_ios_editor.py: {src} is not under web/ or assets/logo/ (not scanned for outside hosts)")
+        elif not src.startswith(("site/", "assets/logo/")):
+            bad.append(f"tools/sync_ios_editor.py: {src} is not under site/ or assets/logo/ (not scanned for outside hosts)")
         elif src.startswith("assets/logo/") and page_loads(ROOT / src, (ROOT / src).read_text(encoding="utf-8", errors="replace")):
             bad.append(f"{src}: loads an outside host")
-    page = (ROOT / "web" / "editor.html").read_text(encoding="utf-8")
+    page = (ROOT / "site" / "editor.html").read_text(encoding="utf-8")
     for tag in LOADING_TAG.finditer(page):
         for a in re.finditer(r"\b(?:src|href)\s*=\s*[\"']([^\"'#]+)", tag.group(0)):
             ref = a.group(1)
             if re.match(r"(?:[a-z]+:|//|data:)", ref) or tag.group(1).lower() == "a" or "{" in ref or "icon" in tag.group(0).split("href")[0]:
                 continue                              # (outside hosts are scan()'s; links and the browser-tab icons are not loads)
             if re.sub(r"^(?:\.\./)+", "", ref.removeprefix("./")) not in names:
-                bad.append(f"web/editor.html loads {ref}, which the app's bundled editor does not hold (tools/sync_ios_editor.py)")
+                bad.append(f"site/editor.html loads {ref}, which the app's bundled editor does not hold (tools/sync_ios_editor.py)")
     return bad
 
 

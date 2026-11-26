@@ -12,38 +12,38 @@ path. Chrome or Edge is needed for Web MIDI.
 
 ### What is published
 
-`web/make_site.py` builds the site (`make web` builds it locally into `build/optimist-site/`, with no firmware in it: the
+`site/make_site.py` builds the site (`make web` builds it locally into `build/optimist-site/`, with no firmware in it: the
 installer then offers cloud builds and a `.fwsc` of yours). The published installer offers, newest first, each published
 release (not a draft, not a pre-release) with its published flavours (the profiles marked `publish: yes`), then this
-commit's development build of each flavour in `web/flavours.json`. `pages.yml` downloads the releases' packages into the
+commit's development build of each flavour in `site/flavours.json`. `pages.yml` downloads the releases' packages into the
 site (`firmware/r/<tag>/`) because a page cannot fetch a GitHub release file itself (no CORS header), and builds the
 latest release's simulators from that tag's own source (its `config/profiles` and `tools/sim.py`: `firmware/r/<tag>/*.wasm`).
 `site.json` names that release (`"latest": {tag, sha, date}`): the builder and the Simulator tab start from it, main's
 development build stays a choice (the user, 2026-10-26). The site holds:
 
-- `webapp/installer/`: the standalone installer. `index.html` (from `web/installer/index.html`) is one offline file: the
+- `webapp/installer/`: the standalone installer. `index.html` (from `site/installer/index.html`) is one offline file: the
   shared header and style and the installer module, inlined. Beside it `installer.js` (the same module as one file, for
   the editor's Install tab) and `site.json` (the packages, simulators and repository it lists).
-- `webapp/editor/`: the web editor (`web/editor.html`, its font `fukiai.ttf` and the licences).
+- `webapp/editor/`: the web editor (`site/editor.html`, its font `fukiai.ttf` and the licences).
 - `webapp/builder/`: the web builder (below), its data exported fresh by `tools/export_builder_web.py`, and
-  `build-info.json` (the commit for the cloud key, the repository). `python3 web/make_site.py --builder OUT` makes only
+  `build-info.json` (the commit for the cloud key, the repository). `python3 site/make_site.py --builder OUT` makes only
   this part.
 - `firmware/optimist-<version>-<id>.fwsc` (and `.wasm`, the flavour's simulator): one per flavour; `firmware/r/<tag>/`: the
-  releases; `firmware/FM-1_015.fwsc`: M-VAVE's official V15, unchanged (`web/stock/`, Apache-2.0), the installer's return
+  releases; `firmware/FM-1_015.fwsc`: M-VAVE's official V15, unchanged (`site/stock/`, Apache-2.0), the installer's return
   to stock. The installer checks each download against the SHA-256 written into its page.
 - the dinghy icon files (`assets/logo/`; the PNGs are rendered by `tools/gen_web_icon.py` and committed), `manifest.webmanifest`,
   `LICENSE`, `LICENSING.md`, `LICENSES/`.
 
-All pages share one look and header (docs/WEB-STYLE.md): `web/style/common.css` (the shared style, loaded by URL from https://w0ts.github.io/site-style/common.css; the offline Mirror app and the editor's tabs use the vendored copy beside the page) plus `web/style/optimist.css` (the accent), which `make_site.py` inlines.
+All pages share one look and header (docs/WEB-STYLE.md): `site/style/common.css` (the shared style, loaded by URL from https://w0ts.github.io/site-style/common.css; the offline Mirror app and the editor's tabs use the vendored copy beside the page) plus `site/style/optimist.css` (the accent), which `make_site.py` inlines.
 
 ### The installer module
 
-`web/installer/installer.js` exports `mountInstaller(container, { packages, version, source, onNavigate, links, midi })`:
+`site/installer/installer.js` exports `mountInstaller(container, { packages, version, source, onNavigate, links, midi })`:
 it renders four steps (1 Connect, 2 Choose: a release and its flavours, a cloud build, or a `.fwsc` of yours; 3 Install:
 the back-up question, the four phases and the bar; 4 When something goes wrong: the rescue paths and the return to V15)
 and returns `{ unmount(), busy }` (`busy` while writing: the host must not unload or hide it). `onNavigate(where)` lets
 the host open its own tab instead of following a link; `midi` replaces `navigator.requestMIDIAccess` (the tests). The
-update itself is fm-1-base's `web/fm1base/fm1ota.js` and `fm1pkg.js` (MPL-2.0, vendored byte for byte, never edited here: `web/fm1base/README.md`) with Optimist's extras in `web/fm1ota_optimist.js` (GPL-3.0-only: the loader identities OFFICIAL_LOADER / OUR_LOADER, the return to the official V15 with `restoreBanks`, `validateStockPackage`, the address of the last read for the bar). From fm-1-base the page has finding the FM-1 under any port name (the list with Try and the remembered ports, key `fm1-ports`), the CRC check before anything is sent, M-VAVE's Open firmware, the resume return check. m-bootloader is no longer written by this page: the build's BOOTLOADER is shown (a cloud build's `.config`, a site package's `bootloader` in site.json from its `PACKAGE.install.json`), with the KEEP-only checkbox; m-bootloader and every switch the running firmware's updater refuses go through the chip's download mode, which a browser cannot reach: the page names the next step (M-Flasher on a computer, the command, the key combo) and can send the soft key (`web/install_route.js`, docs/INSTALL-PATHS.md). The module's CSS uses only the shared tokens, so it takes the look of
+update itself is fm-1-base's `site/fm1base/fm1ota.js` and `fm1pkg.js` (MPL-2.0, vendored byte for byte, never edited here: `site/fm1base/README.md`) with Optimist's extras in `site/fm1ota_optimist.js` (GPL-3.0-only: the loader identities OFFICIAL_LOADER / OUR_LOADER, the return to the official V15 with `restoreBanks`, `validateStockPackage`, the address of the last read for the bar). From fm-1-base the page has finding the FM-1 under any port name (the list with Try and the remembered ports, key `fm1-ports`), the CRC check before anything is sent, M-VAVE's Open firmware, the resume return check. m-bootloader is no longer written by this page: the build's BOOTLOADER is shown (a cloud build's `.config`, a site package's `bootloader` in site.json from its `PACKAGE.install.json`), with the KEEP-only checkbox; m-bootloader and every switch the running firmware's updater refuses go through the chip's download mode, which a browser cannot reach: the page names the next step (M-Flasher on a computer, the command, the key combo) and can send the soft key (`site/install_route.js`, docs/INSTALL-PATHS.md). The module's CSS uses only the shared tokens, so it takes the look of
 the page that holds it.
 
 ```js
@@ -52,18 +52,18 @@ const site = await fetch("../installer/site.json").then((r) => r.json());
 const inst = mountInstaller(document.getElementById("tab-install"), { ...site, onNavigate: (where) => openTab(where) });
 ```
 
-Tests: `web/test_web.mjs` (identities, package checks, the bar, the messages, the texts against the README and the
-firmware) and `web/e2e_installer.mjs` (headless Chrome with a simulated FM-1, `web/installer/mock_fm1.js`: connect,
+Tests: `site/test_web.mjs` (identities, package checks, the bar, the messages, the texts against the README and the
+firmware) and `site/e2e_installer.mjs` (headless Chrome with a simulated FM-1, `site/installer/mock_fm1.js`: connect,
 choose, install, a pulled cable and the resume, no FM-1, a wrong file, light / dark, 390 px, no Web MIDI; no real MIDI port
 is opened; `--shots DIR` saves screenshots).
 
 ### The flavour manifest
 
-`web/flavours.json` lists the firmware packages: `id` (lowercase, part of the file name), `title` and `description` (shown
+`site/flavours.json` lists the firmware packages: `id` (lowercase, part of the file name), `title` and `description` (shown
 by the installer), `profile` (the `config/profiles/` profile CI builds), `file` (a glob of the package it produces:
 `dist/optimist-*-<name>.fwsc`, the slug of the profile's `# name:`) and `sim` (the simulator `.wasm` built for it). `"default": true` marks the flavour the
 web builder opens with (without one: the first). Today there is one flavour, `default` (the `mots-config` profile). To add one, add an entry; CI builds
-every listed profile. `python3 web/make_site.py --profiles` prints the profiles; `--flavours web/flavours.json <version>
+every listed profile. `python3 site/make_site.py --profiles` prints the profiles; `--flavours site/flavours.json <version>
 <out>` builds the site from packages already in `dist/`.
 
 ### How the firmware gets there
@@ -82,7 +82,7 @@ fails with "Get Pages site failed", the first step is missing).
 
 ### Cut a release
 
-1. Set `VERSION` (X.Y or X.Y.Z, a patch release is 0.4.1: the release on fm1-base names itself `FM-1_709` + XXYYZZ, 0.4.1 is `FM-1_709000401`; the classic build's `FM-1_7(X+2)Y` has no room for a patch number, so 0.4.1 takes 0.4's) and commit it. The version is also in `firmware/src/core/model.c`, `splash.c`'s comment, `tests/scrn_table.json`, `tests/ui_optimist_glwalk.h` and `web/editor.html` (the About golden and the editor's copy): `git show 831b2854` is the 0.4 bump.
+1. Set `VERSION` (X.Y or X.Y.Z, a patch release is 0.4.1: the release on fm1-base names itself `FM-1_709` + XXYYZZ, 0.4.1 is `FM-1_709000401`; the classic build's `FM-1_7(X+2)Y` has no room for a patch number, so 0.4.1 takes 0.4's) and commit it. The version is also in `firmware/src/core/model.c`, `splash.c`'s comment, `tests/scrn_table.json`, `tests/ui_optimist_glwalk.h` and `site/editor.html` (the About golden and the editor's copy): `git show 831b2854` is the 0.4 bump.
 2. Tag that commit `v<VERSION>` (a suffix after a dash is allowed, `v0.2-rc1`) and push the tag: `release.yml` builds every
    published profile (`# publish: yes`) in `config/profiles/` as a release build (`optimist-<version>-<profile>.fwsc`) and creates a **draft** release
    with them and `SHA256SUMS.txt`. A tag that does not match `VERSION` fails at once.
@@ -131,7 +131,7 @@ works on a phone.
 
 ### The module
 
-`web/builder/builder.js` exports `mountBuilder(container, { onNavigate, pyodideBase })`, so the editor can show it as a tab:
+`site/builder/builder.js` exports `mountBuilder(container, { onNavigate, pyodideBase })`, so the editor can show it as a tab:
 
 ```js
 import { mountBuilder } from "../builder/builder.js";
@@ -146,26 +146,26 @@ b.destroy();       // gone
 - `onNavigate(name)` is called instead of following a `data-nav` link. `pyodideBase` is another Pyodide directory (tests).
 - **Python is not loaded before the first `activate()`.** The handle also has `state`, `ready`, `readyFlag`, `call(fn, ...)`,
   `choosePreset(id)`, `importText(text, source)` and `setItem(key, value)` (the tests use them).
-- The host must include `web/style/common.css` and `web/style/optimist.css` and set `--menubar-h` if it has a sticky bar.
+- The host must include `site/style/common.css` and `site/style/optimist.css` and set `--menubar-h` if it has a sticky bar.
 - Files, all in `webapp/builder/`: `builder.js`, `builder.css`, `logic.js`, `py-worker.js`, `data/`, `build-info.json`;
   `index.html` + `ui.js` are the standalone page (`window.optimistBuilder` is the handle).
 
 ### Pyodide and the data
 
-Pyodide is pinned in `web/builder/logic.js` (`PYODIDE_VERSION`, 314.0.7, Python 3.14) and loaded from jsDelivr; only this
-page loads it (about 13 MB the first time, cached after). `tools/export_builder_web.py` writes `web/builder/data/`, which
+Pyodide is pinned in `site/builder/logic.js` (`PYODIDE_VERSION`, 314.0.7, Python 3.14) and loaded from jsDelivr; only this
+page loads it (about 13 MB the first time, cached after). `tools/export_builder_web.py` writes `site/builder/data/`, which
 is committed: `python.json` (the Python files, `tools/backports.json`, the `needs_auto` list read from the firmware
 headers), `registry.json`, `costs.json`, `profiles.json` (the shipped profiles and the flavours). After any change to the
 registry, costs, core, backports or a profile, run `python3 tools/export_builder_web.py` and commit the result;
-`node web/test_builder.mjs` (part of `tests/run_tests.sh`) fails while it is stale. `make_site.py` exports fresh data into
+`node site/test_builder.mjs` (part of `tests/run_tests.sh`) fails while it is stale. `make_site.py` exports fresh data into
 the site either way.
 
 ### Tests
 
-- `node web/test_builder.mjs`: no browser, no network. The drift check; the exported Python run by an isolated CPython
+- `node site/test_builder.mjs`: no browser, no network. The drift check; the exported Python run by an isolated CPython
   (`python3 -I`, standing in for Pyodide) compared with the CLI builder (`tests/builder_web_ref.py`) for every profile and
   seeded random edits (evaluate, budget, fits, key, errors, fit, proposals, BLE); `logic.js` against the menu's rules.
-- `node web/e2e_builder.mjs [--shots DIR]`: the same in headless Chrome with the real Pyodide from the CDN, then the page
+- `node site/e2e_builder.mjs [--shots DIR]`: the same in headless Chrome with the real Pyodide from the CDN, then the page
   (toggling, search, sort, import, download, messages, layout at 1440 and 390 px, Make it fit, folding, light and dark).
   Not part of `make test` (needs Chrome and the network). `PYODIDE_DIR=path` serves a local copy instead of the CDN.
 
@@ -192,14 +192,14 @@ cloud** sends the configuration to this repository's GitHub Actions, which build
 
 | Part | What it does |
 |---|---|
-| `web/builder/cloud.js`, `logic.js` | Build from (`?refs`), the request (the relay, else `cloudIssueUrl`: the form with `commit` and `config` filled in), the build followed (`?status=`), your build kept |
-| `web/make_site.py` | `build-info.json`: `commit` (the site's) and `repo` (`$GITHUB_REPOSITORY`, so a fork's site asks its own repository) |
+| `site/builder/cloud.js`, `logic.js` | Build from (`?refs`), the request (the relay, else `cloudIssueUrl`: the form with `commit` and `config` filled in), the build followed (`?status=`), your build kept |
+| `site/make_site.py` | `build-info.json`: `commit` (the site's) and `repo` (`$GITHUB_REPOSITORY`, so a fork's site asks its own repository) |
 | `.github/ISSUE_TEMPLATE/cloud-build.yml` | the form: *Commit* (empty = the default branch's latest) and *Configuration*; label `cloud-build` |
 | `.github/workflows/cloud-build.yml` | `request` > `build` > `publish`, `failed` on a failure, `prune` daily |
 | `tools/cloud_build.py` | reads the body, checks the commit, the verdict, the replies (`tests/cloud_build_test.py`) |
 | the `cloud-builds` pre-release | the builds, one `.fwsc` + `-ui.zip` per cloud key |
 | `tools/cloud_shelf.sh` | the `cloud-builds` **branch**: the same files, `<stem>.config` and `index.json`, one commit, replaced |
-| `web/installer/installer.js` | *Your build*: `loadCloud` (the branch's commit from the API, then `index.json` and the `.fwsc` from raw.githubusercontent.com), the build found by its id, the SHA-256 checked before install |
+| `site/installer/installer.js` | *Your build*: `loadCloud` (the branch's commit from the API, then `index.json` and the `.fwsc` from raw.githubusercontent.com), the build found by its id, the SHA-256 checked before install |
 
 The branch exists because a release download ends on a host with no CORS header, so a web page cannot fetch it;
 raw.githubusercontent.com sends `Access-Control-Allow-Origin: *`.
@@ -247,10 +247,10 @@ old), the **releases** with their published flavours, a **`.fwsc` file**, and **
    Mirror app's web view keeps too). No development profile and no "registry defaults" are offered.
 2. **Build from** the latest published release (the default: `site.json` `latest`; no `?ref` in the URL), main
    (`?ref=main`: the site's own copy, its commit), another release tag or a branch (the relay's `?refs`; `?ref=<commit>`).
-   Everything below (the items, the costs, the profiles, the rules) is that version's (`web/builder/data` of that commit
+   Everything below (the items, the costs, the profiles, the rules) is that version's (`site/builder/data` of that commit
    from raw.githubusercontent.com). No `site.json` or no `latest` in it (the local site, the builder alone): main. A
    build asks for the commit chosen (main: the site's commit).
-3. **Build** (`web/builder/cloud.js`). When `TURNSTILE_SITEKEY` is set (`logic.js`), it needs no GitHub account:
+3. **Build** (`site/builder/cloud.js`). When `TURNSTILE_SITEKEY` is set (`logic.js`), it needs no GitHub account:
    - Cloudflare Turnstile is loaded at that click only (no third party on the page before) and checks the visitor is
      not a robot, usually without asking anything;
    - the page posts `{turnstile, commit, config, name}` to the relay (`CLOUD_RELAY`), which opens the cloud-build issue
@@ -268,7 +268,7 @@ old), the **releases** with their published flavours, a **`.fwsc` file**, and **
 The page tells its host every stage: `opts.onBuild(ev)` and, in the Mirror app's web view, the `optimist` message
 handler, `ev = {type: "cloud-build", stage, issue, url, id?, run?, name?, sim?, reason?}` (stage sent, building, done,
 refused, failed or error); the two buttons call `opts.onNavigate("install" | "sim", {build: id})`. `mountBuilder(...,
-{app: true})` is the app's page (`web/builder/app.html`): the Build card first and in view, without the files and the
+{app: true})` is the app's page (`site/builder/app.html`): the Build card first and in view, without the files and the
 keys.
 
 What the relay holds and refuses (`cloud-relay-config.php`, outside the web root, never in git):
@@ -301,7 +301,7 @@ relay's issue body reads as the form's.
 ## The simulator
 
 Optimist's own firmware (`firmware/src/felucca.c`, the one compilation unit the FM-1 runs) built as WebAssembly for the
-browser's Simulator tab (`web/sim/`). Not an emulator of the chip: the same C, compiled for the host, on a host HAL.
+browser's Simulator tab (`site/sim/`). Not an emulator of the chip: the same C, compiled for the host, on a host HAL.
 
 ### What runs
 
@@ -380,4 +380,4 @@ differs from now, or it was built for another profile; the Simulator tab shows "
 
 ## The release's own site (`make site PKG=...`)
 
-The release (Optimist as an fm1-base app, `fm1base/optimist`) has an install page of its own besides the installer above: fm1-base's `web/installer.html` made for it by fm1-base's `tools/make_site.py`, with Optimist's name, the release package, m-bootloader offered after it, the front page, the manual and the browser emulator. `web/make_site.py --release-site X.Y OUT_DIR PKG` makes it alone, `--release-pkg PKG` beside `--local` or `--flavours` puts it in `OUT_DIR/release/`, and `make site [PKG=release.fwsc] [SITE=build/site] [VERSION=X.Y]` runs the first (`--local`) with it. PKG is a release build (`tools/build.py --release`, identity `FM-1_79` and six digits). The inputs are Optimist's: `fm1base/optimist/fm1.toml` (name, `tagline`, `repo`, licence), `fm1base/optimist/site/landing.md` (the front page), and the manual, which `tools/site_release_manual.py` builds when the site is made: a numbered section per page of the site's manual (`web/site_manual.py`, `web/manual/*.html`), each linking to it (`tools/fm1base.py site`, which also builds the emulator with Emscripten: `fm1base/tools/build.py optimist --web`); nothing of it is kept twice. `web/e2e_release_installer.mjs` (Chrome, Emscripten) builds it from a simulated package, checks its pages and installs it on a simulated FM-1 (`web/installer/mock_fm1.js` behind `navigator.requestMIDIAccess`: no real MIDI port is opened).
+The release (Optimist as an fm1-base app, `fm1base/optimist`) has an install page of its own besides the installer above: fm1-base's `web/installer.html` made for it by fm1-base's `tools/make_site.py`, with Optimist's name, the release package, m-bootloader offered after it, the front page, the manual and the browser emulator. `site/make_site.py --release-site X.Y OUT_DIR PKG` makes it alone, `--release-pkg PKG` beside `--local` or `--flavours` puts it in `OUT_DIR/release/`, and `make site [PKG=release.fwsc] [SITE=build/site] [VERSION=X.Y]` runs the first (`--local`) with it. PKG is a release build (`tools/build.py --release`, identity `FM-1_79` and six digits). The inputs are Optimist's: `fm1base/optimist/fm1.toml` (name, `tagline`, `repo`, licence), `fm1base/optimist/site/landing.md` (the front page), and the manual, which `tools/site_release_manual.py` builds when the site is made: a numbered section per page of the site's manual (`site/site_manual.py`, `site/manual/*.html`), each linking to it (`tools/fm1base.py site`, which also builds the emulator with Emscripten: `fm1base/tools/build.py optimist --web`); nothing of it is kept twice. `site/e2e_release_installer.mjs` (Chrome, Emscripten) builds it from a simulated package, checks its pages and installs it on a simulated FM-1 (`site/installer/mock_fm1.js` behind `navigator.requestMIDIAccess`: no real MIDI port is opened).

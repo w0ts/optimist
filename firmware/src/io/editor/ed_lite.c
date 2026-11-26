@@ -4,7 +4,7 @@
  * just be the communication layer, the common part, and we should move AS MUCH as possible in sub features"). The
  * base, EDITOR alone, is the frames and:
  *   1 INFO      the version, no engine, no parameter, no track, protocol 6, then the tag 0x64 (1 byte: 1): the page sees an
- *               FM-1 without live editing and offers what the sub-items below answer (web/editor.html loadLite)
+ *               FM-1 without live editing and offers what the sub-items below answer (site/editor.html loadLite)
  *   25 PING     49 BUILD (the builder's items: a backup file records which build it came from)
  * With BACKUP:
  *   11..15      the user sample slots (ed_user.c: a restore writes the USR slots through them; no user presets here)

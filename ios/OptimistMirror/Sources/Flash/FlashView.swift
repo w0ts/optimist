@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-only
-// Firmware: an install over the USB cable (the web installer's, web/installer/). In order (the user, 2026-10-25): one's own
+// Firmware: an install over the USB cable (the web installer's, site/installer/). In order (the user, 2026-10-25): one's own
 // build, just made in the builder and picked; the releases with their published flavours (version and date); a .fwsc file.
 // Build opens the web builder (BuilderWebView.swift, its app page, started on the flavour ticked); no list of cloud builds.
 // The return to the official firmware stays on the web.

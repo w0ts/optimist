@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: GPL-3.0-only
-"""The site's user manual (web/site_manual.py, web/manual/*.html, make_site.py manual_page / manual_site): a contents page and
+"""The site's user manual (site/site_manual.py, site/manual/*.html, make_site.py manual_page / manual_site): a contents page and
 one page a topic, each with the shared header (its Manual tab current) and the manual's own row of links; every fragment is
 a listed topic and every topic has its fragment; the links between the pages land on a page and an anchor that exist;
 the README, docs/ and the installer send a user to the site, not to Markdown (the user, 2026-11-23: "only dev stuff on
@@ -13,7 +13,7 @@ import tempfile
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-sys.path.insert(0, str(ROOT / "web"))       # (web/ is not a package)
+sys.path.insert(0, str(ROOT / "site"))       # (site/ is not a package)
 make_site = importlib.import_module("make_site")
 site_manual = importlib.import_module("site_manual")
 
@@ -27,8 +27,8 @@ def ok(cond: bool, what: str) -> None:
 
 
 topics = [t for t, _, _ in site_manual.TOPICS]
-fragments = sorted(p.stem for p in (ROOT / "web" / "manual").glob("*.html"))
-ok(sorted(topics) == fragments, f"every topic has its web/manual/<topic>.html and every fragment is a topic ({len(topics)})")
+fragments = sorted(p.stem for p in (ROOT / "site" / "manual").glob("*.html"))
+ok(sorted(topics) == fragments, f"every topic has its site/manual/<topic>.html and every fragment is a topic ({len(topics)})")
 ok(not (ROOT / "docs" / "manual").exists(), "no docs/manual: the manual's text is the site's")
 
 pages = site_manual.pages()
@@ -56,9 +56,9 @@ ok(broken == [], f"every link between the manual's pages lands on a page and an 
 md_text = [f"{n}: {m}" for n, (_, b) in pages.items() for m in re.findall(r'<a href="[a-z-]+\.html[^"]*">([a-z-]+\.md)</a>', b)]
 ok(md_text == [], f"no link between the pages reads as a Markdown file {md_text[:3]}")
 
-about = (ROOT / "web" / "site_about.py").read_text(encoding="utf-8")
+about = (ROOT / "site" / "site_about.py").read_text(encoding="utf-8")
 ok("webapp/manual/getting-back.html" in about and "manual/sound.md" not in about, "the About page links the manual's pages")
-inst = (ROOT / "web" / "installer" / "installer.js").read_text(encoding="utf-8")
+inst = (ROOT / "site" / "installer" / "installer.js").read_text(encoding="utf-8")
 ok("https://w0ts.github.io/optimist/webapp/manual/getting-back.html" in inst, "the installer's help link is the site's Getting back page")
 readme = (ROOT / "README.md").read_text(encoding="utf-8")
 ok("w0ts.github.io/optimist/webapp/manual" in readme and "docs/manual" not in readme, "the README points to the manual on the site")

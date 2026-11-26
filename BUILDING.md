@@ -90,7 +90,7 @@ measured from the defaults with `RELEASE_BASE` (`measure_costs.py`); what the re
 file's `"unbuildable"`. Each kind (classic, release) measures only what it can build: a value the registry marks in `registry.NOT_BUILT` for that kind (with the reason: `ENG_PHYS` "on, code in RAM" in both) is not offered by the menu or accepted by `core.validate`, and is written as `"not in this build: <reason> [link: <the link error>]"` in that kind's costs file (its delta 0; the run still builds it once to show the error, and reports a marked value that links). A configuration that should build and does not fails the run at the end, loudly (`measure_costs.py` prints each with its error, exit status 1). The file's `"limits"` are the release's slots (the app slot of `sizes.json`, the SD card
 mode's bigger one for `LAYOUT 1`, the SRAM of `app.ld`), which the fit checks use (`core.fits`) instead of the classic's. Without
 the file the budget uses `costs.json` (Optimist's classic measurements) and says so; a real build is exact and remembered in
-`build/exact-sizes-fm1base.json`. The web builder's data (`web/builder/data/costs.json`) is whichever of the two the CLI reads.
+`build/exact-sizes-fm1base.json`. The web builder's data (`site/builder/data/costs.json`) is whichever of the two the CLI reads.
 
 `make test` runs Optimist's own tests (they build and test the classic firmware, as ever), then the release's:
 `fm1base/optimist/run.sh` (the app on fm1-base's host simulator, with Optimist's source defaults and the dev profile, against
@@ -302,7 +302,7 @@ and the string the `.fwsc` marker bytes carry. **Optimist is `FM-1_700`** for de
 `--release X.Y`: 0.1 is `FM-1_721`, 1.0 `FM-1_730`, up to 4.9 `FM-1_769` (`build.py release_product`). Its update
 loader answers `ota-FM-1_700`. `optimist flash` takes only these identities.
 
-- The installers split the identity at `_`: the model before it must be `FM-1` and digits must follow (`web/fm1base/fm1ota.js`,
+- The installers split the identity at `_`: the model before it must be `FM-1` and digits must follow (`site/fm1base/fm1ota.js`,
   `fm1_install.py`). The `.fwsc` marker holds at most 20 characters.
 - The stock updater refuses only the identity it is already running; package content is not authenticated. M-VAVE's
   stock is `FM-1_0XX` (V15 is `FM-1_015`), Baud Girl `020`-`09X`, Felucca / SLOOP / X0X `9XX`. 7XX sits between them. In
@@ -362,7 +362,7 @@ build per item value: ~440 builds for a full run, so it is measured on a fast Li
 (`tools/farm_size.sh [PROFILE] [KEY=V ...]` sizes one build on such a host over ssh; `FARM_HOST`, default `gpufarm`).
 `make costs` measures only what is missing (after adding an item); `make costs-all [JOBS=n]` measures everything again
 (JOBS: builds at once; default the CPUs and the free RAM). Commit `costs.json` and
-`web/builder/data/` (`tools/export_builder_web.py`) together. docs/BUILDER.md, "Budget", explains the model and the
+`site/builder/data/` (`tools/export_builder_web.py`) together. docs/BUILDER.md, "Budget", explains the model and the
 checks CI runs against it.
 
 ### The emulator checks

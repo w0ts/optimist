@@ -48,7 +48,7 @@ help:
 	@echo "make costs                     measure what tools/builder/costs.json lacks (new items); run after merging a batch"
 	@echo "make costs-all [JOBS=n]        measure every item again (flash, RAM, pool, RAMTEXT; ~440 builds, JOBS at once,"
 	@echo "                              default the CPUs and the free RAM; a progress line with the time left) for the terminal and"
-	@echo "                              the web builder (tools/builder/costs.json, web/builder/data/); commit both"
+	@echo "                              the web builder (tools/builder/costs.json, site/builder/data/); commit both"
 	@echo "make gate  [CONFIG=f] [SET=\"K=V ..\"] [EMU=1]  the integrator's gate: costs, every published profile, the host"
 	@echo "                              tests, a final build of the default profile (EMU=1: then emu-check)"
 	@echo "make emu-check [PKG=file.fwsc] [ONLY=boot,..]  the emulator smoke checks on the last build (needs Rust; BUILDING.md)"
@@ -119,7 +119,7 @@ web:
 	$(PY) tools/optimist.py web $(if $(PORT),--port $(PORT)) --profile $(PROFILE) $(if $(SIM),--sim)
 
 site:
-	$(PY) web/make_site.py --local $(or $(VERSION),$(shell cat VERSION)) $(or $(SITE),build/site) $(if $(PKG),--release-pkg $(PKG))
+	$(PY) site/make_site.py --local $(or $(VERSION),$(shell cat VERSION)) $(or $(SITE),build/site) $(if $(PKG),--release-pkg $(PKG))
 
 emu:
 	IMAGES=$(abspath $(IMAGES)) $(PY) tools/optimist.py emu $(FW) $(if $(CPU),--cpu $(CPU)) $(if $(FRESH),--fresh)
