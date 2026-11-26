@@ -1,6 +1,6 @@
 {
  "base": {
-  "flash": 754016,
+  "flash": 754012,
   "ram": 99444,
   "pool": 357936,
   "ramtext": 60156
@@ -22,7 +22,7 @@
  "deltas": {
   "DRUM_X0X909": {
    "1": {
-    "flash": 136904,
+    "flash": 136908,
     "ram": 4,
     "pool": 5328,
     "ramtext": 0
@@ -52,7 +52,7 @@
     "ramtext": -5744
    },
    "2": {
-    "flash": 1984,
+    "flash": 1988,
     "ram": -16,
     "pool": 0,
     "ramtext": -5680
@@ -60,7 +60,7 @@
   },
   "A2_LADR": {
    "1": {
-    "flash": 1772,
+    "flash": 1776,
     "ram": -20,
     "pool": 0,
     "ramtext": 532
@@ -100,7 +100,7 @@
   },
   "ENG_DIGITAL": {
    "0": {
-    "flash": -1352,
+    "flash": -1356,
     "ram": -76,
     "pool": 0,
     "ramtext": -1292
@@ -300,7 +300,7 @@
   },
   "ENG_SLICE": {
    "1": {
-    "flash": 26696,
+    "flash": 26692,
     "ram": 2972,
     "pool": 0,
     "ramtext": -8
@@ -308,7 +308,7 @@
   },
   "ENG_DRONE": {
    "1": {
-    "flash": 4240,
+    "flash": 4236,
     "ram": 888,
     "pool": 0,
     "ramtext": 276
@@ -344,7 +344,7 @@
   },
   "ENG_VPS": {
    "1": {
-    "flash": 2272,
+    "flash": 2268,
     "ram": 32,
     "pool": 0,
     "ramtext": 0
@@ -368,7 +368,7 @@
   },
   "ENG_VECTOR": {
    "1": {
-    "flash": 24620,
+    "flash": 24624,
     "ram": 32,
     "pool": 0,
     "ramtext": 0
@@ -430,7 +430,7 @@
   },
   "DRUMS": {
    "0": {
-    "flash": -150628,
+    "flash": -150624,
     "ram": -9484,
     "pool": 1268,
     "ramtext": -13024
@@ -468,7 +468,7 @@
     "ramtext": 0
    },
    "0": {
-    "flash": -93156,
+    "flash": -93160,
     "ram": 0,
     "pool": 0,
     "ramtext": 0
@@ -500,7 +500,7 @@
   },
   "KIT_ACOUSTIC": {
    "0": {
-    "flash": 24,
+    "flash": 28,
     "ram": 0,
     "pool": 0,
     "ramtext": 0
@@ -730,7 +730,7 @@
   },
   "SL_LEN": {
    "2048": {
-    "flash": 8,
+    "flash": 12,
     "ram": -20,
     "pool": -16384,
     "ramtext": 20
@@ -738,7 +738,7 @@
   },
   "FX_PUNCH": {
    "0": {
-    "flash": -1648,
+    "flash": -1644,
     "ram": 4,
     "pool": -65536,
     "ramtext": -2244
@@ -882,7 +882,7 @@
   },
   "INS_SLEW": {
    "1": {
-    "flash": 516,
+    "flash": 520,
     "ram": 360,
     "pool": 0,
     "ramtext": 552
@@ -930,7 +930,7 @@
   },
   "RET_FB": {
    "0": {
-    "flash": -572,
+    "flash": -568,
     "ram": -132,
     "pool": -384,
     "ramtext": -488
@@ -1108,7 +1108,7 @@
   },
   "MIDI_EXPR": {
    "0": {
-    "flash": -484,
+    "flash": -488,
     "ram": -12,
     "pool": 0,
     "ramtext": -180
@@ -1132,7 +1132,7 @@
   },
   "FAVORITES": {
    "0": {
-    "flash": -1460,
+    "flash": -1456,
     "ram": 0,
     "pool": -136,
     "ramtext": 0
@@ -1172,13 +1172,13 @@
   },
   "LCD_BAUD": {
    "4": {
-    "flash": -4,
+    "flash": 0,
     "ram": 0,
     "pool": 0,
     "ramtext": 0
    },
    "0": {
-    "flash": -4,
+    "flash": 0,
     "ram": 0,
     "pool": 0,
     "ramtext": 0
@@ -1186,7 +1186,7 @@
   },
   "FONT_CACHE": {
    "1": {
-    "flash": 4,
+    "flash": 0,
     "ram": -5760,
     "pool": 0,
     "ramtext": 0
@@ -1440,7 +1440,7 @@
     "ramtext": 0
    },
    "3": {
-    "flash": 12,
+    "flash": 16,
     "ram": 0,
     "pool": -7200,
     "ramtext": 0
@@ -1486,7 +1486,7 @@
   },
   "BT_AUDIO": {
    "1": {
-    "flash": 67640,
+    "flash": 67636,
     "ram": 28992,
     "pool": 9600,
     "ramtext": 456
@@ -1494,16 +1494,8 @@
   },
   "USB_HOST": {
    "1": {
-    "flash": 4620,
+    "flash": 4568,
     "ram": 756,
-    "pool": 0,
-    "ramtext": 0
-   }
-  },
-  "USB_NET": {
-   "1": {
-    "flash": 4736,
-    "ram": 5424,
     "pool": 0,
     "ramtext": 0
    }
@@ -1556,7 +1548,7 @@
   },
   "ENG_ACID": {
    "2": {
-    "flash": 13152,
+    "flash": 13148,
     "ram": 372,
     "pool": -4,
     "ramtext": 0
@@ -1598,7 +1590,7 @@
     "ramtext": 0
    },
    "3": {
-    "flash": 5596,
+    "flash": 5592,
     "ram": 28,
     "pool": 0,
     "ramtext": 2636
@@ -1638,7 +1630,7 @@
   },
   "SL24_SAFE": {
    "0": {
-    "flash": -1736,
+    "flash": -1740,
     "ram": -76,
     "pool": 0,
     "ramtext": 0
@@ -1654,7 +1646,7 @@
   },
   "DIV_LONG": {
    "0": {
-    "flash": 0,
+    "flash": -4,
     "ram": 0,
     "pool": 0,
     "ramtext": 0
@@ -1798,6 +1790,14 @@
     "ramtext": 0
    }
   },
+  "USB_NET": {
+   "1": {
+    "flash": 4704,
+    "ram": 5416,
+    "pool": 0,
+    "ramtext": 0
+   }
+  },
   "MICRO": {
    "1": {
     "flash": 872,
@@ -1836,13 +1836,13 @@
     "ramtext": 3268
    },
    "12": {
-    "flash": 49248,
+    "flash": 49252,
     "ram": 6084,
     "pool": 44704,
     "ramtext": 3268
    },
    "16": {
-    "flash": 49248,
+    "flash": 49252,
     "ram": 6084,
     "pool": 44704,
     "ramtext": 3268
@@ -1869,7 +1869,7 @@
    }
   }
  },
- "measured": "2026-11-25 22:21",
+ "measured": "2026-11-26 07:35",
  "cpu": {
   "scale_pct": 104,
   "calibrated": "2026-10-06, emulator at 96 MHz, bench.c scenarios 1 2 3 7 8 (docs/CPU-GUARD.md); X0X: 2026-10-07, scenario 8 on the X0X 909 and 808 kits (x0x-drums)",
@@ -2088,7 +2088,7 @@
    },
    "built_hash": "384feef0",
    "sizes": {
-    "flash": 674760,
+    "flash": 674764,
     "ram": 128036,
     "pool": 297500,
     "ramtext": 57100
@@ -2162,7 +2162,7 @@
    },
    "built_hash": "6be8e9d9",
    "sizes": {
-    "flash": 652740,
+    "flash": 652736,
     "ram": 101768,
     "pool": 177916,
     "ramtext": 39232
@@ -2405,7 +2405,7 @@
    },
    "built_hash": "01531f92",
    "sizes": {
-    "flash": 821400,
+    "flash": 821436,
     "ram": 133108,
     "pool": 106880,
     "ramtext": 66324
@@ -2508,7 +2508,7 @@
    },
    "built_hash": "6fe659b1",
    "sizes": {
-    "flash": 711724,
+    "flash": 711720,
     "ram": 118992,
     "pool": 295372,
     "ramtext": 55600
@@ -2518,7 +2518,7 @@
      "from": 1,
      "to": 0,
      "delta": {
-      "flash": -44068,
+      "flash": -44064,
       "ram": -2964,
       "pool": -14220,
       "ramtext": 0
@@ -2828,7 +2828,7 @@
    },
    "built_hash": "15f8eefa",
    "sizes": {
-    "flash": 631164,
+    "flash": 631168,
     "ram": 105804,
     "pool": 302288,
     "ramtext": 34100
@@ -3436,7 +3436,7 @@
    },
    "built_hash": "1c8c0691",
    "sizes": {
-    "flash": 827396,
+    "flash": 827420,
     "ram": 135220,
     "pool": 107352,
     "ramtext": 66340
@@ -3968,13 +3968,13 @@
  },
  "pairs": {
   "MOTION=1,SECTIONS=4": {
-   "flash": -1760,
+   "flash": -1756,
    "ram": 44,
    "pool": 0,
    "ramtext": 0
   },
   "ED_MIX=0,ED_SEQ=0,ED_SCREENS=0": {
-   "flash": -4,
+   "flash": 0,
    "ram": 0,
    "pool": 0,
    "ramtext": 0
@@ -3998,7 +3998,7 @@
    "ramtext": 0
   },
   "REV_PLATE=1,REV_FDN8=1,SPRING=0": {
-   "flash": -708,
+   "flash": -704,
    "ram": -344,
    "pool": 0,
    "ramtext": -300
@@ -4040,13 +4040,13 @@
    "ramtext": -36
   },
   "SET_PIANO=0,SET_BASS=0,SET_VIBES=0,SET_HORNS=0,SET_STRGS=0,SET_FLUTE=0,SET_SCRCH=0": {
-   "flash": -1436,
+   "flash": -1432,
    "ram": 0,
    "pool": 0,
    "ramtext": 0
   },
   "DRUM_SAMPLED=0,SET_PIANO=0,SET_BASS=0,SET_VIBES=0,SET_HORNS=0,SET_STRGS=0,SET_FLUTE=0,SET_SCRCH=0": {
-   "flash": -1736,
+   "flash": -1740,
    "ram": -4,
    "pool": 0,
    "ramtext": -184
@@ -4088,7 +4088,7 @@
    "ramtext": 0
   },
   "CPU_GUARD=1,ENG_ACID=2": {
-   "flash": 1156,
+   "flash": 1160,
    "ram": 0,
    "pool": 0,
    "ramtext": 0
@@ -4136,7 +4136,7 @@
    "ramtext": 0
   },
   "BLE=1,BT_AUDIO=1": {
-   "flash": -31780,
+   "flash": -31776,
    "ram": -7648,
    "pool": 0,
    "ramtext": -32
@@ -4160,13 +4160,13 @@
    "ramtext": 0
   },
   "ARENA=1,BT_AUDIO=1": {
-   "flash": 2136,
+   "flash": 2140,
    "ram": -13264,
    "pool": -4368,
    "ramtext": -20
   },
   "BT_AUDIO=1,USB_CONSOLE=1": {
-   "flash": 36,
+   "flash": 40,
    "ram": -32,
    "pool": 0,
    "ramtext": 0
@@ -4232,7 +4232,7 @@
    "ramtext": 0
   },
   "SEQTOOLS=1,NOTEGEN=1,ED_SEQ=0": {
-   "flash": 0,
+   "flash": -4,
    "ram": 0,
    "pool": 0,
    "ramtext": 0
@@ -4250,31 +4250,31 @@
    "ramtext": 0
   },
   "SEQTOOLS=1,NOTEGEN=1,GEN_GRIDS=1,ED_SEQ=0": {
-   "flash": -4,
+   "flash": 0,
    "ram": 0,
    "pool": 0,
    "ramtext": 0
   },
   "SDCARD=1,LAYOUT=1,ENG_SAMPLE=0,DRUM_USR=0,SNAPSHOTS=0,PATTERNS=1": {
-   "flash": 42932,
+   "flash": 42928,
    "ram": 1820,
    "pool": 13228,
    "ramtext": 0
   },
   "SDCARD=1,USB_CONSOLE=1": {
-   "flash": 2804,
+   "flash": 2800,
    "ram": 588,
    "pool": 0,
    "ramtext": 0
   },
   "ENG_GRAIN=0,SD_RING=4": {
-   "flash": -3036,
+   "flash": -3032,
    "ram": -2036,
    "pool": 4,
    "ramtext": 20
   },
   "ENG_GRAIN=0,SD_RING=8": {
-   "flash": -3036,
+   "flash": -3032,
    "ram": -2036,
    "pool": 4,
    "ramtext": 20
@@ -4298,7 +4298,7 @@
    "ramtext": 0
   },
   "TAB_CODED_ALL=1,ENG_PLAITS=2": {
-   "flash": -1156,
+   "flash": -1160,
    "ram": 0,
    "pool": 2572,
    "ramtext": 0
@@ -4357,7 +4357,7 @@
     "INS_SLEW"
    ],
    "shared": {
-    "flash": 388,
+    "flash": 389,
     "ram": -7,
     "pool": 0,
     "ramtext": 444
@@ -4400,7 +4400,7 @@
     "FM6_PK_80S"
    ],
    "shared": {
-    "flash": 923,
+    "flash": 922,
     "ram": 0,
     "pool": 0,
     "ramtext": 0
@@ -4415,7 +4415,7 @@
     "A2_WIDTH"
    ],
    "shared": {
-    "flash": 951,
+    "flash": 952,
     "ram": -5,
     "pool": 0,
     "ramtext": 413
