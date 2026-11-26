@@ -579,8 +579,18 @@ check("reverb: every algorithm's cost measured (costs.json: ROOM off, PLATE, FDN
 # every registry item (the backports' too) has a measured cost for each value it can be set to besides its default: an
 # entry in costs.json "deltas", all zeros when it was measured and costs nothing (a missing entry is "not measured",
 # which the builder shows as free). Fix: python3 tools/builder/measure_costs.py --missing (make costs).
-# A value this flavour refuses on the defaults (the classic build: USB_HOST, the release's USB host) cannot be measured
-# here: not counted, and named (the release's own costs measure it).
+# A value this flavour refuses once it is built (the defaults with its parents on; the classic build: USB_HOST, the
+# release's USB host, and USB_NET under WIFI_LINK) cannot be measured here: not counted, and named (the release's own
+# costs measure it).
+def with_parents(d, k):
+    p = items[k].parent
+    while p:
+        if not d.get(p):
+            d[p] = items[p].choices[-1][0] if items[p].is_choice else 1
+        p = items[p].parent
+    return d
+
+
 def unmeasured_items(costs):
     out, refused = [], []
     d = C.defaults()
@@ -589,7 +599,7 @@ def unmeasured_items(costs):
         for v in vals:
             if v == it.default or str(v) in costs.get("deltas", {}).get(k, {}):
                 continue
-            (refused if C.classic() and C.validate(dict(d, **{k: v}))[0] else out).append(f"{k}={v}")
+            (refused if C.classic() and C.validate(with_parents(dict(d, **{k: v}), k))[0] else out).append(f"{k}={v}")
     if refused:
         print(f"  not built by this flavour (classic), so not measured here: {', '.join(refused)}")
     return out
