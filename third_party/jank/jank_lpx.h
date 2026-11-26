@@ -44,6 +44,8 @@ extern const struct jlx_model jlx_models[JLX_MODELS];   /* X first: the one jank
 
 /* the model whose name the USB product name carries; NULL: not a Launchpad jank drives */
 const struct jlx_model *jlx_model_find(const char *product);
+/* `part` is in s (strstr, without the C library: the FM-1 has none) */
+int jlx_has(const char *s, const char *part);
 
 /* the SysEx messages of a list (m->start, m->setup, m->query) as packets on m->cable into out; out NULL: only counted. Returns the bytes (4 per
  * packet); 0 for a NULL list */

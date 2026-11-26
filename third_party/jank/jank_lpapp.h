@@ -1,7 +1,8 @@
 /* SPDX-License-Identifier: GPL-3.0-only */
 /* Launchpad X -> Digitone II, Note mode: what a pad press asks of the Digitone, what the buttons do, what the pads show, and the short messages that say what a
  * press did. Pure: it takes decoded Launchpad events and the Digitone's live-control news, and gives back acts (jlapp_act), an LED frame (jank_lpx.h) and
- * messages; the USB side is firmware/main. Host-tested (tests/test_lpapp.c).
+ * messages; the USB side is firmware/main. Host-tested (tests/test_lpapp.c). Another unit (the FM-1) builds it with its own configuration (jank_lpunit.h: its
+ * tracks, the clips page) and an adapter of its own: docs/launchpad.md, "Using the core on another unit" (tests/test_lpunit.c).
  *
  * SysEx only (owner 2026-11-24): the Digitone is played and told what track to use through its live control (jank_dn2live.h, SETTINGS > SYSTEM > USB CONFIG >
  * REMOTE CONTROL ON), never through MIDI channels, which depend on how the Digitone is set up and would mix with the MIDI it gets otherwise. Without live
@@ -34,7 +35,11 @@
 #include "jank_lpact.h"
 #include "jank_lpmix.h"
 #include "jank_lpnote.h"
-#include "jank_lpsess.h"
+#if JLAPP_CLIPS
+#include "jank_lpclips.h"               /* the Session page: the unit's clips (jank_lpunit.h) */
+#else
+#include "jank_lpsess.h"                /* the Session page: the Digitone's patterns */
+#endif
 #include "jank_lpstep.h"
 #include "jank_lptrans.h"
 #include "jank_lpx.h"
@@ -59,9 +64,8 @@
 #define JLAPP_COLOR_FIXED_VEL_OFF JLAPP_AMBER_THIRD  /* ... and off */
 
 #define JLAPP_PADS 64u
-#define JLAPP_SCALES_PER_PAGE 16u                    /* the scale page shows the Digitone's 36 scales two rows of eight at a time ... */
-#define JLAPP_SCALE_PAGES 3u                         /* ... on three pages (16, 16, 4), picked by three pads on the row above them */
-#define JLAPP_TRACK_ROWS 2u                          /* the track pads: the two bottom rows */
+#define JLAPP_SCALES_PER_PAGE 16u                    /* the scale page shows the unit's scales two rows of eight at a time, on pages picked by pads on the row above them (the Digitone's 36: three) */
+#define JLAPP_TRACK_ROWS ((JLN_TRACKS + 7u) / 8u)    /* the track pads: the bottom rows, 8 tracks a row (the Digitone's 16: two) */
 #define JLAPP_SELECT_MS 1000u                        /* the bottom 16 pads show the chosen track this long after left / right */
 #define JLAPP_PUSH_LIGHT_MS 150u                     /* a pushed note lights its pad this long (the note's length is not mapped yet: not measured) */
 #define JLAPP_RECENT 32u                             /* pushed notes remembered for the lights */
@@ -141,10 +145,14 @@ struct jlapp {
     uint8_t sess_prev;                 /* the mode the Session page came from */
     uint8_t sess_down;                 /* Session is down since sess_down_ms, and has not opened the chart yet */
     uint32_t sess_down_ms;
+    struct jltr tr;                    /* who starts and stops (jank_lptrans.h) */
+#if JLAPP_CLIPS
+    struct jlcl sess;                  /* the Session page: the unit's clips */
+#else
     uint8_t pat_reads_ok, pat_cue_ok;  /* the Digitone takes PATTERNS / PATTERN (not refused) */
     uint8_t chain_ok, live7;           /* ... CHAIN (not refused); its LIVE STATUS is protocol 7 (the patterns and the transport come with it) */
-    struct jltr tr;                    /* who starts and stops (jank_lptrans.h) */
-    struct jlss sess;
+    struct jlss sess;                  /* the Session page: the Digitone's patterns */
+#endif
     uint8_t dn2_present;               /* jlapp_set_dn2: 0 = no Digitone, the Launchpad dark */
     uint8_t record_ok;                 /* the Digitone has RECORD (not refused by a build without it) */
     uint8_t record_on;                 /* the Record button is lit: armed or recording (the Digitone's LIVE STATUS, or the press until it answers) */
@@ -234,6 +242,11 @@ size_t jlapp_pump_acts(struct jlapp *a, struct jlapp_act *out, size_t max);
  * (when the Digitone sends them: protocol 6), a refusal count that grew says GRID / STEP REC IS ON and puts the light back, and a Digitone that has no RECORD darkens the button
  * (it says RECORD: DN2 TOO OLD once) */
 void jlapp_set_record(struct jlapp *a, int ok, int bits_valid, uint8_t bits, uint32_t busy_count);
+#if JLAPP_CLIPS
+/* The clips page's news (jank_lpclips.h): every track's playing and queued slot and the slots that hold a pattern, and the scenes stored (bit n: scene n). The page shows
+ * only this: call it whenever the clips change, right after a JLAPP_ACT_CLIP or SCENE was applied too */
+void jlapp_on_clips(struct jlapp *a, const struct jlcl_track t[JLCL_TRACKS], uint32_t scenes);
+#else
 /* The Session page (jank_lpsess.h). jlapp_session_due: the next read to send now (1 and *r filled; call again until 0), only while the page is shown and live control is up;
  * jlapp_on_patterns / jlapp_on_pattern take the Digitone's answers (jdl_take_patterns / jdl_take_pattern); jlapp_set_patterns says whether PATTERNS and PATTERN are taken
  * (jdl.patterns_ok, jdl.pattern_ok): a Digitone that refuses PATTERN says PATTERN: DN2 TOO OLD (then at each press) and its pads send nothing */
@@ -252,6 +265,7 @@ int jlapp_on_live7(struct jlapp *a, const struct jdl_live7 *s);
 void jlapp_on_chain(struct jlapp *a, const struct jdl_chain *c);
 const uint8_t *jlapp_chain_list(const struct jlapp *a, size_t *n);
 int jlapp_dn2_leads(const struct jlapp *a);
+#endif
 /* the step modes: the pages of the current track to read now (pages[0..n), 0 outside the step modes), and a page the Digitone answered (jdl_take_page) */
 size_t jlapp_step_wanted(const struct jlapp *a, uint8_t pages[2]);
 void jlapp_on_page(struct jlapp *a, const struct jdl_page *pg);

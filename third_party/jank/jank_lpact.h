@@ -18,16 +18,21 @@ enum jlapp_act_kind {
     JLAPP_ACT_MUTE,                    /* a mute / solo column: op = which (0 mute, 1 solo), the whole new mask = note (low byte) | step << 8 (MUTE SET) */
     JLAPP_ACT_RECORD,                  /* the Record button: vel = 1 arm / 0 off (RECORD, 58: the Digitone's own live record) */
     JLAPP_ACT_ERASE,                 /* the Delete button: track, vel = 1 on / 0 off: the Digitone erases that track's steps as its playhead passes (LIVE ERASE, 44 sub 3) */
-    JLAPP_ACT_SCALE,                   /* the Launchpad changed the scale or the key: note = the scale's index (0..35), vel = the root (0..11): the Digitone follows (SCALE SET) */
+    JLAPP_ACT_SCALE,                   /* the Launchpad changed the scale or the key: note = the scale's index (the unit's: jank_lpscales.h; the Digitone's 0..35), vel = the root (0..11): the Digitone follows (SCALE SET) */
     JLAPP_ACT_PATTERN,                 /* a Session page pad: note = the pattern (0..127), vel = how (enum jdl_pattern_how; a press cues: 0) (PATTERN, 60, provisional) */
     JLAPP_ACT_DN2_TRANSPORT,           /* start / stop while the Digitone leads: vel = the op (enum jdl_transport_op) (TRANSPORT, 61, provisional); no clock, no Start byte */
-    JLAPP_ACT_CHAIN                    /* the Session page's chain: vel = JDL_CHAIN_SET (the list: jlapp_chain_list) or JDL_CHAIN_CLEAR (CHAIN, 59, provisional) */
+    JLAPP_ACT_CHAIN,                   /* the Session page's chain: vel = JDL_CHAIN_SET (the list: jlapp_chain_list) or JDL_CHAIN_CLEAR (CHAIN, 59, provisional) */
+    JLAPP_ACT_CLIP,                    /* the clips page (JLAPP_CLIPS): track 0..JLCL_TRACKS-1, note = the slot 0..JLCL_SLOTS-1 or 255 stop, vel = when (0 the pattern's end, 1 the next bar, 2 now) */
+    JLAPP_ACT_SCENE                    /* ... a scene pad: note = the scene 0..JLCL_SLOTS-1 */
 };
 
 struct jlapp_act {
     uint8_t kind, track, note, vel;
     uint8_t step, op, len;
 };
+
+/* an act with kind, track, note and vel, the rest 0 (jank_lpstep.c: every file that makes acts links it) */
+void jlapp_set_act(struct jlapp_act *o, uint8_t kind, uint8_t track, uint8_t note, uint8_t vel);
 
 /* the most acts one pad event makes: a drum track pad on another track while the transport is stopped selects the track AND plays it. A caller that gives room for
  * fewer drops such a press whole (nothing happens: owner 2026-11-24, "in drum step, i cannot change track when transport is stopped") */

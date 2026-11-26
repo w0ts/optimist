@@ -1,6 +1,7 @@
 /* SPDX-License-Identifier: GPL-3.0-only */
 /* Who starts and stops (jank_lptrans.h). */
 #include "jank_lptrans.h"
+#include "jank_lpstr.h"
 #include "jank_dn2live.h"
 
 void jltr_init(struct jltr *t)

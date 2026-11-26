@@ -329,7 +329,7 @@ static void lu_transport(uint32_t play)      /* the panel's PLAY / STOP request 
 
 /* ------------------------------------------------------------------ clips and scenes --- */
 #if FELUCCA_PATTERNS
-static uint8_t lu_slot(uint32_t v) { return v < PAT_N ? (uint8_t)v : v == PAT_STOP ? 254u : 255u; }
+static uint8_t lu_slot(uint32_t v) { return v < PAT_N ? (uint8_t)v : v == PAT_STOP ? 254u : 255u; }   /* (jank's JLCL_STOP, JLCL_NONE) */
 static void lu_clips(lu_clips_t *o)
 {
     uint32_t k, s;

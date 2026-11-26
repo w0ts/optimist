@@ -1,6 +1,7 @@
 /* SPDX-License-Identifier: GPL-3.0-only */
 /* A Launchpad X (or Mini MK3, MK2, Pro) on the USB host plays and edits the FM-1 (FELUCCA_LAUNCHPAD): jank's Launchpad app
- * (third_party/jank, copied from github.com/w0ts/jank by tools/sync_jank.sh; there it drives a Digitone II through its live control)
+ * (third_party/jank, copied from github.com/w0ts/jank by tools/sync_jank.sh: its core as docs/launchpad.md "Using the core on another
+ * unit" says; there it drives a Digitone II through its live control)
  * with the FM-1 as its unit (lp_unit.c). This file is jank's firmware/main/usb_lp.c for the FM-1: the Launchpad's side as there
  * (Programmer mode, its answer, the setup, a settle, the lights as diffs, every light again every LP_REFRESH_MS), the unit's
  * side as calls instead of SysEx.
@@ -19,69 +20,15 @@
 #include "lp_unit.c"
 #if FELUCCA_LAUNCHPAD
 #include "../../../../third_party/jank/jank_fm1.h"   /* the build's switches for jank's app (the FM-1's tracks, the clips) */
-/* STOPGAP (lp_shim) until jank's core needs no libc header (asked 2026-11-26): the FM-1 has no <string.h> / <stdio.h>, no strlen,
- * strstr or vsnprintf (tools/sync_jank.sh drops the two includes). memset / memcpy / memcmp are the firmware's (system/libc.c,
- * fm1-base's). Only %s and %u (and %d) are formatted: every format jank's messages use. */
-#include <stdarg.h>                              /* (the compiler's, not a libc's, as <stddef.h>) */
-#include <stddef.h>
-static size_t lp_strlen(const char *s) { size_t n = 0; while (s[n]) n++; return n; }
-static char *lp_strstr(const char *h, const char *n)
-{
-    size_t k = lp_strlen(n);
-    for (; *h; h++)
-        if (!memcmp(h, n, k))
-            return (char *)h;
-    return k ? NULL : (char *)h;
-}
-static int lp_vsnprintf(char *o, size_t cap, const char *f, va_list ap)
-{
-    size_t n = 0;
-    char d[12];
-    for (; *f && n + 1u < cap; f++) {
-        const char *s = d;
-        if (*f != '%' || !f[1]) {
-            o[n++] = *f;
-            continue;
-        }
-        f++;
-        if (*f == 's') {
-            s = va_arg(ap, const char *);
-        } else if (*f == 'u' || *f == 'd') {
-            int v = va_arg(ap, int);
-            unsigned u = *f == 'd' && v < 0 ? 0u - (unsigned)v : (unsigned)v;
-            size_t i = sizeof d - 1u;
-            d[i] = 0;
-            do
-                d[--i] = (char)('0' + u % 10u);
-            while ((u /= 10u) && i > 1u);
-            if (*f == 'd' && v < 0)
-                d[--i] = '-';
-            s = d + i;
-        } else {
-            d[0] = *f, d[1] = 0;
-        }
-        while (*s && n + 1u < cap)
-            o[n++] = *s++;
-    }
-    if (cap)
-        o[n] = 0;
-    return (int)n;
-}
-#define strlen lp_strlen
-#define strstr lp_strstr
-#define vsnprintf lp_vsnprintf
 #include "../../../../third_party/jank/jank_lpx.c"
 #include "../../../../third_party/jank/jank_lpnote.c"
 #include "../../../../third_party/jank/jank_lpscales.c"   /* (Optimist's own: SCL's 16) */
 #include "../../../../third_party/jank/jank_lpmix.c"
-#define set_act jlst_set_act                     /* (jank builds each file alone: its file statics may share a name; here one unit) */
 #include "../../../../third_party/jank/jank_lpstep.c"
-#undef set_act
-#include "../../../../third_party/jank/jank_lpsess.c"
+#include "../../../../third_party/jank/jank_lpclips.c"
 #include "../../../../third_party/jank/jank_lptrans.c"
 #include "../../../../third_party/jank/jank_lpprefs.c"
 #include "../../../../third_party/jank/jank_lpapp.c"
-#include "../../../../third_party/jank/jank_lpsessapp.c"
 #define LP_TRACKS (NTRK + DRUM_SLANES)          /* jank's tracks: the 4, then the drum track's lanes (with ACCENT) */
 _Static_assert(LP_TRACKS <= JLN_TRACKS, "jank's app has a track for each of the FM-1's tracks and lanes");
 #define LP_LANE0 NTRK                            /* jank track of lane 0 */
@@ -134,6 +81,20 @@ static void lp_send(const uint8_t *b, size_t n)  /* n bytes of packets for the L
         lp.out[lp.out_w++ % LP_OUT] = (uint32_t)b[i] | (uint32_t)b[i + 1] << 8 | (uint32_t)b[i + 2] << 16 | (uint32_t)b[i + 3] << 24;
 }
 static uint32_t lp_room(void) { return LP_OUT - (uint8_t)(lp.out_w - lp.out_r); }
+
+/* ------------------------------------------------------------------ the clips page's news --- */
+static void lp_clips_news(void)                  /* the patterns each track plays, has queued, holds; the scenes stored */
+{
+#if JLAPP_CLIPS && FELUCCA_PATTERNS
+    lu_clips_t c;
+    struct jlcl_track t[JLCL_TRACKS];
+    uint32_t k;
+    lu_clips(&c);
+    for (k = 0; k < JLCL_TRACKS; k++)
+        t[k] = k < NTRK ? (struct jlcl_track){c.playing[k], c.queued[k], c.has[k]} : (struct jlcl_track){JLCL_NONE, JLCL_NONE, 0};
+    jlapp_on_clips(&lp.app, t, c.scenes);
+#endif
+}
 
 /* ------------------------------------------------------------------ the app's acts on the FM-1 --- */
 static void lp_act(const struct jlapp_act *a)
@@ -204,9 +165,11 @@ static void lp_act(const struct jlapp_act *a)
 #if JLAPP_CLIPS && FELUCCA_PATTERNS
     case JLAPP_ACT_CLIP:
         (void)lu_clip_launch(a->track, a->note, a->vel);
+        lp_clips_news();                         /* (the page shows only this news: at once, not at the next pass) */
         return;
     case JLAPP_ACT_SCENE:
         (void)lu_scene(a->note);
+        lp_clips_news();
         return;
 #endif
     default:                                     /* RECORD, ERASE, PATTERN, CHAIN: not on the FM-1 (the app is told: lp_tell) */
@@ -219,11 +182,7 @@ static void lp_tell(void)                        /* what the FM-1 can do (once a
 {
     jlapp_set_dn2(&lp.app, 1);
     jlapp_set_live(&lp.app, JDL_LIVE, 1, 1);     /* (it plays, it can be read) */
-    jlapp_set_mixer_writes(&lp.app, 1);
-    jlapp_set_record(&lp.app, 0, 0, 0, 0);       /* (no RECORD: its button dark) */
-    jlapp_set_patterns(&lp.app, 0, 0);           /* (no global patterns: the clips) */
-    jlapp_set_stage8(&lp.app, 1, 0);             /* its transport, no chain */
-    jlapp_set_peers(&lp.app, 0);                 /* the FM-1 leads its transport */
+    jlapp_set_mixer_writes(&lp.app, 1);          /* (RECORD and ERASE: compiled away, jank_fm1.h) */
 }
 static void lp_push(void)                        /* the notes played: the lights */
 {
@@ -300,17 +259,7 @@ static void lp_news(uint32_t now)
     if (jlapp_following(&lp.app) && lu_selected() != lp.sel_seen)
         jlapp_on_active_track(&lp.app, lu_selected());
     lp.sel_seen = (uint8_t)lu_selected();
-#if JLAPP_CLIPS && FELUCCA_PATTERNS
-    {
-        lu_clips_t c;
-        struct jlcl_track t[JLCL_TRACKS];
-        uint32_t k;
-        lu_clips(&c);
-        for (k = 0; k < JLCL_TRACKS && k < NTRK; k++)
-            t[k] = (struct jlcl_track){c.playing[k], c.queued[k], c.has[k]};
-        jlapp_on_clips(&lp.app, t, c.scenes);
-    }
-#endif
+    lp_clips_news();
 }
 static void lp_transport_news(void)              /* the start / stop button, and the step modes' playhead (the selected track's 16ths) */
 {

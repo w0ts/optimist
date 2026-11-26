@@ -1,6 +1,7 @@
 /* SPDX-License-Identifier: GPL-3.0-only */
 /* The Launchpad's mixer screen (jank_lpmix.h). */
 #include "jank_lpmix.h"
+#include "jank_lpstr.h"
 
 #define PAD_ROWS 8u
 #define PAN_CENTRE_LOW 3u              /* the centre pair of the pan's 8 positions */
@@ -184,7 +185,7 @@ static void toggle_mask(struct jlmx *s, unsigned track, int solo, struct jlmx_wr
 int jlmx_press(struct jlmx *s, uint8_t x, uint8_t y, uint32_t now_ms, struct jlmx_write *w)
 {
     unsigned track = s->bank * JLMX_COLUMNS + x;
-    if (!s->have || x >= JLMX_COLUMNS || y >= PAD_ROWS)
+    if (!s->have || x >= JLMX_COLUMNS || y >= PAD_ROWS || JLN_NO_TRACK(is_mute_solo(s->view) ? mute_solo_track(y, x) : track))   /* (a pad past the unit's last track: nothing) */
         return 0;
     memset(w, 0, sizeof *w);
     if (s->view == JLMX_OVERVIEW) {
@@ -343,6 +344,8 @@ static uint8_t column_colour(const struct jlmx *s, unsigned track, unsigned row,
     const struct jdl_mix_track *t = &s->m.t[track];
     const struct jlmx_held *h = &s->hold[track % JLMX_COLUMNS];
     uint8_t v;
+    if (JLN_NO_TRACK(is_mute_solo(s->view) ? mute_solo_track((uint8_t)row, (uint8_t)(track % JLMX_COLUMNS)) : track))
+        return 0;                      /* past the unit's last track: dark */
     if (s->view == JLMX_OVERVIEW)
         return overview_colour(s, track, row);
     if (is_mute_solo(s->view)) {

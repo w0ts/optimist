@@ -1,6 +1,7 @@
 /* SPDX-License-Identifier: GPL-3.0-only */
 /* Novation RGB Launchpads in Programmer mode (jank_lpx.h). */
 #include "jank_lpx.h"
+#include "jank_lpstr.h"
 
 #define CIN_NOTE_ON 0x9u
 #define CIN_CC 0xBu
@@ -23,10 +24,23 @@ const struct jlx_model jlx_models[JLX_MODELS] = {
     {"Launchpad Pro", "MK3", 0x10, 1, 91, 0, 1, 1, 1, 0x2F, 3, PRO_START, NULL, PRO_QUERY},
 };
 
+int jlx_has(const char *s, const char *part)
+{
+    for (;; s++) {
+        size_t i = 0;
+        while (part[i] && s[i] == part[i])
+            i++;
+        if (!part[i])
+            return 1;
+        if (!*s)
+            return 0;
+    }
+}
+
 const struct jlx_model *jlx_model_find(const char *product)
 {
     for (size_t i = 0; product && i < JLX_MODELS; i++)
-        if (strstr(product, jlx_models[i].name) && !(jlx_models[i].not_name && strstr(product, jlx_models[i].not_name)))
+        if (jlx_has(product, jlx_models[i].name) && !(jlx_models[i].not_name && jlx_has(product, jlx_models[i].not_name)))
             return &jlx_models[i];
     return NULL;
 }

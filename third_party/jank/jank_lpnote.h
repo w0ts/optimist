@@ -11,9 +11,9 @@
 #ifndef JANK_LPNOTE_H
 #define JANK_LPNOTE_H
 #include <stdint.h>
+#include "jank_lpunit.h"
 
 #define JLN_SCALE_MAX 12u
-#define JLN_TRACKS 16u
 
 enum jln_layout { JLN_CHROMATIC, JLN_DIATONIC, JLN_CHORDS };
 

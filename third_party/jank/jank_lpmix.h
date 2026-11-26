@@ -22,10 +22,11 @@
 #define JANK_LPMIX_H
 #include <stdint.h>
 #include "jank_dn2live.h"
+#include "jank_lpunit.h"
 #include "jank_lpx.h"
 
 #define JLMX_COLUMNS 8u
-#define JLMX_BANKS 2u
+#define JLMX_BANKS ((JLN_TRACKS + JLMX_COLUMNS - 1u) / JLMX_COLUMNS)   /* tracks 1-8, 9-16 (the unit's: up to 8 a bank) */
 #define JLMX_READ_MS 300u              /* the firmware reads the mixer this often while the screen is on (the answer is 106 bytes) */
 
 #define JLMX_COLOR_BUTTON 29u          /* MINT: the Capture button, the mixer's mode button (Launchpad 95's Mixer colour) */

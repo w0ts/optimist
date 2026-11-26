@@ -1,6 +1,7 @@
 /* SPDX-License-Identifier: GPL-3.0-only */
 /* The Launchpad's step sequencer modes (jank_lpstep.h). */
 #include "jank_lpstep.h"
+#include "jank_lpstr.h"
 
 #define VEL_OWN 255u                  /* STEP: the track's own velocity and length */
 #define LEN_OWN 255u
@@ -20,7 +21,8 @@ void jlst_init(struct jlst *s, enum jlst_kind kind)
 /* page p holds a page of `track` */
 static int is_of(const struct jlst *s, unsigned p, uint8_t track) { return s->have[p] && s->pg[p].track == track; }
 
-static void set_act(struct jlapp_act *o, uint8_t kind, uint8_t track, uint8_t note, uint8_t vel)
+/* (jank_lpact.h) the one copy, here: every file that makes acts links this one */
+void jlapp_set_act(struct jlapp_act *o, uint8_t kind, uint8_t track, uint8_t note, uint8_t vel)
 {
     memset(o, 0, sizeof *o);
     o->kind = kind;
@@ -53,7 +55,7 @@ static size_t step_press(struct jlst *s, const struct jlst_ctx *c, unsigned k, s
     } else {
         op = st->trig ? JDL_STEP_CLEAR : JDL_STEP_TRIG;
     }
-    set_act(out, JLAPP_ACT_STEP, track, note, VEL_OWN);
+    jlapp_set_act(out, JLAPP_ACT_STEP, track, note, VEL_OWN);
     out->step = (uint8_t)(abs_page * 16u + idx);
     out->op = op;
     out->len = LEN_OWN;
@@ -71,15 +73,17 @@ static int auditions(const struct jlst_ctx *c) { return c->can_play && !c->trans
 
 static size_t drum_pad(struct jlst *s, const struct jlst_ctx *c, uint8_t x, uint8_t y, uint8_t value, struct jlapp_act *out, size_t max)
 {
-    uint8_t t = (uint8_t)((QUAD - 1u - y) * QUAD + x);     /* reading order: track 1 top left of the quadrant */
+    uint8_t t = (uint8_t)((QUAD - 1u - y) * QUAD + x);     /* reading order: track 1 top left of the quadrant; past the unit's last: nothing */
     uint16_t bitv = (uint16_t)(1u << t);
     size_t n = 0, need;
     int play = auditions(c);
+    if (JLN_NO_TRACK(t))
+        return 0;
     if (!value) {
         if (!(s->track_held & bitv) || max < 1)
             return 0;
         s->track_held &= (uint16_t)~bitv;
-        set_act(out, JLAPP_ACT_TRACK_OFF, t, 0, 0);
+        jlapp_set_act(out, JLAPP_ACT_TRACK_OFF, t, 0, 0);
         return 1;
     }
     if (s->track_held & bitv)
@@ -89,11 +93,11 @@ static size_t drum_pad(struct jlst *s, const struct jlst_ctx *c, uint8_t x, uint
         return 0;
     if (t != c->n->track) {
         c->n->track = t;
-        set_act(&out[n++], JLAPP_ACT_SELECT, t, 0, 0);
+        jlapp_set_act(&out[n++], JLAPP_ACT_SELECT, t, 0, 0);
     }
     if (play) {
         s->track_held |= bitv;
-        set_act(&out[n++], JLAPP_ACT_TRACK_ON, t, 0, 0);
+        jlapp_set_act(&out[n++], JLAPP_ACT_TRACK_ON, t, 0, 0);
     }
     return n;
 }
@@ -105,7 +109,7 @@ static size_t key_pad(struct jlst *s, const struct jlst_ctx *c, uint8_t x, uint8
     if (!value) {
         if (s->key_note[i] < 0 || max < 1)
             return 0;
-        set_act(out, JLAPP_ACT_NOTE_OFF, s->key_track[i], (uint8_t)s->key_note[i], 0);
+        jlapp_set_act(out, JLAPP_ACT_NOTE_OFF, s->key_track[i], (uint8_t)s->key_note[i], 0);
         s->key_note[i] = -1;
         return 1;
     }
@@ -119,7 +123,7 @@ static size_t key_pad(struct jlst *s, const struct jlst_ctx *c, uint8_t x, uint8
         return 0;
     s->key_note[i] = p.note;
     s->key_track[i] = c->n->track;
-    set_act(out, JLAPP_ACT_NOTE_ON, c->n->track, (uint8_t)p.note, value);
+    jlapp_set_act(out, JLAPP_ACT_NOTE_ON, c->n->track, (uint8_t)p.note, value);
     return 1;
 }
 
@@ -261,12 +265,12 @@ size_t jlst_release(struct jlst *s, struct jlapp_act *out, size_t max)
     size_t n = 0;
     for (unsigned i = 0; i < JLST_KEYS && n < max; i++)
         if (s->key_note[i] >= 0) {
-            set_act(&out[n++], JLAPP_ACT_NOTE_OFF, s->key_track[i], (uint8_t)s->key_note[i], 0);
+            jlapp_set_act(&out[n++], JLAPP_ACT_NOTE_OFF, s->key_track[i], (uint8_t)s->key_note[i], 0);
             s->key_note[i] = -1;
         }
     for (uint8_t t = 0; t < JLST_KEYS && n < max; t++)
         if (s->track_held & (1u << t)) {
-            set_act(&out[n++], JLAPP_ACT_TRACK_OFF, t, 0, 0);
+            jlapp_set_act(&out[n++], JLAPP_ACT_TRACK_OFF, t, 0, 0);
             s->track_held &= (uint16_t)~(1u << t);
         }
     return n;
@@ -315,6 +319,8 @@ static uint8_t quadrant_colour(const struct jlst *s, const struct jlst_ctx *c, u
     unsigned i = y * QUAD + x;
     if (s->kind == JLST_DRUM) {
         uint8_t t = (uint8_t)((QUAD - 1u - y) * QUAD + x);
+        if (JLN_NO_TRACK(t))
+            return 0;
         if ((s->track_held & (1u << t)) || played_lately(c, t, -1))   /* a pad that is down, or a track that plays: RED, as Launchpad 95's playing note */
             return JLST_COLOR_TRACK_PLAYING;
         return t == c->n->track ? JLST_COLOR_TRACK_CURRENT : JLST_COLOR_TRACK_IDLE;

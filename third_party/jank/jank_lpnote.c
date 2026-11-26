@@ -1,6 +1,7 @@
 /* SPDX-License-Identifier: GPL-3.0-only */
 /* Launchpad Note mode's pad layouts (jank_lpnote.h): a port of Launchpad 95's MelodicPattern. */
 #include "jank_lpnote.h"
+#include "jank_lpstr.h"
 
 #define TOP_OCTAVE_DIATONIC 6u         /* LP95's TOP_OCTAVE: octaves 0 .. top - 1 */
 #define TOP_OCTAVE_OTHER 7u

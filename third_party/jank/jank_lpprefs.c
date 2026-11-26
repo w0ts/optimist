@@ -1,6 +1,7 @@
 /* SPDX-License-Identifier: GPL-3.0-only */
 /* The Launchpad part's remembered settings (jank_lpprefs.h). */
 #include "jank_lpprefs.h"
+#include "jank_lpstr.h"
 
 #define CHECK_SEED 0xA5u
 
