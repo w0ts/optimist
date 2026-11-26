@@ -14,12 +14,12 @@ mkdir -p "$dst"
 n=0
 for b in jank_lpunit.h jank_lpstr.h jank_lpact.h jank_lpapp_int.h jank_dn2live.h \
          jank_lpx.c jank_lpx.h jank_lpnote.c jank_lpnote.h jank_lpapp.c jank_lpapp.h jank_lpstep.c jank_lpstep.h \
-         jank_lpmix.c jank_lpmix.h jank_lptrans.c jank_lptrans.h jank_lpclips.c jank_lpclips.h jank_lpprefs.c jank_lpprefs.h; do
+         jank_lpmix.c jank_lpmix.h jank_lpclips.c jank_lpclips.h; do
     [ -f "$src/core/$b" ] || { echo "sync_jank: $b is not in $src/core (an older jank?)"; exit 1; }
     cp "$src/core/$b" "$dst/$b"
     n=$((n + 1))
 done
-for b in jank_lpsess.c jank_lpsess.h jank_lpsessapp.c jank_lpout.c jank_lpout.h; do   # (an older copy's: not used any more)
+for b in jank_lpsess.c jank_lpsess.h jank_lpsessapp.c jank_lpout.c jank_lpout.h jank_lptrans.c jank_lptrans.h jank_lpprefs.c jank_lpprefs.h; do   # (an older copy's: not used any more)
     rm -f "$dst/$b"
 done
 rev=$(git -C "$src" rev-parse --short HEAD 2>/dev/null || echo unknown)

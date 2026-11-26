@@ -10,6 +10,8 @@
 #define JLAPP_CLIPS 1
 #define JLAPP_RECORD 0
 #define JLAPP_ERASE 0
+#define JLX_ONLY_X 1                   /* the Launchpad X only (the owner, 2026-11-26): no other model's table or SysEx */
+#define JLAPP_FIXED_VEL 0              /* no fixed velocity, no prefs (the owner, 2026-11-26) */
 #define JANK_LPSTR_H                   /* (memset, memcpy, memcmp: Optimist's unit has them declared already, the release renames them
                                         * to fm1-base's felucca_mem*: jank's own declarations would clash) */
 #endif

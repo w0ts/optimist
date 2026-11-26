@@ -22,13 +22,32 @@ void jlst_init(struct jlst *s, enum jlst_kind kind)
 static int is_of(const struct jlst *s, unsigned p, uint8_t track) { return s->have[p] && s->pg[p].track == track; }
 
 /* (jank_lpact.h) the one copy, here: every file that makes acts links this one */
-void jlapp_set_act(struct jlapp_act *o, uint8_t kind, uint8_t track, uint8_t note, uint8_t vel)
+size_t jlapp_act(struct jlapp_act *o, uint8_t kind, uint8_t track, uint8_t note)
 {
     memset(o, 0, sizeof *o);
     o->kind = kind;
     o->track = track;
     o->note = note;
-    o->vel = vel;
+    return 1;
+}
+
+size_t jlapp_tracks_off(uint16_t *held, struct jlapp_act *out, size_t max)
+{
+    size_t n = 0;
+    for (uint8_t t = 0; t < 16u && n < max; t++)
+        if (*held & (1u << t)) {
+            *held &= (uint16_t)~(1u << t);
+            n += jlapp_act(&out[n], JLAPP_ACT_TRACK_OFF, t, 0);
+        }
+    return n;
+}
+
+int jlapp_played(const struct jlapp_recent *r, unsigned n, uint32_t now_ms, uint8_t track, int note)
+{
+    for (; n; n--, r++)
+        if (r->used && r->track == track && (note < 0 || r->note == note) && (uint32_t)(now_ms - r->at_ms) < JLAPP_PUSH_LIGHT_MS)
+            return 1;
+    return 0;
 }
 
 /* ---- the steps ---- */
@@ -55,7 +74,8 @@ static size_t step_press(struct jlst *s, const struct jlst_ctx *c, unsigned k, s
     } else {
         op = st->trig ? JDL_STEP_CLEAR : JDL_STEP_TRIG;
     }
-    jlapp_set_act(out, JLAPP_ACT_STEP, track, note, VEL_OWN);
+    jlapp_act(out, JLAPP_ACT_STEP, track, note);
+    out->vel = VEL_OWN;
     out->step = (uint8_t)(abs_page * 16u + idx);
     out->op = op;
     out->len = LEN_OWN;
@@ -83,8 +103,7 @@ static size_t drum_pad(struct jlst *s, const struct jlst_ctx *c, uint8_t x, uint
         if (!(s->track_held & bitv) || max < 1)
             return 0;
         s->track_held &= (uint16_t)~bitv;
-        jlapp_set_act(out, JLAPP_ACT_TRACK_OFF, t, 0, 0);
-        return 1;
+        return jlapp_act(out, JLAPP_ACT_TRACK_OFF, t, 0);
     }
     if (s->track_held & bitv)
         return 0;
@@ -93,11 +112,11 @@ static size_t drum_pad(struct jlst *s, const struct jlst_ctx *c, uint8_t x, uint
         return 0;
     if (t != c->n->track) {
         c->n->track = t;
-        jlapp_set_act(&out[n++], JLAPP_ACT_SELECT, t, 0, 0);
+        n = jlapp_act(out, JLAPP_ACT_SELECT, t, 0);
     }
     if (play) {
         s->track_held |= bitv;
-        jlapp_set_act(&out[n++], JLAPP_ACT_TRACK_ON, t, 0, 0);
+        n += jlapp_act(&out[n], JLAPP_ACT_TRACK_ON, t, 0);
     }
     return n;
 }
@@ -109,7 +128,7 @@ static size_t key_pad(struct jlst *s, const struct jlst_ctx *c, uint8_t x, uint8
     if (!value) {
         if (s->key_note[i] < 0 || max < 1)
             return 0;
-        jlapp_set_act(out, JLAPP_ACT_NOTE_OFF, s->key_track[i], (uint8_t)s->key_note[i], 0);
+        jlapp_act(out, JLAPP_ACT_NOTE_OFF, s->key_track[i], (uint8_t)s->key_note[i]);
         s->key_note[i] = -1;
         return 1;
     }
@@ -123,7 +142,8 @@ static size_t key_pad(struct jlst *s, const struct jlst_ctx *c, uint8_t x, uint8
         return 0;
     s->key_note[i] = p.note;
     s->key_track[i] = c->n->track;
-    jlapp_set_act(out, JLAPP_ACT_NOTE_ON, c->n->track, (uint8_t)p.note, value);
+    jlapp_act(out, JLAPP_ACT_NOTE_ON, c->n->track, (uint8_t)p.note);
+    out->vel = value;
     return 1;
 }
 
@@ -209,7 +229,7 @@ static unsigned pattern_len(const struct jlst *s)
 /* the clock the playhead goes by, in sixteenths, and which one it is (0: none): the Digitone's own while its ticks come, else Jank's session beat */
 static unsigned base16(const struct jlst *s, uint32_t now_ms, uint32_t *base)
 {
-    if (s->rt_run && (uint32_t)(now_ms - s->rt_last_ms) < JLST_RT_ALIVE_MS) {
+    if (!JLAPP_CLIPS && s->rt_run && (uint32_t)(now_ms - s->rt_last_ms) < JLST_RT_ALIVE_MS) {   /* (the Digitone's clock: jank's; another unit's playhead runs on jlapp_set_beat) */
         *base = s->rt_ticks / JLST_TICKS_PER_STEP;
         return 2;
     }
@@ -235,6 +255,7 @@ void jlst_on_push(struct jlst *s, uint8_t track, uint8_t step, uint32_t now_ms)
     }
 }
 
+#if !JLAPP_CLIPS
 void jlst_on_rt(struct jlst *s, uint8_t byte, uint32_t now_ms)
 {
     if (byte == 0xFAu) {
@@ -253,6 +274,7 @@ void jlst_on_rt(struct jlst *s, uint8_t byte, uint32_t now_ms)
             s->rt_ticks++;
     }
 }
+#endif
 
 void jlst_set_clock(struct jlst *s, int running, uint32_t tick16)
 {
@@ -265,15 +287,10 @@ size_t jlst_release(struct jlst *s, struct jlapp_act *out, size_t max)
     size_t n = 0;
     for (unsigned i = 0; i < JLST_KEYS && n < max; i++)
         if (s->key_note[i] >= 0) {
-            jlapp_set_act(&out[n++], JLAPP_ACT_NOTE_OFF, s->key_track[i], (uint8_t)s->key_note[i], 0);
+            n += jlapp_act(&out[n], JLAPP_ACT_NOTE_OFF, s->key_track[i], (uint8_t)s->key_note[i]);
             s->key_note[i] = -1;
         }
-    for (uint8_t t = 0; t < JLST_KEYS && n < max; t++)
-        if (s->track_held & (1u << t)) {
-            jlapp_set_act(&out[n++], JLAPP_ACT_TRACK_OFF, t, 0, 0);
-            s->track_held &= (uint16_t)~(1u << t);
-        }
-    return n;
+    return n + jlapp_tracks_off(&s->track_held, out + n, max - n);
 }
 
 /* ---- lights ---- */
@@ -304,15 +321,7 @@ static uint8_t step_colour(const struct jlst *s, const struct jlst_ctx *c, unsig
 }
 
 /* a note of this track (and this pitch, unless note < 0) that the Digitone played in the last JLST_HEAD_MS */
-static int played_lately(const struct jlst_ctx *c, uint8_t track, int note)
-{
-    for (unsigned i = 0; i < c->recent_n; i++) {
-        const struct jlapp_recent *r = &c->recent[i];
-        if (r->used && r->track == track && (note < 0 || r->note == note) && (uint32_t)(c->now_ms - r->at_ms) < JLST_HEAD_MS)
-            return 1;
-    }
-    return 0;
-}
+static int played_lately(const struct jlst_ctx *c, uint8_t track, int note) { return jlapp_played(c->recent, c->recent_n, c->now_ms, track, note); }
 
 static uint8_t quadrant_colour(const struct jlst *s, const struct jlst_ctx *c, uint8_t x, uint8_t y)
 {

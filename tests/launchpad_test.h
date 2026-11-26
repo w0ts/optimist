@@ -64,8 +64,8 @@ static void lpt_tests(void)
     usb.config = 1;
     fm1_ms += 10000;
 
-    check(lp_name_ok("Launchpad X") && lp_name_ok("Launchpad Mini MK3") && !lp_name_ok("Launchkey Mini MK3") && !lp_name_ok("") && !lp_name_ok(NULL),
-          "launchpad: a Launchpad X or Mini MK3 is one; a Launchkey, no name: not");
+    check(lp_name_ok("Launchpad X") && !lp_name_ok("Launchpad Mini MK3") && !lp_name_ok("Launchkey Mini MK3") && !lp_name_ok("") && !lp_name_ok(NULL),
+          "launchpad: a Launchpad X is one (the X only on the FM-1: jank_fm1.h JLX_ONLY_X); a Mini MK3, a Launchkey, no name: not");
 
     /* attach: Programmer mode after the wait, the setup after its answer, the lights after the settle */
     lp_attach("Launchpad X");
@@ -96,7 +96,7 @@ static void lpt_tests(void)
     check(lu.nheld == 0u && v14_gates() == 0u, "launchpad: the pad up: the note ends");
 
     /* a lane track: a pad is that lane's hit whatever its pitch */
-    lp.app.n.track = LP_LANE0 + 2u;
+    lp.app.n.track = LU_LANE0 + 2u;
     lpt_pad(1, 3, 90);
     check(lu.nheld == 1u && lu.held[0].trk == TRK_DRUM && lu.held[0].note == 2u, "launchpad: on jank track 6 (lane 2) a pad hits the drum track's lane 2");
     lpt_pad(1, 3, 0);
@@ -127,14 +127,14 @@ static void lpt_tests(void)
     memset(&trk[1].step[2], 0, sizeof trk[1].step[2]);
 
     /* the mixer's acts: a lane's pan and VOL, the mutes over the 4 tracks and the lanes */
-    lp_act(&(struct jlapp_act){JLAPP_ACT_MIX, LP_LANE0 + 1u, 0, 100, 0, LU_PAN, 0});
+    lp_act(&(struct jlapp_act){JLAPP_ACT_MIX, LU_LANE0 + 1u, 0, 100, 0, JDL_MIX_PAN, 0});
     check(dlm_pan[1] == 36, "launchpad: a lane track's PAN fader: the lane's pan (100 is +36)");
 #if FELUCCA_DRUM_EDIT
-    lp_act(&(struct jlapp_act){JLAPP_ACT_MIX, LP_LANE0 + 1u, 0, 127, 0, LU_VOL, 0});
-    check(dl.ofs[1][DE_LEVEL] == LU_DB_MAX && lu_lane_vol(1) == 127u, "launchpad: a lane track's VOL: its LEVEL edit (127 is +6 dB)");
+    lp_act(&(struct jlapp_act){JLAPP_ACT_MIX, LU_LANE0 + 1u, 0, 127, 0, JDL_MIX_VOL, 0});
+    check(dl.ofs[1][DE_LEVEL] == LU_DB_MAX && lu_mix_get(LU_LANE0 + 1u, JDL_MIX_VOL) == 127u, "launchpad: a lane track's VOL: its LEVEL edit (127 is +6 dB)");
     dl.ofs[1][DE_LEVEL] = 0;
 #endif
-    lp_act(&(struct jlapp_act){JLAPP_ACT_MUTE, 0, (uint8_t)(1u << 1 | 1u << (LP_LANE0 + 3u)), 0, 0, 0, 0});
+    lp_act(&(struct jlapp_act){JLAPP_ACT_MUTE, 0, (uint8_t)(1u << 1 | 1u << (LU_LANE0 + 3u)), 0, 0, 0, 0});
     check(trk[1].p[P_MUTE] && !trk[0].p[P_MUTE] && dlm_muted(3) && !dlm_muted(2), "launchpad: MUTE's mask: T2 and lane 3 muted, the rest not");
     lp_act(&(struct jlapp_act){JLAPP_ACT_MUTE, 0, 0, 0, 0, 0, 0});
     dlm_pan[1] = 0;

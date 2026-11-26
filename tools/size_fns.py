@@ -97,6 +97,9 @@ SIZE_FILES += ["storage/sd/sdcard.c", "storage/sd/sd_mmc.c", "storage/sd/pff.c",
                "storage/sd/sd_stream.c", "storage/sd/sd_stream_rc.c", "storage/sd/sd_slice.c", "storage/sd/sd_stream_plan.c",
                "storage/sd/sd_browse.c", "storage/sd/sd_save.c", "storage/sd/sd_rec.c", "storage/sd/sd_mode.c", "storage/sd/sd_mon.c", "storage/sd/sd_pvw.c", "ui/optimist/op_sdmon.c"]
 # Wi-Fi + Link (WIFI_LINK, WIFI_AP)
+# the Launchpad's core, jank's (third_party/jank, included by io/launchpad/launchpad.c): main loop only
+SIZE_FILES += ["../../third_party/jank/" + f for f in ("jank_lpx.c", "jank_lpnote.c", "jank_lpscales.c", "jank_lpmix.c", "jank_lpstep.c",
+                                                      "jank_lpclips.c", "jank_lpapp.c")]
 SIZE_FILES += ["wifi/wifi_crypto.c", "wifi/wifi_sta.c", "wifi/wifi_ip.c", "wifi/wifi_link.c", "../../fm1base/link/link.c",   # (the Link peer is fm1-base's, included by io/console.c)
                "wifi/wifi_conn.c", "wifi/wifi_nets.c", "wifi/wifi_saved.c", "wifi/wifi_ap.c", "wifi/wifi_ap_dhcp.c", "wifi/wifi_apd.c",
                "io/editor/ed_wifi.c", "ui/optimist/op_wifi.c"]

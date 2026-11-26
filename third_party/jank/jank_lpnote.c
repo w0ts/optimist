@@ -102,17 +102,9 @@ static int pad_index(const struct jln *s, const struct jln_scale *sc, uint8_t x,
 }
 
 static const uint8_t MAJOR_IV[7] = {0, 2, 4, 5, 7, 9, 11};
-static const uint8_t MINOR_IV[7] = {0, 2, 3, 5, 7, 8, 10};      /* natural minor */
 #define MAJOR_N 7
-
-/* the note is key + one of the list's intervals */
-static int in_list(const uint8_t *iv, int n, int key, int note)
-{
-    for (int i = 0; i < n; i++)
-        if (note == key + iv[i])
-            return 1;
-    return 0;
-}
+#define MAJOR_MASK 0xAB5u              /* bit k: k semitones above the root is in the scale: major 0 2 4 5 7 9 11 */
+#define MINOR_MASK 0x5ADu              /* ... natural minor 0 2 3 5 7 8 10 */
 
 /* the note `index` steps along the scale (chromatic: semitones) from the layout's origin */
 static void pad_from_index(const struct jln *s, const struct jln_scale *sc, int index, struct jln_pad *out)
@@ -120,21 +112,23 @@ static void pad_from_index(const struct jln *s, const struct jln_scale *sc, int 
     int chromatic = s->layout == JLN_CHROMATIC;
     int size = chromatic ? CHROMATIC_SIZE : sc->n;
     int k = floor_mod(index, size);
-    int note_in_octave = chromatic ? s->key + k : s->key + sc->iv[k];
-    int midi = (s->octave + 1) * 12 + 12 * floor_div(index, size) + note_in_octave;
+    int rel = chromatic ? k : sc->iv[k];   /* semitones above the key, 0..11 */
+    int midi = (s->octave + 1) * 12 + 12 * floor_div(index, size) + s->key + rel;
     const uint8_t *ref = sc->iv;       /* the reference the colours are relative to: the current scale, but for Chromatic the major scale of the key */
-    int ref_n = sc->n, ref_major;
+    int ref_n = sc->n;
+    unsigned mask = 0;
     out->note = (int16_t)(midi >= 0 && midi < 128 ? midi : -1);
-    out->root = note_in_octave == s->key;
+    out->root = rel == 0;
     if (sc->n == CHROMATIC_SIZE) {     /* the Digitone's Chromatic: every note is in it, so nothing would stand out: major is the reference */
         ref = MAJOR_IV;
         ref_n = MAJOR_N;
     }
-    ref_major = ref_n == MAJOR_N && !memcmp(ref, MAJOR_IV, MAJOR_N);
-    out->in_scale = in_list(ref, ref_n, s->key, note_in_octave);
+    for (int i = 0; i < ref_n; i++)
+        mask |= 1u << ref[i];
+    out->in_scale = (mask >> rel) & 1u;
     /* Launchpad 95 (ScaleComponent.note): highlight = note == scale[2] or note == scale[4], the third and fifth STEP of the scale (a scale with fewer steps has no such note) */
-    out->highlight = (ref_n > 2 && note_in_octave == s->key + ref[2]) || (ref_n > 4 && note_in_octave == s->key + ref[4]);
-    out->minor_only = ref_major && !out->in_scale && in_list(MINOR_IV, MAJOR_N, s->key, note_in_octave);
+    out->highlight = (ref_n > 2 && rel == ref[2]) || (ref_n > 4 && rel == ref[4]);
+    out->minor_only = mask == MAJOR_MASK && !out->in_scale && ((MINOR_MASK >> rel) & 1u);   /* (the reference is major: in natural minor, not in major) */
 }
 
 void jln_pad(const struct jln *s, const struct jln_scale *sc, uint8_t x, uint8_t y, struct jln_pad *out)
@@ -148,21 +142,6 @@ void jln_key(const struct jln *s, const struct jln_scale *sc, unsigned i, struct
     if (t.layout == JLN_CHORDS)        /* the chords layout's notes are the scale's steps: the keyboard has no chords */
         t.layout = JLN_DIATONIC;
     pad_from_index(&t, sc, origin_of(&t, sc) + (int)i, out);
-}
-
-uint64_t jln_pads_with_note(const struct jln *s, const struct jln_scale *sc, int note)
-{
-    uint64_t mask = 0;
-    if (note < 0 || note > 127)
-        return 0;
-    for (uint8_t y = 0; y < 8; y++)
-        for (uint8_t x = 0; x < 8; x++) {
-            struct jln_pad p;
-            jln_pad(s, sc, x, y, &p);
-            if (p.note == note)
-                mask |= 1ull << (y * 8u + x);
-        }
-    return mask;
 }
 
 uint8_t jln_color(const struct jln_pad *p, int playing)

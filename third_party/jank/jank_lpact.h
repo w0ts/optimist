@@ -3,6 +3,7 @@
  * Note mode (jank_lpapp.c) and the step modes (jank_lpstep.c). */
 #ifndef JANK_LPACT_H
 #define JANK_LPACT_H
+#include <stddef.h>
 #include <stdint.h>
 
 enum jlapp_act_kind {
@@ -31,8 +32,8 @@ struct jlapp_act {
     uint8_t step, op, len;
 };
 
-/* an act with kind, track, note and vel, the rest 0 (jank_lpstep.c: every file that makes acts links it) */
-void jlapp_set_act(struct jlapp_act *o, uint8_t kind, uint8_t track, uint8_t note, uint8_t vel);
+/* an act with kind, track and note, the rest 0 (the few with a vel, op ... set them after); returns 1, the acts made (jank_lpstep.c: every file that makes acts links it) */
+size_t jlapp_act(struct jlapp_act *o, uint8_t kind, uint8_t track, uint8_t note);
 
 /* the most acts one pad event makes: a drum track pad on another track while the transport is stopped selects the track AND plays it. A caller that gives room for
  * fewer drops such a press whole (nothing happens: owner 2026-11-24, "in drum step, i cannot change track when transport is stopped") */
@@ -43,4 +44,10 @@ struct jlapp_recent {
     uint32_t at_ms;
     uint8_t track, note, used;
 };
+#define JLAPP_PUSH_LIGHT_MS 150u       /* a pushed note lights its pad this long (the note's length is not mapped yet: not measured) */
+#define JLAPP_RECENT 32u               /* pushed notes remembered for the lights */
+/* a note of `track` (and this pitch, unless note < 0) among the n recent ones that the Digitone played in the last JLAPP_PUSH_LIGHT_MS */
+int jlapp_played(const struct jlapp_recent *r, unsigned n, uint32_t now_ms, uint8_t track, int note);
+/* a TRACK_OFF act for each bit of *held (track pads that are down), cleared, at most max; returns how many */
+size_t jlapp_tracks_off(uint16_t *held, struct jlapp_act *out, size_t max);
 #endif

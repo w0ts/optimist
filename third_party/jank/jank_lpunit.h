@@ -23,6 +23,12 @@
 #ifndef JLAPP_ERASE
 #define JLAPP_ERASE 1                  /* scene 6 held erases (JLAPP_ACT_ERASE); 0: the same */
 #endif
+#ifndef JLX_ONLY_X
+#define JLX_ONLY_X 0                   /* 1: the Launchpad X alone (the FM-1): the other models' table, SysEx and code paths (jank_lpx.h) are compiled away */
+#endif
+#ifndef JLAPP_FIXED_VEL
+#define JLAPP_FIXED_VEL 1              /* the scale page's pad 3 switches fixed velocity (and the Mini MK3 / MK2 play fixed); 0: dark, does nothing, compiled away */
+#endif
 #if JLN_TRACKS < 1 || JLN_TRACKS > 16
 #error "JLN_TRACKS: 1..16"
 #endif

@@ -11,8 +11,8 @@
  * a press started are kept in a table of this file's own (the interrupt's), so the off ends what the on started even after the layout changed. */
 #ifdef EDN_HOST                                     /* (the host stress test has no OTA plumbing: it drives the ring itself) */
 #define EDN_ON FELUCCA_ED_NOTE
-#else
-#define EDN_ON (FELUCCA_ED_NOTE && FELUCCA_OTA && FELUCCA_EDITOR)
+#else                                               /* (the Launchpad plays through it too, with the web editor or without: io/launchpad/lp_unit.c) */
+#define EDN_ON ((FELUCCA_ED_NOTE && FELUCCA_OTA && FELUCCA_EDITOR) || FELUCCA_LAUNCHPAD)
 #endif
 #if EDN_ON
 #define EDN_Q 16u

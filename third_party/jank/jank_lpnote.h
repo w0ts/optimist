@@ -64,9 +64,6 @@ void jln_pad(const struct jln *s, const struct jln_scale *sc, uint8_t x, uint8_t
  * origin (the key's root at the octave, or the fixed C when absolute), a row up = 4 steps; the chromatic layout: semitones. The chords layout gives the same keys as diatonic. */
 void jln_key(const struct jln *s, const struct jln_scale *sc, unsigned i, struct jln_pad *out);
 
-/* the pads (bit y * 8 + x) that play `note`: one note lights every pad with that pitch; 0 for a note out of 0..127 */
-uint64_t jln_pads_with_note(const struct jln *s, const struct jln_scale *sc, int note);
-
 /* a pad's palette index; playing wins over everything; a pad that plays nothing (outside MIDI's 0..127) is 0 */
 uint8_t jln_color(const struct jln_pad *p, int playing);
 #endif

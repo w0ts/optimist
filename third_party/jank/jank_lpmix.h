@@ -73,10 +73,10 @@ struct jlmx {
     uint8_t have;                      /* a MIXER answer has come */
     uint8_t held;                      /* a press changed the local copy at hold_ms */
     uint32_t hold_ms;
+    uint32_t slide_serial, tick_ms;
     struct jdl_mixer m;
     struct jlmx_held hold[JLMX_COLUMNS];
     struct jlmx_slide slide[JLMX_SLIDES];
-    uint32_t slide_serial, tick_ms;
 };
 
 /* what a press asks the Digitone to write (jlmx_press) */

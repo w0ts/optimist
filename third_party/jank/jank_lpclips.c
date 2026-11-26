@@ -30,8 +30,7 @@ size_t jlapp_session_pad(struct jlapp *a, const struct jlx_ev *ev, struct jlapp_
         return 0;
     if (ev->col == SCENE_COL) {
         jlapp_say(a, "SCENE %u", s + 1u);
-        jlapp_set_act(out, JLAPP_ACT_SCENE, 0, (uint8_t)s, 0);
-        return 1;
+        return jlapp_act(out, JLAPP_ACT_SCENE, 0, (uint8_t)s);
     }
     if (ev->col >= JLCL_TRACKS)
         return 0;
@@ -41,8 +40,7 @@ size_t jlapp_session_pad(struct jlapp *a, const struct jlx_ev *ev, struct jlapp_
     } else {
         jlapp_say(a, "TRACK %u CLIP %u", ev->col + 1u, s + 1u);
     }
-    jlapp_set_act(out, JLAPP_ACT_CLIP, ev->col, (uint8_t)s, 0);   /* when: at the pattern's end */
-    return 1;
+    return jlapp_act(out, JLAPP_ACT_CLIP, ev->col, (uint8_t)s);   /* when (vel): at the pattern's end */
 }
 
 void jlapp_page_frame(const struct jlapp *a, struct jlx_frame *f)

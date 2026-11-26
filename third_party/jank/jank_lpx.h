@@ -15,6 +15,7 @@
 #define JANK_LPX_H
 #include <stddef.h>
 #include <stdint.h>
+#include "jank_lpunit.h"
 
 /* the lights, in one list: pads row * 8 + column (row 0 = bottom), then the buttons */
 #define JLX_PAD0 0u
@@ -39,7 +40,7 @@ struct jlx_model {
     const uint8_t *query;              /* ... asking which mode it is in (NULL: none) */
 };
 
-#define JLX_MODELS 4u
+#define JLX_MODELS (JLX_ONLY_X ? 1u : 4u)   /* jank_lpunit.h JLX_ONLY_X: the X alone */
 extern const struct jlx_model jlx_models[JLX_MODELS];   /* X first: the one jank was made with */
 
 /* the model whose name the USB product name carries; NULL: not a Launchpad jank drives */

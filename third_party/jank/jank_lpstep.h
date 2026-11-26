@@ -23,7 +23,7 @@
 #include "jank_lpx.h"
 
 #define JLST_PAGES 4u                  /* of 16 steps: the Digitone's 64 */
-#define JLST_HEAD_MS 150u              /* the step that just played is lit this long */
+#define JLST_HEAD_MS JLAPP_PUSH_LIGHT_MS   /* the step that just played is lit this long (150 ms, as a pushed note) */
 #define JLST_STALE_MS 600u             /* after a track change the old track's steps stay drawn this long, until the new track's pages come (no dark flash) */
 #define JLST_EDIT_HOLD_MS 300u        /* a page read does not overwrite what a press just changed for this long */
 #define JLST_KEYS 16u                  /* the left quadrant */
@@ -52,7 +52,6 @@ struct jlst {
     int16_t note;                      /* melodic: the key a step press places; -1: none picked */
     uint8_t pages_known;               /* the pattern's pages (of the track last read), 0 until a read says */
     uint8_t have[2];                   /* pg[i] holds page first_page + i, of the track pg[i].track */
-    struct jdl_page pg[2];
     uint32_t pages_ms;                 /* the last page accepted */
     uint32_t edit_ms;                  /* a press changed pg at edit_ms (edit_on) */
     uint8_t edit_on;
@@ -69,6 +68,7 @@ struct jlst {
     uint32_t rt_ticks;                 /* its MIDI clock ticks since its Start (24 a beat, 6 a sixteenth) */
     uint32_t rt_last_ms;               /* its last clock tick: the clock is alive for JLST_RT_ALIVE_MS after it */
     uint32_t rt_clocks, rt_starts, rt_stops;   /* counted for diag */
+    struct jdl_page pg[2];             /* (last: short offsets for the rest) */
 };
 
 /* what the pad logic needs from the rest of the Launchpad app */
@@ -105,7 +105,9 @@ void jlst_set_clock(struct jlst *s, int running, uint32_t tick16);
 /* The Digitone's own MIDI transport (owner 2026-11-24: "the playhead is not shown" when the sequencer was started on the Digitone, not from Jank): a real-time byte it sent
  * (0xFA Start, 0xFB Continue, 0xFC Stop, 0xF8 clock). While its clock ticks the playhead follows IT (6 ticks a sixteenth from its Start), whoever started it; else Jank's
  * session beat (jlst_set_clock). Read-only and channel-free: real-time bytes carry no channel. */
+#if !JLAPP_CLIPS                       /* (jank's: the Digitone's clock) */
 void jlst_on_rt(struct jlst *s, uint8_t byte, uint32_t now_ms);
+#endif
 
 /* the pads held end (the Launchpad went away or the mode changed): acts, at most max */
 size_t jlst_release(struct jlst *s, struct jlapp_act *out, size_t max);

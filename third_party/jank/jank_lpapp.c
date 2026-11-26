@@ -12,8 +12,14 @@
 #define BUTTON_NOTE 5u
 #define WHY_EVERY_MS 2000u             /* "why the pads do not play" is said at most this often */
 #define QUADRANT 4u                    /* the step modes' lower quadrants are 4 x 4 */
-#define FIXED_VEL(a) ((a)->fixed_vel || (a)->no_vel)
+#define FIXED_VEL(a) ((JLAPP_FIXED_VEL && (a)->fixed_vel) || (!JLX_ONLY_X && (a)->no_vel))   /* jank_lpunit.h: a unit without the switch, with the X alone, has none */
+#if JLAPP_CLIPS
+#define TRANSPORT_LIT(a) ((a)->transport)   /* scene 5's light: another unit's own transport runs */
+#else
+#define TRANSPORT_LIT(a) jltr_lit(&(a)->tr, (a)->live_state == JDL_LIVE)   /* ... the Digitone's while it leads, else Jank's session */
+#endif
 
+#if !JLAPP_CLIPS                       /* jank's devices (jank_lpapp.h) */
 enum jlapp_role jlapp_role_from_name(const char *product)
 {
     if (!product)
@@ -26,6 +32,7 @@ enum jlapp_role jlapp_role_from_name(const char *product)
 }
 
 unsigned jlapp_midi_interface_index(enum jlapp_role r) { return r == JLAPP_LPX ? 1u : 0u; }
+#endif
 
 void jlapp_init(struct jlapp *a, const struct jln_scale *scale)
 {
@@ -41,7 +48,9 @@ void jlapp_init(struct jlapp *a, const struct jln_scale *scale)
     a->record_ok = 1;
     a->dn2_present = 1;
     jlapp_page_init(a);
+#if !JLAPP_CLIPS
     jltr_init(&a->tr);
+#endif
     for (uint32_t i = 0; i < JLAPP_PADS; i++)
         a->held[i].note = -1;
 }
@@ -68,7 +77,9 @@ void jlapp_set_live(struct jlapp *a, int state, int play_ok, int read_ok)
         jlapp_page_open(a, 1);         /* live control is back on the Session page: everything is read again */
     if (state != (int)JDL_LIVE && was_live) {
         jlapp_page_open(a, 0);         /* what the page showed may not be true any more */
+#if !JLAPP_CLIPS
         jltr_lost(&a->tr);             /* TRANSPORT must answer again */
+#endif
     }
     if (state != (int)JDL_LIVE)
         a->dn2_seen = 0;               /* the next reading after live control is back is a first one again */
@@ -128,13 +139,23 @@ size_t jlapp_take_message(struct jlapp *a, char *out, size_t cap)
 
 static const char *const NOTE_NAME[12] = {"C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"};
 
+static void say_on(struct jlapp *a, const char *what, int on) { jlapp_say(a, "%s %s", what, on ? "ON" : "OFF"); }
+
+/* 1 when a "why not" message may be said now (at most every WHY_EVERY_MS), and the clock for the next one starts */
+static int why_due(struct jlapp *a)
+{
+    if (a->why_on && (uint32_t)(a->now_ms - a->why_ms) < WHY_EVERY_MS)
+        return 0;
+    a->why_on = 1;
+    a->why_ms = a->now_ms;
+    return 1;
+}
+
 /* a press that cannot play says why (at most every WHY_EVERY_MS): the pads never fall back to MIDI */
 void jlapp_say_why_not(struct jlapp *a)
 {
-    if (a->why_on && (uint32_t)(a->now_ms - a->why_ms) < WHY_EVERY_MS)
+    if (!why_due(a))
         return;
-    a->why_on = 1;
-    a->why_ms = a->now_ms;
     if (a->live_state == JDL_REMOTE_OFF)
         jlapp_say(a, "REMOTE CONTROL OFF");
     else if (a->live_state == JDL_NO_LIVE)
@@ -176,7 +197,8 @@ static size_t pad_event(struct jlapp *a, const struct jlx_ev *ev, struct jlapp_a
         }
         h->note = p.note;
         h->track = a->n.track;
-        jlapp_set_act(out, JLAPP_ACT_NOTE_ON, h->track, (uint8_t)p.note, ev->value);
+        jlapp_act(out, JLAPP_ACT_NOTE_ON, h->track, (uint8_t)p.note);
+        out->vel = ev->value;
         return 1;
     }
     if (h->note < 0)
@@ -186,8 +208,7 @@ static size_t pad_event(struct jlapp *a, const struct jlx_ev *ev, struct jlapp_a
         h->note = -1;
         if (held_elsewhere(a, i, &was) || max < 1)
             return 0;
-        jlapp_set_act(out, JLAPP_ACT_NOTE_OFF, was.track, (uint8_t)was.note, 0);
-        return 1;
+        return jlapp_act(out, JLAPP_ACT_NOTE_OFF, was.track, (uint8_t)was.note);
     }
 }
 
@@ -218,16 +239,12 @@ static size_t track_pad_event(struct jlapp *a, const struct jlx_ev *ev, struct j
             return 0;
         }
         a->track_held |= bitv;
-        jlapp_set_act(out, JLAPP_ACT_TRACK_ON, t, 0, 0);
-        return 1;
+        return jlapp_act(out, JLAPP_ACT_TRACK_ON, t, 0);
     }
     if (!(a->track_held & bitv))
         return 0;
     a->track_held &= (uint16_t)~bitv;
-    if (max < 1)
-        return 0;
-    jlapp_set_act(out, JLAPP_ACT_TRACK_OFF, t, 0, 0);
-    return 1;
+    return max < 1 ? 0 : jlapp_act(out, JLAPP_ACT_TRACK_OFF, t, 0);
 }
 
 /* ---- the scale page (jank_lpapp.h): rows are counted from the top, as Launchpad 95 does, row 0 being the top one (pad row 7) ---- */
@@ -242,7 +259,7 @@ static const uint8_t WHITE_KEY[7] = {0, 2, 4, 5, 7, 9, 11};      /* C D E F G A 
 #define MINOR_THIRD_UP 3u
 #define MAJOR_SIXTH_UP 9u              /* the relative major of a minor key is a minor third up, its relative minor a minor third down (9 up) */
 
-static uint8_t track_colour(const struct jlapp *a, uint8_t t);
+static uint8_t track_colour(const struct jlapp *a, uint8_t t, int trig);
 
 static int is_black_key_pad(uint8_t x) { return x == 0 || x == 1 || x == 3 || x == 4 || x == 5; }
 
@@ -270,128 +287,117 @@ static void show_scale_page_of_scale(struct jlapp *a)
 static void relative_scale(struct jlapp *a)
 {
     int idx = jls_index_of(a->scale);
+    unsigned to = JLS_MAJOR, up = MINOR_THIRD_UP;
     struct jln *n = &a->n;
     if (idx == (int)JLS_MAJOR) {
-        set_scale(a, a->minor_idx);
-        n->key = (uint8_t)((n->key + MAJOR_SIXTH_UP) % 12u);
+        to = a->minor_idx;
+        up = MAJOR_SIXTH_UP;
     } else if (idx == (int)JLS_MINOR || idx == (int)JLS_HARMONIC_MINOR || idx == (int)JLS_MELODIC_MINOR) {
         a->minor_idx = (uint8_t)idx;
-        set_scale(a, JLS_MAJOR);
-        n->key = (uint8_t)((n->key + MINOR_THIRD_UP) % 12u);
     } else if (idx == (int)JLS_MINOR_PENTATONIC) {
-        set_scale(a, JLS_MAJOR_PENTATONIC);
-        n->key = (uint8_t)((n->key + MINOR_THIRD_UP) % 12u);
+        to = JLS_MAJOR_PENTATONIC;
     } else if (idx == (int)JLS_MAJOR_PENTATONIC) {
-        set_scale(a, JLS_MINOR_PENTATONIC);
-        n->key = (uint8_t)((n->key + MAJOR_SIXTH_UP) % 12u);
+        to = JLS_MINOR_PENTATONIC;
+        up = MAJOR_SIXTH_UP;
     } else {
         jlapp_say(a, "NO RELATIVE SCALE");
         return;
     }
+    set_scale(a, to);
+    n->key = (uint8_t)((n->key + up) % 12u);
     jlapp_say(a, "%s %s", NOTE_NAME[n->key % 12u], a->scale->name);     /* the key and the scale it is now: "A Minor" */
-}
-
-static void layout_pad(struct jlapp *a, enum jln_layout l, const char *name)
-{
-    jln_set_layout(&a->n, l);
-    jlapp_say(a, "LAYOUT %s", name);
-}
-
-static void page_pad(struct jlapp *a, uint8_t x, uint8_t y)
-{
-    struct jln *n = &a->n;
-    uint8_t r = (uint8_t)FROM_TOP(y);
-    if (r == 0) {
-        if (x == 0) {
-            n->absolute ^= 1u;
-            jlapp_say(a, "ABSOLUTE ROOT %s", n->absolute ? "ON" : "OFF");
-        } else if (x == 1 && n->layout == JLN_DIATONIC) {
-            n->horizontal ^= 1u;
-            jlapp_say(a, "HORIZONTAL %s", n->horizontal ? "ON" : "OFF");
-        } else if (x == 1) {
-            jlapp_say(a, "DIATONIC ONLY");
-        } else if (x == 2) {           /* fixed velocity (owner 2026-11-25): Note mode, the step modes' keyboard; the track pads always play at the track's VEL */
-            a->fixed_vel ^= 1u;
-            jlapp_say(a, "FIXED VELOCITY %s", FIXED_VEL(a) ? "ON" : "OFF");
-        } else if (x == 4) {
-            layout_pad(a, JLN_CHORDS, "CHORDS");
-        } else if (x == 5) {
-            layout_pad(a, JLN_DIATONIC, "DIATONIC");
-        } else if (x == 6) {
-            layout_pad(a, JLN_CHROMATIC, "CHROMATIC");
-        } else if (x == 7) {
-            static const char *const NAME[JLAPP_TRACKS_MODES] = {"OFF", "TRIGGER", "SELECT"};
-            a->track_pads = (uint8_t)((a->track_pads + 1u) % JLAPP_TRACKS_MODES);   /* OFF -> TRIGGER -> SELECT (owner 2026-11-25) */
-            jlapp_say(a, "TRACK PADS %s", NAME[a->track_pads]);
-        }
-    } else if (r == 1) {
-        if (is_black_key_pad(x)) {
-            n->key = (uint8_t)(WHITE_KEY[x] + 1u);
-            say_key(a);
-        } else if (x == 2) {
-            relative_scale(a);
-        } else if (x == 6) {
-            n->key = (uint8_t)((n->key + FIFTH_DOWN) % 12u);
-            say_key(a);
-        }
-    } else if (r == 2) {
-        if (x < 7u)
-            n->key = WHITE_KEY[x];
-        else
-            n->key = (uint8_t)((n->key + FIFTH_UP) % 12u);
-        say_key(a);
-    } else if (r == SCALE_PAGE_ROW) {  /* the scales' page pads: only browsing, the scale in use is not changed */
-        if (x < SCALE_PAGES) {
-            unsigned first = x * JLAPP_SCALES_PER_PAGE, last = first + JLAPP_SCALES_PER_PAGE;
-            a->scale_page = x;
-            jlapp_say(a, "SCALES %u-%u", first + 1u, last < jls_count() ? last : jls_count());
-        }
-    } else if (r < FIRST_TRACK_ROW) {
-        unsigned idx = a->scale_page * JLAPP_SCALES_PER_PAGE + (unsigned)(r - FIRST_SCALE_ROW) * 8u + x;
-        if (idx < jls_count())
-            set_scale(a, idx);
-    }
 }
 
 static uint8_t on_off(int on, uint8_t on_colour, uint8_t off_colour) { return on ? on_colour : off_colour; }
 
-/* the colour of the scale page's pad (x, y), 0 for none: Launchpad 95's (SkinMK2.py Scale.*; see jank_lpapp.h) */
-static uint8_t page_colour(const struct jlapp *a, uint8_t x, uint8_t y)
+/* The scale page's pad (x, y): with `press`, what it does (and says); then its colour, 0 for none: Launchpad 95's (SkinMK2.py Scale.*; see jank_lpapp.h). The lights call it
+ * without `press`, which writes nothing. The track rows' presses are jlapp_on_lpx_acts'. */
+static uint8_t page_pad(struct jlapp *a, uint8_t x, uint8_t y, int press)
 {
-    const struct jln *n = &a->n;
+    static const uint8_t LAYOUT[3] = {JLN_CHORDS, JLN_DIATONIC, JLN_CHROMATIC};     /* pads 5, 6, 7 */
+    static const char *const LAYOUT_NAME[3] = {"CHORDS", "DIATONIC", "CHROMATIC"};
+    struct jln *n = &a->n;
     uint8_t r = (uint8_t)FROM_TOP(y);
+    unsigned idx;
     if (r == 0) {
-        if (x == 0)                    /* AbsoluteRoot */
+        if (x == 0) {                  /* AbsoluteRoot */
+            if (press) {
+                n->absolute ^= 1u;
+                say_on(a, "ABSOLUTE ROOT", n->absolute);
+            }
             return on_off(n->absolute, JLAPP_RED, JLAPP_RED_THIRD);
-        if (x == 1)                    /* Horizontal (LP95 shows it in every layout, though only the diatonic one takes it) */
+        }
+        if (x == 1) {                  /* Horizontal (LP95 shows it in every layout, though only the diatonic one takes it) */
+            if (press && n->layout != JLN_DIATONIC) {
+                jlapp_say(a, "DIATONIC ONLY");
+            } else if (press) {
+                n->horizontal ^= 1u;
+                say_on(a, "HORIZONTAL", n->horizontal);
+            }
             return on_off(n->horizontal, JLAPP_GREEN, JLAPP_GREEN_THIRD);
-        if (x == 2)                    /* fixed velocity (not Launchpad 95's) */
+        }
+        if (JLAPP_FIXED_VEL && x == 2) {   /* fixed velocity (owner 2026-11-25; not Launchpad 95's): Note mode, the step modes' keyboard; the track pads always play at the track's VEL */
+            if (press) {
+                a->fixed_vel ^= 1u;
+                say_on(a, "FIXED VELOCITY", FIXED_VEL(a));
+            }
             return on_off(FIXED_VEL(a), JLAPP_COLOR_FIXED_VEL, JLAPP_COLOR_FIXED_VEL_OFF);
-        if (x == 4)                    /* Mode: the layouts */
-            return on_off(n->layout == JLN_CHORDS, JLAPP_RED, JLAPP_RED_THIRD);
-        if (x == 5)
-            return on_off(n->layout == JLN_DIATONIC, JLAPP_RED, JLAPP_RED_THIRD);
-        if (x == 6)
-            return on_off(n->layout == JLN_CHROMATIC, JLAPP_RED, JLAPP_RED_THIRD);
-        if (x == 7)                    /* the track pads (not Launchpad 95's: its drum rack pad is here): dim green off, then the mode's own colour */
-            return a->track_pads == JLAPP_TRACKS_TRIGGER ? JLAPP_COLOR_TRIG_IDLE : a->track_pads == JLAPP_TRACKS_SELECT ? JLAPP_COLOR_TRACK_IDLE : JLAPP_COLOR_MODE;   /* off: Note mode's light blue (owner 2026-11-25) */
+        }
+        if (x >= 4u && x <= 6u) {      /* Mode: the layouts */
+            if (press) {
+                jln_set_layout(n, (enum jln_layout)LAYOUT[x - 4u]);
+                jlapp_say(a, "LAYOUT %s", LAYOUT_NAME[x - 4u]);
+            }
+            return on_off(n->layout == LAYOUT[x - 4u], JLAPP_RED, JLAPP_RED_THIRD);
+        }
+        if (x == 7) {                  /* the track pads (not Launchpad 95's: its drum rack pad is here): OFF -> TRIGGER -> SELECT (owner 2026-11-25) */
+            static const char *const NAME[JLAPP_TRACKS_MODES] = {"OFF", "TRIGGER", "SELECT"};
+            static const uint8_t COLOUR[JLAPP_TRACKS_MODES] = {JLAPP_COLOR_MODE, JLAPP_COLOR_TRIG_IDLE, JLAPP_COLOR_TRACK_IDLE};   /* off: Note mode's light blue, then the mode's own colour */
+            if (press) {
+                a->track_pads = (uint8_t)((a->track_pads + 1u) % JLAPP_TRACKS_MODES);
+                jlapp_say(a, "TRACK PADS %s", NAME[a->track_pads]);
+            }
+            return COLOUR[a->track_pads];
+        }
         return 0;
     }
-    if (r == 1) {
-        if (is_black_key_pad(x))       /* Key */
-            return on_off(n->key == WHITE_KEY[x] + 1u, JLAPP_GREEN, JLAPP_GREEN_THIRD);
-        return x == 2 || x == 6 ? JLAPP_BLUE : 0;      /* RelativeScale, CircleOfFifths */
+    if (r <= 2u) {                     /* Key: row 1 the black keys, row 2 the white ones; RelativeScale (row 1 pad 3) and CircleOfFifths (row 1 pad 7 back, row 2 pad 8 on) BLUE */
+        int key = r == 2u ? (x < 7u ? WHITE_KEY[x] : -1) : is_black_key_pad(x) ? WHITE_KEY[x] + 1 : -1;
+        if (key >= 0) {
+            if (press) {
+                n->key = (uint8_t)key;
+                say_key(a);
+            }
+            return on_off(n->key == key, JLAPP_GREEN, JLAPP_GREEN_THIRD);
+        }
+        if (r == 1u && x != 2u && x != 6u)
+            return 0;
+        if (press && r == 1u && x == 2u) {
+            relative_scale(a);
+        } else if (press) {
+            n->key = (uint8_t)((n->key + (r == 1u ? FIFTH_DOWN : FIFTH_UP)) % 12u);
+            say_key(a);
+        }
+        return JLAPP_BLUE;
     }
-    if (r == 2)
-        return x < 7u ? on_off(n->key == WHITE_KEY[x], JLAPP_GREEN, JLAPP_GREEN_THIRD) : JLAPP_BLUE;
     if (r >= FIRST_TRACK_ROW)          /* the tracks: WHITE, the selected one AMBER (a track that sounds RED) */
-        return track_colour(a, track_of_pad(y, x));
-    if (r == SCALE_PAGE_ROW)           /* the page pads: AMBER, not the scales' blue */
-        return x < SCALE_PAGES ? on_off(x == a->scale_page, JLAPP_AMBER, JLAPP_AMBER_THIRD) : 0;
-    {
-        unsigned idx = a->scale_page * JLAPP_SCALES_PER_PAGE + (unsigned)(r - FIRST_SCALE_ROW) * 8u + x;   /* Modus: the two rows of the page shown */
-        return idx < jls_count() ? on_off((int)idx == jls_index_of(a->scale), JLAPP_BLUE, JLAPP_BLUE_THIRD) : 0;
+        return track_colour(a, track_of_pad(y, x), 0);
+    if (r == SCALE_PAGE_ROW) {         /* the scales' page pads, AMBER, not the scales' blue: only browsing, the scale in use is not changed */
+        if (x >= SCALE_PAGES)
+            return 0;
+        if (press) {
+            unsigned first = x * JLAPP_SCALES_PER_PAGE, last = first + JLAPP_SCALES_PER_PAGE;
+            a->scale_page = x;
+            jlapp_say(a, "SCALES %u-%u", first + 1u, last < jls_count() ? last : jls_count());
+        }
+        return on_off(x == a->scale_page, JLAPP_AMBER, JLAPP_AMBER_THIRD);
     }
+    idx = a->scale_page * JLAPP_SCALES_PER_PAGE + (unsigned)(r - FIRST_SCALE_ROW) * 8u + x;   /* Modus: the two rows of the page shown */
+    if (idx >= jls_count())
+        return 0;
+    if (press)
+        set_scale(a, idx);
+    return on_off((int)idx == jls_index_of(a->scale), JLAPP_BLUE, JLAPP_BLUE_THIRD);
 }
 
 /* ---- buttons ---- */
@@ -412,8 +418,7 @@ static size_t chose_track(struct jlapp *a, uint8_t before, int announce, struct 
         jlapp_say(a, "TRACK %u", (unsigned)a->n.track + 1u);
     if (a->n.track == before || max < 1)
         return 0;
-    jlapp_set_act(out, JLAPP_ACT_SELECT, a->n.track, 0, 0);
-    return 1;
+    return jlapp_act(out, JLAPP_ACT_SELECT, a->n.track, 0);
 }
 
 /* both left and right: FOLLOW on / off (the first press already stepped the track: put it back) */
@@ -428,7 +433,7 @@ static size_t follow_pair(struct jlapp *a, uint8_t other_idx, struct jlapp_act *
             jlapp_say(a, "DN2 NOT READY");
     } else {
         a->follow ^= 1u;
-        jlapp_say(a, "FOLLOW %s", a->follow ? "ON" : "OFF");
+        say_on(a, "FOLLOW", a->follow);
     }
     return chose_track(a, stepped_to, 0, out, max);
 }
@@ -580,37 +585,38 @@ static size_t button_event(struct jlapp *a, const struct jlx_ev *ev, struct jlap
         jlapp_say(a, "MIXER");
         return 0;
     }
-    if (a->mode == JLAPP_MODE_MIXER && (ev->idx == BUTTON_UP || ev->idx == BUTTON_DOWN)) {   /* the banks, as the Digitone's trig keys lie: up the upper row (1-8), down the lower (9-16) */
-        if (jlmx_bank_step(&a->mix, ev->idx == BUTTON_UP ? -1 : 1))
-            jlapp_say(a, "TRACKS %u-%u", a->mix.bank * JLMX_COLUMNS + 1u, a->mix.bank ? (unsigned)JLN_TRACKS : JLMX_COLUMNS);
-        return 0;
-    }
-    if (a->mode == JLAPP_MODE_SESSION && (ev->idx == BUTTON_UP || ev->idx == BUTTON_DOWN)) {   /* the Session page's two halves: up the first (banks A-D, slots 1-8), down the other */
-        if (a->sess.half != (ev->idx == BUTTON_DOWN)) {
-            a->sess.half = ev->idx == BUTTON_DOWN;
-            jlapp_say(a, "%s", JLAPP_HALF_NAME(a->sess.half));
+    if (ev->idx <= BUTTON_DOWN) {      /* up / down */
+        int down = ev->idx == BUTTON_DOWN;
+        if (a->mode == JLAPP_MODE_MIXER) {   /* the banks, as the Digitone's trig keys lie: up the upper row (1-8), down the lower (9-16) */
+            if (jlmx_bank_step(&a->mix, down ? 1 : -1))
+                jlapp_say(a, "TRACKS %u-%u", a->mix.bank * JLMX_COLUMNS + 1u, a->mix.bank ? (unsigned)JLN_TRACKS : JLMX_COLUMNS);
+        } else if (a->mode == JLAPP_MODE_SESSION) {   /* the Session page's two halves: up the first (banks A-D, slots 1-8), down the other */
+            if (a->sess.half != down) {
+                a->sess.half = (uint8_t)down;
+                jlapp_say(a, "%s", JLAPP_HALF_NAME(down));
+            }
+        } else if (!(a->mode == JLAPP_MODE_STEP && a->step_kind == JLST_DRUM)) {   /* the octave; drum step has none */
+            jln_octave_step(&a->n, down ? -1 : 1);
+            jlapp_say(a, "OCTAVE %u", (unsigned)a->n.octave);
         }
-        return 0;
-    }
-    if ((ev->idx == BUTTON_UP || ev->idx == BUTTON_DOWN) && !(a->mode == JLAPP_MODE_STEP && a->step_kind == JLST_DRUM)) {   /* the octave; drum step has none */
-        jln_octave_step(&a->n, ev->idx == BUTTON_UP ? 1 : -1);
-        jlapp_say(a, "OCTAVE %u", (unsigned)a->n.octave);
     }
     return 0;                          /* the rest has no job yet */
 }
 
 static const char *const VIEW_NAME[JLMX_VIEWS] = {"VOLUME", "PAN", "DELAY SEND", "REVERB SEND", "CHORUS SEND", "MUTE AND SOLO", "MUTE AND SOLO"};
 
-static void mix_act(struct jlapp_act *out, const struct jlmx_write *w)
+static size_t mix_act(struct jlapp_act *out, const struct jlmx_write *w)
 {
     if (w->kind == JLMX_WRITE_VALUE) {
-        jlapp_set_act(out, JLAPP_ACT_MIX, w->track, 0, w->value);
+        jlapp_act(out, JLAPP_ACT_MIX, w->track, 0);
+        out->vel = w->value;
         out->op = w->param;
     } else {
-        jlapp_set_act(out, JLAPP_ACT_MUTE, 0, (uint8_t)(w->mask & 0xFFu), 0);
+        jlapp_act(out, JLAPP_ACT_MUTE, 0, (uint8_t)(w->mask & 0xFFu));
         out->op = w->which;
         out->step = (uint8_t)(w->mask >> 8);
     }
+    return 1;
 }
 
 /* a pad of the mixer screen: mute / solo write at the press; a fader pad is held and its release starts the slow fader (jank_lpmix.h), whose first step is written then.
@@ -622,8 +628,7 @@ static size_t mixer_pad(struct jlapp *a, const struct jlx_ev *ev, struct jlapp_a
     if (!ev->value) {
         if (max < 1 || a->live_state != JDL_LIVE || !a->mix_writes || !jlmx_release(&a->mix, ev->col, ev->row, a->now_ms, &w))
             return 0;
-        mix_act(out, &w);
-        return 1;
+        return mix_act(out, &w);
     }
     if (jlmx_open(&a->mix, ev->row)) {
         jlapp_say(a, "%s", VIEW_NAME[a->mix.view]);
@@ -634,17 +639,13 @@ static size_t mixer_pad(struct jlapp *a, const struct jlx_ev *ev, struct jlapp_a
         return 0;
     }
     if (!a->mix_writes) {
-        if (!a->why_on || (uint32_t)(a->now_ms - a->why_ms) >= WHY_EVERY_MS) {
-            a->why_on = 1;
-            a->why_ms = a->now_ms;
+        if (why_due(a))
             jlapp_say(a, "MIXER READ ONLY");
-        }
         return 0;
     }
     if (max < 1 || !jlmx_press(&a->mix, ev->col, ev->row, a->now_ms, &w))
         return 0;
-    mix_act(out, &w);
-    return 1;
+    return mix_act(out, &w);
 }
 
 size_t jlapp_pump_acts(struct jlapp *a, struct jlapp_act *out, size_t max)
@@ -669,8 +670,7 @@ static size_t delete_button(struct jlapp *a, const struct jlx_ev *ev, struct jla
         if (!a->erase_on || max < 1)
             return 0;
         a->erase_on = 0;
-        jlapp_set_act(out, JLAPP_ACT_ERASE, a->erase_track, 0, 0);
-        return 1;
+        return jlapp_act(out, JLAPP_ACT_ERASE, a->erase_track, 0);
     }
     if (a->erase_on || max < 1)
         return 0;
@@ -681,7 +681,8 @@ static size_t delete_button(struct jlapp *a, const struct jlx_ev *ev, struct jla
     a->erase_on = 1;
     a->erase_track = a->n.track;
     jlapp_say(a, "DELETE TRACK %u", (unsigned)a->n.track + 1u);
-    jlapp_set_act(out, JLAPP_ACT_ERASE, a->erase_track, 0, 1);
+    jlapp_act(out, JLAPP_ACT_ERASE, a->erase_track, 0);
+    out->vel = 1;
     return 1;
 }
 
@@ -701,11 +702,13 @@ static size_t record_button(struct jlapp *a, struct jlapp_act *out, size_t max)
     a->record_on = a->record_on ? 0u : 1u;
     a->record_hold = 1;
     a->record_ms = a->now_ms;
-    jlapp_say(a, "RECORD %s", a->record_on ? "ON" : "OFF");
-    jlapp_set_act(out, JLAPP_ACT_RECORD, a->n.track, 0, a->record_on);
+    say_on(a, "RECORD", a->record_on);
+    jlapp_act(out, JLAPP_ACT_RECORD, a->n.track, 0);
+    out->vel = a->record_on;
     return 1;
 }
 
+#if JLAPP_RECORD
 void jlapp_set_record(struct jlapp *a, int ok, int bits_valid, uint8_t bits, uint32_t busy_count)
 {
     if (a->record_ok && !ok) {         /* a Digitone without RECORD: the button goes dark and says so on the next press */
@@ -724,21 +727,26 @@ void jlapp_set_record(struct jlapp *a, int ok, int bits_valid, uint8_t bits, uin
     if (bits_valid && !(a->record_hold && (uint32_t)(a->now_ms - a->record_ms) < JLAPP_RECORD_HOLD_MS))
         a->record_on = (bits & (JDL_REC_ARMED | JDL_REC_RECORDING)) != 0;
 }
+#endif
 
 /* scene 5: while the Digitone leads, its TRANSPORT (PLAY / STOP: no clock, no Start byte from Jank); else Jank's session, as before (another unit: its own transport) */
 static size_t start_stop(struct jlapp *a, struct jlapp_act *out, size_t max)
 {
-    uint8_t op;
     if (max < 1)
         return 0;
-    if (jltr_press(&a->tr, a->live_state == JDL_LIVE, a->now_ms, &op)) {
-        jlapp_say(a, op == JDL_TR_PLAY ? "START" : "STOP");
-        jlapp_set_act(out, JLAPP_ACT_DN2_TRANSPORT, 0, 0, op);
-        return 1;
+#if !JLAPP_CLIPS
+    {
+        uint8_t op;
+        if (jltr_press(&a->tr, a->live_state == JDL_LIVE, a->now_ms, &op)) {
+            jlapp_say(a, op == JDL_TR_PLAY ? "START" : "STOP");
+            jlapp_act(out, JLAPP_ACT_DN2_TRANSPORT, 0, 0);
+            out->vel = op;
+            return 1;
+        }
     }
+#endif
     jlapp_say(a, a->transport ? "STOP" : "START");
-    jlapp_set_act(out, JLAPP_ACT_TRANSPORT, a->n.track, 0, 0);
-    return 1;
+    return jlapp_act(out, JLAPP_ACT_TRANSPORT, a->n.track, 0);
 }
 
 /* the scene buttons; a unit without Delete or Record (jank_lpunit.h JLAPP_ERASE, JLAPP_RECORD) has them dark, doing nothing */
@@ -775,10 +783,11 @@ static size_t lpx_acts(struct jlapp *a, const struct jlx_ev *ev, struct jlapp_ac
                 a->n.track = track_of_pad(ev->row, ev->col);
                 return chose_track(a, before, 1, out, max);
             }
-            page_pad(a, ev->col, ev->row);
+            page_pad(a, ev->col, ev->row, 1);
             idx1 = jls_index_of(a->scale);
             if (max >= 1 && idx1 >= 0 && (idx1 != idx0 || a->n.key != key0)) {   /* the scale or the key changed: the Digitone is told */
-                jlapp_set_act(out, JLAPP_ACT_SCALE, a->n.track, (uint8_t)idx1, a->n.key);
+                jlapp_act(out, JLAPP_ACT_SCALE, a->n.track, (uint8_t)idx1);
+                out->vel = a->n.key;
                 return 1;
             }
             return 0;
@@ -867,11 +876,15 @@ static void refresh_clock(struct jlapp *a) { jlst_set_clock(&a->step, a->transpo
 void jlapp_set_transport(struct jlapp *a, int playing)
 {
     a->transport = playing != 0;
+#if !JLAPP_CLIPS
     jltr_set_jank(&a->tr, playing, a->now_ms);   /* (a change Jank made: the Digitone following it is not sent back) */
+#endif
     refresh_clock(a);
 }
 
+#if !JLAPP_CLIPS
 void jlapp_on_dn2_rt(struct jlapp *a, uint8_t byte) { jlst_on_rt(&a->step, byte, a->now_ms); }
+#endif
 
 void jlapp_set_beat(struct jlapp *a, int known, uint32_t tick16)
 {
@@ -901,139 +914,121 @@ size_t jlapp_release_acts(struct jlapp *a, struct jlapp_act *out, size_t max)
         for (uint32_t j = i; j < JLAPP_PADS; j++)          /* one end for a note that several pads hold */
             if (a->held[j].note == was.note && a->held[j].track == was.track)
                 a->held[j].note = -1;
-        jlapp_set_act(&out[n++], JLAPP_ACT_NOTE_OFF, was.track, (uint8_t)was.note, 0);
+        n += jlapp_act(&out[n], JLAPP_ACT_NOTE_OFF, was.track, (uint8_t)was.note);
     }
-    for (uint8_t t = 0; t < JLN_TRACKS && n < max; t++)
-        if (a->track_held & (1u << t)) {
-            a->track_held &= (uint16_t)~(1u << t);
-            jlapp_set_act(&out[n++], JLAPP_ACT_TRACK_OFF, t, 0, 0);
-        }
+    n += jlapp_tracks_off(&a->track_held, out + n, max - n);
     if (JLAPP_ERASE && a->erase_on && n < max) {   /* the Delete button was held: the Digitone stops erasing */
         a->erase_on = 0;
-        jlapp_set_act(&out[n++], JLAPP_ACT_ERASE, a->erase_track, 0, 0);
+        n += jlapp_act(&out[n], JLAPP_ACT_ERASE, a->erase_track, 0);
     }
     return n + jlst_release(&a->step, out + n, max - n);
 }
 
 /* ---- lights ---- */
 
-/* a pushed note sounded in the last JLAPP_PUSH_LIGHT_MS on this track (and with this pitch, unless note < 0) */
-static int pushed(const struct jlapp *a, uint8_t track, int note)
-{
-    for (uint32_t i = 0; i < JLAPP_RECENT; i++) {
-        const struct jlapp_recent *r = &a->recent[i];
-        if (r->used && r->track == track && (note < 0 || r->note == note) && (uint32_t)(a->now_ms - r->at_ms) < JLAPP_PUSH_LIGHT_MS)
-            return 1;
-    }
-    return 0;
-}
+/* a pushed note sounded in the last JLAPP_PUSH_LIGHT_MS on this track (and with this pitch, unless note < 0), while live control is on */
+static int pushed(const struct jlapp *a, uint8_t track, int note) { return a->push && jlapp_played(a->recent, JLAPP_RECENT, a->now_ms, track, note); }
 
-static int select_shown(const struct jlapp *a) { return a->select_on && (uint32_t)(a->now_ms - a->select_ms) < JLAPP_SELECT_MS; }
-
-/* a track pad's colour (jank_lpapp.h): a track that sounds (or whose pad is down) RED, the selected one AMBER, the rest WHITE */
-static uint8_t track_colour(const struct jlapp *a, uint8_t t)
+/* a track pad's colour (jank_lpapp.h): a track that sounds (or whose pad is down) RED, the selected one AMBER, the rest WHITE; `trig`: the track pads in TRIGGER, in the drum
+ * quadrant's colours (the selected one GREEN, the rest YELLOW; RED the same) */
+static uint8_t track_colour(const struct jlapp *a, uint8_t t, int trig)
 {
     if (JLN_NO_TRACK(t))
         return 0;
-    if ((a->track_held & (1u << t)) || (a->push && pushed(a, t, -1)))
+    if (((a->track_held >> t) & 1u) || pushed(a, t, -1))
         return JLAPP_COLOR_TRACK_PLAYING;
-    return t == a->n.track ? JLAPP_COLOR_TRACK_CURRENT : JLAPP_COLOR_TRACK_IDLE;
-}
-
-/* the track pads in Note mode: TRIGGER in the drum quadrant's colours, else (SELECT, or the overlay of a track chosen with the pads off) as the track rows */
-static uint8_t track_pad_colour(const struct jlapp *a, uint8_t t)
-{
-    if (a->track_pads != JLAPP_TRACKS_TRIGGER || JLN_NO_TRACK(t))
-        return track_colour(a, t);
-    if ((a->track_held & (1u << t)) || (a->push && pushed(a, t, -1)))
-        return JLAPP_COLOR_TRIG_PLAYING;
-    return t == a->n.track ? JLAPP_COLOR_TRIG_CURRENT : JLAPP_COLOR_TRIG_IDLE;
+    if (t == a->n.track)
+        return trig ? JLAPP_COLOR_TRIG_CURRENT : JLAPP_COLOR_TRACK_CURRENT;
+    return trig ? JLAPP_COLOR_TRIG_IDLE : JLAPP_COLOR_TRACK_IDLE;
 }
 
 void jlapp_set_dn2(struct jlapp *a, int present) { a->dn2_present = present != 0; }
 
-void jlapp_frame(const struct jlapp *a, struct jlx_frame *f)
+/* an arrow: green, dim at the end of what it does (Launchpad 95's Note.Octave); left and right amber while FOLLOW is on */
+static uint8_t arrow(int can, int follow) { return follow ? on_off(can, JLAPP_COLOR_FOLLOW_ON, JLAPP_COLOR_FOLLOW_OFF) : on_off(can, JLAPP_COLOR_ARROW_ON, JLAPP_COLOR_ARROW_OFF); }
+
+/* the 64 pads in Note mode, on the scale page and in the colour chart (the other modes draw theirs: jlapp_frame) */
+static void pads_frame(const struct jlapp *a, struct jlx_frame *f)
 {
     uint8_t own[16], shift = note_shift(a);
-    int chosen_shown = select_shown(a);
-    memset(f, 0, sizeof *f);
-    if (!a->dn2_present)
-        return;                        /* no Digitone: everything dark */
+    int track_rows = shift || (a->select_on && (uint32_t)(a->now_ms - a->select_ms) < JLAPP_SELECT_MS);   /* the track pads, or the track just chosen */
     memset(own, 0, sizeof own);
     for (uint32_t i = 0; i < JLAPP_PADS; i++) {
         const struct jlapp_held *h = &a->held[i];
         if (h->note >= 0 && h->track == a->n.track)
             own[h->note >> 3] |= (uint8_t)(1u << (h->note & 7));
     }
-    if (a->mode == JLAPP_MODE_STEP && !a->page) {   /* the step modes draw all 64 pads */
+    for (uint8_t i = 0; i < JLAPP_PADS; i++) {
+        uint8_t x = i & 7u, y = i >> 3, c;
+        struct jln_pad p;
+        if (a->page) {
+            c = page_pad((struct jlapp *)a, x, y, 0);   /* (no press: nothing is written) */
+        } else if (a->mode == JLAPP_MODE_PALETTE) {   /* the colour chart: the palette index is the colour */
+            c = palette_index(a, x, y);
+        } else if (y < JLAPP_TRACK_ROWS && track_rows) {
+            c = track_colour(a, track_of_pad(y, x), a->track_pads == JLAPP_TRACKS_TRIGGER);   /* (SELECT, or the overlay with the pads off: as the track rows) */
+        } else {
+            jln_pad(&a->n, a->scale, x, (uint8_t)(y - shift), &p);
+            c = jln_color(&p, p.note >= 0 && (((own[p.note >> 3] >> (p.note & 7)) & 1) || pushed(a, a->n.track, p.note)));
+        }
+        f->led[JLX_PAD0 + i].color = c;
+    }
+}
+
+void jlapp_frame(const struct jlapp *a, struct jlx_frame *f)
+{
+    int up = -1, down = 0, step = a->mode == JLAPP_MODE_STEP;
+    memset(f, 0, sizeof *f);
+    if (!a->dn2_present)
+        return;                        /* no Digitone: everything dark */
+    if (a->page || a->mode == JLAPP_MODE_NOTE || a->mode == JLAPP_MODE_PALETTE) {
+        pads_frame(a, f);
+    } else if (step) {                 /* the step modes draw all 64 pads */
         struct jln n = a->n;
         struct jlst_ctx c = step_ctx(a, &n);
         jlst_frame(&a->step, &c, f);
-    } else if (a->mode == JLAPP_MODE_MIXER && !a->page) {   /* so does the mixer */
+    } else if (a->mode == JLAPP_MODE_MIXER) {   /* so does the mixer */
         jlmx_frame(&a->mix, a->now_ms, f);
-    } else if (a->mode == JLAPP_MODE_PALETTE && !a->page) {   /* and the colour chart: the palette index is the colour */
-        for (uint8_t y = 0; y < 8; y++)
-            for (uint8_t x = 0; x < 8; x++)
-                f->led[JLX_PAD0 + y * 8u + x].color = palette_index(a, x, y);
-    } else if (a->mode == JLAPP_MODE_SESSION && !a->page) {   /* and the Session page: the patterns */
+    } else {                           /* and the Session page: the patterns */
         jlapp_page_frame(a, f);
     }
-    for (uint8_t y = 0; y < 8; y++)
-        for (uint8_t x = 0; x < 8; x++) {
-            struct jln_pad p;
-            int playing;
-            if (a->mode != JLAPP_MODE_NOTE && !a->page)
-                break;
-            if (a->page) {
-                f->led[JLX_PAD0 + y * 8u + x].color = page_colour(a, x, y);
-                continue;
-            }
-            if (y < JLAPP_TRACK_ROWS && (shift || chosen_shown)) {
-                f->led[JLX_PAD0 + y * 8u + x].color = track_pad_colour(a, track_of_pad(y, x));
-                continue;
-            }
-            jln_pad(&a->n, a->scale, x, (uint8_t)(y - shift), &p);
-            playing = p.note >= 0 && ((own[p.note >> 3] >> (p.note & 7)) & 1 || (a->push && pushed(a, a->n.track, p.note)));
-            f->led[JLX_PAD0 + y * 8u + x].color = jln_color(&p, playing);
-        }
-    /* the arrows are green, and dim at the end of what they do (Launchpad 95's Note.Octave): the octave's limits, the first and last track; left and right are
-     * amber while FOLLOW is on */
-    if (a->mode == JLAPP_MODE_MIXER) {   /* the mixer's up / down are the banks: up goes to tracks 1-8, down to 9-16, dim where there is nothing further */
-        f->led[JLX_TOP0 + BUTTON_UP].color = a->mix.bank > 0u ? JLAPP_COLOR_ARROW_ON : JLAPP_COLOR_ARROW_OFF;
-        f->led[JLX_TOP0 + BUTTON_DOWN].color = a->mix.bank + 1u < JLMX_BANKS ? JLAPP_COLOR_ARROW_ON : JLAPP_COLOR_ARROW_OFF;
-    } else if (a->mode == JLAPP_MODE_SESSION) {   /* the Session page's: up the first half, down the other, as the mixer's */
-        f->led[JLX_TOP0 + BUTTON_UP].color = a->sess.half ? JLAPP_COLOR_ARROW_ON : JLAPP_COLOR_ARROW_OFF;
-        f->led[JLX_TOP0 + BUTTON_DOWN].color = a->sess.half ? JLAPP_COLOR_ARROW_OFF : JLAPP_COLOR_ARROW_ON;
-    } else if (!(a->mode == JLAPP_MODE_STEP && a->step_kind == JLST_DRUM)) {   /* drum step has no octave */
-        f->led[JLX_TOP0 + BUTTON_UP].color = a->n.octave + 1u < jln_octaves(&a->n) ? JLAPP_COLOR_ARROW_ON : JLAPP_COLOR_ARROW_OFF;
-        f->led[JLX_TOP0 + BUTTON_DOWN].color = a->n.octave > 0u ? JLAPP_COLOR_ARROW_ON : JLAPP_COLOR_ARROW_OFF;
+    /* up / down: the mixer's banks (up goes to tracks 1-8, down to 9-16), the Session page's halves (up the first), else the octave (drum step has none); dim where there
+     * is nothing further */
+    if (a->mode == JLAPP_MODE_MIXER) {
+        up = a->mix.bank > 0u;
+        down = a->mix.bank + 1u < JLMX_BANKS;
+    } else if (a->mode == JLAPP_MODE_SESSION) {
+        up = a->sess.half;
+        down = !a->sess.half;
+    } else if (!(step && a->step_kind == JLST_DRUM)) {
+        up = a->n.octave + 1u < jln_octaves(&a->n);
+        down = a->n.octave > 0u;
     }
-    f->led[JLX_TOP0 + BUTTON_LEFT].color = a->n.track > 0u ? (a->follow ? JLAPP_COLOR_FOLLOW_ON : JLAPP_COLOR_ARROW_ON)
-                                                           : (a->follow ? JLAPP_COLOR_FOLLOW_OFF : JLAPP_COLOR_ARROW_OFF);
-    f->led[JLX_TOP0 + BUTTON_RIGHT].color = a->n.track + 1u < JLN_TRACKS ? (a->follow ? JLAPP_COLOR_FOLLOW_ON : JLAPP_COLOR_ARROW_ON)
-                                                                         : (a->follow ? JLAPP_COLOR_FOLLOW_OFF : JLAPP_COLOR_ARROW_OFF);
-    f->led[JLX_TOP0 + BUTTON_NOTE].color = a->mode == JLAPP_MODE_NOTE ? JLAPP_COLOR_MODE : JLAPP_COLOR_MODE_DIM;
+    if (up >= 0) {
+        f->led[JLX_TOP0 + BUTTON_UP].color = arrow(up, 0);
+        f->led[JLX_TOP0 + BUTTON_DOWN].color = arrow(down, 0);
+    }
+    f->led[JLX_TOP0 + BUTTON_LEFT].color = arrow(a->n.track > 0u, a->follow);
+    f->led[JLX_TOP0 + BUTTON_RIGHT].color = arrow(a->n.track + 1u < JLN_TRACKS, a->follow);
+    f->led[JLX_TOP0 + BUTTON_NOTE].color = on_off(a->mode == JLAPP_MODE_NOTE, JLAPP_COLOR_MODE, JLAPP_COLOR_MODE_DIM);
     /* A button that does something is always lit: dim when its mode is not on, full when it is (owner 2026-11-24). Custom leads to the step mode last used (melodic at
      * first): deep blue for melodic, yellow for drum (owner 2026-11-25). */
-    {
-        int on = a->mode == JLAPP_MODE_STEP;
-        if (a->step_kind == JLST_MELODIC)
-            f->led[JLX_TOP0 + BUTTON_CUSTOM_IDX].color = on ? JLAPP_COLOR_CUSTOM_MELODIC : JLAPP_COLOR_CUSTOM_MELODIC_DIM;
-        else
-            f->led[JLX_TOP0 + BUTTON_CUSTOM_IDX].color = on ? JLAPP_COLOR_CUSTOM_DRUM : JLAPP_COLOR_CUSTOM_DRUM_DIM;
-    }
+    f->led[JLX_TOP0 + BUTTON_CUSTOM_IDX].color = a->step_kind == JLST_MELODIC ? on_off(step, JLAPP_COLOR_CUSTOM_MELODIC, JLAPP_COLOR_CUSTOM_MELODIC_DIM)
+                                                                              : on_off(step, JLAPP_COLOR_CUSTOM_DRUM, JLAPP_COLOR_CUSTOM_DRUM_DIM);
     /* the mixer's button (Launchpad 95's Mixer: MINT, dim when it is not on), always lit */
-    f->led[JLX_TOP0 + BUTTON_CAPTURE_IDX].color = a->mode == JLAPP_MODE_MIXER ? JLMX_COLOR_BUTTON : JLMX_COLOR_BUTTON_DIM;
-    f->led[JLX_TOP0 + BUTTON_SESSION_IDX].color = a->mode == JLAPP_MODE_PALETTE || a->mode == JLAPP_MODE_SESSION ? JLAPP_COLOR_PALETTE_ON : JLAPP_COLOR_PALETTE_OFF;   /* white on the page or in the chart, dim grey otherwise */
+    f->led[JLX_TOP0 + BUTTON_CAPTURE_IDX].color = on_off(a->mode == JLAPP_MODE_MIXER, JLMX_COLOR_BUTTON, JLMX_COLOR_BUTTON_DIM);
+    f->led[JLX_TOP0 + BUTTON_SESSION_IDX].color = on_off(a->mode == JLAPP_MODE_PALETTE || a->mode == JLAPP_MODE_SESSION, JLAPP_COLOR_PALETTE_ON, JLAPP_COLOR_PALETTE_OFF);   /* white on the page or in the chart, dim grey otherwise */
     if (a->mode == JLAPP_MODE_MIXER) {   /* the scene buttons pick the view; start / stop is the other modes' */
         for (uint8_t i = 0; i < 8u; i++)
             f->led[JLX_SIDE0 + i].color = jlmx_scene_colour(&a->mix, i);
-    } else {
-        f->led[JLX_SIDE0 + JLAPP_SIDE_START_STOP].color = jltr_lit(&a->tr, a->live_state == JDL_LIVE) ? JLAPP_GREEN : JLAPP_GREEN_THIRD;   /* start / stop (owner 2026-11-25): always green, full while playing (the Digitone's transport while it leads), third when stopped */
-        if (a->mode != JLAPP_MODE_SESSION) {   /* the Session page: only start / stop (owner 2026-11-25: "rec and mute(delete/erase) should not be on session") */
-            f->led[JLX_SIDE0 + JLAPP_SIDE_DELETE].color = !JLAPP_ERASE ? 0 : a->erase_on ? JLAPP_PINK : JLAPP_PINK_THIRD;        /* delete: bright while held */
-            f->led[JLX_SIDE0 + JLAPP_SIDE_RECORD].color = JLAPP_RECORD && a->record_ok ? (a->record_on ? JLAPP_RED : JLAPP_RED_THIRD) : 0;
-        }   /* record: red armed / recording, dim red off, dark when the Digitone has none */
+        return;
+    }
+    f->led[JLX_SIDE0 + JLAPP_SIDE_START_STOP].color = on_off(TRANSPORT_LIT(a), JLAPP_GREEN, JLAPP_GREEN_THIRD);   /* start / stop (owner 2026-11-25): always green, full while playing (the Digitone's transport while it leads), third when stopped */
+    if (a->mode != JLAPP_MODE_SESSION) {   /* the Session page: only start / stop (owner 2026-11-25: "rec and mute(delete/erase) should not be on session") */
+        if (JLAPP_ERASE)               /* delete: bright while held */
+            f->led[JLX_SIDE0 + JLAPP_SIDE_DELETE].color = on_off(a->erase_on, JLAPP_PINK, JLAPP_PINK_THIRD);
+        if (JLAPP_RECORD && a->record_ok)   /* record: red armed / recording, dim red off, dark when the Digitone has none */
+            f->led[JLX_SIDE0 + JLAPP_SIDE_RECORD].color = on_off(a->record_on, JLAPP_RED, JLAPP_RED_THIRD);
     }
 }
 
