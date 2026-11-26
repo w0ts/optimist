@@ -5956,8 +5956,8 @@
     "bit": 456,
     "default": 0,
     "parent": "WIFI_LINK",
-    "desc": "The FM-1 is also a network adapter on the computer it is plugged into (CDC-NCM: macOS, Linux and Windows 11 have the driver). With the Wi-Fi OFF, Ableton Link runs over the cable: Live and the FM-1 in one session, no Wi-Fi. In MODE JANK the computer is one more unit of the group (as a jank stick makes it): Live joins the FM-1s on the air. Nothing is routed and there is no DHCP: the computer gives itself a 169.254.x.y address, as the units do. In the Wi-Fi's other modes (a network joined, the FM-1's access point) the cable carries nothing. SYSTEM > USB: STATE (OFF, WAITING, the FM-1's address on the cable, or WI-FI). The adapter uses the endpoints of the USB audio output's feedback and of the serial console: in a build with USB audio or the console, SYSTEM > USB's NETWORK picks it (ON: the computer's audio output to the FM-1, or the serial port, is gone meanwhile; MIDI and the 4-stem audio input stay); switching drops the FM-1 off USB for about a second; the setting is kept. The release only (fm1-base's); Optimist's own firmware has none. Off by default. Not tested on an FM-1 yet.",
-    "experimental": true,
+    "desc": "The FM-1 is also a network adapter on the computer it is plugged into (CDC-NCM: macOS, Linux and Windows 11 have the driver). With the Wi-Fi OFF, Ableton Link runs over the cable: Live and the FM-1 in one session, no Wi-Fi. In MODE JANK the computer is one more unit of the group (as a jank stick makes it): Live joins the FM-1s on the air. Nothing is routed and there is no DHCP: the computer gives itself a 169.254.x.y address, as the units do. In the Wi-Fi's other modes (a network joined, the FM-1's access point) the cable carries nothing. SYSTEM > USB: STATE (OFF, WAITING, the FM-1's address on the cable, or WI-FI). The adapter uses the endpoints of the USB audio output's feedback and of the serial console: in a build with USB audio or the console, SYSTEM > USB's NETWORK picks it (ON: the computer's audio output to the FM-1, or the serial port, is gone meanwhile; MIDI and the 4-stem audio input stay); switching drops the FM-1 off USB for about a second; the setting is kept. The release only (fm1-base's); Optimist's own firmware has none. Off by default. Tested on an FM-1 with macOS; not tried on Windows or Linux yet.",
+    "experimental": false,
     "notice": "",
     "off_warning": "",
     "env": "",
@@ -5974,7 +5974,7 @@
     "hidden": false,
     "shown_under": null,
     "dim_when": null,
-    "tested": "host-tested (the USB function against a model of the controller and of a computer's driver, the frames, the service in fm1-base's Wi-Fi stack); not run on an FM-1 yet",
+    "tested": "on an FM-1 with macOS (2026-11-25): the adapter, its address, ping, Link over the cable; host-tested (the USB function against a model of the controller and of a computer's driver, the frames, the service in fm1-base's Wi-Fi stack); not tried on Windows or Linux yet",
     "provenance_line": ""
    },
    {

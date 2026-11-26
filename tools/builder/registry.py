@@ -1526,9 +1526,10 @@ _add("USB_HOST", "FELUCCA_USB_HOST", "USB MIDI host: a USB-MIDI keyboard, contro
 # USB network (2026-11-25): fm1-base's (fm1.toml usb_net = true; felucca-bsp's CDC-NCM function, wifi/wifi_usbnet.h);
 # the release only, as USB_HOST. Bit 456.
 _add("USB_NET", "FELUCCA_USB_NET", "USB network: Link over the cable, the computer on MODE JANK's air", M, 456,
-     default=0, parent="WIFI_LINK", target_only=True, experimental=True,
-     tested="host-tested (the USB function against a model of the controller and of a computer's driver, the frames, "
-            "the service in fm1-base's Wi-Fi stack); not run on an FM-1 yet",
+     default=0, parent="WIFI_LINK", target_only=True,
+     tested="on an FM-1 with macOS (2026-11-25): the adapter, its address, ping, Link over the cable; host-tested (the "
+            "USB function against a model of the controller and of a computer's driver, the frames, the service in "
+            "fm1-base's Wi-Fi stack); not tried on Windows or Linux yet",
      desc="The FM-1 is also a network adapter on the computer it is plugged into (CDC-NCM: macOS, Linux and Windows 11 "
           "have the driver). With the Wi-Fi OFF, Ableton Link runs over the cable: Live and the FM-1 in one session, no "
           "Wi-Fi. In MODE JANK the computer is one more unit of the group (as a jank stick makes it): Live joins the "
@@ -1539,7 +1540,7 @@ _add("USB_NET", "FELUCCA_USB_NET", "USB network: Link over the cable, the comput
           "the console, SYSTEM > USB's NETWORK picks it (ON: the computer's audio output to the FM-1, or the serial "
           "port, is gone meanwhile; MIDI and the 4-stem audio input stay); switching drops the FM-1 off USB for about "
           "a second; the setting is kept. The release only (fm1-base's); Optimist's own firmware has none. Off by "
-          "default. Not tested on an FM-1 yet.")
+          "default. Tested on an FM-1 with macOS; not tried on Windows or Linux yet.")
 
 # Where each engine's hot code runs (the user, 2026-10-29): the engine's item is a choice, off / on (its render path
 # from the XIP flash, through the flash cache) / on, code in RAM (RAM code: out of the cache's way, its bytes taken from
