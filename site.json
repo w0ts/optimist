@@ -1,0 +1,7 @@
+{
+  "site": {"name": "Optimist", "prefix": "optimist", "repo": "https://github.com/w0ts/optimist"},
+  "build": [
+    {"run": "python3 web/make_site.py --local \"$(cat VERSION)\" \"$OUT\"",
+     "why": "the site with no firmware, as make site / make web lay it out (pages.yml adds the packages and releases)"}
+  ]
+}
