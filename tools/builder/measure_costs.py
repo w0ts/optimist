@@ -845,7 +845,8 @@ def run(a, old, logd, new_pairs, write):
             err, _, _ = C.validate(cfg)
             if err:                                     # (the value itself refused in this build kind, USB_HOST in the classic: skipped;
                 print(f"  {k}={v}: skipped ({'; '.join(err)})")   # the context it is measured in refused: a stale WITH, reported)
-                if any(k not in getattr(e, "keys", ()) for e in err):
+                own = {k, it.parent} - {None}           # (its parent refused is its own refusal: LAUNCHPAD under USB_HOST in the classic)
+                if any(not own & set(getattr(e, "keys", ())) for e in err):
                     FAILED[f"{k}={v}"] = "its measurement context is refused: " + "; ".join(err)
                 continue
             delta = item_delta_of(out, k, v, cfg, base, logd, prev_sizes)
