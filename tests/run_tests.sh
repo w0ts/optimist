@@ -83,6 +83,7 @@ flush() {     # print the done units in order; a unit that stopped (a compile fa
         [ ! -f "$JD/$np.fail" ] || fail=1
         rc=$(cat "$JD/$np.rc")
         if [ "$rc" != 0 ]; then
+            echo "!! STOPPED: unit $np exited $rc (a compile failed: its output above); the units after it did not run"
             running; while [ $r -gt 0 ]; do sleep $NAP; running; done
             exit "$rc"
         fi
