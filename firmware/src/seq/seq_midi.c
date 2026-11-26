@@ -25,6 +25,7 @@
  *       sequencer, the arp and the rolls play. The arp plays what is held, so a held MIDI note arpeggiated goes out
  *       as the arp's notes: that is the arp's output, not an echo of the note.
  *   Called from the audio interrupt (events_block): no waits, midi_out_event only queues. */
+#include "live_tap.h"                     /* the Launchpad's note tap at seq_out_on (FELUCCA_LAUNCHPAD) */
 #define MCH_OFF 0xFFu
 /* the sequencer's notes go out: BOTH or SEQ (KEYS: the keys alone; OFF: nothing, 2026-10-29) */
 static int mout_seq(void) { return bp_set[BPS_MOUT] == MOUT_BOTH || bp_set[BPS_MOUT] == MOUT_SEQ; }
@@ -109,6 +110,7 @@ static int seq_out_held(const track_t *t, uint32_t note)    /* its note is on (a
 static FAST(seq) void seq_out_on(const track_t *t, uint32_t note, uint32_t vel)
 {
     uint32_t i = trk_index(t) % NTRK, ch = trk_midi_ch(i), w;
+    LV_TAP(t, note, vel);                  /* (live control's push: every note played, whatever MIDI OUT is) */
     if (!mout_seq() || note > 127u || ch == MCH_OFF)
         return;
     for (w = 0; w < 4u && !mo_set[i][w]; w++)
@@ -147,7 +149,7 @@ static void seq_out_check(void)
     mo_any = (uint8_t)busy;
 }
 #else
-#define seq_out_on(t, n, v) ((void)0)
+#define seq_out_on(t, n, v) LV_TAP((t), (n), (v))   /* (no MIDI OUT: live control's tap alone) */
 #define seq_out_off(t, n) ((void)0)
 #define seq_out_held(t, n) 0
 #define seq_out_track_off(t) ((void)0)
@@ -156,7 +158,7 @@ static void seq_out_check(void)
 #if FELUCCA_SEQ_RAM                    /* (FAST_CALL(seqev, f) takes a function's address: functions, not macros) */
 #undef seq_out_on
 #undef seq_out_off
-static void seq_out_on(const track_t *t, uint32_t n, uint32_t v) { (void)t, (void)n, (void)v; }
+static void seq_out_on(const track_t *t, uint32_t n, uint32_t v) { (void)t, (void)n, (void)v; LV_TAP(t, n, v); }
 static void seq_out_off(const track_t *t, uint32_t n) { (void)t, (void)n; }
 #endif
 #endif

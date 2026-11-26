@@ -1,6 +1,6 @@
 {
  "base": {
-  "flash": 754012,
+  "flash": 754068,
   "ram": 99444,
   "pool": 357936,
   "ramtext": 60156
@@ -1867,9 +1867,17 @@
     "pool": 66480,
     "ramtext": 284
    }
+  },
+  "LAUNCHPAD": {
+   "1": {
+    "flash": 20052,
+    "ram": 2928,
+    "pool": 0,
+    "ramtext": 0
+   }
   }
  },
- "measured": "2026-11-26 07:35",
+ "measured": "2026-11-26 10:44",
  "cpu": {
   "scale_pct": 104,
   "calibrated": "2026-10-06, emulator at 96 MHz, bench.c scenarios 1 2 3 7 8 (docs/CPU-GUARD.md); X0X: 2026-10-07, scenario 8 on the X0X 909 and 808 kits (x0x-drums)",
@@ -1891,7 +1899,7 @@
  },
  "checks": {
   "bt-debug": {
-   "hash": "44fa0bc5",
+   "hash": "4ee54a8e",
    "cfg": {
     "A2_LADR": 1,
     "A2_OTA": 1,
@@ -1982,9 +1990,9 @@
     "GRIDS_LFO": 1,
     "GRIDS_VEL": 1
    },
-   "built_hash": "1ef79801",
+   "built_hash": "6254e726",
    "sizes": {
-    "flash": 633464,
+    "flash": 633512,
     "ram": 118112,
     "pool": 277584,
     "ramtext": 55956
@@ -1992,7 +2000,7 @@
    "contexts": {}
   },
   "dev": {
-   "hash": "630359b7",
+   "hash": "41fc15dc",
    "cfg": {
     "A2_LADR": 1,
     "A2_OTA": 1,
@@ -2086,9 +2094,9 @@
     "GRIDS_EUCLID": 1,
     "GRIDS_LFO": 1
    },
-   "built_hash": "384feef0",
+   "built_hash": "0954f867",
    "sizes": {
-    "flash": 674764,
+    "flash": 674820,
     "ram": 128036,
     "pool": 297500,
     "ramtext": 57100
@@ -2096,7 +2104,7 @@
    "contexts": {}
   },
   "drum-machines": {
-   "hash": "7fe6775f",
+   "hash": "4186fcfa",
    "cfg": {
     "ENG_ANALOG": 0,
     "ENG_DIGITAL": 2,
@@ -2160,9 +2168,9 @@
     "GRIDS_LFO": 1,
     "GRIDS_VEL": 1
    },
-   "built_hash": "6be8e9d9",
+   "built_hash": "211bedb0",
    "sizes": {
-    "flash": 652736,
+    "flash": 652780,
     "ram": 101768,
     "pool": 177916,
     "ramtext": 39232
@@ -2170,7 +2178,7 @@
    "contexts": {}
   },
   "mots-config": {
-   "hash": "55a5195c",
+   "hash": "6a2a32cd",
    "cfg": {
     "ENG_ANALOG": 2,
     "A2_LADR": 1,
@@ -2282,17 +2290,17 @@
     "GRIDS_LFO": 1,
     "GRIDS_VEL": 1
    },
-   "built_hash": "2df9886d",
+   "built_hash": "614282e8",
    "sizes": {
-    "flash": 817308,
-    "ram": 115032,
+    "flash": 817536,
+    "ram": 115320,
     "pool": 62556,
     "ramtext": 54176
    },
    "contexts": {}
   },
   "sd-card-mots": {
-   "hash": "6a32f6f2",
+   "hash": "3ab9a6cd",
    "cfg": {
     "A2_LADR": 1,
     "A2_OTA": 1,
@@ -2403,17 +2411,17 @@
     "GRIDS_LFO": 1,
     "GRIDS_VEL": 1
    },
-   "built_hash": "01531f92",
+   "built_hash": "38f2e2d1",
    "sizes": {
-    "flash": 821436,
-    "ram": 133108,
+    "flash": 821676,
+    "ram": 133396,
     "pool": 106880,
     "ramtext": 66324
    },
    "contexts": {}
   },
   "sd-card": {
-   "hash": "1e0a367b",
+   "hash": "582f8b7c",
    "cfg": {
     "A2_LADR": 1,
     "A2_OTA": 1,
@@ -2506,10 +2514,10 @@
     "GRIDS_LFO": 1,
     "GRIDS_VEL": 1
    },
-   "built_hash": "6fe659b1",
+   "built_hash": "566bd7a6",
    "sizes": {
-    "flash": 711720,
-    "ram": 118992,
+    "flash": 711764,
+    "ram": 118988,
     "pool": 295372,
     "ramtext": 55600
    },
@@ -2518,8 +2526,8 @@
      "from": 1,
      "to": 0,
      "delta": {
-      "flash": -44064,
-      "ram": -2964,
+      "flash": -44072,
+      "ram": -2960,
       "pool": -14220,
       "ramtext": 0
      }
@@ -2527,7 +2535,7 @@
    }
   },
   "sd-dev": {
-   "hash": "138c410e",
+   "hash": "312e960d",
    "cfg": {
     "A2_LADR": 1,
     "A2_OTA": 1,
@@ -2624,9 +2632,9 @@
     "GRIDS_LFO": 1,
     "GRIDS_VEL": 1
    },
-   "built_hash": "183fbeed",
+   "built_hash": "7cd8627a",
    "sizes": {
-    "flash": 675348,
+    "flash": 675404,
     "ram": 128424,
     "pool": 297500,
     "ramtext": 57156
@@ -2634,7 +2642,7 @@
    "contexts": {}
   },
   "sd-mode-probe": {
-   "hash": "15d0f1f0",
+   "hash": "18b596d3",
    "cfg": {
     "A2_LADR": 1,
     "A2_OTA": 1,
@@ -2731,9 +2739,9 @@
     "GRIDS_EUCLID": 1,
     "GRIDS_LFO": 1
    },
-   "built_hash": "4a2d8fef",
+   "built_hash": "23561f88",
    "sizes": {
-    "flash": 667508,
+    "flash": 667504,
     "ram": 116028,
     "pool": 281152,
     "ramtext": 55600
@@ -2741,7 +2749,7 @@
    "contexts": {}
   },
   "synths-2": {
-   "hash": "0927dc5a",
+   "hash": "057a7d71",
    "cfg": {
     "ENG_ANALOG": 2,
     "A2_LADR": 1,
@@ -2826,9 +2834,9 @@
     "COND": 1,
     "SEQTOOLS": 1
    },
-   "built_hash": "15f8eefa",
+   "built_hash": "6ef526ed",
    "sizes": {
-    "flash": 631168,
+    "flash": 631228,
     "ram": 105804,
     "pool": 302288,
     "ramtext": 34100
@@ -2836,7 +2844,7 @@
    "contexts": {}
   },
   "synths": {
-   "hash": "67ed9f86",
+   "hash": "12c16441",
    "cfg": {
     "A2_LADR": 1,
     "A2_OTA": 1,
@@ -2924,17 +2932,17 @@
     "QCHAIN": 0,
     "COND": 1
    },
-   "built_hash": "7cfd26ea",
+   "built_hash": "6ff8b28b",
    "sizes": {
-    "flash": 605492,
-    "ram": 114624,
+    "flash": 605532,
+    "ram": 114628,
     "pool": 240352,
     "ramtext": 51672
    },
    "contexts": {}
   },
   "bt-debug~": {
-   "hash": "02964c2c",
+   "hash": "0c0eb8e7",
    "cfg": {
     "A2_LADR": 1,
     "A2_OTA": 1,
@@ -3024,9 +3032,9 @@
     "GRIDS_LFO": 1,
     "GRIDS_VEL": 1
    },
-   "built_hash": "72f59154",
+   "built_hash": "612e7b03",
    "sizes": {
-    "flash": 635148,
+    "flash": 635176,
     "ram": 135636,
     "pool": 244816,
     "ramtext": 56328
@@ -3034,7 +3042,7 @@
    "contexts": {}
   },
   "dev~": {
-   "hash": "0e9f9570",
+   "hash": "6878ae33",
    "cfg": {
     "A2_LADR": 1,
     "A2_OTA": 1,
@@ -3128,9 +3136,9 @@
     "GRIDS_EUCLID": 1,
     "GRIDS_LFO": 1
    },
-   "built_hash": "36420d67",
+   "built_hash": "556b7e10",
    "sizes": {
-    "flash": 655120,
+    "flash": 655176,
     "ram": 127864,
     "pool": 294124,
     "ramtext": 65920
@@ -3138,7 +3146,7 @@
    "contexts": {}
   },
   "drum-machines~": {
-   "hash": "139997f9",
+   "hash": "091f34e4",
    "cfg": {
     "ENG_ANALOG": 0,
     "ENG_DIGITAL": 2,
@@ -3200,9 +3208,9 @@
     "GRIDS_LFO": 1,
     "GRIDS_VEL": 1
    },
-   "built_hash": "5e4b5add",
+   "built_hash": "203e2214",
    "sizes": {
-    "flash": 612580,
+    "flash": 612620,
     "ram": 101788,
     "pool": 172572,
     "ramtext": 39264
@@ -3210,7 +3218,7 @@
    "contexts": {}
   },
   "mots-config~": {
-   "hash": "794c264c",
+   "hash": "118441fd",
    "cfg": {
     "ENG_ANALOG": 2,
     "A2_LADR": 1,
@@ -3317,17 +3325,17 @@
     "COND": 1,
     "SEQTOOLS": 1
    },
-   "built_hash": "2798f494",
+   "built_hash": "2a1104ed",
    "sizes": {
-    "flash": 772752,
-    "ram": 106900,
+    "flash": 772976,
+    "ram": 107156,
     "pool": 57224,
     "ramtext": 53616
    },
    "contexts": {}
   },
   "sd-card-mots~": {
-   "hash": "772e4afd",
+   "hash": "740ec5c0",
    "cfg": {
     "A2_LADR": 1,
     "A2_OTA": 1,
@@ -3434,17 +3442,17 @@
     "GRIDS_LFO": 1,
     "GRIDS_VEL": 1
    },
-   "built_hash": "1c8c0691",
+   "built_hash": "7a4a51c8",
    "sizes": {
-    "flash": 827420,
-    "ram": 135220,
+    "flash": 827668,
+    "ram": 135508,
     "pool": 107352,
     "ramtext": 66340
    },
    "contexts": {}
   },
   "sd-card~": {
-   "hash": "579ec855",
+   "hash": "6086ab46",
    "cfg": {
     "A2_LADR": 1,
     "A2_OTA": 1,
@@ -3539,10 +3547,10 @@
     "GRIDS_LFO": 1,
     "GRIDS_VEL": 1
    },
-   "built_hash": "2e5a512f",
+   "built_hash": "4957ff8c",
    "sizes": {
-    "flash": 710796,
-    "ram": 119000,
+    "flash": 710836,
+    "ram": 118996,
     "pool": 293600,
     "ramtext": 54688
    },
@@ -3551,8 +3559,8 @@
      "from": 1,
      "to": 0,
      "delta": {
-      "flash": -44048,
-      "ram": -2996,
+      "flash": -44056,
+      "ram": -2992,
       "pool": -14220,
       "ramtext": 0
      }
@@ -3560,7 +3568,7 @@
    }
   },
   "sd-dev~": {
-   "hash": "13366748",
+   "hash": "62cf87ab",
    "cfg": {
     "A2_LADR": 1,
     "A2_OTA": 1,
@@ -3656,9 +3664,9 @@
     "COND": 1,
     "SEQTOOLS": 1
    },
-   "built_hash": "3d9138fa",
+   "built_hash": "02bcf445",
    "sizes": {
-    "flash": 666448,
+    "flash": 666500,
     "ram": 127416,
     "pool": 264480,
     "ramtext": 55024
@@ -3666,7 +3674,7 @@
    "contexts": {}
   },
   "sd-mode-probe~": {
-   "hash": "15b721e3",
+   "hash": "75ef6e54",
    "cfg": {
     "A2_LADR": 1,
     "A2_OTA": 1,
@@ -3764,9 +3772,9 @@
     "GRIDS_EUCLID": 1,
     "GRIDS_LFO": 1
    },
-   "built_hash": "100c3094",
+   "built_hash": "2f5225c7",
    "sizes": {
-    "flash": 666492,
+    "flash": 666516,
     "ram": 115252,
     "pool": 281288,
     "ramtext": 53020
@@ -3774,7 +3782,7 @@
    "contexts": {}
   },
   "synths-2~": {
-   "hash": "1b413094",
+   "hash": "3a64d29f",
    "cfg": {
     "ENG_ANALOG": 2,
     "A2_LADR": 1,
@@ -3855,9 +3863,9 @@
     "COND": 1,
     "SEQTOOLS": 1
    },
-   "built_hash": "16098f7c",
+   "built_hash": "68259b73",
    "sizes": {
-    "flash": 626008,
+    "flash": 626048,
     "ram": 105116,
     "pool": 304284,
     "ramtext": 35492
@@ -3865,7 +3873,7 @@
    "contexts": {}
   },
   "synths~": {
-   "hash": "6b3c3cd9",
+   "hash": "70425f9e",
    "cfg": {
     "A2_LADR": 1,
     "A2_OTA": 1,
@@ -3956,9 +3964,9 @@
     "QCHAIN": 0,
     "COND": 1
    },
-   "built_hash": "34cae52b",
+   "built_hash": "7691240a",
    "sizes": {
-    "flash": 615548,
+    "flash": 615596,
     "ram": 123740,
     "pool": 242192,
     "ramtext": 54592

@@ -628,6 +628,10 @@ static uint32_t eng_slot_built(uint32_t uid) { return ENG_DENSE ? uid : eng_slot
 #define FELUCCA_ED_MIRROR 0                  /* web editor: the panel mirrored over USB as it is drawn (cmd 106, tag 0x65; the iPhone
                                               * app ios/OptimistMirror; io/editor/ed_mirror.c) */
 #endif
+#ifndef FELUCCA_LAUNCHPAD
+#define FELUCCA_LAUNCHPAD 0                  /* a Launchpad X on the USB host plays and edits the FM-1 (jank's app, third_party/jank;
+                                              * io/launchpad/, seq/live_tap.h; the release's USB host only) */
+#endif
 #ifndef FELUCCA_ED_FXS
 #define FELUCCA_ED_FXS FELUCCA_ED_MIX        /* web editor protocol v10: the FX slots (cmds 86, 87, tag 0x56) (io/editor/ed_fxs.c) */
 #endif

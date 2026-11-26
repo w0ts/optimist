@@ -1541,6 +1541,15 @@ _add("USB_NET", "FELUCCA_USB_NET", "USB network: Link over the cable, the comput
           "port, is gone meanwhile; MIDI and the 4-stem audio input stay); switching drops the FM-1 off USB for about "
           "a second; the setting is kept. The release only (fm1-base's); Optimist's own firmware has none. Off by "
           "default. Tested on an FM-1 with macOS; not tried on Windows or Linux yet.")
+_add("LAUNCHPAD", "FELUCCA_LAUNCHPAD", "Launchpad X on the USB host: it plays and edits the FM-1", M, 457,
+     default=0, parent="USB_HOST", target_only=True,
+     tested="host-tested only; not run on an FM-1 with a Launchpad yet",
+     desc="A Novation Launchpad X on the FM-1's USB host (SYSTEM > USB, MODE HOST, through a powered hub) plays and "
+          "edits the FM-1, as jank's Launchpad app plays a Digitone II (the same app, third_party/jank): the pads play "
+          "the selected track in its scale (the drum track's lanes as pads) and light the notes the FM-1 plays; the step "
+          "pages, the mixer (level, pan, the sends, mute, solo), the patterns as clips with the scenes, and PLAY / STOP. "
+          "While a Launchpad is the USB device its pads go to the app, not to the tracks as a keyboard's notes. The "
+          "release only (fm1-base's USB host). Off by default.")
 
 # Where each engine's hot code runs (the user, 2026-10-29): the engine's item is a choice, off / on (its render path
 # from the XIP flash, through the flash cache) / on, code in RAM (RAM code: out of the cache's way, its bytes taken from

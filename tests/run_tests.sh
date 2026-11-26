@@ -795,6 +795,10 @@ job; ( jobin
 job; ( jobin
     $CC -O2 -w -I"$HGEN" -Ifirmware/src -Ifirmware/hal $SEC4 -DFELUCCA_MICRO=1 -DFELUCCA_FILLS=1 -DFELUCCA_PLOCK=1 -DFELUCCA_CHANCE=1 -DFELUCCA_MOTION=1 -DFELUCCA_COND=1 -o "$OUT/editor_v14_test" tests/editor_sync_test.c -lm
     run "editor protocol v14 with the automation store whole: UNDO (the editor's writes are levels), NOTE (the ring to the audio interrupt, no hanging note), SOLO, STEPLANE off (the editor without the UI: its checks are the Optimist UI test's)" "$OUT/editor_v14_test"
+    $CC -O2 -w -I"$HGEN" -Ifirmware/src -Ifirmware/hal $SEC4 -DFELUCCA_LAUNCHPAD=1 -DFELUCCA_EDITOR=1 -o "$OUT/launchpad_test" tests/editor_sync_test.c -lm
+    run "a Launchpad on the USB host (io/launchpad/, jank's app): Programmer mode, the lights, the pads play the tracks and the drum lanes, the notes played come back as lights, the mixer and the mutes, unplugged" "$OUT/launchpad_test"
+    # the Launchpad's tap masks no interrupt: seq/live_tap.h has one writer (the audio interrupt) and one reader
+    if grep -nE "fm1_irq_|IRQ_SAVE|IRQ_RESTORE" firmware/src/seq/live_tap.h | grep -v "^[0-9]*:\s*\*\|/\*"; then echo "!! FAILED: seq/live_tap.h masks an interrupt"; : > "$U.fail"; else echo "live_tap.h: no interrupt masked  ok"; fi
     # the ring to the audio interrupt masks no interrupt: seq/ednote.c has one writer and one reader (no cli / sti, no fm1_irq_*, no IRQ_SAVE)
     if grep -nE "fm1_irq_|IRQ_SAVE|IRQ_RESTORE|__asm__ volatile\(\"(cli|sti)" firmware/src/seq/ednote.c | grep -v "^[0-9]*:\s*\*\|/\*"; then echo "!! FAILED: seq/ednote.c masks an interrupt"; : > "$U.fail"; else echo "ednote.c: no interrupt masked (the ISR path takes the ring only)  ok"; fi
 ) >"$U.out" 2>&1 & jobbg

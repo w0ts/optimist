@@ -20,6 +20,7 @@ TOPICS = (
     ("drums", "Drums", "lanes, kits, your samples and kits"),
     ("effects", "Effects", "inserts, sends, returns, the master"),
     ("midi-usb", "MIDI and USB", "MIDI, Bluetooth, USB audio and the web editor"),
+    ("launchpad", "Launchpad X", "a Launchpad X on the USB host plays and edits the FM-1"),
     ("getting-back", "Getting back", "to the official firmware, and what to do when the FM-1 does not start"),
 )
 

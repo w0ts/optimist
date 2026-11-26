@@ -96,6 +96,9 @@ static uint8_t pl_filt;
 #include "../firmware/src/io/editor/ed_fxs.c"
 #include "../firmware/src/io/editor/ed_sync9.c"
 #include "editor_v14.h"                                     /* v14: UNDO, NOTE, SOLO, STEPLANE */
+#if FELUCCA_LAUNCHPAD
+#include "launchpad_test.h"                                 /* a Launchpad on the USB host plays and edits the FM-1 */
+#endif
 #define ED_PAYLOAD_N (sizeof ed_out - 6u)
 #include "../firmware/src/io/editor/ed_clip.c"
 #include "editor_clip.h"                                    /* cmd 111 CLIP: the app's piano roll */
@@ -774,6 +777,9 @@ int main(void)
     ed_begin(1); ed_fav_info(); check(ed_n > 5u && ed_out[5] == 0x5Du, "ED_FAVS on: INFO carries tag 0x5D");
 #endif
     v14_tests();
+#if FELUCCA_LAUNCHPAD
+    lpt_tests();
+#endif
     clip_tests();
     printf("%s\n", fails ? "EDITOR SYNC TESTS FAILED" : "editor sync: all ok");
     return fails != 0;
