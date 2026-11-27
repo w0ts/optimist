@@ -82,13 +82,16 @@ def is_const(expr):
 def macros():
     """names #defined without parameters, and enum constants"""
     names = set()
-    for d in [*DIRS, ROOT / "build" / "gen"]:             # (generated headers after a build: CTL, SMP_NSETS)
-        for f in sources(d):
-            text = strip(f.read_text())
-            names.update(re.findall(r"^\s*#\s*define\s+([A-Za-z_]\w*)\b(?!\()", text, re.M))   # (\b: not a prefix of a function-like name)
-            for body in re.findall(r"\benum\b[^{;]*\{([^}]*)\}", text):
-                body = re.sub(r"^\s*#[^\n]*", "", body, flags=re.M)   # (#if / #endif inside: core.h P_TFLT .. P_COUNT)
-                names.update(re.findall(r"(?:^|,)\s*([A-Za-z_]\w*)", body))
+    # (generated headers after a build: CTL, SMP_NSETS; the vendored jank headers the Launchpad
+    # adapter includes: JDL_PAGE_STEPS. Headers only: in jank's .c files the enum pattern also
+    # matches "enum x v = ...; {" and would take s, if, return for constants)
+    files = [f for d in [*DIRS, ROOT / "build" / "gen"] for f in sources(d)]
+    for f in [*files, *(ROOT / "third_party" / "jank").glob("*.h")]:
+        text = strip(f.read_text())
+        names.update(re.findall(r"^\s*#\s*define\s+([A-Za-z_]\w*)\b(?!\()", text, re.M))   # (\b: not a prefix of a function-like name)
+        for body in re.findall(r"\benum\b[^{;]*\{([^}]*)\}", text):
+            body = re.sub(r"^\s*#[^\n]*", "", body, flags=re.M)   # (#if / #endif inside: core.h P_TFLT .. P_COUNT)
+            names.update(re.findall(r"(?:^|,)\s*([A-Za-z_]\w*)", body))
     return names
 
 
